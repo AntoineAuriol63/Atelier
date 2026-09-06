@@ -7,7 +7,14 @@ Créateur de sites web designer-first, code-natif et sans verrou. Assez simple p
 
 ## État
 
-v0 · fondations. Modèle de document, opérations inversibles, moteur de rendu, site d'exemple (vitrine de photographe) et coquille d'éditeur avec aperçu réel dans une iframe.
+v0 · fondations. Modèle de document, opérations inversibles, moteur de rendu, site d'exemple (vitrine de photographe), coquille d'éditeur avec aperçu réel dans une iframe, persistance avec journal d'opérations, annulation et rétablissement.
+
+## Persistance
+
+Le document est modifié uniquement par opérations. L'éditeur les applique localement, puis les envoie à `POST /api/sites/:id/changes` avec la version de base ; le serveur les rejoue, incrémente la version et les journalise. Une version de base périmée renvoie un conflit (409).
+
+- Sans configuration : fichiers JSON dans `.atelier-data/` (document courant + journal `.changes.jsonl`), amorcés avec le site d'exemple.
+- Avec `SUPABASE_URL` et `SUPABASE_SERVICE_ROLE_KEY` (voir `.env.example`) : tables `sites`, `changes`, `entries` et fonction `commit_change` de `supabase/schema.sql`.
 
 ## Démarrer
 

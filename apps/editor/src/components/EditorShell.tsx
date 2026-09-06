@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Node, Page, Site } from "@atelier/model";
 import { indexSite } from "@atelier/model";
+import { useDocument } from "@/lib/use-document";
+import { NodeInspector } from "./NodeInspector";
 
 const WIDTHS: { id: string; label: string; width: number | null }[] = [
   { id: "base", label: "Bureau", width: null },
@@ -10,12 +12,13 @@ const WIDTHS: { id: string; label: string; width: number | null }[] = [
   { id: "mobile", label: "Mobile", width: 390 },
 ];
 
-function nodeLabel(n: Node): string {
+const TYPE_LABEL: Record<string, string> = { box: "Boîte", text: "Texte", image: "Image", link: "Lien", collection: "Collection", item: "Élément", instance: "Composant", form: "Formulaire", field: "Champ", list: "Liste", listItem: "Élément", divider: "Séparateur", video: "Vidéo", icon: "Icône", embed: "Intégration", slot: "Emplacement", code: "Code" };
+
+export function nodeLabel(n: Node): string {
   if (n.name) return n.name;
   const tag = typeof n.props.tag === "string" ? n.props.tag : undefined;
-  const t: Record<string, string> = { box: "Boîte", text: "Texte", image: "Image", link: "Lien", collection: "Collection", item: "Élément", instance: "Composant", form: "Formulaire", field: "Champ", list: "Liste", listItem: "Élément", divider: "Séparateur", video: "Vidéo", icon: "Icône", embed: "Intégration", slot: "Emplacement", code: "Code" };
   if (n.type === "text" && tag) return tag.toUpperCase();
-  return t[n.type] ?? n.type;
+  return TYPE_LABEL[n.type] ?? n.type;
 }
 
 function Layer({ node, depth, selected, onSelect }: { node: Node; depth: number; selected: string | null; onSelect: (id: string) => void }) {
@@ -40,41 +43,65 @@ function Layer({ node, depth, selected, onSelect }: { node: Node; depth: number;
   );
 }
 
-export function EditorShell({ site }: { site: Site }) {
+const STATUS_LABEL: Record<string, string> = { saved: "Enregistré", saving: "Enregistrement…", conflict: "Conflit", error: "Erreur" };
+
+export function EditorShell({ initialSite, initialVersion }: { initialSite: Site; initialVersion: number }) {
+  const doc = useDocument(initialSite, initialVersion);
+  const site = doc.site;
   const [pageId, setPageId] = useState(site.pages[0]!.id);
   const [width, setWidth] = useState<string>("base");
   const [mode, setMode] = useState(site.theme.defaultMode);
   const [selected, setSelected] = useState<string | null>(null);
+  const [frameReady, setFrameReady] = useState(false);
   const frame = useRef<HTMLIFrameElement>(null);
   const page: Page = site.pages.find((p) => p.id === pageId) ?? site.pages[0]!;
   const index = useMemo(() => indexSite(site), [site]);
-  const selectedNode = selected ? index.get(selected)?.node : undefined;
+  const selectedLoc = selected ? index.get(selected) : undefined;
 
-  // Une page de modèle se prévisualise avec sa première entrée.
   const previewPath = page.kind === "template" ? "/preview/projets/lea-et-tom" : `/preview${page.path === "/" ? "" : page.path}`;
+  const post = (msg: unknown) => frame.current?.contentWindow?.postMessage(msg, "*");
 
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
       const m = e.data as { type?: string; id?: string };
       if (m?.type === "atelier:select" && m.id) setSelected(m.id);
-      if (m?.type === "atelier:ready") frame.current?.contentWindow?.postMessage({ type: "atelier:mode", mode }, "*");
+      if (m?.type === "atelier:ready") setFrameReady(true);
     };
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
-  }, [mode]);
+  }, []);
 
-  useEffect(() => { frame.current?.contentWindow?.postMessage({ type: "atelier:highlight", id: selected }, "*"); }, [selected]);
-  useEffect(() => { frame.current?.contentWindow?.postMessage({ type: "atelier:mode", mode }, "*"); }, [mode]);
+  // L'aperçu reçoit le site courant dès qu'il est prêt et à chaque modification.
+  useEffect(() => { if (frameReady) post({ type: "atelier:site", site }); }, [site, frameReady]);
+  useEffect(() => { if (frameReady) post({ type: "atelier:mode", mode }); }, [mode, frameReady]);
+  useEffect(() => { if (frameReady) post({ type: "atelier:highlight", id: selected }); }, [selected, frameReady]);
+
+  // Raccourcis : Cmd/Ctrl+Z annule, Cmd/Ctrl+Maj+Z rétablit.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
+      e.preventDefault();
+      if (e.shiftKey) doc.redo(); else doc.undo();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [doc]);
 
   const w = WIDTHS.find((x) => x.id === width)?.width ?? null;
 
   return (
-    <div className="h-full grid grid-rows-[44px_1fr] grid-cols-[260px_1fr_300px]">
-      <header className="col-span-3 flex items-center gap-4 px-4 border-b border-neutral-200 bg-white text-sm">
+    <div className="h-full grid grid-rows-[44px_1fr] grid-cols-[260px_1fr_320px]">
+      <header className="col-span-3 flex items-center gap-3 px-4 border-b border-neutral-200 bg-white text-sm">
         <span className="font-semibold tracking-tight">Atelier</span>
         <span className="text-neutral-400">·</span>
-        <span className="text-neutral-600">{site.name}</span>
-        <span className="text-neutral-300 text-xs ml-1">v0 · fondations</span>
+        <span className="text-neutral-600 truncate max-w-[220px]">{site.name}</span>
+        <div className="flex items-center gap-1 border-l border-neutral-200 pl-3">
+          <button className="btn" disabled={!doc.canUndo} onClick={doc.undo} title="Annuler (⌘Z)">↶ Annuler</button>
+          <button className="btn" disabled={!doc.canRedo} onClick={doc.redo} title="Rétablir (⇧⌘Z)">↷ Rétablir</button>
+        </div>
+        <span className={`text-xs px-2 py-0.5 rounded ${doc.status === "saved" ? "text-emerald-700 bg-emerald-50" : doc.status === "saving" ? "text-neutral-500 bg-neutral-100" : "text-red-700 bg-red-50"}`} title={doc.error}>
+          {STATUS_LABEL[doc.status]} · v{doc.version}
+        </span>
         <div className="ml-auto flex items-center gap-1">
           {["Écriture", "Design", "Code"].map((m, i) => (
             <button key={m} className={`px-3 py-1 rounded text-xs ${i === 1 ? "bg-neutral-900 text-white" : "text-neutral-500 hover:bg-neutral-100"}`} title="Modes : bientôt">{m}</button>
@@ -97,8 +124,8 @@ export function EditorShell({ site }: { site: Site }) {
         <ul className="px-2">
           {site.pages.map((p) => (
             <li key={p.id}>
-              <button onClick={() => { setPageId(p.id); setSelected(null); }} className={`w-full text-left px-2 py-1 rounded text-[13px] ${p.id === pageId ? "bg-neutral-900 text-white" : "hover:bg-neutral-100"}`}>
-                {p.name[site.settings.defaultLocale]} <span className={`font-mono text-[10px] ${p.id === pageId ? "text-neutral-400" : "text-neutral-400"}`}>{p.path}</span>
+              <button onClick={() => { setPageId(p.id); setSelected(null); setFrameReady(false); }} className={`w-full text-left px-2 py-1 rounded text-[13px] ${p.id === pageId ? "bg-neutral-900 text-white" : "hover:bg-neutral-100"}`}>
+                {p.name[site.settings.defaultLocale]} <span className="font-mono text-[10px] text-neutral-400">{p.path}</span>
               </button>
             </li>
           ))}
@@ -110,6 +137,7 @@ export function EditorShell({ site }: { site: Site }) {
       </aside>
 
       <main className="overflow-auto bg-neutral-200/70 flex justify-center items-start p-6">
+        {doc.error ? <div className="fixed top-14 left-1/2 -translate-x-1/2 z-10 bg-red-50 text-red-800 border border-red-200 rounded px-3 py-2 text-xs shadow">{doc.error}</div> : null}
         <iframe
           ref={frame}
           key={previewPath}
@@ -122,27 +150,8 @@ export function EditorShell({ site }: { site: Site }) {
 
       <aside className="border-l border-neutral-200 bg-white overflow-auto text-sm">
         <div className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-wider text-neutral-400">Sélection</div>
-        {selectedNode ? (
-          <div className="px-3 pb-4 space-y-3">
-            <div>
-              <div className="font-medium">{nodeLabel(selectedNode)}</div>
-              <div className="text-neutral-400 font-mono text-[11px]">{selectedNode.type} · {selectedNode.id}</div>
-            </div>
-            {selectedNode.style?.shared?.length ? (
-              <div>
-                <div className="text-[10px] uppercase tracking-wider text-neutral-400 mb-1">Styles partagés</div>
-                <div className="flex flex-wrap gap-1">{selectedNode.style.shared.map((s) => <span key={s} className="px-1.5 py-0.5 rounded bg-neutral-100 text-[11px]">{site.sharedStyles.find((x) => x.id === s)?.name ?? s}</span>)}</div>
-              </div>
-            ) : null}
-            <div>
-              <div className="text-[10px] uppercase tracking-wider text-neutral-400 mb-1">Style local</div>
-              <pre className="text-[11px] bg-neutral-50 rounded p-2 overflow-auto max-h-64 whitespace-pre-wrap">{JSON.stringify({ base: selectedNode.style?.base ?? {}, breakpoints: selectedNode.style?.breakpoints ?? {}, states: selectedNode.style?.states ?? {} }, null, 1)}</pre>
-            </div>
-            <div>
-              <div className="text-[10px] uppercase tracking-wider text-neutral-400 mb-1">Propriétés</div>
-              <pre className="text-[11px] bg-neutral-50 rounded p-2 overflow-auto max-h-48 whitespace-pre-wrap">{JSON.stringify(selectedNode.props, null, 1)}</pre>
-            </div>
-          </div>
+        {selectedLoc ? (
+          <NodeInspector key={selectedLoc.node.id} site={site} loc={selectedLoc} commit={doc.commit} onDeleted={() => setSelected(null)} />
         ) : (
           <p className="px-3 py-2 text-neutral-400 text-[13px]">Cliquez un élément dans l&apos;aperçu ou un calque.</p>
         )}

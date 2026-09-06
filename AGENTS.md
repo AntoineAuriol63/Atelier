@@ -6,7 +6,9 @@ Créateur de sites web designer-first, code-natif, sans verrou. Voir `docs/decis
 
 - `packages/model` — types, schéma de validation (zod), opérations inversibles, site d'exemple. Aucune dépendance React.
 - `packages/renderer` — génération CSS et rendu React d'un site. Le même moteur sert l'éditeur, le site publié et l'export.
-- `apps/editor` — application Next.js (App Router). `/` est l'éditeur, `/preview/...` rend le site courant.
+- `apps/editor` — application Next.js (App Router). `/` est l'éditeur, `/preview/...` rend le site courant (`?editor=1` : aperçu vivant piloté par l'éditeur), `/api/sites/:id` et `/api/sites/:id/changes` exposent le document et son journal.
+- `apps/editor/src/lib/store` — dépôt de sites (`SiteStore`) : fichiers JSON en développement (`.atelier-data/`), Supabase si configuré (`supabase/schema.sql`).
+- `apps/editor/src/lib/use-document.ts` — état d'édition côté client : commit, annuler, rétablir (historique pur dans `packages/model/src/history.ts`), envoi séquentiel au journal.
 
 ## Règles
 

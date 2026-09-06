@@ -245,6 +245,19 @@ export const site = z.object({
   redirects: z.array(z.object({ from: z.string(), to: z.string(), permanent: z.boolean() })),
 });
 
+/** Opérations (section 9 du modèle). `prev` est accepté mais ignoré côté serveur. */
+export const op: z.ZodType<unknown> = z.lazy(() =>
+  z.discriminatedUnion("op", [
+    z.object({ op: z.literal("node.insert"), parent: id, index: z.number().int().min(0), node }),
+    z.object({ op: z.literal("node.remove"), id, prev: z.unknown().optional() }),
+    z.object({ op: z.literal("node.move"), id, to: z.object({ parent: id, index: z.number().int().min(0) }), prev: z.unknown().optional() }),
+    z.object({ op: z.literal("node.set"), id, path: z.string().min(1), value: z.unknown(), prev: z.unknown().optional() }),
+    z.object({ op: z.literal("node.replace"), id, node, prev: z.unknown().optional() }),
+    z.object({ op: z.literal("site.set"), path: z.string().min(1), value: z.unknown(), prev: z.unknown().optional() }),
+    z.object({ op: z.literal("batch"), ops: z.array(op), label: z.string().optional() }),
+  ]),
+);
+
 export type SiteInput = z.input<typeof site>;
 
 /** Valide un document et retourne les erreurs lisibles. */
