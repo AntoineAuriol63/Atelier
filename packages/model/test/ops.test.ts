@@ -99,6 +99,14 @@ describe("opérations", () => {
     expect("component" in loc.owner && loc.owner.component).toBe("cmp_header");
   });
 
+  it("null sur un champ optionnel vaut retrait, mais reste une valeur dans props", () => {
+    const { site: s1 } = applyOp(site, { op: "node.set", id: "hero_h1", path: "name", value: null });
+    expect("name" in findNode(s1, "hero_h1")!.node).toBe(false);
+    const { site: s2 } = applyOp(site, { op: "node.set", id: "hero_img", path: "props.asset", value: null });
+    expect(findNode(s2, "hero_img")!.node.props.asset).toBeNull();
+    expect(validateSite(s1).ok).toBe(true);
+  });
+
   it("refuse un identifiant en double", () => {
     expect(() => applyOp(site, { op: "node.insert", parent: "hero_txt", index: 0, node: { ...newNode, id: "hero_p" } })).toThrow(/déjà présent/);
   });

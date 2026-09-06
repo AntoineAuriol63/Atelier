@@ -133,7 +133,9 @@ export function applyOp(site: Site, op: Op): { site: Site; op: Op } {
         throw new OpError(`Chemin non modifiable par node.set : ${op.path}`, op);
       }
       const prev = getPath(loc.node, op.path);
-      const next = withRoot(site, loc.owner, (root) => replaceInRoot(root, op.id, (n) => setPath(n, op.path, op.value))!);
+      // `null` sur un champ de premier niveau optionnel (name, style, bindings…) vaut retrait : le JSON ne transporte pas undefined.
+      const value = op.value === null && !op.path.startsWith("props.") ? undefined : op.value;
+      const next = withRoot(site, loc.owner, (root) => replaceInRoot(root, op.id, (n) => setPath(n, op.path, value))!);
       return { site: next, op: { ...op, prev } };
     }
 

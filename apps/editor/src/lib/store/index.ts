@@ -36,8 +36,14 @@ export async function loadCurrentSite(): Promise<StoredSite & { entries: Awaited
   const store = getStore();
   let stored = await store.get(CURRENT_SITE_ID);
   if (!stored) {
-    stored = await store.create(sampleSite);
-    await store.setEntries(CURRENT_SITE_ID, sampleEntries);
+    // Deux requêtes peuvent amorcer en même temps (éditeur et aperçu) : la seconde relit simplement.
+    try {
+      stored = await store.create(sampleSite);
+      await store.setEntries(CURRENT_SITE_ID, sampleEntries);
+    } catch {
+      stored = await store.get(CURRENT_SITE_ID);
+      if (!stored) throw new Error("Impossible d'amorcer le site courant");
+    }
   }
   const entries = await store.entries(CURRENT_SITE_ID);
   return { ...stored, entries };

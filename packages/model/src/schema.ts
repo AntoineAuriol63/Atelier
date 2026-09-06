@@ -85,7 +85,7 @@ export const node: z.ZodType<unknown> = z.lazy(() =>
   z.object({
     id,
     type: z.enum(NODE_TYPES as unknown as [string, ...string[]]),
-    name: z.string().optional(),
+    name: z.string().nullish(),   // null accepté : un « retrait » transmis en JSON ne peut pas porter undefined
     props: z.record(z.string(), z.unknown()),
     style: styleSet.optional(),
     children: z.array(node).optional(),

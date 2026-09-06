@@ -1,23 +1,44 @@
 "use client";
 
+import { useState, type DragEvent } from "react";
 import type { LucideIcon } from "lucide-react";
 import { ChevronRight } from "lucide-react";
 import { cx } from "./cx";
 
-export function TreeRow({ depth, label, meta, icon: Icon, selected, open, hasChildren, onToggle, onSelect, onDoubleClick, dimmed }: {
-  depth: number; label: string; meta?: string; icon: LucideIcon; selected: boolean; open: boolean; hasChildren: boolean;
-  onToggle: () => void; onSelect: () => void; onDoubleClick?: () => void; dimmed?: boolean;
+export type DropIndicator = "before" | "after" | "inside" | null;
+
+export function TreeRow({ id, depth, label, meta, icon: Icon, selected, open, hasChildren, onToggle, onSelect, dimmed, editing, onRename, onEditStart, drop, draggable, onDragStart, onDragOver, onDragLeave, onDrop }: {
+  id: string; depth: number; label: string; meta?: string; icon: LucideIcon; selected: boolean; open: boolean; hasChildren: boolean;
+  onToggle: () => void; onSelect: () => void; dimmed?: boolean;
+  editing?: boolean; onRename?: (name: string | null) => void; onEditStart?: () => void;
+  drop?: DropIndicator; draggable?: boolean;
+  onDragStart?: (e: DragEvent) => void; onDragOver?: (e: DragEvent) => void; onDragLeave?: (e: DragEvent) => void; onDrop?: (e: DragEvent) => void;
 }) {
+  const [draft, setDraft] = useState(label);
   return (
     <div
       role="treeitem"
+      data-row-id={id}
       aria-selected={selected}
       aria-expanded={hasChildren ? open : undefined}
       onClick={onSelect}
-      onDoubleClick={onDoubleClick}
-      className={cx("group flex items-center h-[26px] pr-2 text-sm select-none cursor-default", selected ? "bg-accent-soft text-ink" : "hover:bg-hover text-ink", dimmed && "opacity-60")}
+      onDoubleClick={onEditStart}
+      draggable={draggable && !editing}
+      onDragStart={onDragStart}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+      className={cx(
+        "relative group flex items-center h-[26px] pr-2 text-sm select-none cursor-default",
+        selected ? "bg-accent-soft text-ink" : "hover:bg-hover text-ink",
+        dimmed && "opacity-60",
+        drop === "inside" && "shadow-[inset_0_0_0_1.5px_var(--color-accent)]",
+      )}
       style={{ paddingLeft: 4 + depth * 14 }}
     >
+      {drop === "before" || drop === "after" ? (
+        <span aria-hidden className={cx("absolute left-0 right-0 h-0.5 bg-accent pointer-events-none", drop === "before" ? "top-0" : "bottom-0")} style={{ left: 4 + depth * 14 }} />
+      ) : null}
       <button
         type="button"
         tabIndex={-1}
@@ -28,8 +49,20 @@ export function TreeRow({ depth, label, meta, icon: Icon, selected, open, hasChi
         <ChevronRight size={11} className={cx("transition-transform", open && "rotate-90")} aria-hidden />
       </button>
       <Icon size={13} strokeWidth={1.75} className={cx("mr-1.5 shrink-0", selected ? "text-accent" : "text-muted")} aria-hidden />
-      <span className="truncate">{label}</span>
-      {meta ? <span className="ml-auto pl-2 text-2xs text-dim font-mono truncate max-w-[40%]">{meta}</span> : null}
+      {editing ? (
+        <input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => { if (e.key === "Enter") onRename?.(draft.trim() || null); if (e.key === "Escape") onRename?.(undefined as unknown as null); e.stopPropagation(); }}
+          onBlur={() => onRename?.(draft.trim() || null)}
+          className="flex-1 min-w-0 h-5 px-1 rounded-xs bg-surface border border-accent text-sm text-ink focus:outline-none"
+        />
+      ) : (
+        <span className="truncate">{label}</span>
+      )}
+      {meta && !editing ? <span className="ml-auto pl-2 text-2xs text-dim font-mono truncate max-w-[40%]">{meta}</span> : null}
     </div>
   );
 }

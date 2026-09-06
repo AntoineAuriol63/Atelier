@@ -42,10 +42,10 @@ export function useDocument(initialSite: Site, initialVersion: number) {
         return;
       }
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        const body = (await res.json().catch(() => ({}))) as { error?: string; issues?: string[] };
         blocked.current = true;
         setStatus("error");
-        setError(body.error ?? `Erreur ${res.status}`);
+        setError(`${body.error ?? `Erreur ${res.status}`}${body.issues?.length ? ` (${body.issues.join(" ; ")})` : ""}. Vos dernières modifications ne sont pas enregistrées : rechargez la page.`);
         return;
       }
       const body = (await res.json()) as { version: number };

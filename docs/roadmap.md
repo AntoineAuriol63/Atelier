@@ -33,19 +33,19 @@ Décision du 6 septembre : interface dense et sombre, résolument outil pro, mai
 - [x] Inspecteur provisoire rhabillé avec les primitives (remplacé en M3)
 - [x] Icônes : Lucide
 
-### M2 · Édition structurelle — prochain
+### M2 · Édition structurelle — fait le 6 septembre 2026
 
 Ce qui empêche aujourd'hui de construire une page : on ne peut ni ajouter ni déplacer.
 
-- [ ] **Ajouter un bloc** : onglet Ajouter (boîte, texte, image, lien/bouton, liste, séparateur, colonnes, section, vue de base, formulaire, composant existant), insertion avant/après/dedans la sélection
-- [ ] **Déplacer depuis les calques** : glisser-déposer dans l'arbre avec indicateur avant/après/dedans, respect des types conteneurs
-- [ ] **Déplacer depuis le canvas** : glisser un élément sélectionné dans l'aperçu, cible calculée depuis le DOM réel, aperçu de la position
-- [ ] **Largeur d'aperçu libre** : champ en pixels, poignée de redimensionnement sur le cadre, affichage du point de rupture actif
-- [ ] Sélection au clavier : flèches pour parent/enfant/frères, Suppr, ⌘D dupliquer, Échap
-- [ ] Renommer un calque en double-cliquant
-- [ ] Arbre : replier/déplier mémorisé, défilement vers la sélection
+- [x] **Ajouter un bloc** : onglet Ajouter (boîte, texte, image, lien/bouton, liste, séparateur, colonnes, section, vue de base, formulaire, composant existant), insertion avant/après/dedans la sélection
+- [x] **Déplacer depuis les calques** : glisser-déposer dans l'arbre avec indicateur avant/après/dedans, respect des types conteneurs
+- [x] **Déplacer depuis le canvas** : glisser un élément sélectionné dans l'aperçu, cible calculée depuis le DOM réel, aperçu de la position
+- [x] **Largeur d'aperçu libre** : champ en pixels, poignée de redimensionnement sur le cadre, affichage du point de rupture actif
+- [x] Sélection au clavier : flèches pour parent/enfant/frères, Suppr, ⌘D dupliquer, Échap
+- [x] Renommer un calque en double-cliquant (ou Entrée)
+- [x] Arbre : replier/déplier mémorisé, ancêtres ouverts et défilement à la sélection
 
-### M3 · Panneaux Design (D19)
+### M3 · Panneaux Design (D19) — prochain
 
 Le panneau de droite actuel est un échafaudage. Il est remplacé, pas amélioré.
 
@@ -126,3 +126,4 @@ Espaces membres (D49) · synchronisation Git des composants · contributions à 
 
 - 6 sept. 2026 — M0 terminé. Supabase branché et vérifié. Remarques d'Antoine sur le mode Design intégrées dans M1 à M3. Trois décisions prises (identité, nom, hébergement). Prochaine étape : M1, système de design.
 - 6 sept. 2026 (soir) — M1 posé : jetons sombres et denses (`globals.css`), primitives `src/ui`, coquille et inspecteur refaits, IBM Plex via next/font, icônes Lucide. Prochaine étape : M2, édition structurelle.
+- 6 sept. 2026 (nuit) — M2 terminé : palette de blocs, glisser-déposer dans les calques et dans le canvas (planification pure et testée dans le modèle), largeur libre avec poignée et point de rupture actif, raccourcis clavier, renommage en place. Correctif : `null` vaut retrait sur un champ optionnel (les erreurs serveur affichent le détail). Prochaine étape : M3, panneaux Design.

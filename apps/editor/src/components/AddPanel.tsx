@@ -1,0 +1,35 @@
+"use client";
+
+import { createElement } from "react";
+import type { Site } from "@atelier/model";
+import { BLOCKS, componentPresets, type BlockPreset } from "@/lib/blocks";
+import { Hint, PanelHeading } from "@/ui";
+
+export function AddPanel({ site, target, onAdd }: { site: Site; target: string; onAdd: (preset: BlockPreset) => void }) {
+  const all = [...BLOCKS, ...componentPresets(site)];
+  const groups = ["Structure", "Contenu", "Données", "Composants"] as const;
+  return (
+    <div className="pb-4">
+      <div className="px-3 pt-2 pb-1"><Hint>{target}</Hint></div>
+      {groups.map((g) => {
+        const items = all.filter((b) => b.group === g);
+        if (!items.length) return null;
+        return (
+          <div key={g}>
+            <PanelHeading>{g}</PanelHeading>
+            <ul className="px-2 grid grid-cols-2 gap-1">
+              {items.map((b) => (
+                <li key={b.id}>
+                  <button type="button" onClick={() => onAdd(b)} title={b.description} className="w-full flex flex-col items-start gap-1 p-2 rounded-sm bg-surface border border-line hover:border-accent hover:bg-hover text-left">
+                    {createElement(b.icon, { size: 15, strokeWidth: 1.75, className: "text-muted", "aria-hidden": true })}
+                    <span className="text-xs text-ink">{b.label}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
