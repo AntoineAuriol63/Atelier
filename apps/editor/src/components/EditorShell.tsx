@@ -1,10 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ExternalLink, FileText, Layers, Moon, Plus, Redo2, Sun, Undo2, UploadCloud } from "lucide-react";
 import type { Node, Page, Site } from "@atelier/model";
 import { indexSite } from "@atelier/model";
 import { useDocument } from "@/lib/use-document";
+import { PRODUCT_NAME } from "@/lib/product";
+import { Badge, Button, Hint, IconButton, Panel, PanelHeading, Separator, Tabs, TreeRow } from "@/ui";
 import { NodeInspector } from "./NodeInspector";
+import { nodeIcon, nodeLabel } from "./node-icons";
 
 const WIDTHS: { id: string; label: string; width: number | null }[] = [
   { id: "base", label: "Bureau", width: null },
@@ -12,51 +16,56 @@ const WIDTHS: { id: string; label: string; width: number | null }[] = [
   { id: "mobile", label: "Mobile", width: 390 },
 ];
 
-const TYPE_LABEL: Record<string, string> = { box: "Boîte", text: "Texte", image: "Image", link: "Lien", collection: "Collection", item: "Élément", instance: "Composant", form: "Formulaire", field: "Champ", list: "Liste", listItem: "Élément", divider: "Séparateur", video: "Vidéo", icon: "Icône", embed: "Intégration", slot: "Emplacement", code: "Code" };
+const MODES = [
+  { id: "write", label: "Écriture", hint: "Bientôt" },
+  { id: "design", label: "Design" },
+  { id: "code", label: "Code", hint: "Bientôt" },
+];
 
-export function nodeLabel(n: Node): string {
-  if (n.name) return n.name;
-  const tag = typeof n.props.tag === "string" ? n.props.tag : undefined;
-  if (n.type === "text" && tag) return tag.toUpperCase();
-  return TYPE_LABEL[n.type] ?? n.type;
-}
-
-function Layer({ node, depth, selected, onSelect }: { node: Node; depth: number; selected: string | null; onSelect: (id: string) => void }) {
-  const [open, setOpen] = useState(depth < 2);
+function Layer({ node, depth, selected, onSelect, openMap, setOpen }: { node: Node; depth: number; selected: string | null; onSelect: (id: string) => void; openMap: Record<string, boolean>; setOpen: (id: string, open: boolean) => void }) {
   const kids = node.children ?? [];
-  const isSel = selected === node.id;
+  const open = openMap[node.id] ?? depth < 2;
   return (
-    <div>
-      <div
-        className={`flex items-center gap-1 pr-2 py-[3px] text-[12.5px] rounded cursor-default select-none ${isSel ? "bg-sky-100 text-sky-900" : "hover:bg-neutral-100"}`}
-        style={{ paddingLeft: 6 + depth * 12 }}
-        onClick={() => onSelect(node.id)}
-      >
-        <button className="w-4 text-neutral-400 text-[10px]" onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }} aria-label={open ? "Replier" : "Déplier"}>
-          {kids.length ? (open ? "▾" : "▸") : ""}
-        </button>
-        <span className="text-neutral-400 font-mono text-[10px] w-9 shrink-0">{node.type}</span>
-        <span className="truncate">{nodeLabel(node)}</span>
-      </div>
-      {open && kids.map((k) => <Layer key={k.id} node={k} depth={depth + 1} selected={selected} onSelect={onSelect} />)}
+    <div role="group">
+      <TreeRow
+        depth={depth}
+        label={nodeLabel(node)}
+        meta={node.type === "instance" ? "composant" : undefined}
+        icon={nodeIcon(node)}
+        selected={selected === node.id}
+        open={open}
+        hasChildren={kids.length > 0}
+        onToggle={() => setOpen(node.id, !open)}
+        onSelect={() => onSelect(node.id)}
+        dimmed={node.hidden?.base === true}
+      />
+      {open && kids.map((k) => <Layer key={k.id} node={k} depth={depth + 1} selected={selected} onSelect={onSelect} openMap={openMap} setOpen={setOpen} />)}
     </div>
   );
 }
 
-const STATUS_LABEL: Record<string, string> = { saved: "Enregistré", saving: "Enregistrement…", conflict: "Conflit", error: "Erreur" };
+const STATUS: Record<string, { label: string; tone: "success" | "neutral" | "danger" | "warning" }> = {
+  saved: { label: "Enregistré", tone: "success" },
+  saving: { label: "Enregistrement…", tone: "neutral" },
+  conflict: { label: "Conflit", tone: "danger" },
+  error: { label: "Erreur", tone: "danger" },
+};
 
 export function EditorShell({ initialSite, initialVersion }: { initialSite: Site; initialVersion: number }) {
   const doc = useDocument(initialSite, initialVersion);
   const site = doc.site;
   const [pageId, setPageId] = useState(site.pages[0]!.id);
+  const [leftTab, setLeftTab] = useState("layers");
   const [width, setWidth] = useState<string>("base");
   const [mode, setMode] = useState(site.theme.defaultMode);
   const [selected, setSelected] = useState<string | null>(null);
   const [frameReady, setFrameReady] = useState(false);
+  const [openMap, setOpenMap] = useState<Record<string, boolean>>({});
   const frame = useRef<HTMLIFrameElement>(null);
   const page: Page = site.pages.find((p) => p.id === pageId) ?? site.pages[0]!;
   const index = useMemo(() => indexSite(site), [site]);
   const selectedLoc = selected ? index.get(selected) : undefined;
+  const locale = site.settings.defaultLocale;
 
   const previewPath = page.kind === "template" ? "/preview/projets/lea-et-tom" : `/preview${page.path === "/" ? "" : page.path}`;
   const post = (msg: unknown) => frame.current?.contentWindow?.postMessage(msg, "*");
@@ -71,12 +80,10 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
     return () => window.removeEventListener("message", onMsg);
   }, []);
 
-  // L'aperçu reçoit le site courant dès qu'il est prêt et à chaque modification.
   useEffect(() => { if (frameReady) post({ type: "atelier:site", site }); }, [site, frameReady]);
   useEffect(() => { if (frameReady) post({ type: "atelier:mode", mode }); }, [mode, frameReady]);
   useEffect(() => { if (frameReady) post({ type: "atelier:highlight", id: selected }); }, [selected, frameReady]);
 
-  // Raccourcis : Cmd/Ctrl+Z annule, Cmd/Ctrl+Maj+Z rétablit.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
@@ -88,74 +95,109 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
   }, [doc]);
 
   const w = WIDTHS.find((x) => x.id === width)?.width ?? null;
+  const status = STATUS[doc.status] ?? STATUS.saved!;
 
   return (
-    <div className="h-full grid grid-rows-[44px_1fr] grid-cols-[260px_1fr_320px]">
-      <header className="col-span-3 flex items-center gap-3 px-4 border-b border-neutral-200 bg-white text-sm">
-        <span className="font-semibold tracking-tight">Atelier</span>
-        <span className="text-neutral-400">·</span>
-        <span className="text-neutral-600 truncate max-w-[220px]">{site.name}</span>
-        <div className="flex items-center gap-1 border-l border-neutral-200 pl-3">
-          <button className="btn" disabled={!doc.canUndo} onClick={doc.undo} title="Annuler (⌘Z)">↶ Annuler</button>
-          <button className="btn" disabled={!doc.canRedo} onClick={doc.redo} title="Rétablir (⇧⌘Z)">↷ Rétablir</button>
+    <div className="h-full grid grid-rows-[40px_1fr] grid-cols-[264px_1fr_300px]">
+      {/* Barre supérieure */}
+      <header className="col-span-3 flex items-center gap-2 px-3 border-b border-line bg-panel">
+        <span className="font-semibold text-base tracking-tight text-ink">{PRODUCT_NAME}</span>
+        <Separator vertical />
+        <span className="text-sm text-muted truncate max-w-[200px]" title={site.name}>{site.name}</span>
+        <span className="text-dim">/</span>
+        <span className="text-sm text-ink truncate max-w-[160px]">{page.name[locale]}</span>
+
+        <div className="ml-4">
+          <Tabs variant="pill" tabs={MODES.map((m) => ({ ...m, disabled: m.id !== "design" }))} value="design" onChange={() => {}} />
         </div>
-        <span className={`text-xs px-2 py-0.5 rounded ${doc.status === "saved" ? "text-emerald-700 bg-emerald-50" : doc.status === "saving" ? "text-neutral-500 bg-neutral-100" : "text-red-700 bg-red-50"}`} title={doc.error}>
-          {STATUS_LABEL[doc.status]} · v{doc.version}
-        </span>
-        <div className="ml-auto flex items-center gap-1">
-          {["Écriture", "Design", "Code"].map((m, i) => (
-            <button key={m} className={`px-3 py-1 rounded text-xs ${i === 1 ? "bg-neutral-900 text-white" : "text-neutral-500 hover:bg-neutral-100"}`} title="Modes : bientôt">{m}</button>
-          ))}
-        </div>
-        <div className="flex items-center gap-1 border-l border-neutral-200 pl-3">
-          {WIDTHS.map((x) => (
-            <button key={x.id} onClick={() => setWidth(x.id)} className={`px-2 py-1 rounded text-xs ${width === x.id ? "bg-neutral-200" : "text-neutral-500 hover:bg-neutral-100"}`}>{x.label}</button>
-          ))}
-        </div>
-        <div className="flex items-center gap-1 border-l border-neutral-200 pl-3">
-          {site.theme.modes.map((m) => (
-            <button key={m.id} onClick={() => setMode(m.id)} className={`px-2 py-1 rounded text-xs ${mode === m.id ? "bg-neutral-200" : "text-neutral-500 hover:bg-neutral-100"}`}>{m.name}</button>
-          ))}
+
+        <div className="ml-auto flex items-center gap-2">
+          <Tabs variant="pill" tabs={WIDTHS.map((x) => ({ id: x.id, label: x.label }))} value={width} onChange={setWidth} />
+          <Separator vertical />
+          <div className="flex items-center gap-0.5">
+            <IconButton label="Annuler (⌘Z)" icon={Undo2} disabled={!doc.canUndo} onClick={doc.undo} />
+            <IconButton label="Rétablir (⇧⌘Z)" icon={Redo2} disabled={!doc.canRedo} onClick={doc.redo} />
+          </div>
+          <Badge tone={status.tone} title={doc.error ?? `Version ${doc.version}`}>{status.label} · v{doc.version}</Badge>
+          <Separator vertical />
+          <div className="flex items-center gap-0.5">
+            {site.theme.modes.map((m) => (
+              <IconButton key={m.id} label={`Aperçu en mode ${m.name.toLowerCase()}`} icon={m.id === "dark" ? Moon : Sun} active={mode === m.id} onClick={() => setMode(m.id)} />
+            ))}
+          </div>
+          <Separator vertical />
+          <Button variant="ghost" icon={ExternalLink} onClick={() => window.open(previewPath, "_blank")}>Aperçu</Button>
+          <Button variant="primary" icon={UploadCloud} disabled title="Publication : jalon M6">Publier</Button>
         </div>
       </header>
 
-      <aside className="border-r border-neutral-200 bg-white overflow-auto text-sm">
-        <div className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-wider text-neutral-400">Pages</div>
-        <ul className="px-2">
-          {site.pages.map((p) => (
-            <li key={p.id}>
-              <button onClick={() => { setPageId(p.id); setSelected(null); setFrameReady(false); }} className={`w-full text-left px-2 py-1 rounded text-[13px] ${p.id === pageId ? "bg-neutral-900 text-white" : "hover:bg-neutral-100"}`}>
-                {p.name[site.settings.defaultLocale]} <span className="font-mono text-[10px] text-neutral-400">{p.path}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-        <div className="px-3 pt-4 pb-1 text-[10px] uppercase tracking-wider text-neutral-400">Calques</div>
-        <div className="px-1 pb-4">
-          <Layer node={page.root} depth={0} selected={selected} onSelect={setSelected} />
-        </div>
-      </aside>
-
-      <main className="overflow-auto bg-neutral-200/70 flex justify-center items-start p-6">
-        {doc.error ? <div className="fixed top-14 left-1/2 -translate-x-1/2 z-10 bg-red-50 text-red-800 border border-red-200 rounded px-3 py-2 text-xs shadow">{doc.error}</div> : null}
-        <iframe
-          ref={frame}
-          key={previewPath}
-          src={`${previewPath}?editor=1&mode=${mode}`}
-          title="Aperçu"
-          className="bg-white shadow-lg rounded-sm border border-neutral-300"
-          style={{ width: w ? `${w}px` : "100%", flex: "0 0 auto", height: "calc(100vh - 44px - 48px)", maxWidth: "100%" }}
+      {/* Panneau gauche */}
+      <Panel side="left">
+        <Tabs
+          tabs={[{ id: "pages", label: "Pages", icon: FileText }, { id: "layers", label: "Calques", icon: Layers }, { id: "add", label: "Ajouter", icon: Plus }]}
+          value={leftTab}
+          onChange={setLeftTab}
+          className="px-1 shrink-0"
         />
+        <div className="flex-1 overflow-auto py-1">
+          {leftTab === "pages" ? (
+            <ul>
+              {site.pages.map((p) => (
+                <li key={p.id}>
+                  <button
+                    type="button"
+                    onClick={() => { setPageId(p.id); setSelected(null); setFrameReady(false); setLeftTab("layers"); }}
+                    className={`w-full flex items-center gap-2 h-[28px] px-3 text-sm text-left ${p.id === pageId ? "bg-accent-soft text-ink" : "text-ink hover:bg-hover"}`}
+                  >
+                    <FileText size={13} className={p.id === pageId ? "text-accent" : "text-muted"} aria-hidden />
+                    <span className="truncate">{p.name[locale]}</span>
+                    <span className="ml-auto font-mono text-2xs text-dim truncate max-w-[45%]">{p.kind === "template" ? "modèle" : p.path}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : leftTab === "layers" ? (
+            <div role="tree">
+              <Layer node={page.root} depth={0} selected={selected} onSelect={setSelected} openMap={openMap} setOpen={(id, open) => setOpenMap((m) => ({ ...m, [id]: open }))} />
+            </div>
+          ) : (
+            <div className="px-3 py-2 flex flex-col gap-2">
+              <PanelHeading className="px-0">Ajouter un bloc</PanelHeading>
+              <Hint>La palette d&apos;insertion arrive au jalon M2 : boîte, texte, image, lien, liste, colonnes, section, vue de base de données, formulaire, composant.</Hint>
+            </div>
+          )}
+        </div>
+      </Panel>
+
+      {/* Canvas */}
+      <main className="relative overflow-auto bg-app flex justify-center items-start p-5">
+        {doc.error ? <div className="fixed top-12 left-1/2 -translate-x-1/2 z-10 rounded-sm bg-danger-soft text-danger border border-danger/40 px-3 py-1.5 text-xs shadow-lg">{doc.error}</div> : null}
+        <div className="flex flex-col items-center gap-1.5" style={{ width: w ? `${w}px` : "100%", maxWidth: "100%" }}>
+          <div className="self-start text-2xs text-dim font-mono">{w ? `${w} px` : "largeur du panneau"} · {page.path}</div>
+          <iframe
+            ref={frame}
+            key={previewPath}
+            src={`${previewPath}?editor=1&mode=${mode}`}
+            title="Aperçu"
+            className="bg-white rounded-xs shadow-[0_0_0_1px_var(--color-line-strong),0_12px_40px_rgba(0,0,0,.45)]"
+            style={{ width: "100%", height: "calc(100vh - 40px - 40px - 18px)" }}
+          />
+        </div>
       </main>
 
-      <aside className="border-l border-neutral-200 bg-white overflow-auto text-sm">
-        <div className="px-3 pt-3 pb-1 text-[10px] uppercase tracking-wider text-neutral-400">Sélection</div>
+      {/* Panneau droit */}
+      <Panel side="right">
         {selectedLoc ? (
-          <NodeInspector key={selectedLoc.node.id} site={site} loc={selectedLoc} commit={doc.commit} onDeleted={() => setSelected(null)} />
+          <div className="flex-1 overflow-auto">
+            <NodeInspector key={selectedLoc.node.id} site={site} loc={selectedLoc} commit={doc.commit} onDeleted={() => setSelected(null)} />
+          </div>
         ) : (
-          <p className="px-3 py-2 text-neutral-400 text-[13px]">Cliquez un élément dans l&apos;aperçu ou un calque.</p>
+          <div className="p-3 flex flex-col gap-2">
+            <PanelHeading className="px-0">Sélection</PanelHeading>
+            <Hint>Cliquez un élément dans l&apos;aperçu ou dans les calques pour voir et modifier ses réglages.</Hint>
+          </div>
         )}
-      </aside>
+      </Panel>
     </div>
   );
 }
