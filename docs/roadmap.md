@@ -40,7 +40,7 @@ Ce qui empêche aujourd'hui de construire une page : on ne peut ni ajouter ni d�
 - [x] **Ajouter un bloc** : onglet Ajouter (boîte, texte, image, lien/bouton, liste, séparateur, colonnes, section, vue de base, formulaire, composant existant), insertion avant/après/dedans la sélection
 - [x] **Déplacer depuis les calques** : glisser-déposer dans l'arbre avec indicateur avant/après/dedans, respect des types conteneurs
 - [x] **Déplacer depuis le canvas** : glisser un élément sélectionné dans l'aperçu, cible calculée depuis le DOM réel, aperçu de la position
-- [x] **Largeur d'aperçu libre** : champ en pixels, poignée de redimensionnement sur le cadre, affichage du point de rupture actif
+- [x] **Largeur d'aperçu libre** : champ en pixels (320 à 4000, validé à la fin de la saisie), poignée de redimensionnement, point de rupture actif, mise à l'échelle automatique quand le cadre dépasse la zone visible (badge de zoom)
 - [x] Sélection au clavier : flèches pour parent/enfant/frères, Suppr, ⌘D dupliquer, Échap
 - [x] Renommer un calque en double-cliquant (ou Entrée)
 - [x] Arbre : replier/déplier mémorisé, ancêtres ouverts et défilement à la sélection

@@ -19,6 +19,7 @@ const PRESETS: { id: string; label: string; width: number | null }[] = [
 ];
 const MODES = [{ id: "write", label: "Écriture", hint: "Bientôt" }, { id: "design", label: "Design" }, { id: "code", label: "Code", hint: "Bientôt" }];
 const MIN_WIDTH = 320;
+const MAX_WIDTH = 4000;
 
 type DropState = { id: string; position: DropPosition } | null;
 
@@ -193,13 +194,19 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
   useEffect(() => {
     const el = canvas.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setMeasured(el.clientWidth - 40));
+    const ro = new ResizeObserver((entries) => {
+      const w = Math.round((entries[0]?.contentRect.width ?? el.getBoundingClientRect().width) - 40);
+      if (w >= 100) setMeasured(w);
+    });
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
   const presetWidth = PRESETS.find((x) => x.id === preset)?.width ?? null;
   const width = customWidth ?? presetWidth;
   const effective = width ?? measured;
+  // Au-delà de la zone visible, le cadre garde sa vraie largeur et est réduit à l'échelle pour tenir.
+  const scale = measured > 0 && effective > measured ? measured / effective : 1;
+  const frameHeight = `calc((100vh - 40px - 40px - 18px) / ${scale})`;
   const breakpoint = useMemo(() => {
     const bps = [...site.settings.breakpoints].sort((a, b) => a.maxWidth - b.maxWidth);
     return bps.find((b) => effective <= b.maxWidth)?.name ?? "Base";
@@ -207,9 +214,8 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
 
   const startResize = (e: React.PointerEvent) => {
     e.preventDefault();
-    const startX = e.clientX, startW = effective;
-    const max = (canvas.current?.clientWidth ?? 2000) - 40;
-    const onMove = (ev: PointerEvent) => setCustomWidth(Math.max(MIN_WIDTH, Math.min(max, Math.round(startW + (ev.clientX - startX) * 2))));
+    const startX = e.clientX, startW = effective, startScale = scale;
+    const onMove = (ev: PointerEvent) => setCustomWidth(Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, Math.round(startW + ((ev.clientX - startX) * 2) / startScale))));
     const onUp = () => { window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
@@ -237,8 +243,9 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
 
         <div className="ml-auto flex items-center gap-2">
           <Tabs variant="pill" tabs={PRESETS.map((x) => ({ id: x.id, label: x.label }))} value={customWidth === null ? preset : ""} onChange={(id) => { setPreset(id); setCustomWidth(null); }} />
-          <NumberInput className="w-[88px]" unit="px" min={MIN_WIDTH} value={Math.round(effective) || ""} onValueChange={(v) => setCustomWidth(v === "" ? null : Math.max(MIN_WIDTH, v))} />
+          <NumberInput className="w-[92px]" unit="px" min={MIN_WIDTH} max={MAX_WIDTH} step={10} title="Largeur de l'aperçu (320 à 4000 px)" value={Math.round(effective) || ""} onValueChange={(v) => setCustomWidth(v === "" ? null : v)} />
           <Badge tone="accent" title="Point de rupture actif">{breakpoint}</Badge>
+          {scale < 1 ? <Badge title="Aperçu réduit pour tenir dans la zone">{Math.round(scale * 100)} %</Badge> : null}
           <Separator vertical />
           <div className="flex items-center gap-0.5">
             <IconButton label="Annuler (⌘Z)" icon={Undo2} disabled={!doc.canUndo} onClick={doc.undo} />
@@ -289,13 +296,17 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
         </div>
       </Panel>
 
-      <main ref={canvas} className="relative overflow-auto bg-app flex justify-center items-start p-5">
+      <main ref={canvas} className="relative min-w-0 overflow-auto bg-app flex justify-center items-start p-5">
         {(doc.error || notice) ? (
           <div className={`fixed top-12 left-1/2 -translate-x-1/2 z-10 rounded-sm border px-3 py-1.5 text-xs shadow-lg ${notice?.tone === "success" ? "bg-success-soft text-success border-success/40" : "bg-danger-soft text-danger border-danger/40"}`}>{notice?.text ?? doc.error}</div>
         ) : null}
-        <div className="relative flex flex-col gap-1.5" style={{ width: width ? `${width}px` : "100%", maxWidth: "100%" }}>
-          <div className="self-start text-2xs text-dim font-mono">{Math.round(effective)} px · {page.path}</div>
-          <iframe ref={frame} key={previewPath} src={`${previewPath}?editor=1&mode=${mode}`} title="Aperçu" className="bg-white rounded-xs shadow-[0_0_0_1px_var(--color-line-strong),0_12px_40px_rgba(0,0,0,.45)]" style={{ width: "100%", height: "calc(100vh - 40px - 40px - 18px)" }} />
+        <div className="relative flex flex-col gap-1.5" style={{ width: width ? `${Math.min(width, measured || width)}px` : "100%", maxWidth: "100%" }}>
+          <div className="self-start text-2xs text-dim font-mono">{Math.round(effective)} px{scale < 1 ? ` · réduit à ${Math.round(scale * 100)} %` : ""} · {page.path}</div>
+          <div style={{ width: "100%", height: `calc(${frameHeight} * ${scale})`, overflow: "visible" }}>
+            <div style={{ width: `${effective || measured}px`, height: frameHeight, transform: `scale(${scale})`, transformOrigin: "top left" }}>
+              <iframe ref={frame} key={previewPath} src={`${previewPath}?editor=1&mode=${mode}`} title="Aperçu" className="bg-white rounded-xs shadow-[0_0_0_1px_var(--color-line-strong),0_12px_40px_rgba(0,0,0,.45)]" style={{ width: "100%", height: "100%" }} />
+            </div>
+          </div>
           <div role="separator" aria-label="Redimensionner l'aperçu" title="Glisser pour changer la largeur" onPointerDown={startResize} className="absolute top-[24px] -right-3 w-2.5 h-[calc(100%-24px)] cursor-col-resize group">
             <div className="absolute top-1/2 -translate-y-1/2 left-0.5 w-1 h-12 rounded-full bg-line-strong group-hover:bg-accent" />
           </div>
