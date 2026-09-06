@@ -7,18 +7,25 @@ import { SupabaseSiteStore } from "./supabase-store";
 export type { SiteStore, StoredSite, ChangeInput, ChangeResult } from "./types";
 
 declare global {
-  var __atelierStore: SiteStore | undefined;
+  var __atelierStore: { key: string; store: SiteStore } | undefined;
 }
 
-/** Supabase si configuré (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY), sinon fichiers dans `.atelier-data/`. */
+/**
+ * Supabase si configuré (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY), sinon fichiers dans `.atelier-data/`.
+ * Le dépôt est mis en cache par configuration : un rechargement de `.env.local` en développement bascule sans redémarrage.
+ */
 export function getStore(): SiteStore {
-  if (globalThis.__atelierStore) return globalThis.__atelierStore;
   const url = process.env.SUPABASE_URL, key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const store = url && key
-    ? new SupabaseSiteStore(url, key)
-    : new FileSiteStore(process.env.ATELIER_DATA_DIR ?? path.resolve(process.cwd(), "../../.atelier-data"));
-  globalThis.__atelierStore = store;
+  const dir = process.env.ATELIER_DATA_DIR ?? path.resolve(process.cwd(), "../../.atelier-data");
+  const cacheKey = url && key ? `supabase:${url}` : `file:${dir}`;
+  if (globalThis.__atelierStore?.key === cacheKey) return globalThis.__atelierStore.store;
+  const store = url && key ? new SupabaseSiteStore(url, key) : new FileSiteStore(dir);
+  globalThis.__atelierStore = { key: cacheKey, store };
   return store;
+}
+
+export function storeKind(): "supabase" | "file" {
+  return process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY ? "supabase" : "file";
 }
 
 /** Identifiant du site courant (v0 : un seul site, celui de l'exemple). */

@@ -56,3 +56,29 @@ end $$;
 alter table sites enable row level security;
 alter table changes enable row level security;
 alter table entries enable row level security;
+
+-- Instantanés : une copie complète du document à chaque publication (D36) et lors du compactage du journal.
+-- Le journal `changes` est la vérité ; les instantanés évitent de le rejouer depuis l'origine.
+create table if not exists snapshots (
+  site_id     text not null references sites(id) on delete cascade,
+  version     integer not null,
+  document    jsonb not null,
+  kind        text not null default 'auto' check (kind in ('auto', 'publish')),
+  label       text,
+  created_at  timestamptz not null default now(),
+  primary key (site_id, version)
+);
+alter table snapshots enable row level security;
+
+-- Compactage : supprime les changements antérieurs au dernier instantané, en gardant `keep` versions récentes.
+create or replace function compact_changes(p_site_id text, p_keep integer default 500) returns integer language plpgsql as $$
+declare
+  v_floor integer;
+  v_deleted integer;
+begin
+  select greatest(coalesce(max(version), 0), (select version from sites where id = p_site_id) - p_keep)
+    into v_floor from snapshots where site_id = p_site_id;
+  delete from changes where site_id = p_site_id and version <= v_floor;
+  get diagnostics v_deleted = row_count;
+  return v_deleted;
+end $$;
