@@ -45,19 +45,20 @@ Ce qui empêche aujourd'hui de construire une page : on ne peut ni ajouter ni d�
 - [x] Renommer un calque en double-cliquant (ou Entrée)
 - [x] Arbre : replier/déplier mémorisé, ancêtres ouverts et défilement à la sélection
 
-### M3 · Panneaux Design (D19) — prochain
+### M3 · Panneaux Design (D19) — en cours (session 1 faite le 7 septembre 2026)
 
 Le panneau de droite actuel est un échafaudage. Il est remplacé, pas amélioré.
 
-- [ ] **Disposition** : direction, alignement, répartition, retour à la ligne, écart, mode grille (colonnes/lignes), position et calque
-- [ ] **Espacement** : schéma de la boîte (marge, remplissage) cliquable, valeurs liées ou par côté
-- [ ] **Dimensions** : largeur, hauteur, min et max, ratio, unités et jetons
+- [x] **Disposition** : affichage, direction, retour à la ligne, alignement, répartition, écart, grille (colonnes, lignes, nombre de colonnes égales), position et décalages, calque, débordement, réglages « dans le parent » (grandir, rétrécir, base, aligner, ordre, colonne/ligne de grille)
+- [x] **Espacement** : schéma de la boîte (marge, remplissage), une case par côté, côtés liables, couleur du texte selon la source
+- [x] **Dimensions** : largeur, hauteur, min et max, ratio, unités et jetons
 - [ ] **Typographie** : police, taille, graisse, interligne, espacement, alignement, casse, couleur
 - [ ] **Apparence** : fond (couleur, dégradé, image), bordure, arrondis, ombre, opacité
 - [ ] **Effets** : transformation, transition, filtre, curseur
-- [ ] Contrôles communs : champ numérique avec unité et glissement, sélecteur de couleur avec jetons, sélecteur de jeton, réinitialisation d'une propriété, indicateur de source (thème, style partagé, local, hérité du point de rupture)
+- [~] Contrôles communs : champ de longueur avec unité, jeton (◇), mots-clés, flèches et Alt+glisser `[x]` · pastille de source et réinitialisation `[x]` · groupe de boutons exclusifs `[x]` · sélecteur de couleur avec jetons `[ ]` (session 2)
 - [ ] **États** : édition du survol, actif, focus, ouvert, avec prévisualisation forcée dans le canvas
-- [ ] **Points de rupture** : édition par point, indicateur des valeurs héritées ou surchargées
+- [x] **Points de rupture** : édition sur le point actif (celui de la largeur d'aperçu), indicateur de source par contrôle (bleu : posé ici · ambre : hérité d'un point plus large · violet : style partagé · gris : défaut du thème), réinitialisation d'une surcharge, section « Responsive » listant les surcharges de l'élément par point
+- [ ] Réglages des points de rupture du site : ajouter, renommer, changer une largeur ; grands écrans en largeur minimale en v1
 - [ ] **Styles partagés** : appliquer, créer depuis la sélection, modifier, détacher, voir les usages
 - [ ] **Thème** : panneau des jetons (couleurs par mode, polices, tailles, espacements, arrondis, ombres)
 - [ ] Propriétés par type : image (source, alt, ajustement, ratio), lien (cible, nouvel onglet), texte (balise), boîte (balise sémantique, D38)
@@ -127,3 +128,4 @@ Espaces membres (D49) · synchronisation Git des composants · contributions à 
 - 6 sept. 2026 — M0 terminé. Supabase branché et vérifié. Remarques d'Antoine sur le mode Design intégrées dans M1 à M3. Trois décisions prises (identité, nom, hébergement). Prochaine étape : M1, système de design.
 - 6 sept. 2026 (soir) — M1 posé : jetons sombres et denses (`globals.css`), primitives `src/ui`, coquille et inspecteur refaits, IBM Plex via next/font, icônes Lucide. Prochaine étape : M2, édition structurelle.
 - 6 sept. 2026 (nuit) — M2 terminé : palette de blocs, glisser-déposer dans les calques et dans le canvas (planification pure et testée dans le modèle), largeur libre avec poignée et point de rupture actif, raccourcis clavier, renommage en place. Correctif : `null` vaut retrait sur un champ optionnel (les erreurs serveur affichent le détail). Prochaine étape : M3, panneaux Design.
+- 7 sept. 2026 — M3 session 1 : résolution de style avec sources dans le modèle (testée), contrôles communs (pastille de source, champ de longueur, groupe exclusif, schéma de boîte), panneaux Disposition, Espacement, Dimensions, Responsive ; édition sur le point de rupture actif. Correctif : un retrait (`value` absente) est valide côté serveur. Session 2 : Typographie, Apparence, couleur et jetons, Effets.

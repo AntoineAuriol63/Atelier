@@ -251,9 +251,9 @@ export const op: z.ZodType<unknown> = z.lazy(() =>
     z.object({ op: z.literal("node.insert"), parent: id, index: z.number().int().min(0), node }),
     z.object({ op: z.literal("node.remove"), id, prev: z.unknown().optional() }),
     z.object({ op: z.literal("node.move"), id, to: z.object({ parent: id, index: z.number().int().min(0) }), prev: z.unknown().optional() }),
-    z.object({ op: z.literal("node.set"), id, path: z.string().min(1), value: z.unknown(), prev: z.unknown().optional() }),
+    z.object({ op: z.literal("node.set"), id, path: z.string().min(1), value: z.unknown().optional(), prev: z.unknown().optional() }),   // value absente = retrait
     z.object({ op: z.literal("node.replace"), id, node, prev: z.unknown().optional() }),
-    z.object({ op: z.literal("site.set"), path: z.string().min(1), value: z.unknown(), prev: z.unknown().optional() }),
+    z.object({ op: z.literal("site.set"), path: z.string().min(1), value: z.unknown().optional(), prev: z.unknown().optional() }),
     z.object({ op: z.literal("batch"), ops: z.array(op), label: z.string().optional() }),
   ]),
 );

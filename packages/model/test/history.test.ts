@@ -69,5 +69,7 @@ describe("historique", () => {
     expect(schema.op.safeParse({ op: "node.move", id: "hero_h1", to: { parent: "x", index: -1 } }).success).toBe(false);
     expect(schema.op.safeParse({ op: "batch", ops: [{ op: "node.remove", id: "abc" }] }).success).toBe(true);
     expect(schema.op.safeParse({ op: "nope" }).success).toBe(false);
+    // Un retrait transite en JSON sans clé `value` : il doit rester valide.
+    expect(schema.op.safeParse(JSON.parse(JSON.stringify({ op: "node.set", id: "hero_h1", path: "style.base.gap", value: undefined }))).success).toBe(true);
   });
 });

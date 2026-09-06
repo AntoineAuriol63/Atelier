@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { ExternalLink, FileText, Layers, Moon, Plus, Redo2, Sun, Undo2, UploadCloud } from "lucide-react";
 import type { DropPosition, Node, Page, Site } from "@atelier/model";
-import { cloneWithNewIds, indexSite, newId, planInsert, planMove } from "@atelier/model";
+import { BASE, breakpointForWidth, cloneWithNewIds, indexSite, newId, planInsert, planMove } from "@atelier/model";
 import { useDocument } from "@/lib/use-document";
 import { PRODUCT_NAME } from "@/lib/product";
 import type { BlockPreset } from "@/lib/blocks";
@@ -203,14 +203,17 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
   }, []);
   const presetWidth = PRESETS.find((x) => x.id === preset)?.width ?? null;
   const width = customWidth ?? presetWidth;
-  const effective = width ?? measured;
+  const effective = width ?? (measured || 1280);
   // Au-delà de la zone visible, le cadre garde sa vraie largeur et est réduit à l'échelle pour tenir.
   const scale = measured > 0 && effective > measured ? measured / effective : 1;
   const frameHeight = `calc((100vh - 40px - 40px - 18px) / ${scale})`;
-  const breakpoint = useMemo(() => {
-    const bps = [...site.settings.breakpoints].sort((a, b) => a.maxWidth - b.maxWidth);
-    return bps.find((b) => effective <= b.maxWidth)?.name ?? "Base";
-  }, [site.settings.breakpoints, effective]);
+  const activeBp = useMemo(() => breakpointForWidth(site.settings.breakpoints, effective), [site.settings.breakpoints, effective]);
+  const breakpoint = activeBp === BASE ? "Base" : site.settings.breakpoints.find((b) => b.id === activeBp)?.name ?? activeBp;
+  const goToBreakpoint = useCallback((bp: string) => {
+    if (bp === BASE) { setPreset("base"); setCustomWidth(null); return; }
+    const b = site.settings.breakpoints.find((x) => x.id === bp);
+    if (b) setCustomWidth(b.maxWidth);
+  }, [site.settings.breakpoints]);
 
   const startResize = (e: React.PointerEvent) => {
     e.preventDefault();
@@ -244,7 +247,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
         <div className="ml-auto flex items-center gap-2">
           <Tabs variant="pill" tabs={PRESETS.map((x) => ({ id: x.id, label: x.label }))} value={customWidth === null ? preset : ""} onChange={(id) => { setPreset(id); setCustomWidth(null); }} />
           <NumberInput className="w-[92px]" unit="px" min={MIN_WIDTH} max={MAX_WIDTH} step={10} title="Largeur de l'aperçu (320 à 4000 px)" value={Math.round(effective) || ""} onValueChange={(v) => setCustomWidth(v === "" ? null : v)} />
-          <Badge tone="accent" title="Point de rupture actif">{breakpoint}</Badge>
+          <Badge tone="accent" title="Point de rupture actif : les réglages de style se posent dessus">{breakpoint}</Badge>
           {scale < 1 ? <Badge title="Aperçu réduit pour tenir dans la zone">{Math.round(scale * 100)} %</Badge> : null}
           <Separator vertical />
           <div className="flex items-center gap-0.5">
@@ -315,7 +318,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
 
       <Panel side="right">
         {selectedLoc ? (
-          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} site={site} loc={selectedLoc} commit={doc.commit} onDeleted={() => select(selectedLoc.parent?.id ?? null)} /></div>
+          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} site={site} loc={selectedLoc} activeBp={activeBp} onGoToBreakpoint={goToBreakpoint} commit={doc.commit} onDeleted={() => select(selectedLoc.parent?.id ?? null)} /></div>
         ) : (
           <div className="p-3 flex flex-col gap-2">
             <PanelHeading className="px-0">Sélection</PanelHeading>

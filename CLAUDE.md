@@ -9,6 +9,7 @@ Créateur de sites web designer-first, code-natif, sans verrou. Voir `docs/decis
 - `apps/editor` — application Next.js (App Router). `/` est l'éditeur, `/preview/...` rend le site courant (`?editor=1` : aperçu vivant piloté par l'éditeur), `/api/sites/:id` et `/api/sites/:id/changes` exposent le document et son journal.
 - `apps/editor/src/lib/store` — dépôt de sites (`SiteStore`) : fichiers JSON en développement (`.atelier-data/`), Supabase si configuré (`supabase/schema.sql`).
 - `apps/editor/src/ui` — système de design de l'éditeur (jetons dans `src/app/globals.css`, primitives : Button, IconButton, TextInput, TextArea, Select, NumberInput, Field, Tabs, Panel, Section, TreeRow, Badge, Kbd…). Toute interface de l'éditeur se construit avec ces primitives ; on les fait évoluer plutôt que de styler à la main.
+- `apps/editor/src/ui/controls` — contrôles de style (pastille de source, ligne de propriété, groupe exclusif, champ de longueur avec unité et jeton, schéma de boîte). `apps/editor/src/components/design` — panneaux Design (Disposition, Espacement, Dimensions, Responsive) branchés sur `useStyle`, qui lit `resolveNodeStyle` du modèle et écrit sur le point de rupture actif via `stylePath`.
 - `apps/editor/src/lib/use-document.ts` — état d'édition côté client : commit, annuler, rétablir (historique pur dans `packages/model/src/history.ts`), envoi séquentiel au journal.
 
 ## Règles
