@@ -7,3 +7,4 @@ export * from "./TypographyPanel";
 export * from "./AppearancePanel";
 export * from "./EffectsPanel";
 export * from "./TypePanels";
+export * from "./SharedStylesPanel";

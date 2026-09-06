@@ -6,7 +6,9 @@ import type { CommitOptions, Inline, Node, NodeLocation, Op, Site, StyleValue } 
 import { BASE, cloneWithNewIds, newId, resolveNodeStyle, stylePath } from "@atelier/model";
 import { Badge, Field, FieldGroup, Hint, IconButton, Section, TextArea, TextInput } from "@/ui";
 import { nodeIcon, nodeLabel, TYPE_LABEL } from "./node-icons";
-import { AppearancePanel, CollectionPanel, EffectsPanel, ImagePanel, LayoutPanel, LinkPanel, ResponsivePanel, SizePanel, SpacingPanel, TagPanel, TypographyPanel, useStyle } from "./design";
+import { AppearancePanel, CollectionPanel, EffectsPanel, ImagePanel, LayoutPanel, LinkPanel, ResponsivePanel, SharedStylesPanel, SizePanel, SpacingPanel, STATE_LABEL, TagPanel, TypographyPanel, useStyle, type StyleTarget } from "./design";
+import { Segmented } from "@/ui/controls";
+import { sharedStyleUsages } from "@atelier/model";
 
 type Props = {
   site: Site;
@@ -14,6 +16,8 @@ type Props = {
   activeBp: string;
   mode?: string;
   onGoToBreakpoint: (bp: string) => void;
+  /** État prévisualisé de force dans l'aperçu (survol…), ou null. */
+  onPreviewState: (state: string | null) => void;
   commit: (op: Op, opts?: CommitOptions) => void;
   onDeleted: () => void;
 };
@@ -36,10 +40,16 @@ function plainText(content: unknown, locale: string): { text: string; rich: bool
   return { text: list.map((s) => (s.t === "text" ? s.v : s.t === "break" ? "\n" : "")).join(""), rich };
 }
 
-export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, commit, onDeleted }: Props) {
+export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onPreviewState, commit, onDeleted }: Props) {
   const node: Node = loc.node;
   const locale = site.settings.defaultLocale;
-  const style = useStyle(site, node, activeBp, commit);
+  const [state, setStateRaw] = useState<string | undefined>(undefined);
+  const [editingShared, setEditingShared] = useState<string | null>(null);
+  const setState = (st: string | undefined) => { setStateRaw(st); onPreviewState(st ?? null); };
+  const sharedTarget = editingShared && site.sharedStyles.some((x) => x.id === editingShared) ? editingShared : null;
+  const target: StyleTarget = sharedTarget ? { kind: "shared", id: sharedTarget } : { kind: "node", node };
+  const style = useStyle(site, target, activeBp, state, commit);
+  const sharedDef = sharedTarget ? site.sharedStyles.find((x) => x.id === sharedTarget) : undefined;
   const parentDisplay = loc.parent ? (resolveNodeStyle(site, loc.parent, activeBp).display?.value as string | undefined) : undefined;
   const siblings = loc.parent?.children ?? [];
   const canText = node.type === "text" && !node.bindings?.content;
@@ -63,9 +73,19 @@ export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, com
         ) : null}
       </div>
 
-      {activeBp !== BASE ? (
+      <div className="flex items-center gap-2 px-3 h-9 border-b border-line">
+        <span className="text-2xs uppercase tracking-wider text-dim">État</span>
+        <Segmented className="flex-1" size="sm" value={state} options={[{ value: "hover", label: STATE_LABEL.hover! }, { value: "active", label: STATE_LABEL.active! }, { value: "focus", label: STATE_LABEL.focus! }]} onChange={(v) => setState(v)} />
+      </div>
+      {sharedDef ? (
+        <div className="flex items-center gap-2 px-3 h-8 bg-violet-400/15 text-violet-300 text-xs border-b border-line">
+          <span className="flex-1 truncate">Vous modifiez le style partagé <strong className="font-medium">« {sharedDef.name} »</strong> ({sharedStyleUsages(site, sharedDef.id).length} usages)</span>
+          <button type="button" onClick={() => setEditingShared(null)} className="h-6 px-2 rounded-sm bg-panel text-ink hover:bg-hover">Retour à l&apos;élément</button>
+        </div>
+      ) : null}
+      {activeBp !== BASE || state ? (
         <div className="flex items-center gap-2 px-3 h-7 bg-warning-soft text-warning text-xs border-b border-line">
-          Réglages posés sur <strong className="font-medium">{style.bpName(activeBp)}</strong> et les points plus étroits.
+          Réglages posés sur <strong className="font-medium">{style.bpName(activeBp)}{state ? ` · ${STATE_LABEL[state] ?? state}` : ""}</strong>{state ? " (l'état est forcé dans l'aperçu)" : " et les points plus étroits"}.
         </div>
       ) : null}
 
@@ -87,9 +107,9 @@ export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, com
         </Section>
       ) : null}
 
-      {node.type === "image" ? <ImagePanel site={site} node={node} commit={commit} /> : null}
-      {node.type === "link" ? <LinkPanel site={site} node={node} commit={commit} /> : null}
-      {node.type === "collection" ? <CollectionPanel site={site} node={node} commit={commit} /> : null}
+      {!sharedDef && node.type === "image" ? <ImagePanel site={site} node={node} commit={commit} /> : null}
+      {!sharedDef && node.type === "link" ? <LinkPanel site={site} node={node} commit={commit} /> : null}
+      {!sharedDef && node.type === "collection" ? <CollectionPanel site={site} node={node} commit={commit} /> : null}
 
       <LayoutPanel site={site} node={node} style={style} parentDisplay={parentDisplay} />
       <SpacingPanel site={site} style={style} />
@@ -98,12 +118,7 @@ export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, com
       <AppearancePanel site={site} style={style} mode={mode} />
       <EffectsPanel site={site} style={style} />
 
-      {node.style?.shared?.length ? (
-        <Section title="Styles partagés" defaultOpen={false}>
-          <div className="flex flex-wrap gap-1">{node.style.shared.map((s) => <Badge key={s} tone="accent">{site.sharedStyles.find((x) => x.id === s)?.name ?? s}</Badge>)}</div>
-          <Hint>Créer, modifier et détacher des styles partagés : suite du jalon M3.</Hint>
-        </Section>
-      ) : null}
+      {!sharedDef ? <SharedStylesPanel site={site} node={node} commit={commit} onEdit={setEditingShared} /> : null}
 
       <ResponsivePanel site={site} node={node} activeBp={activeBp} onGoTo={onGoToBreakpoint} />
 

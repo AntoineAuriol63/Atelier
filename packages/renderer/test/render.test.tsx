@@ -28,7 +28,7 @@ describe("css", () => {
     expect(iMobile).toBeGreaterThan(-1);
   });
   it("émet les états", () => {
-    expect(css).toContain(".s-st_button:hover{opacity:0.85}");
+    expect(css).toContain(".s-st_button:hover,.s-st_button[data-force-state~=\"hover\"]{opacity:0.85}");
   });
 });
 

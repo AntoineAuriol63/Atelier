@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { ExternalLink, FileText, Layers, Moon, Plus, Redo2, Sun, Undo2, UploadCloud } from "lucide-react";
+import { Command as CommandIcon, ExternalLink, FileText, Layers, Moon, Palette, Plus, Redo2, Sun, Undo2, UploadCloud } from "lucide-react";
 import type { DropPosition, Node, Page, Site } from "@atelier/model";
 import { BASE, breakpointForWidth, cloneWithNewIds, indexSite, newId, planInsert, planMove } from "@atelier/model";
 import { useDocument } from "@/lib/use-document";
@@ -10,6 +10,9 @@ import type { BlockPreset } from "@/lib/blocks";
 import { Badge, Button, Hint, IconButton, NumberInput, Panel, PanelHeading, Separator, Tabs, TreeRow, type DropIndicator } from "@/ui";
 import { NodeInspector } from "./NodeInspector";
 import { AddPanel } from "./AddPanel";
+import { ThemePanel } from "./ThemePanel";
+import { CommandPalette, type Command } from "./CommandPalette";
+import { BLOCKS, componentPresets } from "@/lib/blocks";
 import { nodeIcon, nodeLabel } from "./node-icons";
 
 const PRESETS: { id: string; label: string; width: number | null }[] = [
@@ -95,6 +98,8 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
   const [openMap, setOpenMap] = useState<Record<string, boolean>>({});
   const [drop, setDrop] = useState<DropState>(null);
   const [notice, setNotice] = useState<{ text: string; tone: "danger" | "success" } | null>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [previewState, setPreviewState] = useState<string | null>(null);
   const dragId = useRef<string | null>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const canvas = useRef<HTMLElement>(null);
@@ -162,11 +167,14 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
   useEffect(() => { if (frameReady) post({ type: "atelier:site", site, containers: [...index.values()].filter((l) => ["box", "list", "listItem", "link", "form", "item", "slot"].includes(l.node.type)).map((l) => l.node.id) }); }, [site, index, frameReady, post]);
   useEffect(() => { if (frameReady) post({ type: "atelier:mode", mode }); }, [mode, frameReady, post]);
   useEffect(() => { if (frameReady) post({ type: "atelier:highlight", id: selected }); }, [selected, frameReady, post]);
+  useEffect(() => { if (frameReady) post({ type: "atelier:state", id: selected, state: previewState }); }, [selected, previewState, frameReady, site, post]);
 
   // --- raccourcis clavier
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const meta = e.metaKey || e.ctrlKey;
+      if (meta && e.key.toLowerCase() === "k") { e.preventDefault(); setPaletteOpen((o) => !o); return; }
+      if (paletteOpen) return;
       if (meta && e.key.toLowerCase() === "z") { e.preventDefault(); if (e.shiftKey) doc.redo(); else doc.undo(); return; }
       if (isTyping()) return;
       const loc = selected ? index.get(selected) : undefined;
@@ -188,7 +196,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [doc, selected, index, openMap, select]);
+  }, [doc, selected, index, openMap, select, paletteOpen]);
 
   // --- largeur de l'aperçu : préréglage, valeur libre, poignée, point de rupture actif
   useEffect(() => {
@@ -225,6 +233,27 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
   };
 
   const status = STATUS[doc.status] ?? STATUS.saved!;
+  const commands = useMemo<Command[]>(() => {
+    const cmds: Command[] = [
+      { id: "undo", group: "Édition", label: "Annuler", keys: "⌘Z", icon: Undo2, run: doc.undo },
+      { id: "redo", group: "Édition", label: "Rétablir", keys: "⇧⌘Z", icon: Redo2, run: doc.redo },
+      { id: "preview", group: "Affichage", label: "Ouvrir l'aperçu dans un nouvel onglet", icon: ExternalLink, run: () => window.open(previewPath, "_blank") },
+      ...site.theme.modes.map((m) => ({ id: `mode:${m.id}`, group: "Affichage", label: `Aperçu en mode ${m.name.toLowerCase()}`, icon: m.id === "dark" ? Moon : Sun, run: () => setMode(m.id) })),
+      ...PRESETS.map((p) => ({ id: `width:${p.id}`, group: "Affichage", label: `Largeur ${p.label.toLowerCase()}`, run: () => { setPreset(p.id); setCustomWidth(null); } })),
+      ...[{ id: "pages", label: "Pages", icon: FileText }, { id: "layers", label: "Calques", icon: Layers }, { id: "add", label: "Ajouter", icon: Plus }, { id: "theme", label: "Thème", icon: Palette }].map((t) => ({ id: `tab:${t.id}`, group: "Panneaux", label: `Afficher ${t.label}`, icon: t.icon, run: () => setLeftTab(t.id) })),
+      ...site.pages.map((p) => ({ id: `page:${p.id}`, group: "Pages", label: `Aller à ${p.name[locale] ?? p.path}`, icon: FileText, keywords: p.path, run: () => { setPageId(p.id); select(null); setFrameReady(false); } })),
+      ...[...BLOCKS, ...componentPresets(site)].map((b) => ({ id: `add:${b.id}`, group: "Ajouter un bloc", label: b.label, icon: b.icon, keywords: b.description, run: () => addBlock(b) })),
+    ];
+    if (selected && index.get(selected)?.parent) {
+      cmds.push({ id: "dup", group: "Édition", label: "Dupliquer la sélection", keys: "⌘D", run: () => { const loc = index.get(selected)!; const { node: copy } = cloneWithNewIds(loc.node, newId); doc.commit({ op: "node.insert", parent: loc.parent!.id, index: loc.index + 1, node: copy }, { label: "Dupliquer" }); select(copy.id); } });
+      cmds.push({ id: "del", group: "Édition", label: "Supprimer la sélection", keys: "⌫", run: () => { const loc = index.get(selected)!; doc.commit({ op: "node.remove", id: selected }, { label: "Supprimer" }); select(loc.parent!.id); } });
+    }
+    const seen = new Set<string>();
+    const nodes: Command[] = [];
+    const visit = (n: Node) => { const label = nodeLabel(n); if (!seen.has(n.id)) { seen.add(n.id); nodes.push({ id: `sel:${n.id}`, group: "Sélectionner un calque", label, icon: nodeIcon(n), keywords: n.type, run: () => select(n.id) }); } n.children?.forEach(visit); };
+    visit(page.root);
+    return [...cmds, ...nodes.slice(0, 80)];
+  }, [doc, site, locale, page.root, previewPath, selected, index, select, addBlock]);
   const setOpen = useCallback((id: string, open: boolean) => setOpenMap((m) => ({ ...m, [id]: open })), []);
   const rename = useCallback((id: string, name: string | null | undefined) => {
     setEditing(null);
@@ -260,13 +289,14 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
             {site.theme.modes.map((m) => <IconButton key={m.id} label={`Aperçu en mode ${m.name.toLowerCase()}`} icon={m.id === "dark" ? Moon : Sun} active={mode === m.id} onClick={() => setMode(m.id)} />)}
           </div>
           <Separator vertical />
+          <IconButton label="Palette de commandes (⌘K)" icon={CommandIcon} onClick={() => setPaletteOpen(true)} />
           <Button variant="ghost" icon={ExternalLink} onClick={() => window.open(previewPath, "_blank")}>Aperçu</Button>
           <Button variant="primary" icon={UploadCloud} disabled title="Publication : jalon M6">Publier</Button>
         </div>
       </header>
 
       <Panel side="left">
-        <Tabs tabs={[{ id: "pages", label: "Pages", icon: FileText }, { id: "layers", label: "Calques", icon: Layers }, { id: "add", label: "Ajouter", icon: Plus }]} value={leftTab} onChange={setLeftTab} className="px-1 shrink-0" />
+        <Tabs tabs={[{ id: "pages", label: "Pages", icon: FileText }, { id: "layers", label: "Calques", icon: Layers }, { id: "add", label: "Ajouter", icon: Plus }, { id: "theme", label: "Thème", icon: Palette }]} value={leftTab} onChange={setLeftTab} className="px-1 shrink-0" />
         <div className="flex-1 overflow-auto py-1" onDragOver={(e) => { if (dragId.current) e.preventDefault(); }} onDrop={(e) => { e.preventDefault(); setDrop(null); }}>
           {leftTab === "pages" ? (
             <ul>
@@ -293,8 +323,10 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
                 onDropOn={(id, position) => { if (dragId.current) moveNode(dragId.current, id, position); }}
               />
             </div>
-          ) : (
+          ) : leftTab === "add" ? (
             <AddPanel site={site} target={insertTarget} onAdd={addBlock} />
+          ) : (
+            <ThemePanel site={site} commit={doc.commit} />
           )}
         </div>
       </Panel>
@@ -318,7 +350,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
 
       <Panel side="right">
         {selectedLoc ? (
-          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} site={site} loc={selectedLoc} activeBp={activeBp} mode={mode} onGoToBreakpoint={goToBreakpoint} commit={doc.commit} onDeleted={() => select(selectedLoc.parent?.id ?? null)} /></div>
+          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} site={site} loc={selectedLoc} activeBp={activeBp} mode={mode} onGoToBreakpoint={goToBreakpoint} onPreviewState={setPreviewState} commit={doc.commit} onDeleted={() => select(selectedLoc.parent?.id ?? null)} /></div>
         ) : (
           <div className="p-3 flex flex-col gap-2">
             <PanelHeading className="px-0">Sélection</PanelHeading>
@@ -326,6 +358,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
           </div>
         )}
       </Panel>
+      {paletteOpen ? <CommandPalette open onClose={() => setPaletteOpen(false)} commands={commands} /> : null}
     </div>
   );
 }

@@ -45,7 +45,7 @@ Ce qui empêche aujourd'hui de construire une page : on ne peut ni ajouter ni d�
 - [x] Renommer un calque en double-cliquant (ou Entrée)
 - [x] Arbre : replier/déplier mémorisé, ancêtres ouverts et défilement à la sélection
 
-### M3 · Panneaux Design (D19) — en cours (sessions 1 et 2 faites le 7 septembre 2026)
+### M3 · Panneaux Design (D19) — fait le 7 septembre 2026 (reste l'audit d'usage)
 
 Le panneau de droite actuel est un échafaudage. Il est remplacé, pas amélioré.
 
@@ -56,13 +56,13 @@ Le panneau de droite actuel est un échafaudage. Il est remplacé, pas amélior�
 - [x] **Apparence** : fond couleur, dégradé (type, angle, arrêts) ou image (ressource, taille, position), bordure (épaisseur, style, couleur), arrondi global ou par coin, ombre (jeton ou libre), opacité
 - [x] **Effets** : rotation, échelle, décalage (ou texte brut si transformation complexe), transition (propriété, durée, courbe), filtre, curseur
 - [x] Contrôles communs : champ de longueur avec unité, jeton (◇), mots-clés, flèches et Alt+glisser · pastille de source et réinitialisation · groupe de boutons exclusifs · sélecteur de couleur (pastille native, texte libre, jetons avec valeur par mode)
-- [ ] **États** : édition du survol, actif, focus, ouvert, avec prévisualisation forcée dans le canvas
+- [x] **États** : sélecteur Survol / Actif / Focus dans l'inspecteur, réglages posés sur l'état au point actif, valeurs de l'état normal marquées héritées, état forcé dans l'aperçu (attribut `data-force-state` émis avec chaque pseudo-classe)
 - [x] **Points de rupture** : édition sur le point actif (celui de la largeur d'aperçu), indicateur de source par contrôle (bleu : posé ici · ambre : hérité d'un point plus large · violet : style partagé · gris : défaut du thème), réinitialisation d'une surcharge, section « Responsive » listant les surcharges de l'élément par point
-- [ ] Réglages des points de rupture du site : ajouter, renommer, changer une largeur ; grands écrans en largeur minimale en v1
+- [x] Réglages des points de rupture du site : ajouter, renommer, changer un seuil, supprimer si aucun réglage ne l'utilise ; grands écrans en largeur minimale en v1
 - [ ] **Styles partagés** : appliquer, créer depuis la sélection, modifier, détacher, voir les usages
-- [ ] **Thème** : panneau des jetons (couleurs par mode, polices, tailles, espacements, arrondis, ombres)
+- [x] **Thème** : onglet Thème avec les jetons par groupe (couleurs par mode, polices, tailles, interlignes, espacements, arrondis, ombres, largeurs), ajout et suppression
 - [x] Propriétés par type : image (ressource du site ou ajout par adresse, alt, ajustement, ratio, priorité), lien ou bouton (page, adresse, email, téléphone, ancre, nouvel onglet), texte et boîte (balise sémantique, D38), collection (base, tri, limite)
-- [ ] Raccourcis clavier documentés et palette de commandes ⌘K (D06)
+- [x] Palette de commandes ⌘K : annuler, rétablir, modes, largeurs, panneaux, pages, ajout de blocs, sélection d'un calque par son nom ; raccourcis affichés dans la palette
 - [ ] Erreurs d'affichage : relever et corriger (à auditer avec l'éditeur ouvert)
 - [ ] **Audit d'usage n°1** : Antoine construit une page complète et note tout ce qui bloque ; l'audit alimente les finitions de M3
 
@@ -130,3 +130,4 @@ Espaces membres (D49) · synchronisation Git des composants · contributions à 
 - 6 sept. 2026 (nuit) — M2 terminé : palette de blocs, glisser-déposer dans les calques et dans le canvas (planification pure et testée dans le modèle), largeur libre avec poignée et point de rupture actif, raccourcis clavier, renommage en place. Correctif : `null` vaut retrait sur un champ optionnel (les erreurs serveur affichent le détail). Prochaine étape : M3, panneaux Design.
 - 7 sept. 2026 — M3 session 1 : résolution de style avec sources dans le modèle (testée), contrôles communs (pastille de source, champ de longueur, groupe exclusif, schéma de boîte), panneaux Disposition, Espacement, Dimensions, Responsive ; édition sur le point de rupture actif. Correctif : un retrait (`value` absente) est valide côté serveur. Session 2 : Typographie, Apparence, couleur et jetons, Effets.
 - 7 sept. 2026 — M3 session 2 : sélecteur de couleur, Typographie, Apparence, Effets, panneaux Image, Lien, Balise et Collection. Session 3 à faire : états (survol…), styles partagés (appliquer, créer, modifier, détacher), thème (jetons), raccourcis et ⌘K, réglage des points de rupture, puis audit d'usage n°1.
+- 7 sept. 2026 — M3 session 3 : états avec prévisualisation forcée, styles partagés complets, onglet Thème avec points de rupture, palette ⌘K. Reste : erreurs d'affichage à relever pendant l'audit d'usage n°1, qui est la prochaine étape.

@@ -117,6 +117,12 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       const m = e.data as { type?: string; id?: string | null; mode?: string; site?: Site; containers?: string[] };
       if (m?.type === "atelier:site" && m.site) { setSite(m.site); if (m.containers) containers = new Set(m.containers); }
       if (m?.type === "atelier:mode" && m.mode) setModeState(m.mode);
+      if (m?.type === "atelier:state") {
+        document.querySelectorAll<HTMLElement>("[data-force-state]").forEach((el) => el.removeAttribute("data-force-state"));
+        const st = (m as { state?: string | null }).state;
+        const el = m.id && st ? document.querySelector<HTMLElement>(`[data-node="${m.id}"]`) : null;
+        if (el && st) el.setAttribute("data-force-state", st);
+      }
       if (m?.type === "atelier:highlight") {
         const el = m.id ? document.querySelector<HTMLElement>(`[data-node="${m.id}"]`) : null;
         select(el, false);

@@ -95,8 +95,10 @@ const STATE_SELECTOR: Record<string, string> = {
   current: '[aria-current="page"]',
 };
 
-function stateSelector(state: string): string {
-  return STATE_SELECTOR[state] ?? `[data-state~="${state}"]`;
+/** Sélecteur d'un état : pseudo-classe (ou attribut data-state), plus l'état forcé par l'éditeur. */
+function stateRule(selector: string, state: string): string {
+  const pseudo = STATE_SELECTOR[state] ?? `[data-state~="${state}"]`;
+  return `${selector}${pseudo},${selector}[data-force-state~="${state}"]`;
 }
 
 /** Règles CSS d'un jeu de styles pour un sélecteur, points de rupture en cascade descendante. */
@@ -107,7 +109,7 @@ export function styleSetCss(selector: string, style: Omit<StyleSet, "shared"> | 
   if (base) out.push(`${selector}{${base}}`);
   for (const [state, props] of Object.entries(style?.states ?? {})) {
     const d = declarations(props, assets);
-    if (d) out.push(`${selector}${stateSelector(state)}{${d}}`);
+    if (d) out.push(`${stateRule(selector, state)}{${d}}`);
   }
   const ordered = [...breakpoints].sort((a, b) => b.maxWidth - a.maxWidth);
   for (const bp of ordered) {
@@ -117,7 +119,7 @@ export function styleSetCss(selector: string, style: Omit<StyleSet, "shared"> | 
     if (hidden?.[bp.id]) rules.push(`${selector}{display:none}`);
     for (const [state, byBp] of Object.entries(style?.stateBreakpoints ?? {})) {
       const ds = declarations(byBp[bp.id], assets);
-      if (ds) rules.push(`${selector}${stateSelector(state)}{${ds}}`);
+      if (ds) rules.push(`${stateRule(selector, state)}{${ds}}`);
     }
     if (rules.length) out.push(`@media (max-width:${bp.maxWidth}px){${rules.join("")}}`);
   }

@@ -5,12 +5,14 @@ import { cx } from "../cx";
 
 export const SOURCE_COLOR: Record<StyleSource["kind"], string> = { local: "bg-accent", inherited: "bg-warning", shared: "bg-violet-400", default: "bg-line-strong" };
 
-export function sourceLabel(source: StyleSource | undefined, bpName: (id: string) => string, styleName: (id: string) => string): string {
+export function sourceLabel(source: StyleSource | undefined, bpName: (id: string) => string, styleName: (id: string) => string, stateLabel: Record<string, string> = {}): string {
   if (!source) return "Non défini";
   switch (source.kind) {
     case "local": return "Posé ici. Cliquer pour réinitialiser.";
-    case "inherited": return `Hérité de ${bpName(source.breakpoint)}`;
-    case "shared": return `Vient du style partagé « ${styleName(source.style)} »${source.breakpoint !== "base" ? ` (${bpName(source.breakpoint)})` : ""}`;
+    case "inherited":
+      if (source.fromState === null) return `Hérité de l'état normal (${bpName(source.breakpoint)})`;
+      return `Hérité de ${bpName(source.breakpoint)}${source.fromState ? ` · ${stateLabel[source.fromState] ?? source.fromState}` : ""}`;
+    case "shared": return `Vient du style partagé « ${styleName(source.style)} »${source.breakpoint !== "base" ? ` (${bpName(source.breakpoint)})` : ""}${source.state ? ` · ${stateLabel[source.state] ?? source.state}` : ""}`;
     case "default": return `Valeur par défaut du thème pour ${source.from}`;
   }
 }

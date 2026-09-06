@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { breakpointForWidth, cascadeChain, findNode, overridesByBreakpoint, resolveNodeStyle, sampleSite, stylePath } from "../src";
+import { breakpointForWidth, cascadeChain, findNode, overridesByBreakpoint, resolveNodeStyle, resolveSharedStyle, sampleSite, sharedStylePath, sharedStyleUsages, stylePath } from "../src";
 
 const bps = sampleSite.settings.breakpoints;
 
@@ -54,5 +54,29 @@ describe("resolveNodeStyle", () => {
   });
   it("surcharges par point de rupture", () => {
     expect(overridesByBreakpoint(sampleSite, hero)).toEqual({ base: ["display", "gridTemplateColumns", "gap", "alignItems", "maxWidth", "marginLeft", "marginRight"], tablet: ["gridTemplateColumns", "gap"], mobile: [], small: [] });
+  });
+});
+
+describe("états et styles partagés", () => {
+  it("résout un état : valeurs normales héritées, surcharge d'état locale ou partagée", () => {
+    const b1 = findNode(sampleSite, "hero_b1")!.node;
+    const r = resolveNodeStyle(sampleSite, b1, "base", "hover");
+    expect(r.opacity).toEqual({ value: "0.85", source: { kind: "shared", style: "st_button", breakpoint: "base", state: "hover" } });
+    expect(r.background?.source).toEqual({ kind: "shared", style: "st_button", breakpoint: "base" });
+    const nav = findNode(sampleSite, "nav_1")!.node;
+    const rn = resolveNodeStyle(sampleSite, nav, "base", "hover");
+    expect(rn.color).toEqual({ value: { token: "color.accent" }, source: { kind: "local" } });
+    expect(rn.textDecoration?.source).toEqual({ kind: "inherited", breakpoint: "base", fromState: null });
+  });
+  it("résout un style partagé seul, avec extends", () => {
+    const r = resolveSharedStyle(sampleSite, "st_button_secondary", "base");
+    expect(r.background).toEqual({ value: "transparent", source: { kind: "local" } });
+    expect(r.display?.source).toEqual({ kind: "inherited", breakpoint: "base" });
+    expect(resolveSharedStyle(sampleSite, "st_button", "base", "hover").opacity?.source).toEqual({ kind: "local" });
+  });
+  it("chemins et usages d'un style partagé", () => {
+    expect(sharedStylePath(sampleSite, "st_button", "base", "gap")).toBe("sharedStyles.2.style.base.gap");
+    expect(sharedStylePath(sampleSite, "st_button", "mobile", "gap", "hover")).toBe("sharedStyles.2.style.stateBreakpoints.hover.mobile.gap");
+    expect(sharedStyleUsages(sampleSite, "st_button").map((u) => u.node.id)).toEqual(["hero_b1", "cta_b", "f_submit"]);
   });
 });
