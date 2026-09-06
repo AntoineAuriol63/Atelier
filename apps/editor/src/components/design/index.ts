@@ -3,3 +3,7 @@ export * from "./LayoutPanel";
 export * from "./SpacingPanel";
 export * from "./SizePanel";
 export * from "./ResponsivePanel";
+export * from "./TypographyPanel";
+export * from "./AppearancePanel";
+export * from "./EffectsPanel";
+export * from "./TypePanels";

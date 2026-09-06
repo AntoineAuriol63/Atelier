@@ -45,23 +45,23 @@ Ce qui empêche aujourd'hui de construire une page : on ne peut ni ajouter ni d�
 - [x] Renommer un calque en double-cliquant (ou Entrée)
 - [x] Arbre : replier/déplier mémorisé, ancêtres ouverts et défilement à la sélection
 
-### M3 · Panneaux Design (D19) — en cours (session 1 faite le 7 septembre 2026)
+### M3 · Panneaux Design (D19) — en cours (sessions 1 et 2 faites le 7 septembre 2026)
 
 Le panneau de droite actuel est un échafaudage. Il est remplacé, pas amélioré.
 
 - [x] **Disposition** : affichage, direction, retour à la ligne, alignement, répartition, écart, grille (colonnes, lignes, nombre de colonnes égales), position et décalages, calque, débordement, réglages « dans le parent » (grandir, rétrécir, base, aligner, ordre, colonne/ligne de grille)
 - [x] **Espacement** : schéma de la boîte (marge, remplissage), une case par côté, côtés liables, couleur du texte selon la source
 - [x] **Dimensions** : largeur, hauteur, min et max, ratio, unités et jetons
-- [ ] **Typographie** : police, taille, graisse, interligne, espacement, alignement, casse, couleur
-- [ ] **Apparence** : fond (couleur, dégradé, image), bordure, arrondis, ombre, opacité
-- [ ] **Effets** : transformation, transition, filtre, curseur
-- [~] Contrôles communs : champ de longueur avec unité, jeton (◇), mots-clés, flèches et Alt+glisser `[x]` · pastille de source et réinitialisation `[x]` · groupe de boutons exclusifs `[x]` · sélecteur de couleur avec jetons `[ ]` (session 2)
+- [x] **Typographie** : police (thème, jetons, système), taille, interligne, graisse, espacement, couleur, alignement, italique et décorations, casse, retour à la ligne
+- [x] **Apparence** : fond couleur, dégradé (type, angle, arrêts) ou image (ressource, taille, position), bordure (épaisseur, style, couleur), arrondi global ou par coin, ombre (jeton ou libre), opacité
+- [x] **Effets** : rotation, échelle, décalage (ou texte brut si transformation complexe), transition (propriété, durée, courbe), filtre, curseur
+- [x] Contrôles communs : champ de longueur avec unité, jeton (◇), mots-clés, flèches et Alt+glisser · pastille de source et réinitialisation · groupe de boutons exclusifs · sélecteur de couleur (pastille native, texte libre, jetons avec valeur par mode)
 - [ ] **États** : édition du survol, actif, focus, ouvert, avec prévisualisation forcée dans le canvas
 - [x] **Points de rupture** : édition sur le point actif (celui de la largeur d'aperçu), indicateur de source par contrôle (bleu : posé ici · ambre : hérité d'un point plus large · violet : style partagé · gris : défaut du thème), réinitialisation d'une surcharge, section « Responsive » listant les surcharges de l'élément par point
 - [ ] Réglages des points de rupture du site : ajouter, renommer, changer une largeur ; grands écrans en largeur minimale en v1
 - [ ] **Styles partagés** : appliquer, créer depuis la sélection, modifier, détacher, voir les usages
 - [ ] **Thème** : panneau des jetons (couleurs par mode, polices, tailles, espacements, arrondis, ombres)
-- [ ] Propriétés par type : image (source, alt, ajustement, ratio), lien (cible, nouvel onglet), texte (balise), boîte (balise sémantique, D38)
+- [x] Propriétés par type : image (ressource du site ou ajout par adresse, alt, ajustement, ratio, priorité), lien ou bouton (page, adresse, email, téléphone, ancre, nouvel onglet), texte et boîte (balise sémantique, D38), collection (base, tri, limite)
 - [ ] Raccourcis clavier documentés et palette de commandes ⌘K (D06)
 - [ ] Erreurs d'affichage : relever et corriger (à auditer avec l'éditeur ouvert)
 - [ ] **Audit d'usage n°1** : Antoine construit une page complète et note tout ce qui bloque ; l'audit alimente les finitions de M3
@@ -129,3 +129,4 @@ Espaces membres (D49) · synchronisation Git des composants · contributions à 
 - 6 sept. 2026 (soir) — M1 posé : jetons sombres et denses (`globals.css`), primitives `src/ui`, coquille et inspecteur refaits, IBM Plex via next/font, icônes Lucide. Prochaine étape : M2, édition structurelle.
 - 6 sept. 2026 (nuit) — M2 terminé : palette de blocs, glisser-déposer dans les calques et dans le canvas (planification pure et testée dans le modèle), largeur libre avec poignée et point de rupture actif, raccourcis clavier, renommage en place. Correctif : `null` vaut retrait sur un champ optionnel (les erreurs serveur affichent le détail). Prochaine étape : M3, panneaux Design.
 - 7 sept. 2026 — M3 session 1 : résolution de style avec sources dans le modèle (testée), contrôles communs (pastille de source, champ de longueur, groupe exclusif, schéma de boîte), panneaux Disposition, Espacement, Dimensions, Responsive ; édition sur le point de rupture actif. Correctif : un retrait (`value` absente) est valide côté serveur. Session 2 : Typographie, Apparence, couleur et jetons, Effets.
+- 7 sept. 2026 — M3 session 2 : sélecteur de couleur, Typographie, Apparence, Effets, panneaux Image, Lien, Balise et Collection. Session 3 à faire : états (survol…), styles partagés (appliquer, créer, modifier, détacher), thème (jetons), raccourcis et ⌘K, réglage des points de rupture, puis audit d'usage n°1.

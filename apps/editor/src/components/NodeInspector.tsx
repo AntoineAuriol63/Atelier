@@ -6,12 +6,13 @@ import type { CommitOptions, Inline, Node, NodeLocation, Op, Site, StyleValue } 
 import { BASE, cloneWithNewIds, newId, resolveNodeStyle, stylePath } from "@atelier/model";
 import { Badge, Field, FieldGroup, Hint, IconButton, Section, TextArea, TextInput } from "@/ui";
 import { nodeIcon, nodeLabel, TYPE_LABEL } from "./node-icons";
-import { LayoutPanel, ResponsivePanel, SizePanel, SpacingPanel, useStyle } from "./design";
+import { AppearancePanel, CollectionPanel, EffectsPanel, ImagePanel, LayoutPanel, LinkPanel, ResponsivePanel, SizePanel, SpacingPanel, TagPanel, TypographyPanel, useStyle } from "./design";
 
 type Props = {
   site: Site;
   loc: NodeLocation;
   activeBp: string;
+  mode?: string;
   onGoToBreakpoint: (bp: string) => void;
   commit: (op: Op, opts?: CommitOptions) => void;
   onDeleted: () => void;
@@ -35,7 +36,7 @@ function plainText(content: unknown, locale: string): { text: string; rich: bool
   return { text: list.map((s) => (s.t === "text" ? s.v : s.t === "break" ? "\n" : "")).join(""), rich };
 }
 
-export function NodeInspector({ site, loc, activeBp, onGoToBreakpoint, commit, onDeleted }: Props) {
+export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, commit, onDeleted }: Props) {
   const node: Node = loc.node;
   const locale = site.settings.defaultLocale;
   const style = useStyle(site, node, activeBp, commit);
@@ -73,7 +74,7 @@ export function NodeInspector({ site, loc, activeBp, onGoToBreakpoint, commit, o
           <Field label="Nom" hint="Nom affiché dans les calques">
             <TextInput value={node.name ?? ""} placeholder={nodeLabel(node)} onValueChange={(v) => commit({ op: "node.set", id: node.id, path: "name", value: v || undefined }, { coalesceKey: `name:${node.id}`, label: "Renommer" })} />
           </Field>
-          {typeof node.props.tag === "string" ? <Field label="Balise"><span className="font-mono text-xs text-muted">{node.props.tag}</span></Field> : null}
+          <TagPanel node={node} commit={commit} />
           <Field label="Identifiant"><span className="font-mono text-xs text-dim">{node.id}</span></Field>
         </FieldGroup>
       </Section>
@@ -86,9 +87,16 @@ export function NodeInspector({ site, loc, activeBp, onGoToBreakpoint, commit, o
         </Section>
       ) : null}
 
+      {node.type === "image" ? <ImagePanel site={site} node={node} commit={commit} /> : null}
+      {node.type === "link" ? <LinkPanel site={site} node={node} commit={commit} /> : null}
+      {node.type === "collection" ? <CollectionPanel site={site} node={node} commit={commit} /> : null}
+
       <LayoutPanel site={site} node={node} style={style} parentDisplay={parentDisplay} />
       <SpacingPanel site={site} style={style} />
       <SizePanel site={site} style={style} />
+      <TypographyPanel site={site} style={style} mode={mode} />
+      <AppearancePanel site={site} style={style} mode={mode} />
+      <EffectsPanel site={site} style={style} />
 
       {node.style?.shared?.length ? (
         <Section title="Styles partagés" defaultOpen={false}>
@@ -113,7 +121,7 @@ export function NodeInspector({ site, loc, activeBp, onGoToBreakpoint, commit, o
             <button type="submit" className="h-7 px-2 rounded-sm bg-surface border border-line-strong text-xs hover:bg-hover">Ajouter</button>
           </form>
         </FieldGroup>
-        <Hint>Toutes les propriétés posées sur ce point de rupture, en CSS brut. Typographie, apparence et effets arrivent à la prochaine session.</Hint>
+        <Hint>Toutes les propriétés posées sur ce point de rupture, en CSS brut.</Hint>
       </Section>
     </div>
   );

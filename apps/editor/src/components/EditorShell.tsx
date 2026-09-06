@@ -318,7 +318,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
 
       <Panel side="right">
         {selectedLoc ? (
-          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} site={site} loc={selectedLoc} activeBp={activeBp} onGoToBreakpoint={goToBreakpoint} commit={doc.commit} onDeleted={() => select(selectedLoc.parent?.id ?? null)} /></div>
+          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} site={site} loc={selectedLoc} activeBp={activeBp} mode={mode} onGoToBreakpoint={goToBreakpoint} commit={doc.commit} onDeleted={() => select(selectedLoc.parent?.id ?? null)} /></div>
         ) : (
           <div className="p-3 flex flex-col gap-2">
             <PanelHeading className="px-0">Sélection</PanelHeading>
