@@ -320,7 +320,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
   }, [index, doc]);
 
   return (
-    <div className="h-full grid grid-rows-[40px_1fr] grid-cols-[264px_1fr_340px]">
+    <div className="h-full grid grid-rows-[40px_1fr] grid-cols-[300px_1fr_340px]">
       <header className="col-span-3 flex items-center gap-2 px-3 border-b border-line bg-panel">
         <span className="font-semibold text-base tracking-tight text-ink">{PRODUCT_NAME}</span>
         <Separator vertical />

@@ -29,17 +29,22 @@ function TokenList({ site, group, commit }: { site: Site; group: keyof Theme["to
   return (
     <div className="flex flex-col gap-1">
       {Object.entries(tokens).map(([n, v]) => (
-        <div key={n} className="grid grid-cols-[64px_1fr_24px] items-center gap-1">
-          <span className="font-mono text-xs text-muted truncate" title={`${group}.${n}`}>{n}</span>
+        <div key={n} className="grid grid-cols-[64px_minmax(0,1fr)_24px] items-start gap-1">
+          <span className="font-mono text-xs text-muted truncate pt-1.5" title={`${group}.${n}`}>{n}</span>
           {group === "color" ? (
-            <div className="flex gap-1">
+            <div className="flex flex-col gap-1 min-w-0">
               {site.theme.modes.map((m) => {
                 const mv = typeof v === "string" ? v : v[m.id] ?? "";
-                return <ColorInput key={m.id} className="flex-1" site={site} mode={m.id} value={mv} placeholder={m.name} onChange={(c) => set(n, typeof v === "string" ? { ...Object.fromEntries(site.theme.modes.map((x) => [x.id, v])), [m.id]: typeof c === "string" ? c : "" } : { ...v, [m.id]: typeof c === "string" ? c : "" }, `Couleur ${n}`)} />;
+                return (
+                  <div key={m.id} className="grid grid-cols-[44px_minmax(0,1fr)] items-center gap-1">
+                    <span className="text-2xs text-dim truncate">{m.name}</span>
+                    <ColorInput site={site} mode={m.id} value={mv} placeholder={m.name} onChange={(c) => set(n, typeof v === "string" ? { ...Object.fromEntries(site.theme.modes.map((x) => [x.id, v])), [m.id]: typeof c === "string" ? c : "" } : { ...v, [m.id]: typeof c === "string" ? c : "" }, `Couleur ${n}`)} />
+                  </div>
+                );
               })}
             </div>
           ) : (
-            <TextInput mono value={typeof v === "string" ? v : Object.values(v)[0] ?? ""} onValueChange={(t) => set(n, t, `Valeur ${n}`)} />
+            <TextInput mono className="min-w-0" value={typeof v === "string" ? v : Object.values(v)[0] ?? ""} onValueChange={(t) => set(n, t, `Valeur ${n}`)} />
           )}
           <IconButton size="sm" label={`Supprimer ${n}`} icon={Trash2} tone="danger" onClick={() => { if (window.confirm(`Supprimer la valeur ${group}.${n} ? Les éléments qui l'utilisent perdront cette valeur.`)) set(n, undefined, `Supprimer ${n}`, false); }} />
         </div>
@@ -114,7 +119,7 @@ function LayoutGridSection({ site, commit }: { site: Site; commit: Commit }) {
   const setBp = (id: string, patch: { columns?: number; gutter?: StyleValue; margin?: StyleValue }) => set({ byBreakpoint: { ...(grid.byBreakpoint ?? {}), [id]: { ...(grid.byBreakpoint?.[id] ?? {}), ...patch } } }, "Grille par taille d'écran");
   return (
     <Section title="Grille de mise en page" defaultOpen={false} hint="Un guide de colonnes affiché par-dessus l'aperçu (⌃G ou le bouton grille de la barre) pour aligner vos sections. Les blocs peuvent s'y caler : Disposition → « Calquer sur la grille », Dimensions → fractions.">
-      <div className="grid grid-cols-[84px_1fr] items-center gap-1.5">
+      <div className="grid grid-cols-[84px_minmax(0,1fr)] items-center gap-1.5">
         <span className="text-xs text-muted">Colonnes</span><NumberInput className="w-20" min={1} max={24} value={grid.columns} onValueChange={(n) => { if (n !== "") set({ columns: n }, "Colonnes de la grille"); }} />
         <span className="text-xs text-muted">Gouttière</span><UnitInput site={site} tokenGroup="space" value={grid.gutter} onChange={(v) => set({ gutter: v ?? "0px" }, "Gouttière")} />
         <span className="text-xs text-muted">Marge</span><UnitInput site={site} tokenGroup="space" value={grid.margin} onChange={(v) => set({ margin: v ?? "0px" }, "Marge de la grille")} />
@@ -122,12 +127,13 @@ function LayoutGridSection({ site, commit }: { site: Site; commit: Commit }) {
       </div>
       <div className="text-2xs uppercase tracking-wider text-dim mt-1">Par taille d&apos;écran</div>
       {bps.map((b) => (
-        <div key={b.id} className="grid grid-cols-[84px_1fr_1fr] items-center gap-1.5">
+        <div key={b.id} className="grid grid-cols-[84px_64px_minmax(0,1fr)] items-center gap-1.5">
           <span className="text-xs text-muted truncate" title={`jusqu'à ${b.maxWidth} px`}>{b.name}</span>
           <NumberInput unit="col" min={1} max={24} value={grid.byBreakpoint?.[b.id]?.columns ?? ""} placeholder={String(grid.columns)} onValueChange={(n) => setBp(b.id, { columns: n === "" ? undefined : n })} />
           <UnitInput site={site} tokenGroup="space" value={grid.byBreakpoint?.[b.id]?.margin} onChange={(v) => setBp(b.id, { margin: v })} placeholder="marge" />
         </div>
       ))}
+      <div className="grid grid-cols-[84px_64px_minmax(0,1fr)] gap-1.5 text-2xs text-dim -mt-1"><span /><span>colonnes</span><span>marge</span></div>
       <Hint>Vide = hérite de la taille au-dessus. Sur mobile, on passe souvent à 4 colonnes et une marge plus petite.</Hint>
     </Section>
   );
@@ -144,7 +150,6 @@ export function ThemePanel({ site, commit }: { site: Site; commit: Commit }) {
       <LayoutGridSection site={site} commit={commit} />
       <FontsSection site={site} commit={commit} />
       <Section title="Couleurs" defaultOpen>
-        <div className="grid grid-cols-[64px_1fr_24px] gap-1 text-2xs text-dim uppercase tracking-wider"><span /><div className="flex gap-1">{site.theme.modes.map((m) => <span key={m.id} className="flex-1">{m.name}</span>)}</div><span /></div>
         <TokenList site={site} group="color" commit={commit} />
       </Section>
       {GROUPS.map((g) => (
