@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { Copy, FileText, Plus, Settings2, Trash2 } from "lucide-react";
 import type { CommitOptions, Node, Op, Page, Site } from "@atelier/model";
-import { cloneWithNewIds, newId } from "@atelier/model";
-import { Button, Field, FieldGroup, Hint, IconButton, TextInput } from "@/ui";
+import { cloneWithNewIds, newId, templateOf } from "@atelier/model";
+import { Button, Field, FieldGroup, Hint, IconButton, Select, TextInput } from "@/ui";
 import { cx } from "@/ui/cx";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
@@ -36,6 +36,22 @@ export function PagesPanel({ site, pageId, onOpen, commit }: { site: Site; pageI
   const [settingsFor, setSettingsFor] = useState<string | null>(null);
   const setPages = (pages: Page[], label: string, opts?: CommitOptions) => commit({ op: "site.set", path: "pages", value: pages }, { label, ...opts });
   const pathTaken = (path: string, except?: string) => site.pages.some((p) => p.path === path && p.id !== except);
+  /** Page fixe ↔ modèle de page d'une base : la page change de sorte, la base enregistre son modèle (D24). */
+  const setRole = (p: Page, dbId: string | null) => {
+    const databases = site.databases.map((d) => {
+      const others = (d.pageTemplates ?? []).filter((t) => t.page !== p.id);
+      if (d.id !== dbId) return others.length === (d.pageTemplates ?? []).length ? d : { ...d, pageTemplates: others.length ? others : undefined };
+      return { ...d, pageTemplates: [{ page: p.id, slugPattern: `/${d.slug}/{${d.slugField ?? "slug"}}` }, ...others] };
+    });
+    const pages = site.pages.map((x) => (x.id === p.id ? { ...x, kind: dbId ? ("template" as const) : ("static" as const), path: dbId ? x.path : pathTaken(x.path, p.id) || x.path === "/" ? "/" + slugify(x.name[locale] ?? "page") : x.path } : x));
+    commit({ op: "batch", label: dbId ? "Faire de la page un modèle" : "Revenir à une page fixe", ops: [{ op: "site.set", path: "pages", value: pages }, { op: "site.set", path: "databases", value: databases }] });
+  };
+  const setPattern = (p: Page, pattern: string) => {
+    const t = templateOf(site, p.id);
+    if (!t) return;
+    const clean = "/" + pattern.replace(/^\/+/, "");
+    commit({ op: "site.set", path: "databases", value: site.databases.map((d) => (d.id !== t.database.id ? d : { ...d, pageTemplates: (d.pageTemplates ?? []).map((x) => (x.page === p.id ? { ...x, slugPattern: clean } : x)) })) }, { label: "Motif d'adresse", coalesceKey: `tpl-pattern:${p.id}` });
+  };
 
   const create = () => {
     const n = name.trim();
@@ -93,6 +109,14 @@ export function PagesPanel({ site, pageId, onOpen, commit }: { site: Site; pageI
                     <Field label="Adresse" hint={p.kind === "template" ? "Adresse définie par la base de données" : "Chemin de la page, commence par /"}>
                       <TextInput mono value={p.path} onValueChange={(v) => { const path = "/" + v.replace(/^\/+/, "").split("/").map(slugify).filter(Boolean).join("/"); if (p.kind !== "template" && !pathTaken(path, p.id)) update(p.id, { path }, "Adresse de la page", `page-path:${p.id}`); }} />
                     </Field>
+                    <Field label="Rôle" hint="Une page fixe a une adresse. Un modèle de page s'affiche une fois par entrée d'une base, à l'adresse de l'entrée.">
+                      <Select value={templateOf(site, p.id)?.database.id ? `tpl:${templateOf(site, p.id)!.database.id}` : "static"} options={[{ value: "static", label: "Page fixe" }, ...site.databases.map((d) => ({ value: `tpl:${d.id}`, label: `Modèle pour ${d.name[locale] ?? d.slug}` }))]} onValueChange={(v) => setRole(p, v.startsWith("tpl:") ? v.slice(4) : null)} />
+                    </Field>
+                    {templateOf(site, p.id) ? (
+                      <Field label="Adresses" hint="Motif d'adresse des entrées ; {slug} est remplacé par le champ adresse de l'entrée">
+                        <TextInput mono value={templateOf(site, p.id)!.slugPattern} onValueChange={(v) => setPattern(p, v)} />
+                      </Field>
+                    ) : null}
                     <Field label="Titre SEO" hint="Titre affiché dans l'onglet et les moteurs ; le suffixe du site est ajouté"><TextInput value={p.seo?.title?.[locale] ?? ""} placeholder={p.name[locale]} onValueChange={(v) => update(p.id, { seo: { ...p.seo, title: v ? { ...p.seo?.title, [locale]: v } : undefined } }, "Titre SEO", `page-seo-title:${p.id}`)} /></Field>
                     <Field label="Description"><TextInput value={p.seo?.description?.[locale] ?? ""} onValueChange={(v) => update(p.id, { seo: { ...p.seo, description: v ? { ...p.seo?.description, [locale]: v } : undefined } }, "Description SEO", `page-seo-desc:${p.id}`)} /></Field>
                   </FieldGroup>

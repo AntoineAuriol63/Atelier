@@ -34,6 +34,24 @@ describe("vue de collection", () => {
   });
 });
 
+describe("liaisons", () => {
+  it("rend un champ texte long lié comme une suite de paragraphes", () => {
+    const site = structuredClone(sampleSite);
+    const page = site.pages.find((p) => p.id === "p_projet")!;
+    const find = (n: typeof page.root): typeof page.root | undefined => (n.id === "prj_excerpt" ? n : (n.children ?? []).map(find).find(Boolean));
+    const node = find(page.root)!;
+    node.bindings = { content: { source: "entry", path: "body" } };
+    const entries = structuredClone(sampleEntries);
+    entries[0]!.values.body = [{ id: "rt1", type: "text", props: { tag: "p", content: { fr: [{ t: "text", v: "Premier paragraphe riche" }] } } }, { id: "rt2", type: "text", props: { tag: "p", content: { fr: [{ t: "text", v: "Second" }] } } }];
+    const d = memoryData(entries);
+    const m = matchPath(site, d, "/projets/lea-et-tom")!;
+    const ctx: RenderContext = { site, page: m.page, entry: m.entry, params: m.params, locale: "fr", data: d, assets: assetMap(site), basePath: "" };
+    const html = renderToStaticMarkup(createElement(RenderPage, { ctx }));
+    expect(html).toContain('<p class="n-rt1">Premier paragraphe riche</p><p class="n-rt2">Second</p>');
+    expect(html).toMatch(/<div class="[^"]*n-prj_excerpt" data-richtext="true">/);
+  });
+});
+
 describe("image", () => {
   it("émet un srcset à partir des déclinaisons, l'original en repli", () => {
     const site = structuredClone(sampleSite);

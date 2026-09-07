@@ -70,7 +70,9 @@ export function RenderNode({ node, ctx }: { node: Node; ctx: RenderContext }): R
     }
     case "text": {
       const bound = node.bindings?.content ? resolveBinding(node.bindings.content, ctx) : undefined;
-      const content = bound !== undefined ? String(bound ?? "") : renderInline(localized<Inline[]>(node.props.content, ctx), ctx);
+      // Un champ « texte long » est une suite de nœuds : ils se rendent dans une boîte, avec la classe du texte lié.
+      if (Array.isArray(bound)) return createElement("div", attrs(node, ctx, { "data-richtext": true }), (bound as Node[]).map((c) => createElement(RenderNode, { key: c.id, node: c, ctx })));
+      const content = bound !== undefined && bound !== null ? String(bound) : renderInline(localized<Inline[]>(node.props.content, ctx), ctx);
       return createElement(tagOf(node, TEXT_TAGS, "p"), attrs(node, ctx), content);
     }
     case "list":

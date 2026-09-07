@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Command as CommandIcon, Database as DatabaseIcon, ExternalLink, FileText, Grid3x3, Layers, Moon, Palette, Plus, Redo2, Sun, Undo2, UploadCloud } from "lucide-react";
 import type { DropPosition, Entry, Node, Page, Site } from "@atelier/model";
-import { BASE, breakpointForWidth, canInsertUnder, planExitBox, cloneWithNewIds, indexSite, layoutGridAt, newId, planDrop, planInsert, planMove, stylePath } from "@atelier/model";
+import { BASE, breakpointForWidth, canInsertUnder, planExitBox, cloneWithNewIds, dataSourceFor, entryPath, indexSite, layoutGridAt, newId, planDrop, planInsert, planMove, stylePath, templateOf } from "@atelier/model";
 import type { Op } from "@atelier/model";
 import { valueToCss } from "@atelier/renderer";
 import type { Inline } from "@atelier/model";
 import { useDocument } from "@/lib/use-document";
 import { PRODUCT_NAME } from "@/lib/product";
 import type { BlockPreset } from "@/lib/blocks";
-import { Badge, Button, Hint, IconButton, NumberInput, Panel, PanelHeading, Separator, Tabs, TreeRow, type DropIndicator } from "@/ui";
+import { Badge, Button, Hint, IconButton, NumberInput, Panel, PanelHeading, Separator, Tabs, TreeRow, type DropIndicator, Select } from "@/ui";
 import { NodeInspector } from "./NodeInspector";
 import { AddPanel } from "./AddPanel";
 import { ThemePanel } from "./ThemePanel";
@@ -142,7 +142,6 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
     window.requestAnimationFrame(() => document.querySelector(`[data-row-id="${id}"]`)?.scrollIntoView({ block: "nearest" }));
   }, [index]);
 
-  const previewPath = page.kind === "template" ? "/preview/projets/lea-et-tom" : `/preview${page.path === "/" ? "" : page.path}`;
   void previewKey;
   const post = useCallback((msg: unknown) => frame.current?.contentWindow?.postMessage(msg, "*"), []);
 
@@ -154,6 +153,13 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
   /** Entrées des bases (hors document) et base ouverte en vue tableur. */
   const ents = useEntries(initialSite.id, initialEntries, notify);
   const [dbOpen, setDbOpen] = useState<string | null>(null);
+  // Modèle de page : l'aperçu se fait avec une entrée au choix (publiée, pour que l'adresse existe).
+  const template = useMemo(() => templateOf(site, page.id), [site, page.id]);
+  const [previewEntryByPage, setPreviewEntryByPage] = useState<Record<string, string>>({});
+  const templateEntries = useMemo(() => (template ? ents.entries.filter((e) => e.database === template.database.id && e.status === "published") : []), [template, ents.entries]);
+  const previewEntry = templateEntries.find((e) => e.id === previewEntryByPage[page.id]) ?? templateEntries[0];
+  const previewPath = template ? `/preview${previewEntry ? entryPath(template.database, previewEntry) ?? "" : "/__modele-sans-entree"}` : page.kind === "template" ? "/preview/__modele-sans-base" : `/preview${page.path === "/" ? "" : page.path}`;
+  const dataSource = useMemo(() => (selected ? dataSourceFor(site, index, page, selected) : undefined), [site, index, page, selected]);
 
   // --- déplacement (calques et canvas) et insertion
   const moveNode = useCallback((id: string, targetId: string, position: DropPosition) => {
@@ -480,6 +486,12 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
         <span className="text-sm text-muted truncate max-w-[200px]" title={site.name}>{site.name}</span>
         <span className="text-dim">/</span>
         <span className="text-sm text-ink truncate max-w-[160px]">{page.name[locale]}</span>
+        {template ? (
+          <div className="flex items-center gap-1 ml-2" title="Modèle de page : quelle entrée afficher dans l'aperçu">
+            <span className="text-2xs uppercase tracking-[0.12em] text-dim">Entrée</span>
+            {templateEntries.length ? <Select className="max-w-[220px]" value={previewEntry?.id ?? ""} options={templateEntries.map((e) => ({ value: e.id, label: String(e.values[template.database.titleField] ?? "") || "Sans titre" }))} onValueChange={(id) => { setPreviewEntryByPage((m) => ({ ...m, [page.id]: id })); select(null); setFrameReady(false); }} /> : <Badge tone="warning">Publiez une entrée de {template.database.name[locale] ?? template.database.slug} pour prévisualiser</Badge>}
+          </div>
+        ) : null}
         <div className="ml-4"><Tabs variant="pill" tabs={MODES.map((m) => ({ ...m, disabled: m.id === "code" }))} value={editMode} onChange={(m) => switchMode(m as EditMode)} /></div>
 
         <div className="ml-auto flex items-center gap-2">
@@ -557,7 +569,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
 
       <Panel side="right">
         {selectedLoc ? (
-          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} site={site} loc={selectedLoc} activeBp={activeBp} mode={mode} editMode={editMode} onSwitchMode={switchMode} onGoToBreakpoint={goToBreakpoint} onPreviewState={setPreviewState} onEditInPreview={() => post({ type: "atelier:edit-text", id: selectedLoc.node.id })} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }} commit={doc.commit} onDeleted={() => select(selectedLoc.parent?.id ?? null)} /></div>
+          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} site={site} loc={selectedLoc} dataSource={dataSource} activeBp={activeBp} mode={mode} editMode={editMode} onSwitchMode={switchMode} onGoToBreakpoint={goToBreakpoint} onPreviewState={setPreviewState} onEditInPreview={() => post({ type: "atelier:edit-text", id: selectedLoc.node.id })} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }} commit={doc.commit} onDeleted={() => select(selectedLoc.parent?.id ?? null)} /></div>
         ) : (
           <div className="p-3 flex flex-col gap-2">
             <PanelHeading className="px-0">Sélection</PanelHeading>

@@ -324,6 +324,8 @@ type Binding = {
 };
 ```
 
+Dans l'éditeur, un élément (texte, image, lien) placé dans un modèle de page ou dans une vue propose un panneau « Données » qui pose ou retire ces liaisons ; la source (`entry` ou `item`) est déduite de la vue la plus proche qui contient l'élément, sinon du modèle de page (`dataSourceFor`). Un modèle de page se prévisualise avec une entrée publiée au choix. Une page devient modèle depuis ses réglages : elle prend `kind: "template"` et la base enregistre `pageTemplates`.
+
 `entry` désigne l'entrée courante d'un modèle de page ; `item` l'élément courant d'une collection ; `prop` une propriété de composant ; `page` et `site` les métadonnées ; `param` un paramètre d'URL ; `state` une variable de page (D32).
 
 ## 8. Interactions et états

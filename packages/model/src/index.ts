@@ -6,6 +6,7 @@ export * from "./ops";
 export * from "./history";
 export * from "./move";
 export * from "./style";
+export * from "./data";
 export * as schema from "./schema";
 export { validateSite } from "./schema";
 export { sampleSite, sampleEntries } from "./sample";

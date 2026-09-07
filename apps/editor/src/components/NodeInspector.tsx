@@ -2,11 +2,11 @@
 
 import { createElement, useState } from "react";
 import { ArrowDown, ArrowUp, Copy, Trash2, X } from "lucide-react";
-import type { CommitOptions, Inline, Node, NodeLocation, Op, Site, StyleValue } from "@atelier/model";
+import type { CommitOptions, Inline, Node, NodeLocation, Op, Site, StyleValue, DataSource } from "@atelier/model";
 import { BASE, cloneWithNewIds, newId, resolveNodeStyle, resolveSharedStyleSet, stylePath } from "@atelier/model";
 import { Badge, Field, FieldGroup, Hint, IconButton, Section, TextArea, TextInput } from "@/ui";
 import { nodeIcon, nodeLabel, TYPE_LABEL } from "./node-icons";
-import { AppearancePanel, CollectionPanel, EffectsPanel, ImagePanel, LayoutPanel, LinkPanel, ResponsivePanel, SharedStylesPanel, SizePanel, SpacingPanel, STATE_LABEL, TagPanel, TypographyPanel, useStyle, type StyleTarget } from "./design";
+import { AppearancePanel, BindingPanel, CollectionPanel, EffectsPanel, ImagePanel, LayoutPanel, LinkPanel, ResponsivePanel, SharedStylesPanel, SizePanel, SpacingPanel, STATE_LABEL, TagPanel, TypographyPanel, useStyle, type StyleTarget } from "./design";
 import { PropRow, Segmented } from "@/ui/controls";
 import { sharedStyleUsages } from "@atelier/model";
 
@@ -39,6 +39,8 @@ export function revealProp(prop: string) {
 type Props = {
   site: Site;
   loc: NodeLocation;
+  /** Source de données disponible pour ce nœud (modèle de page ou vue qui le contient). */
+  dataSource?: DataSource;
   activeBp: string;
   mode?: string;
   onGoToBreakpoint: (bp: string) => void;
@@ -70,7 +72,7 @@ function plainText(content: unknown, locale: string): { text: string; rich: bool
   return { text: list.map((s) => (s.t === "text" ? s.v : s.t === "break" ? "\n" : "")).join(""), rich };
 }
 
-export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onPreviewState, onEditInPreview, onEnterComponent, editMode = "design", onSwitchMode, commit, onDeleted }: Props) {
+export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBreakpoint, onPreviewState, onEditInPreview, onEnterComponent, editMode = "design", onSwitchMode, commit, onDeleted }: Props) {
   const node: Node = loc.node;
   const locale = site.settings.defaultLocale;
   const [state, setStateRaw] = useState<string | undefined>(undefined);
@@ -197,6 +199,7 @@ export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onP
       {!sharedDef && node.type === "link" ? <LinkPanel site={site} node={node} commit={commit} /> : null}
       {!sharedDef && node.type === "collection" ? <CollectionPanel site={site} node={node} commit={commit} editMode={editMode} /> : null}
 
+      {dataSource && !sharedDef && (node.type === "text" || node.type === "image" || node.type === "link") ? <BindingPanel site={site} node={node} source={dataSource} commit={commit} /> : null}
       {editMode === "write" ? (
         <Section title="Mise en forme rapide" hint="L'essentiel pour écrire. Pour tout le reste, passez en mode Design sur cet élément.">
           {node.type === "text" ? (
