@@ -1,3 +1,5 @@
+import type { Database, Entry, Node } from "@atelier/model";
+
 /** Lecture d'un CSV (séparateur détecté entre ; , et tabulation, guillemets doublés, BOM) ou d'un JSON (tableau d'objets). */
 export type Table = { columns: string[]; rows: string[][] };
 
@@ -39,3 +41,23 @@ export async function readTable(file: File): Promise<Table> {
   const text = await file.text();
   return /\.json$/i.test(file.name) || file.type === "application/json" ? parseJsonTable(text) : parseCsv(text);
 }
+
+// ---------------------------------------------------------------- écriture
+export function inlineText(list: unknown, locale: string): string {
+  const arr = (list as Record<string, { t: string; v?: string; children?: unknown }[]> | undefined)?.[locale];
+  if (!Array.isArray(arr)) return "";
+  return arr.map((s) => (s.t === "text" ? s.v ?? "" : s.t === "break" ? "\n" : s.t === "link" ? inlineText({ [locale]: s.children }, locale) : "")).join("");
+}
+export function richToText(v: unknown, locale: string): string {
+  if (!Array.isArray(v)) return typeof v === "string" ? v : "";
+  return (v as Node[]).map((n) => (n.type === "text" ? inlineText(n.props.content, locale) : n.type === "list" ? (n.children ?? []).map((li) => "• " + (li.children ?? []).map((t) => inlineText(t.props.content, locale)).join("")).join("\n") : "")).filter(Boolean).join("\n\n");
+}
+
+/** Export CSV d'une base : une ligne par entrée, libellés des champs en tête, valeurs texte (les listes jointes par « ; »). */
+export function toCsv(db: Database, rows: Entry[], locale: string): string {
+  const cell = (v: unknown): string => { const t = v === undefined || v === null ? "" : Array.isArray(v) ? v.map((x) => (typeof x === "object" && x ? richToText([x], locale) : String(x))).join("; ") : typeof v === "object" ? richToText(v, locale) : String(v); return /[";\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+  const head = ["id", "statut", ...db.fields.map((f) => f.label[locale] ?? f.name), "créé le", "modifié le"];
+  const lines = rows.map((e) => [e.id, e.status === "published" ? "publié" : "brouillon", ...db.fields.map((f) => cell(f.type === "createdAt" ? e.createdAt : f.type === "updatedAt" ? e.updatedAt : e.values[f.name])), e.createdAt, e.updatedAt].map(cell).join(";"));
+  return "\ufeff" + [head.map(cell).join(";"), ...lines].join("\r\n");
+}
+

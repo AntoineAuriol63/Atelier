@@ -45,7 +45,7 @@ Jetons (couleurs par mode clair/sombre, espacements, largeurs, rayons, ombres, t
 ### 1.6 Données (bases)
 
 - Onglet Données : bases avec nombre d'entrées et de brouillons, création (avec page par entrée), messages reçus des formulaires.
-- Vue tableur : entrées en lignes, champs en colonnes, cellule par type (texte, texte long en paragraphes, nombre, date, oui/non, choix, choix multiples, image, galerie, lien, couleur, relation simple ou multiple), publié / brouillon, adresse qui suit le titre, suppression, export CSV, import CSV ou JSON avec correspondance des colonnes et conversion par type, suppression de la base avec ses pages par entrée.
+- Vue tableur : entrées en lignes, champs en colonnes, cellule par type (texte, texte long en paragraphes, nombre, date, oui/non, choix, choix multiples, image, galerie, lien, couleur, relation simple ou multiple), publié / brouillon, adresse qui suit le titre, suppression, export CSV (servi par le serveur en pièce jointe, avec message de confirmation, et copie dans le presse-papier en secours), import CSV ou JSON avec correspondance des colonnes et conversion par type, suppression de la base avec ses pages par entrée.
 - Champs : ajouter, renommer, typer, obligatoire, options, relation, réordonner, supprimer.
 - Vues de base de données dans les pages : base, filtre (conditions « et »), tris, limite, texte si vide ; en Design : disposition (grille, liste, défilement) et colonnes par point de rupture.
 - Liaisons : un texte, une image ou un lien placé dans une vue ou une page par entrée affiche un champ (section Données de l'inspecteur).
@@ -79,7 +79,7 @@ Monorepo npm workspaces.
 ### 2.2 Données et dépôts
 
 - Document `Site` versionné : journal d'opérations, `commit_change` (Supabase) ou fichiers JSON (`.atelier-data/`), conflit 409 si la version de base a bougé (une seule fenêtre à la fois).
-- Entrées hors document : `GET/PUT/DELETE /api/sites/:id/entries` (un `PUT` peut porter plusieurs entrées : import), envois de formulaires dans une base virtuelle `frm_<formId>` ; lecture CSV/JSON dans `lib/csv.ts`, correspondance dans `components/data/ImportDialog.tsx`.
+- Entrées hors document : `GET/PUT/DELETE /api/sites/:id/entries` (un `PUT` peut porter plusieurs entrées : import), envois de formulaires dans une base virtuelle `frm_<formId>` ; lecture et écriture CSV/JSON dans `lib/csv.ts`, correspondance dans `components/data/ImportDialog.tsx`, export par `GET /api/sites/:id/databases/:dbId/export`.
 - Fichiers : `AssetStorage` (Supabase Storage seau `assets`, ou `.atelier-data/assets`), `POST /api/sites/:id/assets` avec sharp ; usages calculés côté éditeur (`lib/asset-usage.ts`) ; bibliothèque fournie par `MediaLibraryProvider`, ouverte par `openMediaLibrary()` ou `useMediaLibrary()`.
 - Publication : `snapshots` (`kind = 'publish'`, document + entrées), `sites.published_version`, `sites.subdomain` ; `GET/POST /api/sites/:id/publish`, `POST …/publish/restore`.
 - `getStore()` et `getAssetStorage()` choisissent Supabase ou fichiers ; `ATELIER_STORE=file` force les fichiers ; la clé de cache du dépôt en mémoire porte `STORE_VERSION`.

@@ -2,7 +2,7 @@
 /* eslint-disable @next/next/no-img-element -- vignettes de l'éditeur, pas du site publié */
 
 import { useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Download, Plus, Trash2, Upload, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Copy, Download, Plus, Trash2, Upload, X } from "lucide-react";
 import type { CommitOptions, Database, Entry, Field, FieldType, Node, Op, Site } from "@atelier/model";
 import { newId } from "@atelier/model";
 import { Button, Dialog, Hint, IconButton, Select, TextArea, TextInput } from "@/ui";
@@ -10,7 +10,7 @@ import { Segmented } from "@/ui/controls";
 import { MediaLibrary } from "@/components/MediaLibrary";
 import { assetLabel } from "@/lib/upload";
 import { slugify } from "@/components/PagesPanel";
-import { readTable, type Table } from "@/lib/csv";
+import { readTable, richToText, toCsv, type Table } from "@/lib/csv";
 import { ImportDialog } from "./ImportDialog";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
@@ -26,15 +26,6 @@ const READONLY_LABEL: Partial<Record<FieldType, string>> = { createdAt: "Date de
 const typeLabel = (t: FieldType) => FIELD_TYPES.find((x) => x.value === t)?.label ?? READONLY_LABEL[t] ?? t;
 
 // ---------------------------------------------------------------- texte long ↔ texte simple (v0 : paragraphes seulement)
-function inlineText(list: unknown, locale: string): string {
-  const arr = (list as Record<string, { t: string; v?: string; children?: unknown }[]> | undefined)?.[locale];
-  if (!Array.isArray(arr)) return "";
-  return arr.map((s) => (s.t === "text" ? s.v ?? "" : s.t === "break" ? "\n" : s.t === "link" ? inlineText({ [locale]: s.children }, locale) : "")).join("");
-}
-function richToText(v: unknown, locale: string): string {
-  if (!Array.isArray(v)) return typeof v === "string" ? v : "";
-  return (v as Node[]).map((n) => (n.type === "text" ? inlineText(n.props.content, locale) : n.type === "list" ? (n.children ?? []).map((li) => "• " + (li.children ?? []).map((t) => inlineText(t.props.content, locale)).join("")).join("\n") : "")).filter(Boolean).join("\n\n");
-}
 function textToRich(text: string, locale: string): Node[] {
   return text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean).map((p) => ({ id: newId(), type: "text", props: { tag: "p", content: { [locale]: [{ t: "text", v: p }] } } }));
 }
@@ -162,14 +153,6 @@ function FieldEditor({ site, db, field, onChange, onMove, onRemove, onClose, isN
 }
 
 // ---------------------------------------------------------------- la vue tableur
-/** Export CSV d'une base : une ligne par entrée, libellés des champs en tête, valeurs texte (les listes jointes par « ; »). */
-export function toCsv(db: Database, rows: Entry[], locale: string): string {
-  const cell = (v: unknown): string => { const t = v === undefined || v === null ? "" : Array.isArray(v) ? v.map((x) => (typeof x === "object" && x ? richToText([x], locale) : String(x))).join("; ") : typeof v === "object" ? richToText(v, locale) : String(v); return /[";\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
-  const head = ["id", "statut", ...db.fields.map((f) => f.label[locale] ?? f.name), "créé le", "modifié le"];
-  const lines = rows.map((e) => [e.id, e.status === "published" ? "publié" : "brouillon", ...db.fields.map((f) => cell(f.type === "createdAt" ? e.createdAt : f.type === "updatedAt" ? e.updatedAt : e.values[f.name])), e.createdAt, e.updatedAt].map(cell).join(";"));
-  return "\ufeff" + [head.map(cell).join(";"), ...lines].join("\r\n");
-}
-
 export function DatabaseTable({ site, db, entries, save, saveMany, remove, commit, onClose, saving, onDeleteDatabase, readOnly, notify }: { site: Site; db: Database; entries: Entry[]; save: (e: Entry) => void; saveMany?: (list: Entry[]) => void; remove: (id: string) => void; commit: Commit; onClose: () => void; saving?: boolean; onDeleteDatabase?: () => void; /** Base virtuelle (messages reçus) : pas de champs à régler ni d'entrées à créer. */ readOnly?: boolean; notify?: (text: string, tone?: "danger" | "success" | "info") => void }) {
   const locale = site.settings.defaultLocale;
   const dbIndex = site.databases.findIndex((d) => d.id === db.id);
@@ -233,14 +216,18 @@ export function DatabaseTable({ site, db, entries, save, saveMany, remove, commi
     try { const t = await readTable(file); if (!t.columns.length) throw new Error("Fichier vide"); setImportTable(t); }
     catch (e) { notify?.(e instanceof Error ? `Import impossible : ${e.message}` : "Import impossible"); }
   };
+  // L'export est servi par le serveur (pièce jointe) : plus fiable qu'un fichier fabriqué dans la page, et copiable en secours.
   const exportCsv = () => {
-    const blob = new Blob([toCsv(db, rows, locale)], { type: "text/csv;charset=utf-8" });
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `${db.slug}.csv`; a.click(); window.setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    const a = document.createElement("a");
+    a.href = `/api/sites/${site.id}/databases/${db.id}/export`; a.download = `${db.slug}.csv`;
+    document.body.appendChild(a); a.click(); a.remove();
+    notify?.(`Téléchargement de ${db.slug}.csv (${rows.length} entrée${rows.length > 1 ? "s" : ""}) : regardez vos téléchargements.`, "success");
   };
+  const copyCsv = async () => { try { await navigator.clipboard.writeText(toCsv(db, rows, locale)); notify?.("CSV copié : collez-le dans un tableur.", "success"); } catch { notify?.("Copie impossible dans ce navigateur."); } };
   const editing = fieldEdit && !readOnly ? db.fields.find((f) => f.name === fieldEdit) : undefined;
   const title = (e: Entry) => String(e.values[db.titleField] ?? "") || "Sans titre";
   return (
-    <Dialog open onClose={onClose} title={`${db.name[locale] ?? db.slug} · ${rows.length} entrée${rows.length > 1 ? "s" : ""}`} width={1240} actions={<div className="flex items-center gap-1">{saving ? <span className="text-2xs text-dim mr-2">Enregistrement…</span> : null}<Button size="sm" icon={Download} onClick={exportCsv} disabled={!rows.length} title="Télécharger toutes les entrées en CSV (tableur)">CSV</Button>{readOnly || !saveMany ? null : <><input ref={importInput} type="file" accept=".csv,.json,text/csv,application/json" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void onImportFile(f); }} /><Button size="sm" icon={Upload} onClick={() => importInput.current?.click()} title="Importer un CSV (tableur) ou un JSON : les colonnes deviennent des champs">Importer…</Button></>}{readOnly ? null : <><Button size="sm" icon={Plus} onClick={addField}>Champ</Button><Button size="sm" variant="primary" icon={Plus} onClick={addEntry}>Nouvelle entrée</Button></>}</div>}>
+    <Dialog open onClose={onClose} title={`${db.name[locale] ?? db.slug} · ${rows.length} entrée${rows.length > 1 ? "s" : ""}`} width={1240} actions={<div className="flex items-center gap-1">{saving ? <span className="text-2xs text-dim mr-2">Enregistrement…</span> : null}<Button size="sm" icon={Download} onClick={exportCsv} disabled={!rows.length} title="Télécharger toutes les entrées en CSV (tableur)">CSV</Button><Button size="sm" variant="ghost" icon={Copy} onClick={copyCsv} disabled={!rows.length} title="Copier le CSV dans le presse-papier (à coller dans un tableur)">Copier</Button>{readOnly || !saveMany ? null : <><input ref={importInput} type="file" accept=".csv,.json,text/csv,application/json" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void onImportFile(f); }} /><Button size="sm" icon={Upload} onClick={() => importInput.current?.click()} title="Importer un CSV (tableur) ou un JSON : les colonnes deviennent des champs">Importer…</Button></>}{readOnly ? null : <><Button size="sm" icon={Plus} onClick={addField}>Champ</Button><Button size="sm" variant="primary" icon={Plus} onClick={addEntry}>Nouvelle entrée</Button></>}</div>}>
       {editing ? <FieldEditor site={site} db={db} field={editing} isNew={editing.name.startsWith("champ")} onChange={(f) => updateField(editing.name, f)} onMove={(d) => moveField(editing.name, d)} onRemove={() => removeField(editing.name)} onClose={() => setFieldEdit(null)} /> : null}
       <div className="overflow-auto">
         <table className="border-collapse text-sm min-w-full">
