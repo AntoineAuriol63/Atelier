@@ -80,6 +80,8 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     let blocks: BlockPresetInfo[] = [];
     let editing: HTMLElement | null = null;
     let press: { x: number; y: number; el: HTMLElement } | null = null;
+    // Fantôme : copie du bloc qui suit le curseur pendant le glissement (comme Notion).
+    let ghost: { el: HTMLElement; dx: number; dy: number } | null = null;
     let dragging = false;
     let suppressClick = false;   // le clic qui suit un relâchement de glissement ne doit pas changer la sélection
     let target: { id: string; position: "before" | "after" | "inside" } | null = null;
@@ -127,6 +129,18 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       const cols = Array.from({ length: g.columns }, () => `<div style="background:rgba(31,95,139,.07);box-shadow:inset 1px 0 rgba(31,95,139,.35), inset -1px 0 rgba(31,95,139,.35)"></div>`).join("");
       gridLayer.innerHTML = `<div style="max-width:${g.maxWidth};margin:0 auto;padding:0 ${g.margin};height:100%;box-sizing:border-box"><div style="display:grid;grid-template-columns:repeat(${g.columns},1fr);gap:${g.gutter};height:100%">${cols}</div></div>`;
     };
+    const startGhost = (el: HTMLElement, x: number, y: number) => {
+      const r = el.getBoundingClientRect();
+      const clone = el.cloneNode(true) as HTMLElement;
+      clone.removeAttribute("data-node");
+      clone.querySelectorAll("[data-node]").forEach((n) => n.removeAttribute("data-node"));
+      clone.setAttribute("data-atelier-ui", "");
+      clone.style.cssText += `;position:absolute;left:${r.left + window.scrollX}px;top:${r.top + window.scrollY}px;width:${r.width}px;height:${r.height}px;margin:0;opacity:.55;pointer-events:none;z-index:2147483647;box-shadow:0 12px 32px rgba(0,0,0,.25);outline:none;transform:scale(1.01);transition:none`;
+      document.body.appendChild(clone);
+      ghost = { el: clone, dx: x - r.left, dy: y - r.top };
+    };
+    const moveGhost = (x: number, y: number) => { if (!ghost) return; ghost.el.style.left = `${x - ghost.dx + window.scrollX}px`; ghost.el.style.top = `${y - ghost.dy + window.scrollY}px`; };
+    const endGhost = () => { ghost?.el.remove(); ghost = null; };
     const showIndicator = (el: HTMLElement, position: "before" | "after" | "inside") => {
       const r = el.getBoundingClientRect();
       const sx = window.scrollX, sy = window.scrollY;
@@ -379,10 +393,12 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
         dragging = true;
         document.body.style.userSelect = "none";
         document.body.classList.add("atelier-dragging");
-        press.el.style.opacity = "0.5";
+        press.el.style.opacity = "0.3";
         hideBlockBar();
+        startGhost(press.el, press.x, press.y);
       }
       if (dragging && press) {
+        moveGhost(e.clientX, e.clientY);
         // Au-dessus de sa propre place : aucune cible, relâcher ne change rien.
         const under = document.elementFromPoint(e.clientX, e.clientY);
         if (under && press.el.contains(under)) { target = null; hideIndicator(); return; }
@@ -406,6 +422,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     };
     const cancelDrag = () => {
       if (!press) return;
+      endGhost();
       press.el.style.opacity = "";
       document.body.style.userSelect = "";
       document.body.classList.remove("atelier-dragging");
@@ -418,6 +435,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     };
     const onMouseUp = () => {
       if (dragging && press) {
+        endGhost();
         press.el.style.opacity = "";
         document.body.style.userSelect = "";
         document.body.classList.remove("atelier-dragging");
