@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Command as CommandIcon, ExternalLink, FileText, Grid3x3, Layers, Moon, Palette, Plus, Redo2, Sun, Undo2, UploadCloud } from "lucide-react";
 import type { DropPosition, Node, Page, Site } from "@atelier/model";
-import { BASE, breakpointForWidth, canInsertUnder, cloneWithNewIds, indexSite, layoutGridAt, newId, planDrop, planInsert, planMove, stylePath } from "@atelier/model";
+import { BASE, breakpointForWidth, canInsertUnder, planExitBox, cloneWithNewIds, indexSite, layoutGridAt, newId, planDrop, planInsert, planMove, stylePath } from "@atelier/model";
 import type { Op } from "@atelier/model";
 import { valueToCss } from "@atelier/renderer";
 import type { Inline } from "@atelier/model";
@@ -227,6 +227,16 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
       window.setTimeout(() => post({ type: "atelier:edit-text", id: para.id, caret: "start" }), 30);
       return;
     }
+    // Entrée sur un paragraphe vide, dernier de sa boîte : on sort de la boîte, le paragraphe se retrouve juste après elle.
+    if (isBlank(before) && isBlank(after) && loc.parent.type === "box") {
+      const ex = planExitBox(index, id);
+      if (ex.ok && canInsertUnder(index, ex.to.parent, loc.node).ok) {
+        doc.commit({ op: "node.move", id, to: ex.to }, { label: "Sortir de la boîte" });
+        select(id);
+        window.setTimeout(() => post({ type: "atelier:edit-text", id, caret: "start" }), 30);
+        return;
+      }
+    }
     const next: Node = { id: newId(), type: "text", props: { tag, content: { [locale]: after } } };
     const ops: Op[] = [{ op: "node.set", id, path: `props.content.${locale}`, value: before }];
     if (loc.parent.type === "listItem") {
@@ -359,10 +369,12 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
       if (e.key === "Enter") {
         e.preventDefault();
         if (editMode !== "write") { setEditing(loc.node.id); return; }
-        // En Écriture, Entrée sur un texte sélectionné reprend la frappe à la fin ; sur tout autre bloc, un paragraphe vide apparaît juste après lui (ou dedans, à la fin, si rien ne peut suivre le bloc).
+        // En Écriture, Entrée sur un texte sélectionné reprend la frappe à la fin.
         if (loc.node.type === "text") { post({ type: "atelier:edit-text", id: loc.node.id, caret: "end" }); return; }
         const para: Node = { id: newId(), type: "text", props: { tag: "p", content: { [locale]: [{ t: "text", v: "" }] } } };
-        const to = loc.parent && canInsertUnder(index, loc.parent.id, para).ok ? { parent: loc.parent.id, index: loc.index + 1 } : canInsertUnder(index, loc.node.id, para).ok ? { parent: loc.node.id, index: (loc.node.children ?? []).length } : null;
+        // Une boîte sélectionnée s'ouvre : le paragraphe va dedans, en dernier. Une feuille (image, bouton, vue…) : juste après elle.
+        const inside = loc.node.type === "box" && canInsertUnder(index, loc.node.id, para).ok;
+        const to = inside ? { parent: loc.node.id, index: (loc.node.children ?? []).length } : loc.parent && canInsertUnder(index, loc.parent.id, para).ok ? { parent: loc.parent.id, index: loc.index + 1 } : null;
         if (!to) { notify("Impossible d'ajouter un paragraphe ici"); return; }
         doc.commit({ op: "node.insert", parent: to.parent, index: to.index, node: para }, { label: "Nouveau bloc" });
         select(para.id);

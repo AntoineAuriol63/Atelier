@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { applyOp, canInsertUnder, findNode, indexSite, planDrop, planInsert, planMove, sampleSite } from "../src";
+import { applyOp, canInsertUnder, findNode, indexSite, planDrop, planExitBox, planInsert, planMove, sampleSite } from "../src";
 
 const idx = indexSite(sampleSite);
 const home = sampleSite.pages[0]!.root;
@@ -80,5 +80,23 @@ describe("contenu d'un lien", () => {
     expect(planDrop(idx, "hero_b1", "inside", { id: "i1", type: "image", props: {} }).ok).toBe(true);
     expect(planDrop(idx, "hero_b1_t", "after", { id: "s2", type: "box", props: {} }).ok).toBe(false);
     expect(canInsertUnder(idx, "hero_b1", { id: "d1", type: "divider", props: {} }).ok).toBe(false);
+  });
+});
+
+describe("planExitBox", () => {
+  const empty = { id: "t_empty", type: "text" as const, props: { tag: "p", content: { fr: [{ t: "text" as const, v: "" }] } } };
+  it("sort d'une boîte imbriquée : après elle, dans son parent", () => {
+    const n = findNode(sampleSite, "hero_txt")!.node.children!.length;
+    const { site } = applyOp(sampleSite, { op: "node.insert", parent: "hero_txt", index: n, node: empty });
+    const idx2 = indexSite(site);
+    const heroTxt = idx2.get("hero_txt")!;
+    expect(planExitBox(idx2, "t_empty")).toEqual({ ok: true, to: { parent: heroTxt.parent!.id, index: heroTxt.index + 1 }, box: "hero_txt" });
+  });
+  it("refuse si le texte n'est pas le dernier, et refuse de quitter une région de la page", () => {
+    const { site } = applyOp(sampleSite, { op: "node.insert", parent: "hero_txt", index: 0, node: empty });
+    expect(planExitBox(indexSite(site), "t_empty").ok).toBe(false);
+    const region = home.children!.find((c) => c.type === "box")!;
+    const { site: s2 } = applyOp(sampleSite, { op: "node.insert", parent: region.id, index: (region.children ?? []).length, node: empty });
+    expect(planExitBox(indexSite(s2), "t_empty").ok).toBe(false);
   });
 });

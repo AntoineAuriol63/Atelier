@@ -110,3 +110,16 @@ export function canInsertUnder(index: Map<Id, NodeLocation>, parentId: Id, node:
   if (lc) return lc;
   return { ok: true };
 }
+
+/** Sortie d'une boîte au clavier (mode Écriture) : un texte vide, dernier enfant de sa boîte, va juste après elle. Les boîtes de premier niveau d'une page (ses régions) ne se quittent pas. */
+export function planExitBox(index: Map<Id, NodeLocation>, textId: Id): { ok: true; to: Placement; box: Id } | { ok: false; reason: string } {
+  const loc = index.get(textId);
+  if (!loc || loc.node.type !== "text") return { ok: false, reason: "Pas un texte" };
+  const box = loc.parent;
+  if (!box || box.type !== "box") return { ok: false, reason: "Pas dans une boîte" };
+  if (loc.index !== (box.children ?? []).length - 1) return { ok: false, reason: "Pas le dernier de la boîte" };
+  const boxLoc = index.get(box.id);
+  if (!boxLoc?.parent) return { ok: false, reason: "Boîte racine" };
+  if (!index.get(boxLoc.parent.id)?.parent) return { ok: false, reason: "Une région de la page ne se quitte pas" };
+  return { ok: true, to: { parent: boxLoc.parent.id, index: boxLoc.index + 1 }, box: box.id };
+}
