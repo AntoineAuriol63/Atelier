@@ -134,6 +134,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
 
     // ---------------------------------------------------------------- barre de bloc (mode Écriture, au survol)
     const TEXT_TYPES: [string, string][] = [["p", "Paragraphe"], ["h1", "Titre 1"], ["h2", "Titre 2"], ["h3", "Titre 3"], ["blockquote", "Citation"]];
+    let barEl: HTMLElement | null = null;
     const placeBar = (bar: HTMLElement, el: HTMLElement) => {
       const r = el.getBoundingClientRect();
       bar.style.display = "flex";
@@ -160,6 +161,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       b("Style", "Régler le style en détail (mode Design)", () => parent.postMessage({ type: "atelier:style-in-context", id }, "*"));
       b("＋", "Insérer un bloc après (menu /)", () => openSlash(el, true));
       b("🗑", "Supprimer le bloc", () => parent.postMessage({ type: "atelier:remove", id }, "*"));
+      barEl = el;
       placeBar(blockBar, el);
       // poignée gauche
       grip.innerHTML = "";
@@ -170,15 +172,22 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       handle.addEventListener("mousedown", (e) => { e.preventDefault(); e.stopPropagation(); if (editing) endEdit(true); select(el, true); press = { x: e.clientX, y: e.clientY, el }; });
       const r = el.getBoundingClientRect();
       grip.style.display = "flex";
-      grip.style.left = `${Math.max(2, r.left - 22) + window.scrollX}px`;
+      // À gauche du bloc s'il y a la place, sinon à l'intérieur de son bord gauche.
+      grip.style.left = `${(r.left >= 30 ? r.left - 24 : r.left + 4) + window.scrollX}px`;
       grip.style.top = `${r.top + window.scrollY}px`;
     };
-    const hideBlockBar = () => { blockBar.style.display = "none"; grip.style.display = "none"; };
+    const hideBlockBar = () => { blockBar.style.display = "none"; grip.style.display = "none"; barEl = null; };
+    /** Vrai si la souris est dans la zone du bloc courant élargie vers la poignée (à gauche) et la barre (au-dessus). */
+    const nearBar = (x: number, y: number) => {
+      if (!barEl || !barEl.isConnected) return false;
+      const r = barEl.getBoundingClientRect();
+      return x >= r.left - 40 && x <= r.right && y >= r.top - 36 && y <= r.bottom;
+    };
 
     // ---------------------------------------------------------------- barre de sélection (texte riche)
     const renderSelBar = () => {
       const sel = window.getSelection();
-      if (!editing || editMode !== "write" || !sel || sel.isCollapsed || sel.rangeCount === 0) { selBar.style.display = "none"; return; }
+      if (!editing || !sel || sel.isCollapsed || sel.rangeCount === 0) { selBar.style.display = "none"; return; }
       const range = sel.getRangeAt(0);
       if (!editing.contains(range.commonAncestorContainer)) { selBar.style.display = "none"; return; }
       selBar.innerHTML = "";
@@ -249,8 +258,8 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       if (editing) endEdit(true);
       editing = el;
       el.setAttribute("data-original-html", el.innerHTML);
-      el.contentEditable = editMode === "write" ? "true" : "plaintext-only";
-      el.style.outline = `2px solid ${editMode === "write" ? ACCENT : "#e7b458"}`;
+      el.contentEditable = "true";
+      el.style.outline = `2px solid ${ACCENT}`;
       el.style.outlineOffset = "-1px";
       el.focus({ preventScroll: true });
       if (caret === "all") { const range = document.createRange(); range.selectNodeContents(el); const sel = window.getSelection(); sel?.removeAllRanges(); sel?.addRange(range); }
@@ -337,8 +346,11 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       if (el !== hovered) {
         clear(hovered); hovered = el;
         if (el && idOf(el) !== selectedId.current && el !== editing) outline(el, "hover");
-        // La barre reste tant qu'on ne survole pas un autre bloc : le chemin vers la poignée passe hors du bloc.
-        if (editMode === "write" && el && !isRoot(el)) renderBlockBar(el);
+        if (editMode === "write" && el && !isRoot(el)) {
+          // En route vers la poignée, on passe souvent sur le parent : on garde la barre du bloc courant.
+          const keep = barEl && el !== barEl && el.contains(barEl) && nearBar(e.clientX, e.clientY);
+          if (!keep) renderBlockBar(el);
+        }
       }
     };
     const onMouseUp = () => {
@@ -369,7 +381,8 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       startEdit(el, "all");
     };
     const onOut = (e: MouseEvent) => { if (!nodeOf(e.relatedTarget) && !(e.relatedTarget as Element | null)?.closest?.("[data-atelier-ui]")) { clear(hovered); hovered = null; } };
-    const onLeaveDoc = (e: MouseEvent) => { if (!e.relatedTarget) { hideBlockBar(); } };
+    // Sortir du cadre ne cache rien : la poignée doit rester atteignable même en bordure.
+    const onLeaveDoc = () => { /* volontairement vide */ };
 
     // ---------------------------------------------------------------- clavier
     const FORWARDED = new Set(["Backspace", "Delete", "Escape", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Enter"]);
@@ -392,10 +405,10 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
           if (!native) { e.preventDefault(); endEdit(true); parent.postMessage({ type: "atelier:key", key: "z", metaKey: e.metaKey, ctrlKey: e.ctrlKey, shiftKey: false, altKey: false }, "*"); }
           return;
         }
-        if (meta && e.key.toLowerCase() === "b" && editMode === "write") { e.preventDefault(); document.execCommand("bold"); renderSelBar(); return; }
-        if (meta && e.key.toLowerCase() === "i" && editMode === "write") { e.preventDefault(); document.execCommand("italic"); renderSelBar(); return; }
-        if (meta && e.key.toLowerCase() === "u" && editMode === "write") { e.preventDefault(); document.execCommand("underline"); renderSelBar(); return; }
-        if (meta && e.key.toLowerCase() === "k" && editMode === "write") { e.preventDefault(); makeLink(); return; }
+        if (meta && e.key.toLowerCase() === "b") { e.preventDefault(); document.execCommand("bold"); renderSelBar(); return; }
+        if (meta && e.key.toLowerCase() === "i") { e.preventDefault(); document.execCommand("italic"); renderSelBar(); return; }
+        if (meta && e.key.toLowerCase() === "u") { e.preventDefault(); document.execCommand("underline"); renderSelBar(); return; }
+        if (meta && e.key.toLowerCase() === "k") { e.preventDefault(); makeLink(); return; }
         if (e.key === "/" && editMode === "write" && !meta) { e.preventDefault(); openSlash(editing, false); return; }
         if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (editMode === "write") splitAtCaret(editing); else endEdit(true); return; }
         if (e.key === "Backspace" && editMode === "write" && isEmptyText(editing) && caretAtStart(editing)) { e.preventDefault(); const el = editing; editing = null; el.contentEditable = "false"; el.innerHTML = el.getAttribute("data-original-html") ?? el.innerHTML; el.removeAttribute("data-original-html"); parent.postMessage({ type: "atelier:merge-prev", id: idOf(el) }, "*"); return; }
@@ -477,7 +490,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
   }, [editor]);
 
   // Curseurs d'éditeur, et repère visible pour un conteneur vide (sinon il n'a aucune taille et on ne peut rien y déposer).
-  const EDITOR_CSS = `.at-page, .at-page * { cursor: default !important; } .at-page [contenteditable="plaintext-only"], .at-page [contenteditable="true"] { cursor: text !important; } body.atelier-dragging, body.atelier-dragging .at-page * { cursor: grabbing !important; }
+  const EDITOR_CSS = `.at-page, .at-page * { cursor: default !important; } .at-page [contenteditable="true"] { cursor: text !important; } body.atelier-dragging, body.atelier-dragging .at-page * { cursor: grabbing !important; }
   .at-page :where(div, section, main, header, footer, nav, article, aside, ul, ol, li, a, form)[data-node]:empty { min-height: 40px; min-width: 40px; outline: 1px dashed rgba(31,95,139,.55); outline-offset: -1px; background: repeating-linear-gradient(45deg, transparent 0 8px, rgba(31,95,139,.06) 8px 9px); }
   .at-page [contenteditable]:empty::before { content: "Tapez du texte, ou / pour insérer un bloc"; color: #9a9a9a; pointer-events: none; }`;
   const match = matchPath(site, data, path);

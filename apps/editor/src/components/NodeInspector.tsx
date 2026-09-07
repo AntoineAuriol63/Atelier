@@ -184,7 +184,7 @@ export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onP
       ) : null}
       {canText && !sharedDef ? (
         <Section title="Texte" hint="Double-cliquez le texte dans l'aperçu pour le modifier sur place, ou éditez-le ici. Entrée valide, Échap annule.">
-          {rich ? <Hint>Ce texte contient des mises en forme ou des liens. L&apos;édition riche arrive avec le mode Écriture.</Hint> : (
+          {rich ? <Hint>Ce texte contient des mises en forme ou des liens : modifiez-le dans l&apos;aperçu (double-clic), où gras, italique et liens sont conservés.</Hint> : (
             <>
               <TextArea value={text} onValueChange={(v) => commit({ op: "node.set", id: node.id, path: `props.content.${locale}`, value: v.split("\n").flatMap((line, i) => (i === 0 ? [{ t: "text", v: line }] : [{ t: "break" }, { t: "text", v: line }])) }, { coalesceKey: `text:${node.id}`, label: "Modifier le texte" })} />
               {onEditInPreview ? <button type="button" onClick={onEditInPreview} className="self-start text-xs text-accent hover:underline">Modifier dans l&apos;aperçu</button> : null}
