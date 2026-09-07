@@ -18,6 +18,14 @@ function hasLinkAncestor(index: Map<Id, NodeLocation>, parentId: Id): boolean {
   while (cur) { if (cur.node.type === "link") return true; cur = cur.parent ? index.get(cur.parent.id) : undefined; }
   return false;
 }
+/** Un lien ou un bouton n'accueille que du contenu en ligne : texte, image, icône. */
+const LINK_CHILDREN = new Set<Node["type"]>(["text", "image", "icon"]);
+function linkChildCheck(index: Map<Id, NodeLocation>, parentId: Id, node: Node): { ok: false; reason: string } | null {
+  const parent = index.get(parentId)?.node;
+  if (parent?.type === "link" && !LINK_CHILDREN.has(node.type)) return { ok: false, reason: "Un bouton ou un lien ne peut contenir que du texte, une image ou une icône" };
+  return null;
+}
+
 function containsLink(node: Node): boolean {
   if (node.type === "link") return true;
   return (node.children ?? []).some(containsLink);
@@ -45,7 +53,7 @@ export function planMove(index: Map<Id, NodeLocation>, dragId: Id, targetId: Id,
   if (PINNED_TYPES.has(drag.node.type)) return { ok: false, reason: "Cet élément reste dans son parent" };
   if (!sameOwner(drag.owner, target.owner)) return { ok: false, reason: "Impossible de déplacer entre une page et un composant" };
   if (isDescendant(drag.node, targetId)) return { ok: false, reason: "Impossible de déposer un élément dans lui-même" };
-  const linkCheck = (parentId: Id) => (containsLink(drag.node) && hasLinkAncestor(index, parentId) ? { ok: false as const, reason: "Un lien ne peut pas être placé dans un autre lien" } : null);
+  const linkCheck = (parentId: Id) => (containsLink(drag.node) && hasLinkAncestor(index, parentId) ? { ok: false as const, reason: "Un lien ne peut pas être placé dans un autre lien" } : linkChildCheck(index, parentId, drag.node));
 
   if (position === "inside") {
     if (!CONTAINER_TYPES.has(target.node.type)) return { ok: false, reason: `Un ${target.node.type} n'accepte pas d'enfants` };
@@ -82,7 +90,7 @@ export function planInsert(index: Map<Id, NodeLocation>, root: Node, selectedId:
 export function planDrop(index: Map<Id, NodeLocation>, targetId: Id, position: DropPosition, node?: Node): { ok: true; to: Placement } | { ok: false; reason: string } {
   const target = index.get(targetId);
   if (!target) return { ok: false, reason: "Cible introuvable" };
-  const linkCheck = (parentId: Id) => (node && containsLink(node) && hasLinkAncestor(index, parentId) ? { ok: false as const, reason: "Un lien ne peut pas être placé dans un autre lien" } : null);
+  const linkCheck = (parentId: Id) => (node && containsLink(node) && hasLinkAncestor(index, parentId) ? { ok: false as const, reason: "Un lien ne peut pas être placé dans un autre lien" } : node ? linkChildCheck(index, parentId, node) : null);
   if (position === "inside") {
     if (!CONTAINER_TYPES.has(target.node.type)) return { ok: false, reason: `Un ${target.node.type} n'accepte pas d'enfants` };
     if (target.node.type === "collection") return { ok: false, reason: "Une collection ne contient que son élément répété" };
@@ -98,5 +106,7 @@ export function planDrop(index: Map<Id, NodeLocation>, targetId: Id, position: D
 /** Un nouveau nœud peut-il être inséré sous ce parent ? (même règle du lien dans un lien) */
 export function canInsertUnder(index: Map<Id, NodeLocation>, parentId: Id, node: Node): { ok: true } | { ok: false; reason: string } {
   if (containsLink(node) && hasLinkAncestor(index, parentId)) return { ok: false, reason: "Un lien ne peut pas être placé dans un autre lien" };
+  const lc = linkChildCheck(index, parentId, node);
+  if (lc) return lc;
   return { ok: true };
 }

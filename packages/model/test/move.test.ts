@@ -72,3 +72,13 @@ describe("lien dans un lien", () => {
     expect(canInsertUnder(idx, "hero_txt", { id: "x5", type: "link", props: {} }).ok).toBe(true);
   });
 });
+
+describe("contenu d'un lien", () => {
+  it("un bouton n'accueille que texte, image ou icône", () => {
+    expect(planMove(idx, "hero_txt", "hero_b1", "inside").ok).toBe(false);
+    expect(planDrop(idx, "hero_b1", "inside", { id: "s1", type: "box", props: {} }).ok).toBe(false);
+    expect(planDrop(idx, "hero_b1", "inside", { id: "i1", type: "image", props: {} }).ok).toBe(true);
+    expect(planDrop(idx, "hero_b1_t", "after", { id: "s2", type: "box", props: {} }).ok).toBe(false);
+    expect(canInsertUnder(idx, "hero_b1", { id: "d1", type: "divider", props: {} }).ok).toBe(false);
+  });
+});

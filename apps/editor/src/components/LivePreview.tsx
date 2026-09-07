@@ -75,6 +75,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     if (!editor) return;
     let hovered: HTMLElement | null = null;
     let containers = new Set<string>();
+    let links = new Set<string>();       // liens et boutons : atomiques pour le dépôt (ils n'acceptent que du contenu en ligne)
     let textNodes = new Set<string>();
     let editMode: EditMode = "design";
     let blocks: BlockPresetInfo[] = [];
@@ -152,11 +153,17 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     };
     const moveGhost = (x: number, y: number) => { if (!ghost) return; ghost.el.style.left = `${x - ghost.dx + window.scrollX}px`; ghost.el.style.top = `${y - ghost.dy + window.scrollY}px`; };
     const endGhost = () => { ghost?.el.remove(); ghost = null; };
-    const showIndicator = (el: HTMLElement, position: "before" | "after" | "inside") => {
+    /** Un conteneur range-t-il ses enfants en ligne (flex en ligne, grille à plusieurs colonnes) ? */
+    const isHorizontal = (container: HTMLElement) => {
+      const cs = getComputedStyle(container);
+      return (cs.display.includes("flex") && !cs.flexDirection.startsWith("column")) || (cs.display.includes("grid") && cs.gridTemplateColumns.split(" ").length > 1);
+    };
+    const showIndicator = (el: HTMLElement, position: "before" | "after" | "inside", axis: "x" | "y" = "y") => {
       const r = el.getBoundingClientRect();
       const sx = window.scrollX, sy = window.scrollY;
       indicator.style.display = "block";
       if (position === "inside") indicator.style.cssText += `;background:rgba(31,95,139,.12);box-shadow:inset 0 0 0 2px #1F5F8B;left:${r.left + sx}px;top:${r.top + sy}px;width:${r.width}px;height:${r.height}px`;
+      else if (axis === "x") indicator.style.cssText += `;background:#1F5F8B;box-shadow:0 0 0 1px #fff;left:${(position === "before" ? r.left : r.right) + sx - 2}px;top:${r.top + sy}px;width:4px;height:${r.height}px`;
       else indicator.style.cssText += `;background:#1F5F8B;box-shadow:0 0 0 1px #fff;left:${r.left + sx}px;top:${(position === "before" ? r.top : r.bottom) + sy - 2}px;width:${r.width}px;height:4px`;
     };
     const hideIndicator = () => { indicator.style.display = "none"; };
@@ -336,11 +343,14 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
      * la place la plus proche parmi ses enfants (ou dedans s'il est vide) ; ses bords, sur 8 px, visent avant ou après
      * le conteneur lui-même. La place actuelle de l'élément déplacé ne compte pas comme cible.
      */
-    const targetAt = (x: number, y: number, exclude?: HTMLElement | null): { el: HTMLElement; id: string; position: "before" | "after" | "inside" } | null => {
+    const targetAt = (x: number, y: number, exclude?: HTMLElement | null): { el: HTMLElement; id: string; position: "before" | "after" | "inside"; axis: "x" | "y" } | null => {
       const under = document.elementFromPoint(x, y);
       let el = nodeOf(under);
       while (el && exclude && (el === exclude || exclude.contains(el))) el = nodeOf(el.parentElement);
       if (!el) return null;
+      // À l'intérieur d'un bouton ou d'un lien, la cible est le bouton lui-même : on dépose avant ou après lui.
+      let cur: HTMLElement | null = el;
+      while (cur) { if (links.has(idOf(cur))) { el = cur; break; } cur = nodeOf(cur.parentElement); }
       const id = idOf(el);
       const r = el.getBoundingClientRect();
       const kids = [...el.children].filter((c): c is HTMLElement => c instanceof HTMLElement && c.hasAttribute("data-node") && c !== exclude);
@@ -350,15 +360,21 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
         const i = sib.indexOf(exclude);
         return (position === "before" && sib[i + 1] === child) || (position === "after" && sib[i - 1] === child);
       };
-      if (containers.has(id) && !isRoot(el)) {
+      const parentNode = nodeOf(el.parentElement);
+      const parentHorizontal = !!parentNode && containers.has(idOf(parentNode)) && isHorizontal(parentNode);
+      if (containers.has(id) && !isRoot(el) && !links.has(id)) {
         const edge = 8;
-        if (y < r.top + edge) return { el, id, position: "before" };
-        if (y > r.bottom - edge) return { el, id, position: "after" };
+        if (parentHorizontal) {
+          if (x < r.left + edge) return { el, id, position: "before", axis: "x" };
+          if (x > r.right - edge) return { el, id, position: "after", axis: "x" };
+        } else {
+          if (y < r.top + edge) return { el, id, position: "before", axis: "y" };
+          if (y > r.bottom - edge) return { el, id, position: "after", axis: "y" };
+        }
       }
-      if (containers.has(id)) {
-        if (!kids.length) return isRoot(el) ? null : { el, id, position: "inside" };
-        const cs = getComputedStyle(el);
-        const horizontal = (cs.display.includes("flex") && !cs.flexDirection.startsWith("column")) || (cs.display.includes("grid") && cs.gridTemplateColumns.split(" ").length > 1);
+      if (containers.has(id) && !links.has(id)) {
+        if (!kids.length) return isRoot(el) ? null : { el, id, position: "inside", axis: "y" };
+        const horizontal = isHorizontal(el);
         let best: { child: HTMLElement; position: "before" | "after"; d: number } | null = null;
         // L'élément déplacé entre dans la comparaison : s'il est le plus proche du curseur, la cible est sa propre place.
         let dSelf = Infinity;
@@ -377,15 +393,15 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
           if (!best || d < best.d) best = { child, position, d };
         }
         if (!best || best.d >= dSelf || isSame(best.child, best.position)) return null;
-        return { el: best.child, id: idOf(best.child), position: best.position };
+        return { el: best.child, id: idOf(best.child), position: best.position, axis: horizontal ? "x" : "y" };
       }
-      const ry = (y - r.top) / r.height;
-      const position: "before" | "after" = ry < 0.5 ? "before" : "after";
+      // Feuille : la moitié gauche/droite décide dans une rangée, la moitié haute/basse sinon.
+      const position: "before" | "after" = parentHorizontal ? (x < r.left + r.width / 2 ? "before" : "after") : ((y - r.top) / r.height < 0.5 ? "before" : "after");
       if (isSame(el, position)) return null;
-      return { el, id, position };
+      return { el, id, position, axis: parentHorizontal ? "x" : "y" };
     };
     const isBlockDrag = (e: DragEvent) => !!e.dataTransfer && Array.from(e.dataTransfer.types).includes("text/atelier-block");
-    const onDragOver = (e: DragEvent) => { if (!isBlockDrag(e)) return; e.preventDefault(); e.dataTransfer!.dropEffect = "copy"; const t = targetAt(e.clientX, e.clientY); if (!t) { hideIndicator(); return; } showIndicator(t.el, t.position); };
+    const onDragOver = (e: DragEvent) => { if (!isBlockDrag(e)) return; e.preventDefault(); e.dataTransfer!.dropEffect = "copy"; const t = targetAt(e.clientX, e.clientY); if (!t) { hideIndicator(); return; } showIndicator(t.el, t.position, t.axis); };
     const onDragLeave = (e: DragEvent) => { if (!e.relatedTarget) hideIndicator(); };
     const onDrop = (e: DragEvent) => { if (!isBlockDrag(e)) return; e.preventDefault(); hideIndicator(); const preset = e.dataTransfer!.getData("text/atelier-block"); const t = targetAt(e.clientX, e.clientY); if (preset && t) parent.postMessage({ type: "atelier:drop-block", preset, target: t.id, position: t.position }, "*"); };
 
@@ -416,7 +432,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
         const t = targetAt(e.clientX, e.clientY, press.el);
         if (!t) { target = null; hideIndicator(); return; }
         target = { id: t.id, position: t.position };
-        showIndicator(t.el, t.position);
+        showIndicator(t.el, t.position, t.axis);
         return;
       }
       if ((e.target as Element).closest?.("[data-atelier-ui]")) return;
@@ -524,6 +540,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       if (m?.type === "atelier:site" && m.site) {
         setSite(m.site);
         if (m.containers) containers = new Set(m.containers);
+        if ((m as { links?: string[] }).links) links = new Set((m as { links?: string[] }).links);
         if (m.textNodes) textNodes = new Set(m.textNodes);
         if (m.blocks) blocks = m.blocks;
         if (m.editMode) editMode = m.editMode;
