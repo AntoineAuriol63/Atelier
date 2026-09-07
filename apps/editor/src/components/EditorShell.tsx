@@ -146,6 +146,9 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
   const moveNode = useCallback((id: string, targetId: string, position: DropPosition) => {
     const r = planMove(index, id, targetId, position);
     if (!r.ok) { notify(r.reason); return; }
+    // Déposer à la même place : rien à faire, et rien dans l'historique.
+    const loc = index.get(id);
+    if (loc?.parent && loc.parent.id === r.to.parent && loc.index === r.to.index) { select(id); return; }
     doc.commit({ op: "node.move", id, to: r.to }, { label: "Déplacer" });
     select(id);
   }, [index, doc, notify, select]);

@@ -81,6 +81,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     let editing: HTMLElement | null = null;
     let press: { x: number; y: number; el: HTMLElement } | null = null;
     let dragging = false;
+    let suppressClick = false;   // le clic qui suit un relâchement de glissement ne doit pas changer la sélection
     let target: { id: string; position: "before" | "after" | "inside" } | null = null;
 
     const selectedEl = () => (selectedId.current ? document.querySelector<HTMLElement>(`[data-node="${selectedId.current}"]`) : null);
@@ -341,6 +342,9 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
         hideBlockBar();
       }
       if (dragging && press) {
+        // Au-dessus de sa propre place : aucune cible, relâcher ne change rien.
+        const under = document.elementFromPoint(e.clientX, e.clientY);
+        if (under && press.el.contains(under)) { target = null; hideIndicator(); return; }
         const t = targetAt(e.clientX, e.clientY, press.el);
         if (!t) { target = null; hideIndicator(); return; }
         target = { id: t.id, position: t.position };
@@ -359,6 +363,18 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
         }
       }
     };
+    const cancelDrag = () => {
+      if (!press) return;
+      press.el.style.opacity = "";
+      document.body.style.userSelect = "";
+      document.body.classList.remove("atelier-dragging");
+      hideIndicator();
+      target = null;
+      press = null;
+      dragging = false;
+      suppressClick = true;
+      window.setTimeout(() => { suppressClick = false; }, 0);
+    };
     const onMouseUp = () => {
       if (dragging && press) {
         press.el.style.opacity = "";
@@ -367,14 +383,16 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
         hideIndicator();
         if (target) parent.postMessage({ type: "atelier:move", id: idOf(press.el), target: target.id, position: target.position }, "*");
         target = null;
-        window.setTimeout(() => { dragging = false; }, 0);
+        dragging = false;
+        suppressClick = true;
+        window.setTimeout(() => { suppressClick = false; }, 0);
       } else dragging = false;
       press = null;
     };
     const onClick = (e: MouseEvent) => {
       if ((e.target as Element).closest?.("[data-atelier-ui]")) return;
       e.preventDefault();
-      if (dragging || editing) return;
+      if (suppressClick || dragging || editing) return;
       const el = nodeOf(e.target);
       if (!el) return;
       select(el, true);
@@ -394,6 +412,8 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     const FORWARDED = new Set(["Backspace", "Delete", "Escape", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Enter"]);
     const onKeyDown = (e: KeyboardEvent) => {
       const meta = e.metaKey || e.ctrlKey;
+      // Échap pendant un glissement : on annule, l'élément reste où il était.
+      if (dragging && e.key === "Escape") { e.preventDefault(); cancelDrag(); return; }
       if (slash) {
         if (e.key === "Escape") { e.preventDefault(); closeSlash(); return; }
         if (e.key === "Enter") { e.preventDefault(); const b = filtered()[slash.cursor]; if (b) pickSlash(b); return; }
@@ -438,7 +458,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
         if (m.blocks) blocks = m.blocks;
         if (m.editMode) editMode = m.editMode;
       }
-      if (m?.type === "atelier:editmode" && m.editMode) { editMode = m.editMode; if (editing) endEdit(true); hideBlockBar(); }
+      if (m?.type === "atelier:editmode" && m.editMode) { editMode = m.editMode; if (editing) endEdit(true); hideBlockBar(); clear(hovered); hovered = null; }
       if (m?.type === "atelier:zoom") { const z = Number((m as { scale?: number }).scale); uiScale = z > 0 && z < 1 ? Math.min(1 / z, 2.2) : 1; applyUiScale(); }
       if (m?.type === "atelier:mode" && m.mode) setModeState(m.mode);
       if (m?.type === "atelier:grid") renderGrid(m as unknown as { show: boolean; columns: number; gutter: string; margin: string; maxWidth: string });
