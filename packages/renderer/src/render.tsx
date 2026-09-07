@@ -82,7 +82,8 @@ export function RenderNode({ node, ctx }: { node: Node; ctx: RenderContext }): R
     case "image": {
       const assetId = (node.bindings?.asset ? resolveBinding(node.bindings.asset, ctx) : node.props.asset) as string | undefined;
       const asset = assetId ? ctx.assets.get(assetId) : undefined;
-      const alt = node.bindings?.alt ? String(resolveBinding(node.bindings.alt, ctx) ?? "") : localized<string>(node.props.alt, ctx) ?? "";
+      // Texte alternatif : lié, sinon celui de l'élément, sinon celui porté par la ressource.
+      const alt = node.bindings?.alt ? String(resolveBinding(node.bindings.alt, ctx) ?? "") : localized<string>(node.props.alt, ctx) || localized<string>(asset?.alt, ctx) || "";
       const style: Record<string, string> = {};
       if (node.props.ratio) style.aspectRatio = String(node.props.ratio);
       if (node.props.fit) style.objectFit = String(node.props.fit);

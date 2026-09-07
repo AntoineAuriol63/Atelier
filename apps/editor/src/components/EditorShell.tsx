@@ -17,7 +17,8 @@ import { ThemePanel } from "./ThemePanel";
 import { PagesPanel } from "./PagesPanel";
 import { CommandPalette, type Command } from "./CommandPalette";
 import { allPresets } from "@/lib/blocks";
-import { MediaLibrary } from "@/components/MediaLibrary";
+import { ImagesIcon, MediaLibraryProvider, openMediaLibrary } from "@/components/MediaLibrary";
+import type { AssetUsage } from "@/lib/asset-usage";
 import { PublishDialog } from "@/components/PublishDialog";
 import { DataPanel } from "@/components/data/DataPanel";
 import { DatabaseTable } from "@/components/data/DatabaseTable";
@@ -110,8 +111,6 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
   const [selected, setSelected] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [frameReady, setFrameReady] = useState(false);
-  /** Élément image pour lequel la bibliothèque d'images est ouverte (clic sur une image vide dans l'aperçu). */
-  const [mediaFor, setMediaFor] = useState<string | null>(null);
   const [openMap, setOpenMap] = useState<Record<string, boolean>>({});
   const [drop, setDrop] = useState<DropState>(null);
   const [notice, setNotice] = useState<{ text: string; tone: "danger" | "success" | "info" } | null>(null);
@@ -189,6 +188,12 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
     setDbOpen(null);
     notify(`Base « ${name} » supprimée${entryIds.length ? ` avec ${entryIds.length} entrée${entryIds.length > 1 ? "s" : ""}` : ""}.`, "info");
   }, [site, locale, ents, doc, notify, page.id, setPageId, select]);
+
+  const goToUsage = useCallback((u: AssetUsage) => {
+    if (u.kind === "entry") { setDbOpen(u.database); return; }
+    if ("pageId" in u && u.pageId && u.pageId !== pageId) { setPageId(u.pageId); setFrameReady(false); }
+    if ("nodeId" in u && u.nodeId) window.setTimeout(() => select(u.nodeId), 50);
+  }, [pageId, setPageId, select]);
 
   // --- déplacement (calques et canvas) et insertion
   const moveNode = useCallback((id: string, targetId: string, position: DropPosition) => {
@@ -361,7 +366,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
       if (d?.type === "atelier:style-in-context" && d.id) { switchMode("design"); select(d.id); }
       if (d?.type === "atelier:set-style" && d.id && d.prop) doc.commit({ op: "node.set", id: d.id, path: stylePath(activeBpRef.current, d.prop), value: d.value }, { label: `${d.prop}` });
       if (d?.type === "atelier:set-tag" && d.id && d.tag) doc.commit({ op: "node.set", id: d.id, path: "props.tag", value: d.tag }, { label: "Type de bloc" });
-      if (d?.type === "atelier:pick-image" && d.id) { select(d.id); setMediaFor(d.id); }
+      if (d?.type === "atelier:pick-image" && d.id) { const target = d.id; select(target); openMediaLibrary({ value: (index.get(target)?.node.props.asset as string | null) ?? null, onPick: (assetId) => doc.commit({ op: "node.set", id: target, path: "props.asset", value: assetId }, { label: "Changer l'image" }) }); }
       if (d?.type === "atelier:remove" && d.id) { const loc = index.get(d.id); if (loc?.parent) { doc.commit({ op: "node.remove", id: d.id }, { label: "Supprimer" }); select(loc.parent.id); } }
     };
     window.addEventListener("message", onMsg);
@@ -485,6 +490,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
       ...[{ id: "pages", label: "Pages", icon: FileText }, { id: "layers", label: "Calques", icon: Layers }, { id: "add", label: "Ajouter", icon: Plus }, { id: "data", label: "Données", icon: DatabaseIcon }, { id: "theme", label: "Thème", icon: Palette }].map((t) => ({ id: `tab:${t.id}`, group: "Panneaux", label: `Afficher ${t.label}`, icon: t.icon, run: () => setLeftTab(t.id) })),
       ...site.pages.map((p) => ({ id: `page:${p.id}`, group: "Pages", label: `Aller à ${p.name[locale] ?? p.path}`, icon: FileText, keywords: p.path, run: () => { setPageId(p.id); select(null); setFrameReady(false); } })),
       { id: "newpage", group: "Pages", label: "Nouvelle page…", icon: Plus, run: () => setLeftTab("pages") },
+      { id: "media", group: "Affichage", label: "Images du site…", icon: ImagesIcon, keywords: "médias bibliothèque photos", run: () => openMediaLibrary() },
       ...site.databases.map((d) => ({ id: `db:${d.id}`, group: "Données", label: `Ouvrir la base ${d.name[locale] ?? d.slug}`, icon: DatabaseIcon, keywords: "base données tableau entrées", run: () => setDbOpen(d.id) })),
       ...allPresets(site).map((b) => ({ id: `add:${b.id}`, group: "Ajouter un bloc", label: b.label, icon: b.icon, keywords: `${b.description} ${b.keywords ?? ""}`, run: () => addBlock(b) })),
     ];
@@ -508,6 +514,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
   }, [index, doc]);
 
   return (
+    <MediaLibraryProvider site={site} entries={ents.entries} commit={doc.commit} saveEntry={ents.save} onGoTo={goToUsage}>
     <div className="h-full grid grid-rows-[40px_1fr] grid-cols-[300px_1fr_340px]">
       <header className="col-span-3 flex items-center gap-2 px-3 border-b border-line bg-panel">
         <span className="font-semibold text-base tracking-tight text-ink">{PRODUCT_NAME}</span>
@@ -541,6 +548,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
             {site.theme.modes.map((m) => <IconButton key={m.id} label={`Aperçu en mode ${m.name.toLowerCase()}`} icon={m.id === "dark" ? Moon : Sun} active={mode === m.id} onClick={() => setMode(m.id)} />)}
           </div>
           <Separator vertical />
+          <IconButton label="Images du site" icon={ImagesIcon} onClick={() => openMediaLibrary()} />
           <IconButton label="Palette de commandes (⌘K)" icon={CommandIcon} onClick={() => setPaletteOpen(true)} />
           <Button variant="ghost" icon={ExternalLink} onClick={() => window.open(previewPath, "_blank")}>Aperçu</Button>
           <Button variant="primary" icon={UploadCloud} onClick={() => setPublishOpen(true)} title="Publier le site, voir l'historique, revenir en arrière">Publier</Button>
@@ -611,7 +619,8 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
       {dbOpen && site.databases.some((d) => d.id === dbOpen) ? <DatabaseTable site={site} db={site.databases.find((d) => d.id === dbOpen)!} entries={ents.entries} save={ents.save} remove={ents.remove} commit={doc.commit} onClose={() => setDbOpen(null)} saving={ents.saving} onDeleteDatabase={() => deleteDatabase(dbOpen)} /> : null}
       {dbOpen && formForOpen ? <DatabaseTable site={site} db={formDatabase(site, formForOpen)} entries={ents.entries} save={ents.save} remove={ents.remove} commit={doc.commit} onClose={() => setDbOpen(null)} saving={ents.saving} readOnly /> : null}
       {publishOpen ? <PublishDialog site={site} version={doc.version} dirty={doc.status !== "saved"} commit={doc.commit} onClose={() => setPublishOpen(false)} notify={notify} /> : null}
-      {mediaFor ? <MediaLibrary site={site} open onClose={() => setMediaFor(null)} value={(index.get(mediaFor)?.node.props.asset as string | null) ?? null} onPick={(id) => doc.commit({ op: "node.set", id: mediaFor, path: "props.asset", value: id }, { label: "Changer l'image" })} commit={doc.commit} /> : null}
+
     </div>
+    </MediaLibraryProvider>
   );
 }

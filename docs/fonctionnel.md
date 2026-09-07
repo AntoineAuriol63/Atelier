@@ -2,7 +2,7 @@
 
 Ce que l'outil fait aujourd'hui, et comment. Tenu à jour à chaque évolution (règle dans `CLAUDE.md`). Les décisions de fond sont dans `docs/decisions.md`, le contrat de données dans `docs/document-model.md`, le plan dans `docs/roadmap.md`. Ici : l'état réel.
 
-*Dernière mise à jour : 9 septembre 2026 (fin de M6, première version).*
+*Dernière mise à jour : 9 septembre 2026 (M6 première version, médias second temps).*
 
 ## Partie 1 · Fonctionnel
 
@@ -52,7 +52,7 @@ Jetons (couleurs par mode clair/sombre, espacements, largeurs, rayons, ombres, t
 
 ### 1.7 Médias
 
-Import depuis l'ordinateur (plusieurs fichiers, glisser-déposer, adresse web), HEIC converti, réduction avant envoi au-delà de 4 Mo, déclinaisons WebP produites par le serveur et `srcset` au rendu, bibliothèque avec vignettes nommées et renommage, sélecteur dans le panneau Image.
+Import depuis l'ordinateur (plusieurs fichiers, glisser-déposer, adresse web), HEIC converti, réduction avant envoi au-delà de 4 Mo, déclinaisons WebP produites par le serveur et `srcset` au rendu. Une seule bibliothèque pour tout l'éditeur (bouton de la barre, palette ⌘K, panneau Image, clic sur une image vide, cellules des bases) : recherche, tri, filtre « inutilisées », volet de détail avec nom, texte alternatif porté par l'image (l'élément surcharge s'il a le sien), dimensions, date, usages avec accès direct, remplacement du fichier partout, retrait des images inutilisées. Pas de dossiers : la base de données est le vrai classement.
 
 ### 1.8 Formulaires
 
@@ -80,7 +80,7 @@ Monorepo npm workspaces.
 
 - Document `Site` versionné : journal d'opérations, `commit_change` (Supabase) ou fichiers JSON (`.atelier-data/`), conflit 409 si la version de base a bougé (une seule fenêtre à la fois).
 - Entrées hors document : `GET/PUT/DELETE /api/sites/:id/entries`, envois de formulaires dans une base virtuelle `frm_<formId>`.
-- Fichiers : `AssetStorage` (Supabase Storage seau `assets`, ou `.atelier-data/assets`), `POST /api/sites/:id/assets` avec sharp.
+- Fichiers : `AssetStorage` (Supabase Storage seau `assets`, ou `.atelier-data/assets`), `POST /api/sites/:id/assets` avec sharp ; usages calculés côté éditeur (`lib/asset-usage.ts`) ; bibliothèque fournie par `MediaLibraryProvider`, ouverte par `openMediaLibrary()` ou `useMediaLibrary()`.
 - Publication : `snapshots` (`kind = 'publish'`, document + entrées), `sites.published_version`, `sites.subdomain` ; `GET/POST /api/sites/:id/publish`, `POST …/publish/restore`.
 - `getStore()` et `getAssetStorage()` choisissent Supabase ou fichiers ; `ATELIER_STORE=file` force les fichiers ; la clé de cache du dépôt en mémoire porte `STORE_VERSION`.
 - Interface `SiteStore` : `get`, `create`, `appendChange`, `changes`, `entries`, `setEntries`, `upsertEntries`, `deleteEntries`, `publish`, `publications`, `published`, `restore`, `findBySubdomain`.

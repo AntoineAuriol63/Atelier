@@ -1,13 +1,12 @@
 "use client";
 
-import { useState } from "react";
 import type { CommitOptions, FilterExpr, LinkTarget, Node, Op, Site, ViewConfig } from "@atelier/model";
 import { newId } from "@atelier/model";
 import { Plus, X } from "lucide-react";
 import { Button, Field, FieldGroup, Hint, IconButton, NumberInput, Section, Select, TextInput } from "@/ui";
 import { Segmented } from "@/ui/controls";
 import { AssetPicker } from "./AppearancePanel";
-import { MediaLibrary, useImageImport } from "@/components/MediaLibrary";
+import { useImageImport, useMediaLibrary } from "@/components/MediaLibrary";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
 
@@ -27,7 +26,7 @@ export function TagPanel({ node, commit }: { node: Node; commit: Commit }) {
 
 export function ImagePanel({ site, node, commit }: { site: Site; node: Node; commit: Commit }) {
   const locale = site.settings.defaultLocale;
-  const [library, setLibrary] = useState(false);
+  const library = useMediaLibrary();
   const { importFiles, busy, error } = useImageImport(site, commit);
   const bound = !!node.bindings?.asset;
   const alt = (node.props.alt as Record<string, string> | undefined)?.[locale] ?? "";
@@ -38,15 +37,14 @@ export function ImagePanel({ site, node, commit }: { site: Site; node: Node; com
     <Section title="Image">
       {bound ? <Hint>Cette image est liée à un champ de base de données ({node.bindings!.asset!.path}). Le choix se fait dans la base.</Hint> : (
         <>
-          <AssetPicker site={site} value={node.props.asset as string | null} onChange={setAsset} onImport={(files) => void importHere(files)} busy={busy} onOpenLibrary={() => setLibrary(true)} />
+          <AssetPicker site={site} value={node.props.asset as string | null} onChange={setAsset} onImport={(files) => void importHere(files)} busy={busy} onOpenLibrary={library ? () => library.open({ value: node.props.asset as string | null, onPick: setAsset }) : undefined} />
           {error ? <p className="text-xs text-danger">{error}</p> : null}
-          <MediaLibrary site={site} open={library} onClose={() => setLibrary(false)} value={node.props.asset as string | null} onPick={setAsset} commit={commit} />
         </>
       )}
       <FieldGroup>
         {!node.bindings?.alt ? (
-          <Field label="Texte alt." hint="Description pour l'accessibilité et le référencement">
-            <TextInput value={alt} onValueChange={(v) => commit({ op: "node.set", id: node.id, path: `props.alt.${locale}`, value: v }, { coalesceKey: `alt:${node.id}`, label: "Texte alternatif" })} />
+          <Field label="Texte alt." hint="Description pour l'accessibilité et le référencement. Vide : celui de l'image dans la bibliothèque est utilisé.">
+            <TextInput value={alt} placeholder={site.assets.find((a) => a.id === node.props.asset)?.alt?.[locale] ?? ""} onValueChange={(v) => commit({ op: "node.set", id: node.id, path: `props.alt.${locale}`, value: v }, { coalesceKey: `alt:${node.id}`, label: "Texte alternatif" })} />
           </Field>
         ) : null}
         <Field label="Ajustement">

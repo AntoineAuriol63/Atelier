@@ -41,7 +41,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         variants.push({ width: buf.info.width, height: buf.info.height, url: vurl, format: "webp" });
       }
     }
-    assets.push({ id, kind: "image", url, width, height, mime, name: baseName(file.name), variants });
+    assets.push({ id, kind: "image", url, width, height, mime, name: baseName(file.name), createdAt: new Date().toISOString(), variants });
   }
   return Response.json({ assets });
 }

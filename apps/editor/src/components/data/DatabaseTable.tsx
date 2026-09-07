@@ -277,7 +277,7 @@ export function DatabaseTable({ site, db, entries, save, remove, commit, onClose
         <Hint>{readOnly ? "Les messages arrivent ici à chaque envoi du formulaire. Le point en tête de ligne marque un message traité ; la corbeille le supprime." : "Une entrée en brouillon reste invisible sur le site. Cliquez un en-tête pour régler le champ. Les images se choisissent dans la bibliothèque du site ; dans une galerie, cliquer une vignette la retire."}</Hint>
         {onDeleteDatabase ? <Button size="sm" variant="danger" icon={Trash2} className="shrink-0" onClick={onDeleteDatabase}>Supprimer la base…</Button> : null}
       </div>
-      {media ? <MediaLibrary site={site} open onClose={() => setMedia(null)} value={media.mode === "image" ? (entries.find((x) => x.id === media.entryId)?.values[media.field] as string | null) ?? null : null} onPick={pickMedia} commit={commit} /> : null}
+      {media ? <MediaLibrary site={site} entries={entries} open onClose={() => setMedia(null)} value={media.mode === "image" ? (entries.find((x) => x.id === media.entryId)?.values[media.field] as string | null) ?? null : null} onPick={pickMedia} commit={commit} saveEntry={save} /> : null}
     </Dialog>
   );
 }

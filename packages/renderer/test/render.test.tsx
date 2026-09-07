@@ -76,6 +76,15 @@ describe("formulaire", () => {
 });
 
 describe("image", () => {
+  it("prend le texte alternatif de la ressource quand l'élément n'en a pas", () => {
+    const site = structuredClone(sampleSite);
+    const home = site.pages[0]!;
+    const find = (n: typeof home.root): typeof home.root | undefined => (n.id === "hero_img" ? n : (n.children ?? []).map(find).find(Boolean));
+    const img = find(home.root)!;
+    img.props = { ...img.props, alt: { fr: "" } };
+    const html = renderToStaticMarkup(createElement(RenderPage, { ctx: { ...ctxFor("/"), site, assets: assetMap(site) } }));
+    expect(html).toContain('alt="Portrait en lumière naturelle"');
+  });
   it("émet un srcset à partir des déclinaisons, l'original en repli", () => {
     const site = structuredClone(sampleSite);
     const a = site.assets.find((x) => x.id === "as_hero")!;

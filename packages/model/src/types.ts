@@ -308,6 +308,8 @@ export type Asset = {
   height?: number;
   /** Nom lisible (nom du fichier à l'import, modifiable). */
   name?: string;
+  /** Date d'ajout (ISO), posée à l'import. */
+  createdAt?: string;
   alt?: Localized<string>;
   mime?: string;
   /** Déclinaisons optimisées produites à l'import (D37), du plus petit au plus grand ; `url` reste l'original. */
