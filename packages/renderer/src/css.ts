@@ -1,4 +1,4 @@
-import type { Asset, Breakpoint, Node, SharedStyle, Site, StyleProps, StyleSet, StyleValue, Theme } from "@atelier/model";
+import type { Asset, Breakpoint, Node, SharedStyle, Site, StyleProps, StyleSet, StyleValue, Theme, ViewConfig } from "@atelier/model";
 import { walk } from "@atelier/model";
 
 // ---------------------------------------------------------------- valeurs
@@ -186,10 +186,34 @@ export function sharedStylesCss(site: Site, assets?: Map<string, Asset>): string
   return site.sharedStyles.map((s) => styleSetCss(`.s-${s.id}`, resolve(s), site.settings.breakpoints, assets)).filter(Boolean).join("\n");
 }
 
+/**
+ * CSS d'une vue de collection : la disposition et les colonnes par point de rupture viennent de la vue (7.2),
+ * émises avant le style du nœud pour qu'un réglage posé à la main garde le dernier mot.
+ */
+export function collectionViewCss(selector: string, view: ViewConfig | undefined, breakpoints: Breakpoint[]): string {
+  const layout = view?.layout ?? "list";
+  const cols: Record<string, number | undefined> = view?.columns ?? {};
+  const out: string[] = [];
+  const grid = (n: number) => `grid-template-columns:repeat(${Math.max(1, Math.round(n))},minmax(0,1fr))`;
+  const slide = (n: number) => `${selector}>*{flex:0 0 calc(100% / ${Math.max(1, Math.round(n))});scroll-snap-align:start}`;
+  if (layout === "gallery" || layout === "table") out.push(`${selector}{display:grid;${grid(cols.base ?? 3)}}`);
+  else if (layout === "carousel") out.push(`${selector}{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}${slide(cols.base ?? 1)}`);
+  else out.push(`${selector}{display:flex;flex-direction:column}`);
+  for (const bp of [...breakpoints].sort((a, b) => b.maxWidth - a.maxWidth)) {
+    const n = cols[bp.id];
+    if (n === undefined) continue;
+    if (layout === "gallery" || layout === "table") out.push(`@media (max-width:${bp.maxWidth}px){${selector}{${grid(n)}}}`);
+    else if (layout === "carousel") out.push(`@media (max-width:${bp.maxWidth}px){${slide(n)}}`);
+  }
+  return out.join("\n");
+}
+
 export function nodeCss(node: Node, breakpoints: Breakpoint[], assets?: Map<string, Asset>): string {
   const { shared: _shared, ...rest } = node.style ?? {};
   void _shared;
-  return styleSetCss(`.n-${node.id}`, node.style ? rest : undefined, breakpoints, assets, node.hidden);
+  const own = styleSetCss(`.n-${node.id}`, node.style ? rest : undefined, breakpoints, assets, node.hidden);
+  if (node.type !== "collection") return own;
+  return [collectionViewCss(`.n-${node.id}`, node.props.view as ViewConfig | undefined, breakpoints), own].filter(Boolean).join("\n");
 }
 
 export function assetMap(site: Site): Map<string, Asset> {

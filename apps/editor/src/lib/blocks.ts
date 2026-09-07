@@ -27,7 +27,7 @@ export const BLOCKS: BlockPreset[] = [
     const db = site.databases[0];
     const itemId = newId();
     return { id: newId(), type: "collection", name: db ? `Vue · ${db.name[site.settings.defaultLocale] ?? db.slug}` : "Vue", props: { database: db?.id ?? "", view: { layout: "gallery", sort: [], columns: { base: 3, tablet: 2, small: 1 } } },
-      style: { base: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: { token: "space.5" } }, breakpoints: { tablet: { gridTemplateColumns: "repeat(2, 1fr)" }, small: { gridTemplateColumns: "1fr" } } },
+      style: { base: { gap: { token: "space.5" } } },
       children: [{ id: itemId, type: "item", name: "Carte", props: {}, style: { base: { display: "flex", flexDirection: "column", gap: { token: "space.3" } } }, children: [
         { id: newId(), type: "image", props: { alt: { fr: "" }, fit: "cover", ratio: "4 / 5" }, bindings: db ? { asset: { source: "item", path: "cover" }, alt: { source: "item", path: db.titleField } } : undefined, style: { base: { borderRadius: { token: "radius.md" }, overflow: "hidden" } } },
         { id: newId(), type: "text", props: { tag: "h3", content: { [site.settings.defaultLocale]: db ? [{ t: "bind", binding: { source: "item", path: db.titleField } }] : [{ t: "text", v: "Titre" }] } } },

@@ -310,6 +310,8 @@ type ViewConfig = {
 };
 ```
 
+Le rendu tire de la vue le CSS de disposition du nœud `collection` : `gallery` et `table` donnent une grille dont les colonnes suivent `columns` par point de rupture, `list` une colonne, `carousel` un défilement horizontal avec accroche (`columns` = éléments visibles). Ce CSS est émis avant le style propre du nœud, qui garde le dernier mot. `calendar` et `map` attendent leur rendu (v1). L'éditeur propose un filtre plat (conditions combinées par `and`) ; une expression plus riche reste valide et est conservée telle quelle.
+
 L'enfant unique `item` est le modèle répété ; ses descendants lient les champs par `bindings: { "content": { source: "item", path: "title" } }`. Le rendu instancie l'`item` par entrée. Une vue par défaut est générée par le thème (D23) ; l'utilisateur peut la redessiner.
 
 ### 7.3 Liaisons

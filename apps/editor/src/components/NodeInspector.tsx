@@ -195,7 +195,7 @@ export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onP
 
       {!sharedDef && node.type === "image" ? <ImagePanel site={site} node={node} commit={commit} /> : null}
       {!sharedDef && node.type === "link" ? <LinkPanel site={site} node={node} commit={commit} /> : null}
-      {!sharedDef && node.type === "collection" ? <CollectionPanel site={site} node={node} commit={commit} /> : null}
+      {!sharedDef && node.type === "collection" ? <CollectionPanel site={site} node={node} commit={commit} editMode={editMode} /> : null}
 
       {editMode === "write" ? (
         <Section title="Mise en forme rapide" hint="L'essentiel pour écrire. Pour tout le reste, passez en mode Design sur cet élément.">

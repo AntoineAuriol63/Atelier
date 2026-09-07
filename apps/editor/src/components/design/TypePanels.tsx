@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import type { CommitOptions, LinkTarget, Node, Op, Site } from "@atelier/model";
-import { Field, FieldGroup, Hint, NumberInput, Section, Select, TextInput } from "@/ui";
+import type { CommitOptions, FilterExpr, LinkTarget, Node, Op, Site, ViewConfig } from "@atelier/model";
+import { newId } from "@atelier/model";
+import { Plus, X } from "lucide-react";
+import { Button, Field, FieldGroup, Hint, IconButton, NumberInput, Section, Select, TextInput } from "@/ui";
 import { Segmented } from "@/ui/controls";
 import { AssetPicker } from "./AppearancePanel";
 import { MediaLibrary, useImageImport } from "@/components/MediaLibrary";
@@ -95,24 +97,109 @@ export function LinkPanel({ site, node, commit }: { site: Site; node: Node; comm
   );
 }
 
-export function CollectionPanel({ site, node, commit }: { site: Site; node: Node; commit: Commit }) {
+const LAYOUTS: { value: ViewConfig["layout"]; label: string }[] = [{ value: "gallery", label: "Grille" }, { value: "list", label: "Liste" }, { value: "carousel", label: "Défilement" }];
+const OPS: { value: FilterCond["op"]; label: string; needsValue: boolean }[] = [
+  { value: "eq", label: "est", needsValue: true }, { value: "ne", label: "n'est pas", needsValue: true }, { value: "contains", label: "contient", needsValue: true },
+  { value: "gt", label: "est supérieur à", needsValue: true }, { value: "gte", label: "est au moins", needsValue: true }, { value: "lt", label: "est inférieur à", needsValue: true }, { value: "lte", label: "est au plus", needsValue: true },
+  { value: "isEmpty", label: "est vide", needsValue: false }, { value: "isNotEmpty", label: "n'est pas vide", needsValue: false },
+];
+type FilterCond = Extract<FilterExpr, { field: string }>;
+const isCond = (f: FilterExpr): f is FilterCond => "field" in f;
+
+/** Le filtre de l'éditeur est une liste plate de conditions (« et »). Une expression plus riche est conservée mais non éditable ici. */
+function readFilter(f: FilterExpr | undefined): { conds: FilterCond[]; advanced: boolean } {
+  if (!f) return { conds: [], advanced: false };
+  if (isCond(f)) return { conds: [f], advanced: false };
+  if ("and" in f && f.and.every(isCond)) return { conds: f.and as FilterCond[], advanced: false };
+  return { conds: [], advanced: true };
+}
+const writeFilter = (conds: FilterCond[]): FilterExpr | undefined => (conds.length === 0 ? undefined : conds.length === 1 ? conds[0] : { and: conds });
+
+export function CollectionPanel({ site, node, commit, editMode = "design" }: { site: Site; node: Node; commit: Commit; editMode?: "write" | "design" }) {
   const locale = site.settings.defaultLocale;
-  const view = (node.props.view ?? { layout: "gallery" }) as { layout: string; limit?: number; sort?: { field: string; dir: "asc" | "desc" }[] };
+  const view = (node.props.view ?? { layout: "gallery" }) as ViewConfig;
   const db = site.databases.find((d) => d.id === node.props.database);
-  const setView = (patch: Partial<typeof view>) => commit({ op: "node.set", id: node.id, path: "props.view", value: { ...view, ...patch } }, { label: "Vue" });
+  const fields = db?.fields ?? [];
+  const setView = (patch: Partial<ViewConfig>, label = "Vue") => {
+    const next: ViewConfig = { ...view, ...patch };
+    (Object.keys(next) as (keyof ViewConfig)[]).forEach((k) => { if (next[k] === undefined) delete next[k]; });
+    commit({ op: "node.set", id: node.id, path: "props.view", value: next }, { label });
+  };
+  const fieldOptions = fields.map((f) => ({ value: f.name, label: f.label[locale] ?? f.name }));
+  const { conds, advanced } = readFilter(view.filter);
+  const setConds = (c: FilterCond[]) => setView({ filter: writeFilter(c) }, "Filtre");
+  const emptyText = (() => { const n = view.empty?.[0]; const c = n?.type === "text" ? (n.props.content as Record<string, { t: string; v?: string }[]> | undefined)?.[locale] : undefined; return view.empty?.length === 1 && c ? c.map((x) => x.v ?? "").join("") : ""; })();
+  const sorts = view.sort ?? [];
+  const bps = site.settings.breakpoints;
+  const cols = view.columns ?? { base: 3 };
+
+  const ValueEditor = ({ cond, onChange }: { cond: FilterCond; onChange: (v: unknown) => void }) => {
+    const f = fields.find((x) => x.name === cond.field);
+    const v = cond.value;
+    if (f?.type === "select" || f?.type === "multiSelect") return <Select className="flex-1" value={typeof v === "string" ? v : ""} placeholder="Choisir" options={(f.options ?? []).map((o) => ({ value: o.value, label: o.label[locale] ?? o.value }))} onValueChange={onChange} />;
+    if (f?.type === "boolean") return <Select className="flex-1" value={v === true ? "1" : v === false ? "0" : ""} placeholder="Choisir" options={[{ value: "1", label: "Oui" }, { value: "0", label: "Non" }]} onValueChange={(s) => onChange(s === "1")} />;
+    if (f?.type === "number" || f?.type === "position") return <NumberInput className="flex-1" value={typeof v === "number" ? v : ""} onValueChange={(n) => onChange(n === "" ? undefined : n)} />;
+    if (f?.type === "relation") {
+      const isPageEntry = typeof v === "object" && v !== null && "page" in (v as object);
+      return <Select className="flex-1" value={isPageEntry ? "@page" : typeof v === "string" ? v : ""} placeholder="Choisir" options={[{ value: "@page", label: "L'entrée de la page" }]} onValueChange={(s) => onChange(s === "@page" ? { page: "entry" } : s || undefined)} />;
+    }
+    return <TextInput className="flex-1" value={typeof v === "string" ? v : ""} onValueChange={(s) => onChange(s || undefined)} placeholder="Valeur" />;
+  };
+
   return (
-    <Section title="Collection">
+    <Section title="Vue de base de données" hint="Quelle base, quelles entrées, dans quel ordre. La carte répétée se dessine dans l'aperçu.">
       <FieldGroup>
-        <Field label="Base"><Select value={String(node.props.database ?? "")} placeholder="Choisir" options={site.databases.map((d) => ({ value: d.id, label: d.name[locale] ?? d.slug }))} onValueChange={(v) => commit({ op: "node.set", id: node.id, path: "props.database", value: v }, { label: "Base de données" })} /></Field>
-        <Field label="Tri">
-          <div className="flex gap-1">
-            <Select className="flex-1" value={view.sort?.[0]?.field ?? ""} placeholder="Par défaut" options={(db?.fields ?? []).map((f) => ({ value: f.name, label: f.label[locale] ?? f.name }))} onValueChange={(f) => setView({ sort: f ? [{ field: f, dir: view.sort?.[0]?.dir ?? "asc" }] : [] })} />
-            <Select className="w-24" value={view.sort?.[0]?.dir ?? "asc"} options={[{ value: "asc", label: "Croissant" }, { value: "desc", label: "Décroissant" }]} onValueChange={(d) => { if (view.sort?.[0]) setView({ sort: [{ field: view.sort[0].field, dir: d as "asc" | "desc" }] }); }} />
+        <Field label="Base"><Select value={String(node.props.database ?? "")} placeholder="Choisir" options={site.databases.map((d) => ({ value: d.id, label: d.name[locale] ?? d.slug }))} onValueChange={(v) => commit({ op: "node.set", id: node.id, path: "props.database", value: v }, { label: "Base de la vue" })} /></Field>
+        <Field label="Filtre" hint="Seules les entrées qui remplissent toutes les conditions s'affichent." inline={false}>
+          {advanced ? <Hint>Ce filtre a été écrit en code (ou / imbrication) : il s&apos;applique mais ne se modifie pas ici.</Hint> : (
+            <div className="flex flex-col gap-1">
+              {conds.map((c, i) => {
+                const op = OPS.find((o) => o.value === c.op) ?? OPS[0]!;
+                const set = (patch: Partial<FilterCond>) => setConds(conds.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+                return (
+                  <div key={i} className="flex flex-col gap-1 p-1.5 rounded-xs bg-surface border border-line">
+                    <div className="flex gap-1">
+                      <Select className="flex-1" value={c.field} options={fieldOptions} onValueChange={(field) => set({ field, value: undefined })} />
+                      <Select className="w-[132px]" value={c.op} options={OPS.map((o) => ({ value: o.value, label: o.label }))} onValueChange={(o) => set({ op: o as FilterCond["op"], value: OPS.find((x) => x.value === o)?.needsValue ? c.value : undefined })} />
+                      <IconButton size="sm" label="Retirer la condition" icon={X} onClick={() => setConds(conds.filter((_, j) => j !== i))} />
+                    </div>
+                    {op.needsValue ? <div className="flex gap-1"><ValueEditor cond={c} onChange={(value) => set({ value })} /></div> : null}
+                  </div>
+                );
+              })}
+              <Button size="sm" variant="ghost" icon={Plus} disabled={!fields.length} onClick={() => setConds([...conds, { field: fields[0]!.name, op: "eq" }])}>Condition</Button>
+            </div>
+          )}
+        </Field>
+        <Field label="Tri" inline={false}>
+          <div className="flex flex-col gap-1">
+            {sorts.map((s, i) => (
+              <div key={i} className="flex gap-1">
+                <Select className="flex-1" value={s.field} options={fieldOptions} onValueChange={(field) => setView({ sort: sorts.map((x, j) => (j === i ? { ...x, field } : x)) }, "Tri")} />
+                <Select className="w-[112px]" value={s.dir} options={[{ value: "asc", label: "Croissant" }, { value: "desc", label: "Décroissant" }]} onValueChange={(dir) => setView({ sort: sorts.map((x, j) => (j === i ? { ...x, dir: dir as "asc" | "desc" } : x)) }, "Tri")} />
+                <IconButton size="sm" label="Retirer ce tri" icon={X} onClick={() => setView({ sort: sorts.filter((_, j) => j !== i).length ? sorts.filter((_, j) => j !== i) : undefined }, "Tri")} />
+              </div>
+            ))}
+            {sorts.length < 3 ? <Button size="sm" variant="ghost" icon={Plus} disabled={!fields.length} onClick={() => setView({ sort: [...sorts, { field: fields.find((f) => !sorts.some((x) => x.field === f.name))?.name ?? fields[0]!.name, dir: "asc" }] }, "Tri")}>{sorts.length ? "Puis par" : "Trier par"}</Button> : null}
           </div>
         </Field>
-        <Field label="Limite"><NumberInput className="w-24" min={1} value={view.limit ?? ""} placeholder="toutes" onValueChange={(n) => setView({ limit: n === "" ? undefined : n })} /></Field>
+        <Field label="Limite" hint="Nombre maximal d'entrées affichées"><NumberInput className="w-24" min={1} value={view.limit ?? ""} placeholder="toutes" onValueChange={(n) => setView({ limit: n === "" ? undefined : n }, "Limite")} /></Field>
+        <Field label="Si vide" hint="Texte affiché quand aucune entrée ne correspond"><TextInput value={emptyText} placeholder="Rien à afficher" onValueChange={(t) => setView({ empty: t ? [{ id: view.empty?.[0]?.id ?? newId(), type: "text", props: { tag: "p", content: { [locale]: [{ t: "text", v: t }] } } }] : undefined }, "Texte si vide")} /></Field>
       </FieldGroup>
-      <Hint>Filtres, pagination et colonnes par point de rupture : jalon M5.</Hint>
+      {editMode === "design" ? (
+        <FieldGroup>
+          <Field label="Disposition"><Segmented value={view.layout} options={LAYOUTS} onChange={(l) => { if (l) setView({ layout: l as ViewConfig["layout"] }, "Disposition"); }} /></Field>
+          {view.layout !== "list" ? (
+            <Field label={view.layout === "carousel" ? "Visibles" : "Colonnes"} hint="Par point de rupture ; vide = comme le point de rupture au-dessus" inline={false}>
+              <div className="flex gap-1 flex-wrap">
+                {[{ id: "base", label: "Base" }, ...[...bps].sort((a, b) => b.maxWidth - a.maxWidth).map((b) => ({ id: b.id, label: b.name || b.id }))].map((bp) => (
+                  <label key={bp.id} className="flex flex-col gap-0.5 text-2xs text-muted"><span>{bp.label}</span><NumberInput className="w-14" min={1} max={12} value={cols[bp.id] ?? ""} placeholder={bp.id === "base" ? "3" : "—"} onValueChange={(n) => { const next = { ...cols }; if (n === "") { if (bp.id !== "base") delete next[bp.id]; } else next[bp.id] = n; setView({ columns: next as ViewConfig["columns"] }, "Colonnes"); }} /></label>
+                ))}
+              </div>
+            </Field>
+          ) : null}
+        </FieldGroup>
+      ) : <Hint>Disposition et colonnes se règlent en mode Design.</Hint>}
     </Section>
   );
 }

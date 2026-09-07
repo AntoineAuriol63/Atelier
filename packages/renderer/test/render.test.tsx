@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
 import { sampleSite, sampleEntries } from "@atelier/model";
-import { RenderPage, siteCss, styleSetCss, memoryData, matchPath, assetMap, pageTitle, type RenderContext } from "../src";
+import { RenderPage, siteCss, styleSetCss, collectionViewCss, memoryData, matchPath, assetMap, pageTitle, type RenderContext } from "../src";
 
 const data = memoryData(sampleEntries);
 function ctxFor(path: string): RenderContext {
@@ -10,6 +10,29 @@ function ctxFor(path: string): RenderContext {
   if (!m) throw new Error("page introuvable " + path);
   return { site: sampleSite, page: m.page, entry: m.entry, params: m.params, locale: "fr", data, assets: assetMap(sampleSite), basePath: "" };
 }
+
+describe("vue de collection", () => {
+  const bps = sampleSite.settings.breakpoints;
+  it("émet la grille et ses colonnes par point de rupture", () => {
+    const css = collectionViewCss(".n-c", { layout: "gallery", columns: { base: 3, tablet: 2, small: 1 } }, bps);
+    expect(css).toContain(".n-c{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}");
+    expect(css).toContain("@media (max-width:991px){.n-c{grid-template-columns:repeat(2,minmax(0,1fr))}}");
+    expect(css).toContain("@media (max-width:479px){.n-c{grid-template-columns:repeat(1,minmax(0,1fr))}}");
+  });
+  it("liste en colonne, défilement horizontal avec accroche", () => {
+    expect(collectionViewCss(".n-c", { layout: "list" }, bps)).toContain("flex-direction:column");
+    expect(collectionViewCss(".n-c", { layout: "carousel", columns: { base: 2 } }, bps)).toContain("scroll-snap-type:x mandatory");
+  });
+  it("filtre, trie et limite les entrées publiées", () => {
+    const ctx = ctxFor("/");
+    const db = sampleSite.databases[0]!;
+    const mariages = data.entries(db, { layout: "list", filter: { field: "category", op: "eq", value: "mariage" }, sort: [{ field: "year", dir: "desc" }], limit: 1 }, ctx);
+    expect(mariages.length).toBe(1);
+    expect(mariages[0]!.values.category).toBe("mariage");
+    const empty = data.entries(db, { layout: "list", filter: { and: [{ field: "category", op: "eq", value: "mariage" }, { field: "cover", op: "isEmpty" }] } }, ctx);
+    expect(empty.length).toBe(0);
+  });
+});
 
 describe("image", () => {
   it("émet un srcset à partir des déclinaisons, l'original en repli", () => {
