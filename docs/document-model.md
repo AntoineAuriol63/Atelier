@@ -384,7 +384,7 @@ Règles :
 - L'application enregistre `prev` si absent, ce qui rend l'inversion possible sans relire l'état précédent.
 - `batch` groupe une action utilisateur (une seule entrée d'annulation).
 - Le numéro de `version` est monotone par site ; c'est la base de la détection de conflit et, plus tard, du temps réel (D52).
-- Un instantané (`Site` complet) est calculé et stocké à chaque publication (D36) et périodiquement.
+- Un instantané (`Site` complet, avec les entrées) est calculé et stocké à chaque publication (D36) et périodiquement. Le site publié est servi depuis l'instantané désigné comme publié, jamais depuis le document de travail ; le retour arrière change seulement cette désignation (`docs/publication.md`). `settings.subdomain` donne l'adresse `<subdomain>.<domaine d'Atelier>`.
 
 ## 10. Pages et site
 

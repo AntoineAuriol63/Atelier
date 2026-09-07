@@ -234,6 +234,7 @@ export const site = z.object({
   id,
   name: z.string(),
   settings: z.object({
+    subdomain: z.string().regex(/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/, "sous-domaine invalide").optional(),
     defaultLocale: locale,
     locales: z.array(locale).min(1),
     breakpoints: z.array(z.object({ id: z.string(), name: z.string(), maxWidth: z.number() })),

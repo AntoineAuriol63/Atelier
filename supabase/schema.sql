@@ -87,3 +87,8 @@ end $$;
 insert into storage.buckets (id, name, public, file_size_limit)
 values ('assets', 'assets', true, 52428800)
 on conflict (id) do update set public = true, file_size_limit = 52428800;
+
+-- Publication (M6) : version publiée et sous-domaine du site. Les instantanés de publication sont dans `snapshots` (kind = 'publish').
+alter table sites add column if not exists published_version integer;
+alter table sites add column if not exists subdomain text;
+create unique index if not exists sites_subdomain_idx on sites (subdomain) where subdomain is not null;

@@ -5,6 +5,8 @@ import { Copy, Database as DatabaseIcon, FileText, Plus, Settings2, Trash2 } fro
 import type { CommitOptions, Database, Node, Op, Page, Site } from "@atelier/model";
 import { cloneWithNewIds, newId, templateOf } from "@atelier/model";
 import { Button, Field, FieldGroup, Hint, IconButton, Select, TextInput } from "@/ui";
+import { Segmented } from "@/ui/controls";
+import { AssetPicker } from "@/components/design/AppearancePanel";
 import { cx } from "@/ui/cx";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
@@ -132,6 +134,8 @@ export function PagesPanel({ site, pageId, onOpen, commit }: { site: Site; pageI
                       </Field>
                     ) : null}
                     <Field label="Titre SEO" hint="Titre affiché dans l'onglet et les moteurs ; le suffixe du site est ajouté"><TextInput value={p.seo?.title?.[locale] ?? ""} placeholder={p.name[locale]} onValueChange={(v) => update(p.id, { seo: { ...p.seo, title: v ? { ...p.seo?.title, [locale]: v } : undefined } }, "Titre SEO", `page-seo-title:${p.id}`)} /></Field>
+                    <Field label="Indexer" hint="Non : la page reste accessible mais demande aux moteurs de ne pas la lister"><Segmented value={p.seo?.index === false ? "0" : "1"} options={[{ value: "1", label: "Oui" }, { value: "0", label: "Non" }]} onChange={(v) => update(p.id, { seo: { ...p.seo, index: v === "0" ? false : undefined } }, "Indexation")} /></Field>
+                    <Field label="Image sociale" hint="Image de partage de cette page (Open Graph)" inline={false}><AssetPicker site={site} value={p.seo?.image} onChange={(id) => update(p.id, { seo: { ...p.seo, image: id ?? undefined } }, "Image sociale")} /></Field>
                     <Field label="Description"><TextInput value={p.seo?.description?.[locale] ?? ""} onValueChange={(v) => update(p.id, { seo: { ...p.seo, description: v ? { ...p.seo?.description, [locale]: v } : undefined } }, "Description SEO", `page-seo-desc:${p.id}`)} /></Field>
                   </FieldGroup>
                 </div>

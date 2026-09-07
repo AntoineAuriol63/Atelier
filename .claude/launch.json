@@ -1,6 +1,31 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "editor", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev", "-w", "apps/editor"], "port": 3000 }
+    {
+      "name": "editor",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev",
+        "-w",
+        "apps/editor"
+      ],
+      "port": 3000
+    },
+    {
+      "name": "editor-file",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "ATELIER_STORE=file",
+        "ATELIER_DATA_DIR=/Users/antoi/Code/atelier/.atelier-data-file",
+        "npm",
+        "run",
+        "dev",
+        "-w",
+        "apps/editor"
+      ],
+      "port": 3001,
+      "autoPort": true
+    }
   ]
 }

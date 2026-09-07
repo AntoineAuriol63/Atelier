@@ -5,12 +5,12 @@ import { FileSiteStore } from "./file-store";
 import { SupabaseSiteStore } from "./supabase-store";
 import { FileAssetStorage, SupabaseAssetStorage, type AssetStorage } from "./assets";
 
-export type { SiteStore, StoredSite, ChangeInput, ChangeResult } from "./types";
+export type { SiteStore, StoredSite, ChangeInput, ChangeResult, PublicationMeta, Published } from "./types";
 export type { AssetStorage } from "./assets";
 export { FileAssetStorage } from "./assets";
 
 /** À incrémenter quand l'interface `SiteStore` change. */
-const STORE_VERSION = 2;
+const STORE_VERSION = 4;
 
 declare global {
   var __atelierStore: { key: string; store: SiteStore } | undefined;
@@ -20,8 +20,11 @@ declare global {
  * Supabase si configuré (SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY), sinon fichiers dans `.atelier-data/`.
  * Le dépôt est mis en cache par configuration : un rechargement de `.env.local` en développement bascule sans redémarrage.
  */
+/** `ATELIER_STORE=file` force le mode fichier même si Supabase est configuré (essais, exercices). */
+const forcedFile = () => process.env.ATELIER_STORE === "file";
+
 export function getStore(): SiteStore {
-  const url = process.env.SUPABASE_URL, key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = forcedFile() ? undefined : process.env.SUPABASE_URL, key = forcedFile() ? undefined : process.env.SUPABASE_SERVICE_ROLE_KEY;
   const dir = process.env.ATELIER_DATA_DIR ?? path.resolve(process.cwd(), "../../.atelier-data");
   // La version fait partie de la clé : en développement, un dépôt gardé en mémoire par un ancien module ne survit pas à un changement de son interface.
   const cacheKey = `${STORE_VERSION}:${url && key ? `supabase:${url}` : `file:${dir}`}`;
@@ -33,13 +36,13 @@ export function getStore(): SiteStore {
 
 /** Stockage des fichiers, même règle de configuration que le dépôt. */
 export function getAssetStorage(): AssetStorage {
-  const url = process.env.SUPABASE_URL, key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const url = forcedFile() ? undefined : process.env.SUPABASE_URL, key = forcedFile() ? undefined : process.env.SUPABASE_SERVICE_ROLE_KEY;
   const dir = process.env.ATELIER_DATA_DIR ?? path.resolve(process.cwd(), "../../.atelier-data");
   return url && key ? new SupabaseAssetStorage(url, key) : new FileAssetStorage(dir);
 }
 
 export function storeKind(): "supabase" | "file" {
-  return process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY ? "supabase" : "file";
+  return !forcedFile() && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY ? "supabase" : "file";
 }
 
 /** Identifiant du site courant (v0 : un seul site, celui de l'exemple). */

@@ -1,8 +1,10 @@
 node_modules
 .next
+.next-*
 dist
 .env
 .env.local
 .DS_Store
 *.tsbuildinfo
 .atelier-data
+.atelier-data-file

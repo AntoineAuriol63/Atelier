@@ -329,6 +329,8 @@ export type LayoutGrid = {
 };
 
 export type SiteSettings = {
+  /** Sous-domaine du site publié (`<subdomain>.<domaine d'Atelier>`) ; à défaut, dérivé de l'identifiant. */
+  subdomain?: string;
   defaultLocale: Locale;
   locales: Locale[];
   breakpoints: Breakpoint[];

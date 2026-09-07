@@ -24,5 +24,13 @@ for (const table of ["sites", "changes", "entries", "snapshots"]) {
   const del = await sb.from("sites").delete().eq("id", id);
   check("nettoyage du site de test", !del.error, del.error?.message);
 }
+{
+  // Publication (M6) : colonnes ajoutées après le premier schéma.
+  const cols = await sb.from("sites").select("published_version, subdomain", { head: true, count: "exact" });
+  check("colonnes de publication (sites.published_version, sites.subdomain)", !cols.error, cols.error ? cols.error.message + " → exécuter le bloc « publication » de supabase/schema.sql" : "");
+  const bucket = await sb.storage.getBucket("assets");
+  check("seau de fichiers « assets »", !bucket.error, bucket.error ? "créé automatiquement au premier import" : "");
+  if (bucket.error) ok = true && ok;
+}
 console.log(ok ? "\nSupabase est prêt pour Atelier." : "\nCorrige les points ci-dessus, puis relance.");
 process.exit(ok ? 0 : 1);

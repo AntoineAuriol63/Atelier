@@ -1,10 +1,11 @@
-import { mkdir, readFile, writeFile, appendFile, rename } from "node:fs/promises";
+import { mkdir, readFile, writeFile, appendFile, rename, readdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { applyOps, type Change, type Entry, type Site } from "@atelier/model";
-import type { ChangeInput, ChangeResult, SiteStore, StoredSite } from "./types";
+import type { ChangeInput, ChangeResult, PublicationMeta, Published, SiteStore, StoredSite } from "./types";
 
-type FileDoc = { site: Site; version: number; entries: Entry[] };
+type Publication = PublicationMeta & { site: Site; entries: Entry[] };
+type FileDoc = { site: Site; version: number; entries: Entry[]; publications?: Publication[]; publishedVersion?: number };
 
 /**
  * Dépôt sur fichiers JSON : `<dir>/sites/<id>.json` (document courant) et `<dir>/sites/<id>.changes.jsonl` (journal).
@@ -90,5 +91,45 @@ export class FileSiteStore implements SiteStore {
   async deleteEntries(id: string, ids: string[]): Promise<void> {
     const cur = await this.entries(id);
     await this.setEntries(id, cur.filter((e) => !ids.includes(e.id)));
+  }
+
+  async publish(id: string, label?: string): Promise<PublicationMeta> {
+    return this.serialize(id, async () => {
+      const d = await this.read(id);
+      if (!d) throw new Error(`Site introuvable : ${id}`);
+      const meta: PublicationMeta = { version: d.version, label, createdAt: new Date().toISOString() };
+      const publications = [...(d.publications ?? []).filter((p) => p.version !== d.version), { ...meta, site: d.site, entries: d.entries }];
+      await this.write(id, { ...d, publications, publishedVersion: d.version });
+      return meta;
+    });
+  }
+  async publications(id: string): Promise<PublicationMeta[]> {
+    const d = await this.read(id);
+    return (d?.publications ?? []).map(({ version, label, createdAt }) => ({ version, label, createdAt })).sort((a, b) => b.version - a.version);
+  }
+  async published(id: string): Promise<Published | null> {
+    const d = await this.read(id);
+    const p = d?.publications?.find((x) => x.version === d.publishedVersion);
+    return p ? { site: p.site, entries: p.entries, version: p.version, publishedAt: p.createdAt } : null;
+  }
+  async restore(id: string, version: number): Promise<PublicationMeta> {
+    return this.serialize(id, async () => {
+      const d = await this.read(id);
+      const p = d?.publications?.find((x) => x.version === version);
+      if (!d || !p) throw new Error(`Version ${version} introuvable`);
+      await this.write(id, { ...d, publishedVersion: version });
+      return { version: p.version, label: p.label, createdAt: p.createdAt };
+    });
+  }
+  async findBySubdomain(sub: string): Promise<string | null> {
+    const dir = path.join(this.dir, "sites");
+    if (!existsSync(dir)) return null;
+    for (const f of await readdir(dir)) {
+      if (!f.endsWith(".json")) continue;
+      const id = f.slice(0, -5);
+      if (id === sub || id.toLowerCase().replace(/[^a-z0-9-]/g, "-") === sub) return id;
+      try { const d = JSON.parse(await readFile(path.join(dir, f), "utf8")) as FileDoc; if (d.site?.settings?.subdomain === sub) return id; } catch { /* fichier temporaire ou partiel */ }
+    }
+    return null;
   }
 }

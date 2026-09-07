@@ -35,3 +35,7 @@ La clé `service_role` donne tous les droits : elle ne quitte jamais le serveur.
 ## Fichiers (images importées)
 
 Les images importées vont dans le seau Storage `assets` (créé par `supabase/schema.sql`, public en lecture, limite 50 Mo par fichier). L'import passe par `POST /api/sites/:id/assets` : le serveur lit l'image, produit les déclinaisons WebP (480, 960, 1600, 2400 px) et écrit le tout dans le seau avec la clé de service. Le document ne garde que les adresses publiques. En mode fichier, les mêmes fichiers vont dans `.atelier-data/assets/` et sont servis par `GET /api/sites/:id/assets/…`. Si le schéma a été exécuté avant l'ajout du seau, relancer seulement le bloc `insert into storage.buckets` du fichier.
+
+## Publication (M6)
+
+Le schéma a gagné deux colonnes sur `sites` (`published_version`, `subdomain`) : relancer le bloc « publication » de `supabase/schema.sql` sur un projet créé avant, puis vérifier avec `scripts/check-supabase.mjs`. Les instantanés publiés vont dans `snapshots` (`kind = 'publish'`). `ATELIER_STORE=file` force le mode fichier même avec Supabase configuré (essais locaux).
