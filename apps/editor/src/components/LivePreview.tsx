@@ -192,11 +192,25 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
         sel.addEventListener("change", () => parent.postMessage({ type: "atelier:set-tag", id, tag: sel.value }, "*"));
         blockBar.appendChild(sel);
         const align = getComputedStyle(el).textAlign;
-        [["left", "⯇", "Aligner à gauche"], ["center", "≡", "Centrer"], ["right", "⯈", "Aligner à droite"]].forEach(([v, l, t]) => b(l!, t!, () => parent.postMessage({ type: "atelier:set-style", id, prop: "textAlign", value: (v === "left" && align !== "left") || v !== "left" ? v : undefined }, "*"), (align === v || (v === "left" && align === "start")) ? "on" : ""));
+        // Icônes d'alignement (mêmes tracés que Lucide align-left / align-center / align-right).
+        const ICON = {
+          left: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="21" y1="6" x2="3" y2="6"/><line x1="15" y1="12" x2="3" y2="12"/><line x1="17" y1="18" x2="3" y2="18"/></svg>`,
+          center: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="21" y1="6" x2="3" y2="6"/><line x1="17" y1="12" x2="7" y2="12"/><line x1="19" y1="18" x2="5" y2="18"/></svg>`,
+          right: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="12" x2="9" y2="12"/><line x1="21" y1="18" x2="7" y2="18"/></svg>`,
+        };
+        ([["left", "Aligner à gauche"], ["center", "Centrer"], ["right", "Aligner à droite"]] as const).forEach(([v, t]) => {
+          const x = b("", t, () => parent.postMessage({ type: "atelier:set-style", id, prop: "textAlign", value: (v === "left" && align !== "left") || v !== "left" ? v : undefined }, "*"), (align === v || (v === "left" && align === "start")) ? "on" : "");
+          x.innerHTML = ICON[v];
+          x.style.display = "inline-flex"; x.style.alignItems = "center"; x.style.justifyContent = "center";
+        });
       }
       b("Style", "Régler le style en détail (mode Design)", () => parent.postMessage({ type: "atelier:style-in-context", id }, "*"));
-      b("＋", "Insérer un bloc après (menu /)", () => openSlash(el, true));
-      b("🗑", "Supprimer le bloc", () => parent.postMessage({ type: "atelier:remove", id }, "*"));
+      const plusBtn = b("", "Insérer un bloc après (menu /)", () => openSlash(el, true));
+      plusBtn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
+      plusBtn.style.display = "inline-flex"; plusBtn.style.alignItems = "center"; plusBtn.style.justifyContent = "center";
+      const trash = b("", "Supprimer le bloc", () => parent.postMessage({ type: "atelier:remove", id }, "*"));
+      trash.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`;
+      trash.style.display = "inline-flex"; trash.style.alignItems = "center"; trash.style.justifyContent = "center";
       barEl = el;
       placeBar(blockBar, el);
       // poignée gauche
