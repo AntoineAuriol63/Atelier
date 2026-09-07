@@ -135,7 +135,8 @@ Le panneau de droite actuel est un échafaudage. Il est remplacé, pas amélior�
 - [x] Publier / historique / retour arrière : fenêtre Publier (état en ligne, écart de versions, note, historique, « Remettre en ligne »), API `GET/POST /api/sites/:id/publish` et `POST …/publish/restore`, instantanés `snapshots` (`kind = 'publish'`) avec les entrées, `sites.published_version` et `sites.subdomain` (bloc « publication » du schéma à exécuter sur un projet existant, vérifié par `scripts/check-supabase.mjs`)
 - [x] Référencement automatique (D38, D39 en partie) : titre avec suffixe, description, canonique, Open Graph et carte Twitter, `robots` par page (« Indexer »), favicon, `sitemap.xml` (pages fixes et une adresse par entrée publiée), `robots.txt` ; réglages du site (suffixe, description, image sociale, favicon) dans la fenêtre Publier, image sociale et indexation par page dans les réglages de page ; code head et fin de body injectés (D40)
 - [x] Polices préconnectées et chargées avec `display=swap`, `color-scheme` annoncé ; reste : bascule clair/sombre selon le système (décision à prendre : réglage du site), performances à mesurer avec Lighthouse une fois déployé
-- [ ] Déploiement Vercel du rendu multi-sites et domaine wildcard (à faire avec Antoine : projet Vercel, variables `ATELIER_SITES_DOMAIN`, Supabase, Resend)
+- [ ] Déploiement Vercel du rendu multi-sites et domaine wildcard, en suivant `docs/mise-en-ligne.md` (projet Vercel, variables, DNS wildcard, Resend) ; Lighthouse ensuite
+- [x] Vérifié sur Supabase le 9 sept. : colonnes en place, publication depuis l'éditeur, site servi avec quatorze adresses dans le plan
 
 ### Sortie de v0
 
@@ -172,6 +173,8 @@ Espaces membres (D49) · synchronisation Git des composants · contributions à 
 - `[?]` Nom définitif du produit et domaine des sous-domaines (avant M6 · Publication).
 
 ## Journal
+
+- 9 sept. 2026 — Demandes d'Antoine : une explication claire de la vraie mise en ligne (`docs/mise-en-ligne.md`, à suivre ensemble) et un document fonctionnel et technique de l'état de l'outil (`docs/fonctionnel.md`, tenu à jour à chaque évolution, règle ajoutée dans `CLAUDE.md`).
 
 - 6 sept. 2026 — M0 terminé. Supabase branché et vérifié. Remarques d'Antoine sur le mode Design intégrées dans M1 à M3. Trois décisions prises (identité, nom, hébergement). Prochaine étape : M1, système de design.
 - 6 sept. 2026 (soir) — M1 posé : jetons sombres et denses (`globals.css`), primitives `src/ui`, coquille et inspecteur refaits, IBM Plex via next/font, icônes Lucide. Prochaine étape : M2, édition structurelle.
