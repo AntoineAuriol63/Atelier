@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { Command as CommandIcon, Database as DatabaseIcon, ExternalLink, FileText, Grid3x3, Layers, Moon, Palette, Plus, Redo2, Sun, Undo2, UploadCloud } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Command as CommandIcon, Database as DatabaseIcon, ExternalLink, Info, FileText, Grid3x3, Layers, Moon, Palette, Plus, Redo2, Sun, Undo2, UploadCloud } from "lucide-react";
 import type { DropPosition, Entry, Node, Page, Site } from "@atelier/model";
 import { BASE, breakpointForWidth, canInsertUnder, planExitBox, cloneWithNewIds, dataSourceFor, entryPath, indexSite, layoutGridAt, newId, planDrop, planInsert, planMove, stylePath, templateOf } from "@atelier/model";
 import type { Op } from "@atelier/model";
@@ -148,7 +148,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
 
   const notify = useCallback((text: string, tone: "danger" | "success" | "info" = "danger") => {
     setNotice({ text, tone });
-    window.setTimeout(() => setNotice((n) => (n?.text === text ? null : n)), tone === "info" ? 4500 : 2800);
+    window.setTimeout(() => setNotice((n) => (n?.text === text ? null : n)), tone === "danger" ? 4000 : 3500);
   }, []);
 
   /** Entrées des bases (hors document) et base ouverte en vue tableur. */
@@ -591,7 +591,10 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
 
       <main ref={canvas} className="relative min-w-0 overflow-auto bg-app flex justify-center items-start p-2">
         {(doc.error || notice) ? (
-          <div className={`fixed top-12 left-1/2 -translate-x-1/2 z-10 max-w-[520px] rounded-sm border px-3 py-1.5 text-xs shadow-lg ${notice?.tone === "success" ? "bg-success-soft text-success border-success/40" : notice?.tone === "info" ? "bg-accent-soft text-ink border-accent/40" : "bg-danger-soft text-danger border-danger/40"}`}>{notice?.text ?? doc.error}</div>
+          <div role="status" className={`fixed top-14 left-1/2 -translate-x-1/2 z-[60] max-w-[560px] flex items-center gap-2 rounded-md border px-3.5 py-2.5 text-sm font-medium shadow-2xl animate-[atelier-toast_.25s_ease-out] ${notice?.tone === "success" ? "bg-success text-white border-success" : notice?.tone === "info" ? "bg-accent text-accent-ink border-accent" : "bg-danger text-white border-danger"}`}>
+            {notice?.tone === "success" ? <CheckCircle2 size={16} aria-hidden /> : notice?.tone === "info" ? <Info size={16} aria-hidden /> : <AlertTriangle size={16} aria-hidden />}
+            <span>{notice?.text ?? doc.error}</span>
+          </div>
         ) : null}
         <div className="relative flex flex-col gap-1.5" style={{ width: width ? `${Math.min(width, measured || width)}px` : "100%", maxWidth: "100%" }}>
           <div style={{ width: "100%", height: `calc(${frameHeight} * ${scale})`, overflow: "visible", marginTop: 0 }}>

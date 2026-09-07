@@ -2,7 +2,7 @@
 /* eslint-disable @next/next/no-img-element -- vignettes de l'éditeur, pas du site publié */
 
 import { useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Copy, Download, Plus, Trash2, Upload, X } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, Copy, Download, Plus, Trash2, Upload, X } from "lucide-react";
 import type { CommitOptions, Database, Entry, Field, FieldType, Node, Op, Site } from "@atelier/model";
 import { newId } from "@atelier/model";
 import { Button, Dialog, Hint, IconButton, Select, TextArea, TextInput } from "@/ui";
@@ -217,7 +217,9 @@ export function DatabaseTable({ site, db, entries, save, saveMany, remove, commi
     catch (e) { notify?.(e instanceof Error ? `Import impossible : ${e.message}` : "Import impossible"); }
   };
   // L'export est servi par le serveur (pièce jointe) : plus fiable qu'un fichier fabriqué dans la page, et copiable en secours.
+  const [justExported, setJustExported] = useState(false);
   const exportCsv = () => {
+    setJustExported(true); window.setTimeout(() => setJustExported(false), 3000);
     const a = document.createElement("a");
     a.href = `/api/sites/${site.id}/databases/${db.id}/export`; a.download = `${db.slug}.csv`;
     document.body.appendChild(a); a.click(); a.remove();
@@ -227,7 +229,7 @@ export function DatabaseTable({ site, db, entries, save, saveMany, remove, commi
   const editing = fieldEdit && !readOnly ? db.fields.find((f) => f.name === fieldEdit) : undefined;
   const title = (e: Entry) => String(e.values[db.titleField] ?? "") || "Sans titre";
   return (
-    <Dialog open onClose={onClose} title={`${db.name[locale] ?? db.slug} · ${rows.length} entrée${rows.length > 1 ? "s" : ""}`} width={1240} actions={<div className="flex items-center gap-1">{saving ? <span className="text-2xs text-dim mr-2">Enregistrement…</span> : null}<Button size="sm" icon={Download} onClick={exportCsv} disabled={!rows.length} title="Télécharger toutes les entrées en CSV (tableur)">CSV</Button><Button size="sm" variant="ghost" icon={Copy} onClick={copyCsv} disabled={!rows.length} title="Copier le CSV dans le presse-papier (à coller dans un tableur)">Copier</Button>{readOnly || !saveMany ? null : <><input ref={importInput} type="file" accept=".csv,.json,text/csv,application/json" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void onImportFile(f); }} /><Button size="sm" icon={Upload} onClick={() => importInput.current?.click()} title="Importer un CSV (tableur) ou un JSON : les colonnes deviennent des champs">Importer…</Button></>}{readOnly ? null : <><Button size="sm" icon={Plus} onClick={addField}>Champ</Button><Button size="sm" variant="primary" icon={Plus} onClick={addEntry}>Nouvelle entrée</Button></>}</div>}>
+    <Dialog open onClose={onClose} title={`${db.name[locale] ?? db.slug} · ${rows.length} entrée${rows.length > 1 ? "s" : ""}`} width={1240} actions={<div className="flex items-center gap-1">{saving ? <span className="text-2xs text-dim mr-2">Enregistrement…</span> : null}<Button size="sm" variant={justExported ? "primary" : "default"} icon={justExported ? Check : Download} onClick={exportCsv} disabled={!rows.length} title="Télécharger toutes les entrées en CSV (tableur)">{justExported ? "Téléchargé" : "CSV"}</Button><Button size="sm" variant="ghost" icon={Copy} onClick={copyCsv} disabled={!rows.length} title="Copier le CSV dans le presse-papier (à coller dans un tableur)">Copier</Button>{readOnly || !saveMany ? null : <><input ref={importInput} type="file" accept=".csv,.json,text/csv,application/json" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void onImportFile(f); }} /><Button size="sm" icon={Upload} onClick={() => importInput.current?.click()} title="Importer un CSV (tableur) ou un JSON : les colonnes deviennent des champs">Importer…</Button></>}{readOnly ? null : <><Button size="sm" icon={Plus} onClick={addField}>Champ</Button><Button size="sm" variant="primary" icon={Plus} onClick={addEntry}>Nouvelle entrée</Button></>}</div>}>
       {editing ? <FieldEditor site={site} db={db} field={editing} isNew={editing.name.startsWith("champ")} onChange={(f) => updateField(editing.name, f)} onMove={(d) => moveField(editing.name, d)} onRemove={() => removeField(editing.name)} onClose={() => setFieldEdit(null)} /> : null}
       <div className="overflow-auto">
         <table className="border-collapse text-sm min-w-full">

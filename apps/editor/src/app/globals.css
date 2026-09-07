@@ -61,3 +61,6 @@ body {
 
 /* Focus visible uniforme */
 :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
+
+/* Entrée des messages de confirmation (barre du haut). */
+@keyframes atelier-toast { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }
