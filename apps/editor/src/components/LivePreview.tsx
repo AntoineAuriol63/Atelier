@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Entry, Site } from "@atelier/model";
-import { RenderPage, assetMap, matchPath, memoryData, siteCss, type RenderContext } from "@atelier/renderer";
+import { RenderPage, assetMap, fontsHref, matchPath, memoryData, siteCss, type RenderContext } from "@atelier/renderer";
 
 type Props = { initialSite: Site; entries: Entry[]; path: string; mode?: string; editor: boolean };
 
@@ -86,10 +86,19 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       const range = document.createRange(); range.selectNodeContents(el);
       const sel = window.getSelection(); sel?.removeAllRanges(); sel?.addRange(range);
     };
+    const FORWARDED = new Set(["Backspace", "Delete", "Escape", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Enter"]);
     const onKeyDown = (e: KeyboardEvent) => {
-      if (!editing) return;
-      if (e.key === "Escape") { e.preventDefault(); endEdit(false); }
-      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); endEdit(true); }
+      if (editing) {
+        if (e.key === "Escape") { e.preventDefault(); endEdit(false); }
+        if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); endEdit(true); }
+        return;
+      }
+      // Hors édition, l'aperçu n'a pas de clavier propre : les touches de l'éditeur sont transmises au parent.
+      const meta = e.metaKey || e.ctrlKey;
+      if (FORWARDED.has(e.key) || (meta && ["z", "d", "c", "x", "v", "k"].includes(e.key.toLowerCase()))) {
+        e.preventDefault();
+        parent.postMessage({ type: "atelier:key", key: e.key, metaKey: e.metaKey, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, altKey: e.altKey }, "*");
+      }
     };
     const onFocusOut = (e: FocusEvent) => { if (editing && e.target === editing) endEdit(true); };
 
@@ -137,7 +146,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       if (press && !dragging && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 5) {
         dragging = true;
         document.body.style.userSelect = "none";
-        document.body.style.cursor = "grabbing";
+        document.body.classList.add("atelier-dragging");
         press.el.style.opacity = "0.5";
       }
       if (dragging && press) {
@@ -161,7 +170,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       if (dragging && press) {
         press.el.style.opacity = "";
         document.body.style.userSelect = "";
-        document.body.style.cursor = "";
+        document.body.classList.remove("atelier-dragging");
         hideIndicator();
         if (target) parent.postMessage({ type: "atelier:move", id: press.el.getAttribute("data-node"), target: target.id, position: target.position }, "*");
         target = null;
@@ -227,12 +236,18 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     };
   }, [editor]);
 
+  // Curseurs d'éditeur, et repère visible pour un conteneur vide (sinon il n'a aucune taille et on ne peut rien y déposer).
+  const EDITOR_CSS = `.at-page, .at-page * { cursor: default !important; } .at-page [contenteditable="plaintext-only"] { cursor: text !important; } body.atelier-dragging, body.atelier-dragging .at-page * { cursor: grabbing !important; }
+  .at-page :where(div, section, main, header, footer, nav, article, aside, ul, ol, li, a, form)[data-node]:empty { min-height: 40px; min-width: 40px; outline: 1px dashed rgba(31,95,139,.55); outline-offset: -1px; background: repeating-linear-gradient(45deg, transparent 0 8px, rgba(31,95,139,.06) 8px 9px); }`;
   const match = matchPath(site, data, path);
   if (!match) return <p style={{ padding: 24, fontFamily: "system-ui", color: "#777" }}>{editor ? "Chargement de la page…" : `Page introuvable : ${path}`}</p>;
   const ctx: RenderContext = { site, page: match.page, entry: match.entry, params: match.params, locale: site.settings.defaultLocale, data, assets: assetMap(site), basePath: "/preview", editor };
+  const fonts = fontsHref(site.theme);
   return (
     <>
+      {fonts ? <link rel="stylesheet" href={fonts} /> : null}
       <style dangerouslySetInnerHTML={{ __html: siteCss(site) }} />
+      {editor ? <style dangerouslySetInnerHTML={{ __html: EDITOR_CSS }} /> : null}
       <RenderPage ctx={ctx} mode={modeState} />
     </>
   );

@@ -58,7 +58,7 @@ export function AssetPicker({ site, value, onChange, kind = "image" }: { site: S
 export function AppearancePanel({ site, style, mode }: { site: Site; style: StyleApi; mode?: string }) {
   const s = style;
   const row = (prop: string, label: string, children: React.ReactNode, wide?: boolean) => (
-    <PropRow key={`${prop}:${label}`} label={label} source={s.source(prop)} sourceTitle={s.title(prop)} onReset={() => s.reset(prop)} wide={wide}>{children}</PropRow>
+    <PropRow key={`${prop}:${label}`} prop={prop} label={label} source={s.source(prop)} sourceTitle={s.title(prop)} onReset={() => s.reset(prop)} wide={wide}>{children}</PropRow>
   );
   const bg = s.value("background");
   const kind = bgKind(bg);
@@ -108,7 +108,7 @@ export function AppearancePanel({ site, style, mode }: { site: Site; style: Styl
       {perCorner ? (
         <div className="grid grid-cols-2 gap-1.5 pl-[18px]">
           {CORNERS.map(([c, label]) => (
-            <PropRow key={c} label={label} source={s.source(`border${c}Radius`)} sourceTitle={s.title(`border${c}Radius`)} onReset={() => s.reset(`border${c}Radius`)}>
+            <PropRow key={c} prop={`border${c}Radius`} label={label} source={s.source(`border${c}Radius`)} sourceTitle={s.title(`border${c}Radius`)} onReset={() => s.reset(`border${c}Radius`)}>
               <UnitInput className="flex-1" site={site} tokenGroup="radius" value={s.value(`border${c}Radius`)} onChange={(v) => s.set(`border${c}Radius`, v)} placeholder="0" />
             </PropRow>
           ))}

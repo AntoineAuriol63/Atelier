@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Link2, Unlink2 } from "lucide-react";
 import type { ResolvedValue, Site, StyleValue } from "@atelier/model";
-import { parseInput, shortLabel } from "@/lib/css-value";
+import { parseInput, shortLabel, tokenValue } from "@/lib/css-value";
 import { cx } from "../cx";
 
 const SIDES = ["Top", "Right", "Bottom", "Left"] as const;
@@ -12,7 +12,10 @@ type Side = (typeof SIDES)[number];
 const SOURCE_TEXT: Record<string, string> = { local: "text-ink", inherited: "text-warning", shared: "text-violet-400", default: "text-dim" };
 
 function Cell({ value, site, onCommit, title, className }: { value: ResolvedValue | undefined; site: Site; onCommit: (v: StyleValue | undefined) => void; title: string; className?: string }) {
-  const text = shortLabel(value?.value, site).split(" · ")[0] ?? "";
+  // Une valeur du thème (ex. space.12) s'affiche par ce qu'elle vaut (6rem), jamais par son nom, pour ne pas la confondre avec des pixels.
+  const raw = value?.value;
+  const isToken = typeof raw === "object" && raw !== null && "token" in raw;
+  const text = isToken ? (tokenValue(site, (raw as { token: string }).token) ?? "") : (shortLabel(raw, site).split(" · ")[0] ?? "");
   const [draft, setDraft] = useState(text);
   const [prev, setPrev] = useState(text);
   const [focused, setFocused] = useState(false);
@@ -24,20 +27,20 @@ function Cell({ value, site, onCommit, title, className }: { value: ResolvedValu
       inputMode="decimal"
       value={draft}
       placeholder="0"
-      title={title}
+      title={isToken ? `${title} · valeur du thème ${(raw as { token: string }).token} = ${text}` : title}
       aria-label={title}
       onFocus={() => setFocused(true)}
       onBlur={() => { setFocused(false); onCommit(parseInput(draft, "px", ["auto"])); }}
       onChange={(e) => setDraft(e.target.value)}
       onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setDraft(text); (e.target as HTMLInputElement).blur(); } }}
-      className={cx("w-11 h-5 text-center text-[11px] font-mono tabular-nums bg-transparent rounded-xs border border-transparent hover:border-line-strong focus:border-accent focus:bg-surface focus:outline-none", tone, className)}
+      className={cx("w-12 h-5 text-center text-[11px] font-mono tabular-nums bg-transparent rounded-xs border border-transparent hover:border-line-strong focus:border-accent focus:bg-surface focus:outline-none", tone, isToken && "underline decoration-dotted underline-offset-2", className)}
     />
   );
 }
 
-function LinkToggle({ linked, onToggle }: { linked: boolean; onToggle: () => void }) {
+function LinkToggle({ linked, onToggle, what }: { linked: boolean; onToggle: () => void; what: string }) {
   return (
-    <button type="button" onClick={onToggle} title={linked ? "Côtés liés : un réglage vaut pour les quatre" : "Lier les quatre côtés"} className={cx("w-4 h-4 inline-flex items-center justify-center rounded-xs", linked ? "text-accent" : "text-dim hover:text-ink")}>
+    <button type="button" onClick={onToggle} aria-label={`Lier les quatre ${what}`} title={linked ? `${what} liés : une valeur pour les quatre côtés` : `Lier les quatre ${what} (une seule valeur pour tous les côtés)`} className={cx("w-4 h-4 inline-flex items-center justify-center rounded-xs", linked ? "text-accent" : "text-dim hover:text-ink")}>
       {linked ? <Link2 size={11} /> : <Unlink2 size={11} />}
     </button>
   );
@@ -54,13 +57,13 @@ export function BoxModel({ site, get, set }: { site: Site; get: (prop: string) =
   return (
     <div className="relative rounded-sm border border-dashed border-line-strong px-2 pt-4 pb-2" style={{ background: "repeating-linear-gradient(45deg, transparent 0 6px, rgba(255,255,255,.02) 6px 7px)" }}>
       <span className="absolute top-1 left-2 text-2xs uppercase tracking-wider text-dim">Marge</span>
-      <div className="absolute top-0.5 right-1"><LinkToggle linked={linked.margin} onToggle={() => toggle("margin")} /></div>
+      <div className="absolute top-0.5 right-1"><LinkToggle linked={linked.margin} onToggle={() => toggle("margin")} what="marges" /></div>
       <div className="grid grid-cols-[44px_1fr_44px] grid-rows-[20px_1fr_20px] items-center justify-items-center gap-y-1">
         <div /><Cell site={site} value={get("marginTop")} onCommit={commit("margin", "Top")} title="Marge haute" /><div />
         <Cell site={site} value={get("marginLeft")} onCommit={commit("margin", "Left")} title="Marge gauche" />
         <div className="relative w-full rounded-sm border border-line-strong bg-surface px-2 pt-4 pb-2">
           <span className="absolute top-1 left-2 text-2xs uppercase tracking-wider text-dim">Remplissage</span>
-          <div className="absolute top-0.5 right-1"><LinkToggle linked={linked.padding} onToggle={() => toggle("padding")} /></div>
+          <div className="absolute top-0.5 right-1"><LinkToggle linked={linked.padding} onToggle={() => toggle("padding")} what="remplissages" /></div>
           <div className="grid grid-cols-[44px_1fr_44px] grid-rows-[20px_28px_20px] items-center justify-items-center gap-y-1">
             <div /><Cell site={site} value={get("paddingTop")} onCommit={commit("padding", "Top")} title="Remplissage haut" /><div />
             <Cell site={site} value={get("paddingLeft")} onCommit={commit("padding", "Left")} title="Remplissage gauche" />

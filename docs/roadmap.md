@@ -76,7 +76,34 @@ Le panneau de droite actuel est un échafaudage. Il est remplacé, pas amélior�
   - [x] Panneau de droite peu clair → explication sous chaque section, sections renommées et réordonnées (Élément, Texte/Image/Lien, Disposition, Espacement, Dimensions, Typographie, Apparence, Effets, Styles partagés, Responsive, Avancé)
   - [x] « Jeton » incompréhensible → « valeur du thème » partout, explication en tête de l'onglet Thème
   - [x] États : savoir qui a un survol et sur quoi → badge avec le nombre de réglages par état, liste des propriétés modifiées par l'état actif, « Tout retirer »
-  - [ ] Audit n°2 à faire après M4 (Écriture) sur une page complète, avec un deuxième site de nature différente (D10)
+- [x] **Audit d'usage n°2** (7 sept. 2026, 30 points) — traités :
+  - [x] « Les px ne sont pas des px » → une valeur du thème dans le schéma de boîte s'affichait par son nom (12 = space.12 = 96 px) ; affiche désormais la vraie valeur, soulignée en pointillés
+  - [x] Infobulles du (i) → `title` natif
+  - [x] Polices : ajout de n'importe quelle police Google par son nom et ses graisses (onglet Thème → Polices), chargée à chaud dans l'aperçu ; l'import d'un fichier de police attend M5
+  - [x] Suppr / Backspace et tous les raccourcis fonctionnent aussi quand l'aperçu a le focus (touches transmises)
+  - [x] En-tête de l'inspecteur (actions, états) collant au défilement
+  - [x] Vertical / horizontal « inversés » → les icônes suivent maintenant l'axe réel selon le sens (ligne ou colonne), libellés en langage courant (à gauche, centré, en haut…)
+  - [x] Modifier une dimension à la souris → glisser sur le libellé (déjà) ; le chip d'une valeur du thème s'édite d'un clic sans passer par la croix
+  - [x] Auto ≠ taille minimale → Dimensions avec quatre modes : Auto, Ajustée au contenu (fit-content), Remplit le parent (100 %), Fixe ; explication ; retour à auto par la pastille
+  - [x] « Dans le parent » louche → « Place dans son parent », réglages en langage courant (prend l'espace libre, peut rétrécir, alignement)
+  - [x] Cliquer un réglage d'état mène au réglage (section ouverte, défilement, surlignage) ; idem depuis Responsive
+  - [x] Filtres → Flou, Luminosité, Contraste, Saturation, Noir et blanc (texte brut seulement si un filtre inconnu existe)
+  - [x] Curseur dans l'aperçu : flèche partout, texte seulement en édition, main fermée en déplacement
+  - [x] Bandeau « Réglages posés sur… » qui débordait → reformulé et sur deux lignes
+  - [x] Voir ce qui est surchargé par taille d'écran → Responsive déplie chaque taille avec ses réglages et leurs valeurs
+  - [x] Tailles à la Figma (fill / hug) → oui, c'est le mode Ajustée / Remplit ci-dessus
+  - [ ] Grille de mise en page fluide → à décider (voir question)
+  - [x] Débordement du panneau (« Ligne de base ») → icône, panneaux sans débordement horizontal
+  - [x] « Avancé » bizarre → renommé « CSS brut », placé en dernier, présenté comme réservé aux développeurs ; l'identifiant y est déplacé
+  - [x] Animer un changement d'état → bouton « Animer les changements » dans la ligne d'état (transition 200 ms), lien vers la transition
+  - [x] Calques d'un composant (pied de page) → bouton « Ouvrir » sur la ligne du composant ou « Modifier le composant » dans l'inspecteur ; bandeau et retour à la page
+  - [x] Console d'erreurs Next → badge masqué (`devIndicators: false`)
+  - [x] Gérer un lien → section Lien de l'inspecteur (déjà), expliquée ; un lien dans un texte attend le texte riche de M4
+  - [x] Balise / Identifiant → « Balise HTML » expliquée, identifiant déplacé dans CSS brut
+  - [x] Ombres sm / md → libellés « petite (sm) », « moyenne (md) »… pour les valeurs du thème nommées par taille
+  - [x] Bouton avec survol sans réglage → les états venant d'un style partagé sont listés avec ◆ et le nom du style
+  - [ ] Refonte complète du panneau de droite → faite par touches ci-dessus ; une passe globale d'harmonisation est prévue après l'audit n°3
+  - [ ] Sélection multiple → M4
 
 ### M4 · Mode Écriture (D18)
 

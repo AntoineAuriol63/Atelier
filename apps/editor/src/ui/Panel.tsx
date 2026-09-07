@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { ChevronRight, Info } from "lucide-react";
 import { cx } from "./cx";
 
 /** Colonne latérale. */
 export function Panel({ children, side, className }: { children: ReactNode; side: "left" | "right"; className?: string }) {
   return (
-    <aside className={cx("flex flex-col min-h-0 bg-panel", side === "left" ? "border-r border-line" : "border-l border-line", className)}>
+    <aside className={cx("flex flex-col min-h-0 min-w-0 overflow-x-hidden bg-panel", side === "left" ? "border-r border-line" : "border-l border-line", className)}>
       {children}
     </aside>
   );
@@ -24,15 +24,22 @@ export function PanelHeading({ children, actions, className }: { children: React
 }
 
 /** Section repliable d'un panneau. */
-export function Section({ title, children, defaultOpen = true, actions, className, hint }: { title: string; children: ReactNode; defaultOpen?: boolean; actions?: ReactNode; className?: string; hint?: string }) {
+export function Section({ title, children, defaultOpen = true, actions, className, hint, forceOpen }: { title: string; children: ReactNode; defaultOpen?: boolean; actions?: ReactNode; className?: string; hint?: string; forceOpen?: number }) {
   const [open, setOpen] = useState(defaultOpen);
+  const [prevForce, setPrevForce] = useState(forceOpen);
+  if (forceOpen !== prevForce) { setPrevForce(forceOpen); if (forceOpen) setOpen(true); }
+  useEffect(() => {
+    const onReveal = (e: Event) => { if ((e as CustomEvent<string>).detail === title) setOpen(true); };
+    window.addEventListener("atelier:reveal-section", onReveal);
+    return () => window.removeEventListener("atelier:reveal-section", onReveal);
+  }, [title]);
   return (
-    <section className={cx("border-b border-line", className)}>
+    <section className={cx("border-b border-line", className)} data-section={title}>
       <div className="flex items-center h-8 pr-2">
         <button type="button" onClick={() => setOpen((o) => !o)} className="flex-1 flex items-center gap-1.5 h-full pl-2 text-xs font-medium text-ink hover:bg-hover/60" aria-expanded={open}>
           <ChevronRight size={12} className={cx("text-dim transition-transform", open && "rotate-90")} aria-hidden />
           {title}
-          {hint ? <Info size={11} className="text-dim ml-0.5" aria-label={hint} /> : null}
+          {hint ? <span title={hint} className="inline-flex"><Info size={11} className="text-dim ml-0.5" aria-hidden /></span> : null}
         </button>
         {actions}
       </div>

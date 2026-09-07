@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { assetMap, fontsHref, matchPath, memoryData, pageTitle, type RenderContext } from "@atelier/renderer";
+import { assetMap, matchPath, memoryData, pageTitle, type RenderContext } from "@atelier/renderer";
 import { loadCurrentSite } from "@/lib/site";
 import { LivePreview } from "@/components/LivePreview";
 
@@ -26,11 +26,9 @@ export default async function PreviewPage({ params, searchParams }: Props) {
   const editor = sp.editor === "1";
   // En mode éditeur, une page qui vient d'être créée peut ne pas être encore enregistrée : l'aperçu attend le document de l'éditeur.
   if (!editor && !matchPath(site, memoryData(entries), urlPath)) notFound();
-  const fonts = fontsHref(site.theme);
   const mode = typeof sp.mode === "string" ? sp.mode : undefined;
   return (
     <>
-      {fonts ? <link rel="stylesheet" href={fonts} /> : null}
       <LivePreview initialSite={site} entries={entries} path={urlPath} mode={mode} editor={editor} />
     </>
   );

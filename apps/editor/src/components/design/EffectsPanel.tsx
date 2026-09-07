@@ -29,6 +29,29 @@ function composeTransform(t: { rotate: number; scale: number; x: number; y: numb
   if (t.scale !== 1) parts.push(`scale(${t.scale})`);
   return parts.length ? parts.join(" ") : undefined;
 }
+type Filter = { blur: number; brightness: number; contrast: number; saturate: number; grayscale: number; raw: boolean };
+function parseFilter(v: string | undefined): Filter {
+  const out: Filter = { blur: 0, brightness: 100, contrast: 100, saturate: 100, grayscale: 0, raw: false };
+  if (!v || v === "none") return out;
+  let rest = v;
+  const take = (re: RegExp, fn: (m: RegExpMatchArray) => void) => { const m = rest.match(re); if (m) { fn(m); rest = rest.replace(m[0], ""); } };
+  take(/blur\((\d*\.?\d+)px\)/, (m) => { out.blur = Number(m[1]); });
+  take(/brightness\((\d*\.?\d+)%\)/, (m) => { out.brightness = Number(m[1]); });
+  take(/contrast\((\d*\.?\d+)%\)/, (m) => { out.contrast = Number(m[1]); });
+  take(/saturate\((\d*\.?\d+)%\)/, (m) => { out.saturate = Number(m[1]); });
+  take(/grayscale\((\d*\.?\d+)%\)/, (m) => { out.grayscale = Number(m[1]); });
+  if (rest.trim()) out.raw = true;
+  return out;
+}
+function composeFilter(f: Filter): string | undefined {
+  const parts: string[] = [];
+  if (f.blur) parts.push(`blur(${f.blur}px)`);
+  if (f.brightness !== 100) parts.push(`brightness(${f.brightness}%)`);
+  if (f.contrast !== 100) parts.push(`contrast(${f.contrast}%)`);
+  if (f.saturate !== 100) parts.push(`saturate(${f.saturate}%)`);
+  if (f.grayscale) parts.push(`grayscale(${f.grayscale}%)`);
+  return parts.length ? parts.join(" ") : undefined;
+}
 function parseTransition(v: string | undefined): { prop: string; ms: number; easing: string } {
   const m = v?.match(/^([\w-]+)\s+([\d.]+)(ms|s)\s*([\w-]+(?:\([^)]*\))?)?$/);
   if (!m) return { prop: "all", ms: 200, easing: "ease" };
@@ -38,7 +61,7 @@ function parseTransition(v: string | undefined): { prop: string; ms: number; eas
 export function EffectsPanel({ style }: { site: Site; style: StyleApi }) {
   const s = style;
   const row = (prop: string, label: string, children: React.ReactNode, wide?: boolean) => (
-    <PropRow key={`${prop}:${label}`} label={label} source={s.source(prop)} sourceTitle={s.title(prop)} onReset={() => s.reset(prop)} wide={wide}>{children}</PropRow>
+    <PropRow key={`${prop}:${label}`} prop={prop} label={label} source={s.source(prop)} sourceTitle={s.title(prop)} onReset={() => s.reset(prop)} wide={wide}>{children}</PropRow>
   );
   const tf = parseTransform(str(s.value("transform")));
   const setTf = (patch: Partial<typeof tf>) => s.set("transform", composeTransform({ ...tf, ...patch }));
@@ -65,9 +88,22 @@ export function EffectsPanel({ style }: { site: Site; style: StyleApi }) {
           {hasTransition ? <Select className="flex-1" value={tr.easing} options={EASINGS} onValueChange={(v) => setTr({ easing: v })} /> : null}
         </div>
       ))}
-      {row("filter", "Filtre", <TextInput mono className="flex-1" value={str(s.value("filter")) ?? ""} placeholder="blur(4px) grayscale(1)" onValueChange={(v) => s.set("filter", v || undefined)} />)}
+      {(() => {
+        const fl = parseFilter(str(s.value("filter")));
+        const setFl = (patch: Partial<typeof fl>) => s.set("filter", composeFilter({ ...fl, ...patch }));
+        if (fl.raw) return row("filter", "Filtre", <TextInput mono className="flex-1" value={str(s.value("filter")) ?? ""} onValueChange={(v) => s.set("filter", v || undefined)} />);
+        return (
+          <>
+            {row("filter", "Flou", <NumberInput className="w-20" unit="px" min={0} step={1} value={fl.blur} onValueChange={(n) => setFl({ blur: n === "" ? 0 : n })} />)}
+            {row("filter", "Luminosité", <NumberInput className="w-20" unit="%" min={0} max={300} step={5} value={fl.brightness} onValueChange={(n) => setFl({ brightness: n === "" ? 100 : n })} />)}
+            {row("filter", "Contraste", <NumberInput className="w-20" unit="%" min={0} max={300} step={5} value={fl.contrast} onValueChange={(n) => setFl({ contrast: n === "" ? 100 : n })} />)}
+            {row("filter", "Saturation", <NumberInput className="w-20" unit="%" min={0} max={300} step={5} value={fl.saturate} onValueChange={(n) => setFl({ saturate: n === "" ? 100 : n })} />)}
+            {row("filter", "Noir et blanc", <NumberInput className="w-20" unit="%" min={0} max={100} step={10} value={fl.grayscale} onValueChange={(n) => setFl({ grayscale: n === "" ? 0 : n })} />)}
+          </>
+        );
+      })()}
       {row("cursor", "Curseur", <Select className="flex-1" value={str(s.value("cursor")) ?? ""} placeholder="Auto" options={CURSORS} onValueChange={(v) => s.set("cursor", v || undefined, false)} />)}
-      <Hint>Les animations au survol ou à l&apos;apparition passent par les états et les interactions, prévus à la session suivante.</Hint>
+      <Hint>Pour animer un changement au survol (couleur, taille…), réglez une transition ici : elle s&apos;applique au passage d&apos;un état à l&apos;autre. Les animations à l&apos;apparition et au défilement arrivent avec les interactions (v1).</Hint>
     </Section>
   );
 }

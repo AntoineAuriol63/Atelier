@@ -82,7 +82,14 @@ export function tokenValue(site: Site, token: string): string | undefined {
   return typeof v === "string" ? v : v[site.theme.defaultMode] ?? Object.values(v)[0];
 }
 
+const SIZE_NAMES: Record<string, string> = { xs: "très petite", sm: "petite", md: "moyenne", lg: "grande", xl: "très grande", "2xl": "énorme", "3xl": "géante", full: "complète", none: "aucune" };
+
+/** Libellé lisible d'un nom de valeur du thème (sm → petite). */
+export function tokenLabel(name: string): string {
+  return SIZE_NAMES[name] ? `${SIZE_NAMES[name]} (${name})` : name;
+}
+
 export function tokenOptions(site: Site, group: keyof Theme["tokens"]): { token: string; label: string; value: string }[] {
   const g = site.theme.tokens[group] ?? {};
-  return Object.entries(g).map(([name, v]) => ({ token: `${group}.${name}`, label: name, value: typeof v === "string" ? v : v[site.theme.defaultMode] ?? Object.values(v)[0] ?? "" }));
+  return Object.entries(g).map(([name, v]) => ({ token: `${group}.${name}`, label: tokenLabel(name), value: typeof v === "string" ? v : v[site.theme.defaultMode] ?? Object.values(v)[0] ?? "" }));
 }

@@ -7,11 +7,11 @@ import { cx } from "./cx";
 
 export type DropIndicator = "before" | "after" | "inside" | null;
 
-export function TreeRow({ id, depth, label, meta, icon: Icon, selected, open, hasChildren, onToggle, onSelect, dimmed, editing, onRename, onEditStart, drop, draggable, onDragStart, onDragOver, onDragLeave, onDrop }: {
+export function TreeRow({ id, depth, label, meta, icon: Icon, selected, open, hasChildren, onToggle, onSelect, dimmed, editing, onRename, onEditStart, drop, draggable, trailing, onDragStart, onDragOver, onDragLeave, onDrop }: {
   id: string; depth: number; label: string; meta?: string; icon: LucideIcon; selected: boolean; open: boolean; hasChildren: boolean;
   onToggle: () => void; onSelect: () => void; dimmed?: boolean;
   editing?: boolean; onRename?: (name: string | null) => void; onEditStart?: () => void;
-  drop?: DropIndicator; draggable?: boolean;
+  drop?: DropIndicator; draggable?: boolean; trailing?: React.ReactNode;
   onDragStart?: (e: DragEvent) => void; onDragOver?: (e: DragEvent) => void; onDragLeave?: (e: DragEvent) => void; onDrop?: (e: DragEvent) => void;
 }) {
   const [draft, setDraft] = useState(label);
@@ -63,6 +63,7 @@ export function TreeRow({ id, depth, label, meta, icon: Icon, selected, open, ha
         <span className="truncate">{label}</span>
       )}
       {meta && !editing ? <span className="ml-auto pl-2 text-2xs text-dim font-mono truncate max-w-[40%]">{meta}</span> : null}
+      {trailing}
     </div>
   );
 }

@@ -17,7 +17,7 @@ function str(v: unknown): string | undefined { return typeof v === "string" ? v 
 export function TypographyPanel({ site, style, mode }: { site: Site; style: StyleApi; mode?: string }) {
   const s = style;
   const row = (prop: string, label: string, children: React.ReactNode, wide?: boolean) => (
-    <PropRow key={`${prop}:${label}`} label={label} source={s.source(prop)} sourceTitle={s.title(prop)} onReset={() => s.reset(prop)} wide={wide}>{children}</PropRow>
+    <PropRow key={`${prop}:${label}`} prop={prop} label={label} source={s.source(prop)} sourceTitle={s.title(prop)} onReset={() => s.reset(prop)} wide={wide}>{children}</PropRow>
   );
   const fontTokens = tokenOptions(site, "font");
   const familyValue = (() => { const v = s.value("fontFamily"); if (typeof v === "object" && v && "token" in v) return `{${v.token}}`; return str(v) ?? ""; })();

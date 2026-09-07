@@ -6,7 +6,7 @@ import { SourceDot } from "./SourceDot";
 import { cx } from "../cx";
 
 /** Ligne d'un panneau de style : pastille d'origine, libellé, contrôle. */
-export function PropRow({ label, source, sourceTitle, onReset, children, className, wide, onScrub, hint }: { label: string; source?: StyleSource; sourceTitle: string; onReset?: () => void; children: ReactNode; className?: string; wide?: boolean; onScrub?: (totalDelta: number, big: boolean) => void; hint?: string }) {
+export function PropRow({ label, source, sourceTitle, onReset, children, className, wide, onScrub, hint, prop }: { label: string; source?: StyleSource; sourceTitle: string; onReset?: () => void; children: ReactNode; className?: string; wide?: boolean; onScrub?: (totalDelta: number, big: boolean) => void; hint?: string; prop?: string }) {
   const startScrub = (e: React.PointerEvent) => {
     if (!onScrub || e.button !== 0) return;
     e.preventDefault();
@@ -25,7 +25,7 @@ export function PropRow({ label, source, sourceTitle, onReset, children, classNa
     >{label}</span>
   );
   return (
-    <div className={cx("grid items-center gap-1.5", wide ? "grid-cols-[12px_1fr]" : "grid-cols-[12px_72px_1fr]", className)}>
+    <div data-prop={prop ?? label} className={cx("grid items-center gap-1.5 rounded-xs", wide ? "grid-cols-[12px_1fr]" : "grid-cols-[12px_72px_1fr]", className)}>
       <SourceDot source={source} title={sourceTitle} onReset={onReset} />
       {wide ? null : labelEl}
       <div className="min-w-0 flex items-center gap-1">{wide ? labelEl : null}{children}</div>

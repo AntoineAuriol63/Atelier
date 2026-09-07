@@ -36,7 +36,7 @@ function dropPositionFor(e: DragEvent, canInside: boolean): DropPosition {
 }
 
 function Layer(p: {
-  node: Node; depth: number; selected: string | null; onSelect: (id: string) => void;
+  node: Node; depth: number; selected: string | null; onSelect: (id: string) => void; onEnterComponent?: (componentId: string) => void;
   openMap: Record<string, boolean>; setOpen: (id: string, open: boolean) => void;
   editing: string | null; onEditStart: (id: string) => void; onRename: (id: string, name: string | null | undefined) => void;
   drop: DropState; onDragStart: (id: string) => void; onDragOver: (id: string, pos: DropPosition) => void; onDragEnd: () => void; onDropOn: (id: string, pos: DropPosition) => void;
@@ -65,6 +65,7 @@ function Layer(p: {
         onRename={(name) => p.onRename(node.id, name)}
         draggable={depth > 0}
         drop={indicator}
+        trailing={node.type === "instance" && p.onEnterComponent ? <button type="button" onClick={(e) => { e.stopPropagation(); p.onEnterComponent!(String(node.props.component)); }} className="h-5 px-1.5 rounded-xs text-2xs text-accent hover:bg-accent-soft opacity-0 group-hover:opacity-100" title="Ouvrir le composant pour modifier son contenu">Ouvrir</button> : undefined}
         onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", node.id); p.onDragStart(node.id); }}
         onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = "move"; p.onDragOver(node.id, dropPositionFor(e, canInside)); }}
         onDragLeave={(e) => { e.stopPropagation(); }}
@@ -200,14 +201,17 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
   useEffect(() => { if (frameReady) post({ type: "atelier:highlight", id: selected }); }, [selected, frameReady, post]);
   useEffect(() => { if (frameReady) post({ type: "atelier:state", id: selected, state: previewState }); }, [selected, previewState, frameReady, site, post]);
 
-  // --- raccourcis clavier
+  // --- raccourcis clavier (fenêtre et aperçu)
+  const [editingComponent, setEditingComponent] = useState<string | null>(null);
+  const treeRoot = editingComponent ? site.components.find((c) => c.id === editingComponent)?.root ?? page.root : page.root;
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
+    type KeyLike = { key: string; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey?: boolean; preventDefault: () => void; fromPreview?: boolean };
+    const onKey = (e: KeyLike) => {
       const meta = e.metaKey || e.ctrlKey;
       if (meta && e.key.toLowerCase() === "k") { e.preventDefault(); setPaletteOpen((o) => !o); return; }
       if (paletteOpen) return;
       if (meta && e.key.toLowerCase() === "z") { e.preventDefault(); if (e.shiftKey) doc.redo(); else doc.undo(); return; }
-      if (isTyping()) return;
+      if (!e.fromPreview && isTyping()) return;
       const loc = selected ? index.get(selected) : undefined;
       if (e.key === "Escape") { select(null); return; }
       if (!loc) return;
@@ -228,8 +232,11 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
       if (e.key === "ArrowRight") { e.preventDefault(); const kids = loc.node.children ?? []; if (!kids.length) return; const open = openMap[loc.node.id] ?? loc.depth < 2; if (!open) setOpenMap((m) => ({ ...m, [loc.node.id]: true })); else select(kids[0]!.id); return; }
       if (e.key === "Enter") { e.preventDefault(); setEditing(loc.node.id); }
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    const onWindowKey = (e: KeyboardEvent) => onKey(e);
+    const onMsg = (e: MessageEvent) => { const m = e.data as { type?: string; key?: string; metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; altKey?: boolean }; if (m?.type === "atelier:key" && m.key) onKey({ key: m.key, metaKey: !!m.metaKey, ctrlKey: !!m.ctrlKey, shiftKey: !!m.shiftKey, altKey: !!m.altKey, preventDefault() {}, fromPreview: true }); };
+    window.addEventListener("keydown", onWindowKey);
+    window.addEventListener("message", onMsg);
+    return () => { window.removeEventListener("keydown", onWindowKey); window.removeEventListener("message", onMsg); };
   }, [doc, selected, index, openMap, select, paletteOpen, page.root, notify]);
 
   // --- largeur de l'aperçu : préréglage, valeur libre, poignée, point de rupture actif
@@ -337,8 +344,14 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
             <PagesPanel site={site} pageId={pageId} commit={doc.commit} onOpen={(id) => { setPageId(id); select(null); setFrameReady(false); }} />
           ) : leftTab === "layers" ? (
             <div role="tree" onDragEnd={() => { dragId.current = null; setDrop(null); }}>
+              {editingComponent ? (
+                <div className="mx-2 mb-1 px-2 py-1.5 rounded-sm bg-violet-400/15 text-violet-300 text-xs flex items-center gap-2">
+                  <span className="flex-1 truncate">Composant <strong className="font-medium">{site.components.find((c) => c.id === editingComponent)?.name}</strong> : toutes ses copies changent.</span>
+                  <button type="button" onClick={() => { setEditingComponent(null); select(null); }} className="h-5 px-1.5 rounded-xs bg-panel text-ink hover:bg-hover whitespace-nowrap">Retour à la page</button>
+                </div>
+              ) : null}
               <Layer
-                node={page.root} depth={0} selected={selected} onSelect={setSelected}
+                node={treeRoot} depth={0} selected={selected} onSelect={select} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }}
                 openMap={openMap} setOpen={setOpen}
                 editing={editing} onEditStart={setEditing} onRename={rename}
                 drop={drop}
@@ -375,7 +388,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
 
       <Panel side="right">
         {selectedLoc ? (
-          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} site={site} loc={selectedLoc} activeBp={activeBp} mode={mode} onGoToBreakpoint={goToBreakpoint} onPreviewState={setPreviewState} onEditInPreview={() => post({ type: "atelier:edit-text", id: selectedLoc.node.id })} commit={doc.commit} onDeleted={() => select(selectedLoc.parent?.id ?? null)} /></div>
+          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} site={site} loc={selectedLoc} activeBp={activeBp} mode={mode} onGoToBreakpoint={goToBreakpoint} onPreviewState={setPreviewState} onEditInPreview={() => post({ type: "atelier:edit-text", id: selectedLoc.node.id })} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }} commit={doc.commit} onDeleted={() => select(selectedLoc.parent?.id ?? null)} /></div>
         ) : (
           <div className="p-3 flex flex-col gap-2">
             <PanelHeading className="px-0">Sélection</PanelHeading>

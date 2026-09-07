@@ -17,7 +17,7 @@ export function TagPanel({ node, commit }: { node: Node; commit: Commit }) {
   if (node.type !== "text" && node.type !== "box") return null;
   const options = node.type === "text" ? TEXT_TAGS : BOX_TAGS;
   return (
-    <Field label="Balise" hint="Balise HTML rendue, utile au référencement">
+    <Field label="Balise HTML" hint="Ce qu'est l'élément pour le navigateur et les moteurs de recherche : titre de niveau 1 à 6, paragraphe, section… Ne change pas le style.">
       <Select value={String(node.props.tag ?? (node.type === "text" ? "p" : "div"))} options={options} onValueChange={(v) => commit({ op: "node.set", id: node.id, path: "props.tag", value: v }, { label: "Changer la balise" })} />
     </Field>
   );
@@ -82,7 +82,7 @@ export function LinkPanel({ site, node, commit }: { site: Site; node: Node; comm
     <Section title={isButton ? "Bouton" : "Lien"}>
       <FieldGroup>
         <Field label="Rôle">
-          <Segmented value={isButton ? "button" : "a"} options={[{ value: "a", label: "Lien" }, { value: "button", label: "Bouton de formulaire" }]} onChange={(v) => { if (v) commit({ op: "node.set", id: node.id, path: "props.tag", value: v }, { label: "Rôle" }); }} />
+          <Segmented value={isButton ? "button" : "a"} options={[{ value: "a", label: "Lien vers une cible" }, { value: "button", label: "Envoi de formulaire" }]} onChange={(v) => { if (v) commit({ op: "node.set", id: node.id, path: "props.tag", value: v }, { label: "Rôle" }); }} />
         </Field>
         {isButton ? (
           <Field label="Action"><Select value={String(node.props.type ?? "button")} options={[{ value: "submit", label: "Envoyer le formulaire" }, { value: "button", label: "Aucune (interaction)" }]} onValueChange={(v) => commit({ op: "node.set", id: node.id, path: "props.type", value: v })} /></Field>

@@ -45,10 +45,10 @@ export function UnitInput({ value, onChange, site, tokenGroup, keywords = [], pl
   if (parsed.kind === "token" && !editingToken) {
     const resolved = tokenValue(site, parsed.token);
     return (
-      <div className={cx(FIELD, "flex items-center gap-1 pl-1.5 pr-0.5", className)} title={`Valeur du thème ${parsed.token}${resolved ? ` = ${resolved}` : ""}`}>
+      <div className={cx(FIELD, "flex items-center gap-1 pl-1.5 pr-0.5 cursor-text", className)} title={`Valeur du thème ${parsed.token}${resolved ? ` = ${resolved}` : ""}. Cliquer pour saisir une autre valeur.`} onClick={() => { setEditingToken(true); setDraft(""); }}>
         <Diamond size={11} className="text-accent shrink-0" aria-hidden />
-        <span className="flex-1 min-w-0 truncate text-xs font-mono">{parsed.token.split(".").slice(1).join(".")}</span>
-        <button type="button" aria-label="Remplacer par une valeur libre" title="Remplacer par une valeur" onClick={() => { setEditingToken(true); setDraft(""); }} className="w-5 h-5 inline-flex items-center justify-center rounded-xs text-dim hover:text-ink hover:bg-hover"><X size={11} /></button>
+        <span className="flex-1 min-w-0 truncate text-xs font-mono">{parsed.token.split(".").slice(1).join(".")}<span className="text-dim"> · {resolved}</span></span>
+        <button type="button" aria-label="Remplacer par une valeur libre" title="Saisir une valeur" onClick={(e) => { e.stopPropagation(); setEditingToken(true); setDraft(""); }} className="w-5 h-5 inline-flex items-center justify-center rounded-xs text-dim hover:text-ink hover:bg-hover"><X size={11} /></button>
       </div>
     );
   }
@@ -75,9 +75,10 @@ export function UnitInput({ value, onChange, site, tokenGroup, keywords = [], pl
           aria-label="Unité"
           value={unit}
           onPointerDown={(e) => { if (e.altKey) scrub(e); }}
+          onMouseDown={(e) => { if (e.altKey) e.preventDefault(); }}
           onChange={(e) => { const u = e.target.value; const n = parsed.kind === "number" ? parsed.n : Number(draft) || 0; onChange(`${n}${u}`); }}
           className="h-full bg-transparent text-2xs text-dim pr-0.5 focus:outline-none cursor-ew-resize appearance-none text-right w-[30px]"
-          title="Unité. Alt + glisser pour ajuster la valeur."
+          title="Unité. Pour ajuster la valeur à la souris, glisser sur le libellé de la propriété (ou Alt + glisser ici)."
         >
           <option value="">—</option>
           {LENGTH_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}

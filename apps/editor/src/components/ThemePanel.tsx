@@ -64,6 +64,48 @@ function breakpointInUse(site: Site, id: string): number {
   return n;
 }
 
+const POPULAR_FONTS = ["Inter", "Roboto", "Open Sans", "Lato", "Montserrat", "Poppins", "DM Sans", "Work Sans", "Nunito", "Raleway", "Playfair Display", "Lora", "Merriweather", "Cormorant Garamond", "Source Serif 4", "Libre Baskerville", "Space Grotesk", "Manrope", "Fraunces", "EB Garamond"];
+
+function FontsSection({ site, commit }: { site: Site; commit: Commit }) {
+  const [name, setName] = useState("");
+  const [weights, setWeights] = useState<number[]>([400, 700]);
+  const fonts = site.theme.fonts;
+  const setFonts = (list: Site["theme"]["fonts"], label: string) => commit({ op: "site.set", path: "theme.fonts", value: list }, { label });
+  const add = (family: string) => {
+    const f = family.trim();
+    if (!f || fonts.some((x) => x.family.toLowerCase() === f.toLowerCase())) return;
+    setFonts([...fonts, { family: f, provider: "google", weights: [...weights].sort((a, b) => a - b), fallback: /serif|garamond|playfair|lora|merriweather|baskerville|fraunces/i.test(f) ? "Georgia, serif" : "system-ui, sans-serif" }], `Ajouter la police ${f}`);
+    setName("");
+  };
+  return (
+    <Section title="Polices" defaultOpen={false} hint="Les polices du site, chargées automatiquement sur les pages. Ajoutez n'importe quelle police Google Fonts par son nom exact.">
+      <ul className="flex flex-col gap-1">
+        {fonts.map((f) => (
+          <li key={f.family} className="flex items-center gap-2 h-7 pl-2 pr-0.5 rounded-sm bg-surface border border-line">
+            <span className="flex-1 text-xs truncate" style={{ fontFamily: `'${f.family}', ${f.fallback}` }}>{f.family}</span>
+            <span className="text-2xs text-dim font-mono">{f.provider === "google" ? "Google" : f.provider === "file" ? "fichier" : "système"} · {(f.weights ?? []).join(", ")}</span>
+            <IconButton size="sm" label={`Retirer ${f.family}`} icon={Trash2} tone="danger" onClick={() => setFonts(fonts.filter((x) => x !== f), `Retirer la police ${f.family}`)} />
+          </li>
+        ))}
+      </ul>
+      <form className="flex flex-col gap-1" onSubmit={(e) => { e.preventDefault(); add(name); }}>
+        <div className="flex gap-1">
+          <TextInput className="flex-1" list="atelier-google-fonts" value={name} placeholder="Nom Google Fonts, ex. Playfair Display" onValueChange={setName} />
+          <Button type="submit" variant="primary" disabled={!name.trim()}>Ajouter</Button>
+        </div>
+        <datalist id="atelier-google-fonts">{POPULAR_FONTS.map((f) => <option key={f} value={f} />)}</datalist>
+        <div className="flex items-center gap-1 text-2xs text-muted">
+          <span className="mr-1">Graisses :</span>
+          {[300, 400, 500, 600, 700, 800].map((w) => (
+            <button key={w} type="button" onClick={() => setWeights((ws) => (ws.includes(w) ? ws.filter((x) => x !== w) : [...ws, w]))} className={`h-5 px-1.5 rounded-xs border ${weights.includes(w) ? "border-accent text-accent" : "border-line text-dim hover:text-ink"}`}>{w}</button>
+          ))}
+        </div>
+      </form>
+      <Hint>Pour utiliser une police dans un texte : Typographie → Police. Une police téléchargée depuis votre ordinateur (fichier .woff2) sera possible avec l&apos;import de fichiers, jalon M5.</Hint>
+    </Section>
+  );
+}
+
 export function ThemePanel({ site, commit }: { site: Site; commit: Commit }) {
   const bps = [...site.settings.breakpoints].sort((a, b) => b.maxWidth - a.maxWidth);
   const setBps = (list: Site["settings"]["breakpoints"], label: string) => commit({ op: "site.set", path: "settings.breakpoints", value: list }, { label });
@@ -72,6 +114,7 @@ export function ThemePanel({ site, commit }: { site: Site; commit: Commit }) {
     <div className="pb-6">
       <PanelHeading>Thème du site</PanelHeading>
       <p className="px-3 pb-2 text-xs text-dim leading-snug">Les valeurs du thème (couleurs, polices, espacements…) se réutilisent dans tout le site : un élément qui s&apos;y réfère suit chaque changement fait ici. Dans un champ, le losange ◇ permet d&apos;en choisir une.</p>
+      <FontsSection site={site} commit={commit} />
       <Section title="Couleurs" defaultOpen>
         <div className="grid grid-cols-[64px_1fr_24px] gap-1 text-2xs text-dim uppercase tracking-wider"><span /><div className="flex gap-1">{site.theme.modes.map((m) => <span key={m.id} className="flex-1">{m.name}</span>)}</div><span /></div>
         <TokenList site={site} group="color" commit={commit} />

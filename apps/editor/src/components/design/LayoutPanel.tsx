@@ -1,6 +1,6 @@
 "use client";
 
-import { AlignHorizontalJustifyCenter, AlignHorizontalJustifyEnd, AlignHorizontalJustifyStart, AlignHorizontalSpaceAround, AlignHorizontalSpaceBetween, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, ArrowDown, ArrowRight, EyeOff, LayoutGrid, Rows3, Square, StretchVertical, WrapText } from "lucide-react";
+import { AlignHorizontalJustifyCenter, AlignHorizontalJustifyEnd, AlignHorizontalJustifyStart, AlignHorizontalSpaceAround, AlignHorizontalSpaceBetween, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, AlignVerticalSpaceAround, AlignVerticalSpaceBetween, ArrowDown, ArrowRight, Baseline, EyeOff, LayoutGrid, Rows3, Square, StretchHorizontal, StretchVertical, WrapText } from "lucide-react";
 import type { Node, Site } from "@atelier/model";
 import { NumberInput, Section, TextInput } from "@/ui";
 import { PropRow, Segmented, UnitInput } from "@/ui/controls";
@@ -13,19 +13,34 @@ const DISPLAY = [
   { value: "inline-block", label: "En ligne" },
   { value: "none", label: "Masqué", icon: EyeOff },
 ];
-const JUSTIFY = [
-  { value: "flex-start", label: "Début", icon: AlignHorizontalJustifyStart },
-  { value: "center", label: "Centre", icon: AlignHorizontalJustifyCenter },
-  { value: "flex-end", label: "Fin", icon: AlignHorizontalJustifyEnd },
-  { value: "space-between", label: "Espacé entre", icon: AlignHorizontalSpaceBetween },
-  { value: "space-around", label: "Espacé autour", icon: AlignHorizontalSpaceAround },
+// Répartition le long de l'axe principal, avec les icônes de l'axe réel (horizontal ou vertical).
+const JUSTIFY_H = [
+  { value: "flex-start", label: "À gauche", icon: AlignHorizontalJustifyStart },
+  { value: "center", label: "Centré", icon: AlignHorizontalJustifyCenter },
+  { value: "flex-end", label: "À droite", icon: AlignHorizontalJustifyEnd },
+  { value: "space-between", label: "Espacés, aux bords", icon: AlignHorizontalSpaceBetween },
+  { value: "space-around", label: "Espacés, avec marges", icon: AlignHorizontalSpaceAround },
 ];
-const ALIGN = [
-  { value: "flex-start", label: "Début", icon: AlignVerticalJustifyStart },
-  { value: "center", label: "Centre", icon: AlignVerticalJustifyCenter },
-  { value: "flex-end", label: "Fin", icon: AlignVerticalJustifyEnd },
-  { value: "stretch", label: "Étirer", icon: StretchVertical },
-  { value: "baseline", label: "Ligne de base" },
+const JUSTIFY_V = [
+  { value: "flex-start", label: "En haut", icon: AlignVerticalJustifyStart },
+  { value: "center", label: "Centré", icon: AlignVerticalJustifyCenter },
+  { value: "flex-end", label: "En bas", icon: AlignVerticalJustifyEnd },
+  { value: "space-between", label: "Espacés, aux bords", icon: AlignVerticalSpaceBetween },
+  { value: "space-around", label: "Espacés, avec marges", icon: AlignVerticalSpaceAround },
+];
+// Alignement sur l'axe secondaire.
+const ALIGN_V = [
+  { value: "flex-start", label: "En haut", icon: AlignVerticalJustifyStart },
+  { value: "center", label: "Centré", icon: AlignVerticalJustifyCenter },
+  { value: "flex-end", label: "En bas", icon: AlignVerticalJustifyEnd },
+  { value: "stretch", label: "Étirés sur la hauteur", icon: StretchVertical },
+  { value: "baseline", label: "Sur la ligne de base du texte", icon: Baseline },
+];
+const ALIGN_H = [
+  { value: "flex-start", label: "À gauche", icon: AlignHorizontalJustifyStart },
+  { value: "center", label: "Centrés", icon: AlignHorizontalJustifyCenter },
+  { value: "flex-end", label: "À droite", icon: AlignHorizontalJustifyEnd },
+  { value: "stretch", label: "Étirés sur la largeur", icon: StretchHorizontal },
 ];
 const POSITION = [
   { value: "static", label: "Normal" }, { value: "relative", label: "Relatif" }, { value: "absolute", label: "Absolu" }, { value: "fixed", label: "Fixe" }, { value: "sticky", label: "Collant" },
@@ -35,7 +50,7 @@ const LENGTH_KW = ["auto"];
 
 function str(v: unknown): string | undefined { return typeof v === "string" ? v : undefined; }
 
-export function LayoutPanel({ site, style, parentDisplay }: { site: Site; style: StyleApi; node: Node; parentDisplay?: string }) {
+export function LayoutPanel({ site, style, parentDisplay, parentDirection, leaf }: { site: Site; style: StyleApi; node: Node; parentDisplay?: string; parentDirection?: string; leaf?: boolean }) {
   const s = style;
   const display = str(s.value("display")) ?? "block";
   const isFlex = display === "flex" || display === "inline-flex";
@@ -43,17 +58,18 @@ export function LayoutPanel({ site, style, parentDisplay }: { site: Site; style:
   const dir = str(s.value("flexDirection")) ?? "row";
   const position = str(s.value("position")) ?? "static";
   const row = (prop: string, label: string, children: React.ReactNode, wide?: boolean) => (
-    <PropRow key={`${prop}:${label}`} label={label} source={s.source(prop)} sourceTitle={s.title(prop)} onReset={() => s.reset(prop)} wide={wide}>{children}</PropRow>
+    <PropRow key={`${prop}:${label}`} prop={prop} label={label} source={s.source(prop)} sourceTitle={s.title(prop)} onReset={() => s.reset(prop)} wide={wide}>{children}</PropRow>
   );
   const seg = (prop: string, label: string, options: typeof DISPLAY, wide = true) => row(prop, label, <Segmented className="flex-1" value={str(s.value(prop))} options={options} onChange={(v) => s.set(prop, v, false)} />, wide);
   const len = (prop: string, label: string, kw = LENGTH_KW) => (
-    <PropRow key={`${prop}:${label}`} label={label} source={s.source(prop)} sourceTitle={s.title(prop)} onReset={() => s.reset(prop)} onScrub={s.scrub(prop)}>
+    <PropRow key={`${prop}:${label}`} prop={prop} label={label} source={s.source(prop)} sourceTitle={s.title(prop)} onReset={() => s.reset(prop)} onScrub={s.scrub(prop)}>
       <UnitInput className="flex-1" site={site} tokenGroup="space" keywords={kw} value={s.value(prop)} onChange={(v) => s.set(prop, v)} placeholder="0" />
     </PropRow>
   );
 
   return (
     <>
+      {leaf ? null : (
       <Section title="Disposition" hint="Comment les éléments contenus dans celui-ci se rangent : en colonne, en ligne ou en grille, et comment ils s'alignent.">
         {seg("display", "Affichage", DISPLAY)}
         {isFlex ? (
@@ -64,8 +80,8 @@ export function LayoutPanel({ site, style, parentDisplay }: { site: Site; style:
                 <Segmented value={str(s.value("flexWrap"))} options={[{ value: "wrap", label: "Retour à la ligne", icon: WrapText }]} onChange={(v) => s.set("flexWrap", v, false)} />
               </div>
             ), true)}
-            {seg("justifyContent", dir === "column" ? "Vertical" : "Horizontal", JUSTIFY)}
-            {seg("alignItems", dir === "column" ? "Horizontal" : "Vertical", ALIGN)}
+            {dir === "column" ? seg("justifyContent", "Vertical", JUSTIFY_V) : seg("justifyContent", "Horizontal", JUSTIFY_H)}
+            {dir === "column" ? seg("alignItems", "Horizontal", ALIGN_H) : seg("alignItems", "Vertical", ALIGN_V)}
             {len("gap", "Écart")}
           </>
         ) : null}
@@ -79,20 +95,25 @@ export function LayoutPanel({ site, style, parentDisplay }: { site: Site; style:
             ))}
             {row("gridTemplateRows", "Lignes", <TextInput mono className="flex-1" value={str(s.value("gridTemplateRows")) ?? ""} placeholder="auto" onValueChange={(v) => s.set("gridTemplateRows", v || undefined)} />)}
             {len("gap", "Écart")}
-            {seg("justifyItems", "Horizontal", [{ value: "start", label: "Début", icon: AlignHorizontalJustifyStart }, { value: "center", label: "Centre", icon: AlignHorizontalJustifyCenter }, { value: "end", label: "Fin", icon: AlignHorizontalJustifyEnd }, { value: "stretch", label: "Étirer" }])}
-            {seg("alignItems", "Vertical", ALIGN)}
+            {seg("justifyItems", "Horizontal", [{ value: "start", label: "À gauche", icon: AlignHorizontalJustifyStart }, { value: "center", label: "Centrés", icon: AlignHorizontalJustifyCenter }, { value: "end", label: "À droite", icon: AlignHorizontalJustifyEnd }, { value: "stretch", label: "Étirés", icon: StretchHorizontal }])}
+            {seg("alignItems", "Vertical", ALIGN_V.slice(0, 4))}
           </>
         ) : null}
       </Section>
+      )}
+      {leaf ? (
+        <Section title="Affichage" defaultOpen={false} hint="Masquer cet élément sur cette taille d'écran, ou changer sa nature d'affichage.">
+          {seg("display", "Affichage", DISPLAY.filter((d) => d.value !== "flex" && d.value !== "grid"))}
+        </Section>
+      ) : null}
 
       {parentDisplay === "flex" || parentDisplay === "grid" ? (
-        <Section title="Dans le parent" defaultOpen={false} hint="Comment cet élément se comporte dans la disposition de son parent : grandir, rétrécir, ordre.">
+        <Section title="Place dans son parent" defaultOpen={false} hint="Le parent de cet élément range ses enfants en ligne, en colonne ou en grille. Ici, vous réglez comment cet élément-ci s'y comporte.">
           {parentDisplay === "flex" ? (
             <>
-              {row("flexGrow", "Grandir", <NumberInput className="w-20" min={0} value={typeof s.value("flexGrow") === "string" ? Number(s.value("flexGrow")) : ""} onValueChange={(n) => s.set("flexGrow", n === "" ? undefined : String(n))} />)}
-              {row("flexShrink", "Rétrécir", <NumberInput className="w-20" min={0} value={typeof s.value("flexShrink") === "string" ? Number(s.value("flexShrink")) : ""} onValueChange={(n) => s.set("flexShrink", n === "" ? undefined : String(n))} />)}
-              {len("flexBasis", "Base")}
-              {seg("alignSelf", "Aligner", [{ value: "auto", label: "Auto" }, ...ALIGN.slice(0, 4)])}
+              {seg("flexGrow", "Espace libre", [{ value: "1", label: "Prend l'espace libre" }, { value: "0", label: "Reste à sa taille" }])}
+              {seg("flexShrink", "Si ça manque", [{ value: "1", label: "Peut rétrécir" }, { value: "0", label: "Ne rétrécit pas" }])}
+              {seg("alignSelf", "Alignement", [{ value: "auto", label: "Comme les autres" }, ...(parentDirection === "column" ? ALIGN_H : ALIGN_V.slice(0, 4))])}
             </>
           ) : (
             <>

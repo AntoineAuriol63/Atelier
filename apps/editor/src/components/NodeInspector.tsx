@@ -3,12 +3,38 @@
 import { createElement, useState } from "react";
 import { ArrowDown, ArrowUp, Copy, Trash2, X } from "lucide-react";
 import type { CommitOptions, Inline, Node, NodeLocation, Op, Site, StyleValue } from "@atelier/model";
-import { BASE, cloneWithNewIds, newId, resolveNodeStyle, stylePath } from "@atelier/model";
+import { BASE, cloneWithNewIds, newId, resolveNodeStyle, resolveSharedStyleSet, stylePath } from "@atelier/model";
 import { Badge, Field, FieldGroup, Hint, IconButton, Section, TextArea, TextInput } from "@/ui";
 import { nodeIcon, nodeLabel, TYPE_LABEL } from "./node-icons";
 import { AppearancePanel, CollectionPanel, EffectsPanel, ImagePanel, LayoutPanel, LinkPanel, ResponsivePanel, SharedStylesPanel, SizePanel, SpacingPanel, STATE_LABEL, TagPanel, TypographyPanel, useStyle, type StyleTarget } from "./design";
 import { Segmented } from "@/ui/controls";
 import { sharedStyleUsages } from "@atelier/model";
+
+/** Section de l'inspecteur qui porte chaque propriété (pour y aller en un clic). */
+export function sectionOfProp(prop: string): string {
+  if (/^(flexGrow|flexShrink|flexBasis|alignSelf|order|gridColumn|gridRow)$/.test(prop)) return "Place dans son parent";
+  if (/^(position|top|right|bottom|left|zIndex|overflow)$/.test(prop)) return "Position et débordement";
+  if (/^(display|flex|grid|gap|rowGap|columnGap|justify|align)/.test(prop)) return "Disposition";
+  if (/^(margin|padding)/.test(prop)) return "Espacement";
+  if (/^(width|height|minWidth|minHeight|maxWidth|maxHeight|aspectRatio)$/.test(prop)) return "Dimensions";
+  if (/^(font|lineHeight|letterSpacing|text|color|whiteSpace)/.test(prop)) return "Typographie";
+  if (/^(background|border|boxShadow|opacity)/.test(prop)) return "Apparence";
+  if (/^(transform|transition|filter|cursor|backdropFilter)$/.test(prop)) return "Effets";
+  return "CSS brut";
+}
+
+/** Ouvre la section d'une propriété, fait défiler jusqu'à elle et la surligne un instant. */
+export function revealProp(prop: string) {
+  window.dispatchEvent(new CustomEvent("atelier:reveal-section", { detail: sectionOfProp(prop) }));
+  window.requestAnimationFrame(() => {
+    const el = document.querySelector<HTMLElement>(`[data-prop="${prop}"]`);
+    if (!el) return;
+    el.scrollIntoView({ block: "center" });
+    el.style.transition = "background-color .2s";
+    el.style.backgroundColor = "var(--color-accent-soft)";
+    window.setTimeout(() => { el.style.backgroundColor = ""; }, 1200);
+  });
+}
 
 type Props = {
   site: Site;
@@ -19,6 +45,7 @@ type Props = {
   /** État prévisualisé de force dans l'aperçu (survol…), ou null. */
   onPreviewState: (state: string | null) => void;
   onEditInPreview?: () => void;
+  onEnterComponent?: (componentId: string) => void;
   commit: (op: Op, opts?: CommitOptions) => void;
   onDeleted: () => void;
 };
@@ -41,7 +68,7 @@ function plainText(content: unknown, locale: string): { text: string; rich: bool
   return { text: list.map((s) => (s.t === "text" ? s.v : s.t === "break" ? "\n" : "")).join(""), rich };
 }
 
-export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onPreviewState, onEditInPreview, commit, onDeleted }: Props) {
+export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onPreviewState, onEditInPreview, onEnterComponent, commit, onDeleted }: Props) {
   const node: Node = loc.node;
   const locale = site.settings.defaultLocale;
   const [state, setStateRaw] = useState<string | undefined>(undefined);
@@ -51,20 +78,33 @@ export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onP
   const target: StyleTarget = sharedTarget ? { kind: "shared", id: sharedTarget } : { kind: "node", node };
   const style = useStyle(site, target, activeBp, state, commit);
   const sharedDef = sharedTarget ? site.sharedStyles.find((x) => x.id === sharedTarget) : undefined;
-  /** Propriétés posées sur chaque état, tous points de rupture confondus (badges du sélecteur d'état). */
-  const stateProps = (st: string): string[] => {
-    const src = sharedDef ? sharedDef.style : node.style;
-    const set = new Set<string>(Object.keys(src?.states?.[st] ?? {}));
-    for (const byBp of [src?.stateBreakpoints?.[st] ?? {}]) for (const props of Object.values(byBp)) Object.keys(props).forEach((p) => set.add(p));
-    return [...set];
+  /** Propriétés modifiées par un état, tous points de rupture confondus, y compris via les styles partagés (badges et liste). */
+  const stateEntries = (st: string): { prop: string; via?: string }[] => {
+    const out = new Map<string, string | undefined>();
+    const collect = (src: { states?: Record<string, Record<string, unknown>>; stateBreakpoints?: Record<string, Record<string, Record<string, unknown>>> } | undefined, via?: string) => {
+      if (!src) return;
+      Object.keys(src.states?.[st] ?? {}).forEach((p) => out.set(p, via));
+      for (const props of Object.values(src.stateBreakpoints?.[st] ?? {})) Object.keys(props).forEach((p) => out.set(p, via));
+    };
+    if (sharedDef) collect(sharedDef.style);
+    else {
+      for (const id of node.style?.shared ?? []) collect(resolveSharedStyleSet(site, id), site.sharedStyles.find((x) => x.id === id)?.name ?? id);
+      collect(node.style);
+    }
+    return [...out.entries()].map(([prop, via]) => ({ prop, via }));
   };
+  const stateProps = (st: string) => stateEntries(st).map((e) => e.prop);
+  const transitionValue = style.value("transition");
+  const animate = () => { if (transitionValue) revealProp("transition"); else commit({ op: "node.set", id: node.id, path: stylePath(BASE, "transition"), value: "all 200ms ease" }, { label: "Animer les changements d'état" }); };
   const clearState = (st: string) => {
     const ops: Op[] = [];
     if (sharedDef) { const i = site.sharedStyles.findIndex((x) => x.id === sharedDef.id); ops.push({ op: "site.set", path: `sharedStyles.${i}.style.states.${st}`, value: undefined }, { op: "site.set", path: `sharedStyles.${i}.style.stateBreakpoints.${st}`, value: undefined }); }
     else ops.push({ op: "node.set", id: node.id, path: `style.states.${st}`, value: undefined }, { op: "node.set", id: node.id, path: `style.stateBreakpoints.${st}`, value: undefined });
     commit({ op: "batch", ops, label: `Retirer l'état ${STATE_LABEL[st] ?? st}` });
   };
-  const parentDisplay = loc.parent ? (resolveNodeStyle(site, loc.parent, activeBp).display?.value as string | undefined) : undefined;
+  const parentStyle = loc.parent ? resolveNodeStyle(site, loc.parent, activeBp) : undefined;
+  const parentDisplay = parentStyle?.display?.value as string | undefined;
+  const parentDirection = (parentStyle?.flexDirection?.value as string | undefined) ?? "row";
   const siblings = loc.parent?.children ?? [];
   const canText = node.type === "text" && !node.bindings?.content;
   const { text, rich } = canText ? plainText(node.props.content, locale) : { text: "", rich: false };
@@ -73,10 +113,12 @@ export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onP
 
   return (
     <div className="flex flex-col">
+      <div className="sticky top-0 z-10 bg-panel shadow-[0_1px_0_var(--color-line)]">
       <div className="flex items-center gap-2 h-10 px-3 border-b border-line">
         {createElement(nodeIcon(node), { size: 14, className: "text-accent shrink-0", "aria-hidden": true })}
         <span className="text-sm font-medium truncate">{nodeLabel(node)}</span>
         <Badge>{TYPE_LABEL[node.type]}</Badge>
+        {node.type === "instance" && onEnterComponent ? <button type="button" onClick={() => onEnterComponent(String(node.props.component))} className="h-6 px-2 rounded-sm text-xs bg-accent-soft text-accent hover:brightness-110 whitespace-nowrap" title="Ouvrir le composant dans les calques pour modifier son contenu (toutes ses copies changent)">Modifier le composant</button> : null}
         {loc.parent ? (
           <div className="ml-auto flex items-center">
             <IconButton size="sm" label="Monter" icon={ArrowUp} disabled={loc.index === 0} onClick={() => commit({ op: "node.move", id: node.id, to: { parent: loc.parent!.id, index: loc.index - 1 } }, { label: "Monter" })} />
@@ -92,13 +134,20 @@ export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onP
         <Segmented className="flex-1" size="sm" value={state} options={["hover", "active", "focus"].map((st) => { const n = stateProps(st).length; return { value: st, label: n ? `${STATE_LABEL[st]} · ${n}` : STATE_LABEL[st]! }; })} onChange={(v) => setState(v)} />
       </div>
       {state ? (
-        <div className="flex items-center gap-2 px-3 py-1.5 text-xs border-b border-line bg-surface/60">
-          {stateProps(state).length ? (
-            <>
-              <span className="flex-1 text-muted"><span className="text-ink">{STATE_LABEL[state]}</span> modifie : <span className="font-mono text-ink">{stateProps(state).join(", ")}</span></span>
-              <button type="button" onClick={() => clearState(state)} className="h-6 px-2 rounded-sm text-danger hover:bg-danger-soft whitespace-nowrap">Tout retirer</button>
-            </>
-          ) : <span className="text-dim">Aucun réglage propre à cet état : ce que vous posez maintenant ne s&apos;appliquera qu&apos;au {STATE_LABEL[state]?.toLowerCase()}.</span>}
+        <div className="flex flex-col gap-1 px-3 py-1.5 text-xs border-b border-line bg-surface/60">
+          {stateEntries(state).length ? (
+            <div className="flex flex-wrap items-center gap-1">
+              <span className="text-muted mr-1">Au {STATE_LABEL[state]?.toLowerCase()}, change :</span>
+              {stateEntries(state).map((e) => (
+                <button key={e.prop} type="button" onClick={() => revealProp(e.prop)} title={e.via ? `Via le style partagé « ${e.via} ». Cliquer pour voir le réglage.` : "Cliquer pour voir le réglage"} className={`h-5 px-1.5 rounded-xs font-mono text-2xs border ${e.via ? "border-violet-400/50 text-violet-300" : "border-accent/50 text-accent"} hover:bg-hover`}>{e.prop}{e.via ? " ◆" : ""}</button>
+              ))}
+              {stateProps(state).some((p) => !stateEntries(state).find((e) => e.prop === p)?.via) ? <button type="button" onClick={() => clearState(state)} className="ml-auto h-5 px-1.5 rounded-xs text-danger hover:bg-danger-soft whitespace-nowrap">Retirer les miens</button> : null}
+            </div>
+          ) : <span className="text-dim">Rien ne change encore au {STATE_LABEL[state]?.toLowerCase()} : ce que vous réglez maintenant ne s&apos;appliquera qu&apos;à cet état.</span>}
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={animate} className={`h-5 px-1.5 rounded-xs text-2xs border ${transitionValue ? "border-success/50 text-success" : "border-line-strong text-muted hover:text-ink"}`} title={transitionValue ? "Une transition est réglée : les changements d'état sont animés. Cliquer pour la voir." : "Ajouter une transition de 200 ms : les changements d'état seront animés (couleur, taille, opacité…)."}>{transitionValue ? "Animé ✓" : "Animer les changements"}</button>
+            <span className="text-dim">◆ = vient d&apos;un style partagé</span>
+          </div>
         </div>
       ) : null}
       {sharedDef ? (
@@ -108,18 +157,18 @@ export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onP
         </div>
       ) : null}
       {activeBp !== BASE || state ? (
-        <div className="flex items-center gap-2 px-3 h-7 bg-warning-soft text-warning text-xs border-b border-line">
-          Réglages posés sur <strong className="font-medium">{style.bpName(activeBp)}{state ? ` · ${STATE_LABEL[state] ?? state}` : ""}</strong>{state ? " (l'état est forcé dans l'aperçu)" : " et les points plus étroits"}.
+        <div className="px-3 py-1 bg-warning-soft text-warning text-xs leading-snug border-b border-line">
+          Vous réglez <strong className="font-medium">{style.bpName(activeBp)}{state ? ` · ${STATE_LABEL[state] ?? state}` : ""}</strong>{activeBp !== BASE ? ", et les écrans plus petits héritent" : ""}{state ? " ; l'état est simulé dans l'aperçu" : ""}.
         </div>
       ) : null}
+      </div>
 
-      <Section title="Élément" defaultOpen={false} hint="Nom dans les calques, balise HTML rendue, identifiant technique.">
+      <Section title="Élément" defaultOpen={false} hint="Le nom sert à vous repérer dans les calques. La balise HTML dit au navigateur et aux moteurs de recherche ce qu'est l'élément (titre, paragraphe, section…) ; elle ne change pas son style.">
         <FieldGroup>
           <Field label="Nom" hint="Nom affiché dans les calques">
             <TextInput value={node.name ?? ""} placeholder={nodeLabel(node)} onValueChange={(v) => commit({ op: "node.set", id: node.id, path: "name", value: v || undefined }, { coalesceKey: `name:${node.id}`, label: "Renommer" })} />
           </Field>
           <TagPanel node={node} commit={commit} />
-          <Field label="Identifiant"><span className="font-mono text-xs text-dim">{node.id}</span></Field>
         </FieldGroup>
       </Section>
 
@@ -138,7 +187,7 @@ export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onP
       {!sharedDef && node.type === "link" ? <LinkPanel site={site} node={node} commit={commit} /> : null}
       {!sharedDef && node.type === "collection" ? <CollectionPanel site={site} node={node} commit={commit} /> : null}
 
-      <LayoutPanel site={site} node={node} style={style} parentDisplay={parentDisplay} />
+      <LayoutPanel site={site} node={node} style={style} parentDisplay={parentDisplay} parentDirection={parentDirection} leaf={!sharedDef && ["text", "image", "video", "divider", "icon", "embed", "field", "code"].includes(node.type)} />
       <SpacingPanel site={site} style={style} />
       <SizePanel site={site} style={style} />
       <TypographyPanel site={site} style={style} mode={mode} />
@@ -147,10 +196,11 @@ export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onP
 
       {!sharedDef ? <SharedStylesPanel site={site} node={node} commit={commit} onEdit={setEditingShared} /> : null}
 
-      <ResponsivePanel site={site} node={node} activeBp={activeBp} onGoTo={onGoToBreakpoint} />
+      <ResponsivePanel site={site} node={node} activeBp={activeBp} onGoTo={onGoToBreakpoint} onReveal={(bp, prop) => { onGoToBreakpoint(bp); window.setTimeout(() => revealProp(prop), 50); }} />
 
-      <Section title="Avancé" defaultOpen={false} hint="Toutes les propriétés CSS posées sur ce point de rupture, en brut. Pour ce que les panneaux ne couvrent pas.">
+      <Section title="CSS brut" defaultOpen={false} hint="Pour les développeurs : toutes les propriétés posées ici, telles que le navigateur les lit. Utile pour ce que les panneaux ne couvrent pas.">
         <FieldGroup>
+          <Field label="Identifiant" hint="Identifiant technique de l'élément (classe CSS n-…)"><span className="font-mono text-xs text-dim">{node.id}</span></Field>
           {Object.entries(localProps).map(([prop, value]) => (
             <div key={prop} className="grid grid-cols-[88px_1fr_24px] items-center gap-1">
               <span className="font-mono text-xs text-muted truncate" title={prop}>{prop}</span>
