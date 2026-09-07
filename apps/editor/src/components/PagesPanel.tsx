@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, FileText, Plus, Settings2, Trash2 } from "lucide-react";
-import type { CommitOptions, Node, Op, Page, Site } from "@atelier/model";
+import { Copy, Database as DatabaseIcon, FileText, Plus, Settings2, Trash2 } from "lucide-react";
+import type { CommitOptions, Database, Node, Op, Page, Site } from "@atelier/model";
 import { cloneWithNewIds, newId, templateOf } from "@atelier/model";
 import { Button, Field, FieldGroup, Hint, IconButton, Select, TextInput } from "@/ui";
 import { cx } from "@/ui/cx";
@@ -27,6 +27,16 @@ function blankPage(site: Site, name: string): Page {
   });
   if (footer) children.push({ id: newId(), type: "instance", name: footer.name, props: { component: footer.id } });
   return { id: newId(), name: { [locale]: name }, path: "/" + slugify(name), kind: "static", root: { id: newId(), type: "box", name: "Page", props: { tag: "div" }, children } };
+}
+
+/** La page par entrée d'une base : même squelette qu'une page vierge, avec le titre lié au champ titre. */
+export function templatePage(site: Site, db: Database): Page {
+  const locale = site.settings.defaultLocale;
+  const page = blankPage(site, db.name[locale] ?? db.slug);
+  const main = page.root.children?.find((c) => c.type === "box");
+  const h1 = main?.children?.find((c) => c.type === "text");
+  if (h1) { h1.bindings = { content: { source: "entry", path: db.titleField } }; h1.props = { ...h1.props, content: { [locale]: [{ t: "text", v: "Titre de l'entrée" }] } }; }
+  return { ...page, kind: "template", path: `/${db.slug}/{${db.slugField ?? "slug"}}` };
 }
 
 export function PagesPanel({ site, pageId, onOpen, commit }: { site: Site; pageId: string; onOpen: (id: string) => void; commit: Commit }) {
@@ -74,10 +84,11 @@ export function PagesPanel({ site, pageId, onOpen, commit }: { site: Site; pageI
   };
   const remove = (p: Page) => {
     if (site.pages.length <= 1) return;
-    if (site.databases.some((d) => d.pageTemplates?.some((t) => t.page === p.id))) { window.alert("Cette page est le modèle d'une base de données. Retirez d'abord le modèle dans la base."); return; }
-    if (!window.confirm(`Supprimer la page « ${p.name[locale] ?? p.path} » ? Cette action s'annule avec ⌘Z.`)) return;
+    const tpl = templateOf(site, p.id);
+    if (!window.confirm(tpl ? `Supprimer la page par entrée de « ${tpl.database.name[locale] ?? tpl.database.slug} » ? Les entrées n'auront plus de page (la base reste). ⌘Z l'annule.` : `Supprimer la page « ${p.name[locale] ?? p.path} » ? Cette action s'annule avec ⌘Z.`)) return;
     const rest = site.pages.filter((x) => x.id !== p.id);
-    setPages(rest, "Supprimer la page");
+    if (tpl) { commit({ op: "batch", label: "Supprimer la page par entrée", ops: [{ op: "site.set", path: "pages", value: rest }, { op: "site.set", path: "databases", value: site.databases.map((d) => (d.id !== tpl.database.id ? d : { ...d, pageTemplates: (d.pageTemplates ?? []).filter((t) => t.page !== p.id).length ? (d.pageTemplates ?? []).filter((t) => t.page !== p.id) : undefined })) }] }); }
+    else setPages(rest, "Supprimer la page");
     if (p.id === pageId) onOpen(rest[0]!.id);
   };
   const update = (id: string, patch: Partial<Page>, label: string, coalesceKey?: string) => setPages(site.pages.map((p) => (p.id === id ? { ...p, ...patch } : p)), label, coalesceKey ? { coalesceKey } : undefined);
@@ -85,16 +96,19 @@ export function PagesPanel({ site, pageId, onOpen, commit }: { site: Site; pageI
   return (
     <div className="pb-4">
       <ul>
-        {site.pages.map((p) => {
+        {[...site.pages.filter((p) => p.kind !== "template"), ...site.pages.filter((p) => p.kind === "template")].map((p, i, all) => {
           const active = p.id === pageId;
           const open = settingsFor === p.id;
+          const tpl = p.kind === "template" ? templateOf(site, p.id) : undefined;
+          const firstTemplate = p.kind === "template" && (i === 0 || all[i - 1]!.kind !== "template");
           return (
             <li key={p.id}>
+              {firstTemplate ? <div className="flex items-center gap-1.5 h-7 px-3 mt-1 text-2xs uppercase tracking-[0.12em] text-dim border-t border-line" title="Une page par entrée d'une base : son contenu vient de l'entrée, son adresse aussi."><DatabaseIcon size={11} aria-hidden />Pages par entrée</div> : null}
               <div className={cx("group flex items-center gap-1 h-[28px] pl-3 pr-1 text-sm", active ? "bg-accent-soft text-ink" : "text-ink hover:bg-hover")}>
-                <button type="button" onClick={() => onOpen(p.id)} className="flex-1 min-w-0 flex items-center gap-2 text-left h-full">
-                  <FileText size={13} className={active ? "text-accent" : "text-muted"} aria-hidden />
+                <button type="button" onClick={() => onOpen(p.id)} className="flex-1 min-w-0 flex items-center gap-2 text-left h-full" title={tpl ? `Page par entrée de la base « ${tpl.database.name[locale] ?? tpl.database.slug} » · ${tpl.slugPattern}` : p.path}>
+                  {p.kind === "template" ? <DatabaseIcon size={13} className={active ? "text-accent" : "text-muted"} aria-hidden /> : <FileText size={13} className={active ? "text-accent" : "text-muted"} aria-hidden />}
                   <span className="truncate">{p.name[locale] ?? p.path}</span>
-                  <span className="ml-auto font-mono text-2xs text-dim truncate max-w-[40%]">{p.kind === "template" ? "modèle" : p.path}</span>
+                  <span className="ml-auto font-mono text-2xs text-dim truncate max-w-[40%]">{tpl ? tpl.slugPattern.replace(/\{\w+\}/g, "…") : p.kind === "template" ? "sans base" : p.path}</span>
                 </button>
                 <div className={cx("flex items-center", open ? "" : "opacity-0 group-hover:opacity-100 focus-within:opacity-100")}>
                   <IconButton size="sm" label="Réglages de la page" icon={Settings2} active={open} onClick={() => setSettingsFor(open ? null : p.id)} />

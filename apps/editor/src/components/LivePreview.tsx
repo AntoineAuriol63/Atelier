@@ -635,7 +635,10 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
   const EDITOR_CSS = `.at-page, .at-page * { cursor: default !important; } .at-page [contenteditable="true"] { cursor: text !important; } body.atelier-dragging, body.atelier-dragging .at-page * { cursor: grabbing !important; }
   .at-page :where(div, section, main, header, footer, nav, article, aside, ul, ol, li, a, form)[data-node]:empty { min-height: 40px; min-width: 40px; outline: 1px dashed rgba(31,95,139,.55); outline-offset: -1px; background: repeating-linear-gradient(45deg, transparent 0 8px, rgba(31,95,139,.06) 8px 9px); }
   .at-page [contenteditable]:empty::before { content: "Tapez du texte, ou / pour insérer un bloc"; color: #9a9a9a; pointer-events: none; }`;
-  const match = matchPath(site, data, path);
+  // Dans l'éditeur, une page par entrée sans entrée publiée se dessine quand même : `/__template/<page>` la rend sans entrée, les textes liés montrent leur repli.
+  const templateOnly = editor ? path.match(/^\/__template\/([^/]+)$/)?.[1] : undefined;
+  const templatePage = templateOnly ? site.pages.find((p) => p.id === templateOnly) : undefined;
+  const match = templatePage ? { page: templatePage, entry: undefined, params: {} } : matchPath(site, data, path);
   if (!match) return <p style={{ padding: 24, fontFamily: "system-ui", color: "#777" }}>{editor ? "Chargement de la page…" : `Page introuvable : ${path}`}</p>;
   const ctx: RenderContext = { site, page: match.page, entry: match.entry, params: match.params, locale: site.settings.defaultLocale, data, assets: assetMap(site), basePath: "/preview", editor };
   const fonts = fontsHref(site.theme);

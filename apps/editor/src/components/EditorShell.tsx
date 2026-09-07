@@ -14,7 +14,7 @@ import { Badge, Button, Hint, IconButton, NumberInput, Panel, PanelHeading, Sepa
 import { NodeInspector } from "./NodeInspector";
 import { AddPanel } from "./AddPanel";
 import { ThemePanel } from "./ThemePanel";
-import { PagesPanel, slugify } from "./PagesPanel";
+import { PagesPanel } from "./PagesPanel";
 import { CommandPalette, type Command } from "./CommandPalette";
 import { allPresets } from "@/lib/blocks";
 import { MediaLibrary } from "@/components/MediaLibrary";
@@ -158,7 +158,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
   const [previewEntryByPage, setPreviewEntryByPage] = useState<Record<string, string>>({});
   const templateEntries = useMemo(() => (template ? ents.entries.filter((e) => e.database === template.database.id && e.status === "published") : []), [template, ents.entries]);
   const previewEntry = templateEntries.find((e) => e.id === previewEntryByPage[page.id]) ?? templateEntries[0];
-  const previewPath = template ? `/preview${previewEntry ? entryPath(template.database, previewEntry) ?? "" : "/__modele-sans-entree"}` : page.kind === "template" ? "/preview/__modele-sans-base" : `/preview${page.path === "/" ? "" : page.path}`;
+  const previewPath = template && previewEntry ? `/preview${entryPath(template.database, previewEntry) ?? ""}` : page.kind === "template" ? `/preview/__template/${page.id}` : `/preview${page.path === "/" ? "" : page.path}`;
   const dataSource = useMemo(() => (selected ? dataSourceFor(site, index, page, selected) : undefined), [site, index, page, selected]);
 
   /** Supprimer une base : ses entrées partent (sans retour), ses pages modèles redeviennent fixes, ses vues restent à reconfigurer. */
@@ -174,15 +174,17 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
     const lines = [`Supprimer la base « ${name} » ?`, ""];
     if (entryIds.length) lines.push(`• ${entryIds.length} entrée${entryIds.length > 1 ? "s" : ""} supprimée${entryIds.length > 1 ? "s" : ""}, sans retour possible.`);
     if (views.length) lines.push(`• ${views.length} vue${views.length > 1 ? "s" : ""} de base de données à reconfigurer.`);
-    if (templates.length) lines.push(`• ${templates.length} page${templates.length > 1 ? "s" : ""} modèle${templates.length > 1 ? "s" : ""} redevien${templates.length > 1 ? "nent" : "t"} fixe${templates.length > 1 ? "s" : ""}.`);
+    if (templates.length) lines.push(`• ${templates.length} page${templates.length > 1 ? "s" : ""} par entrée supprimée${templates.length > 1 ? "s" : ""} (⌘Z les ramène).`);
     if (!window.confirm(lines.join("\n"))) return;
     const ops: Op[] = [{ op: "site.set", path: "databases", value: site.databases.filter((d) => d.id !== dbId) }];
-    if (templates.length) ops.push({ op: "site.set", path: "pages", value: site.pages.map((p) => (templates.includes(p.id) ? { ...p, kind: "static" as const, path: p.path === "/" || site.pages.some((x) => x.id !== p.id && x.path === p.path) ? `/${slugify(p.name[locale] ?? "page")}` : p.path } : p)) });
+    const remaining = site.pages.filter((p) => !templates.includes(p.id));
+    if (templates.length && remaining.length) ops.push({ op: "site.set", path: "pages", value: remaining });
+    if (templates.includes(page.id) && remaining[0]) { setPageId(remaining[0].id); select(null); setFrameReady(false); }
     doc.commit(ops.length === 1 ? ops[0]! : { op: "batch", ops, label: `Supprimer la base ${name}` }, { label: `Supprimer la base ${name}` });
     ents.removeMany(entryIds);
     setDbOpen(null);
     notify(`Base « ${name} » supprimée${entryIds.length ? ` avec ${entryIds.length} entrée${entryIds.length > 1 ? "s" : ""}` : ""}.`, "info");
-  }, [site, locale, ents, doc, notify]);
+  }, [site, locale, ents, doc, notify, page.id, setPageId, select]);
 
   // --- déplacement (calques et canvas) et insertion
   const moveNode = useCallback((id: string, targetId: string, position: DropPosition) => {
@@ -509,10 +511,11 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
         <span className="text-sm text-muted truncate max-w-[200px]" title={site.name}>{site.name}</span>
         <span className="text-dim">/</span>
         <span className="text-sm text-ink truncate max-w-[160px]">{page.name[locale]}</span>
+        {page.kind === "template" ? <Badge tone="accent" title="Cette page s'affiche une fois par entrée de sa base">page par entrée</Badge> : null}
         {template ? (
           <div className="flex items-center gap-1 ml-2" title="Modèle de page : quelle entrée afficher dans l'aperçu">
             <span className="text-2xs uppercase tracking-[0.12em] text-dim">Entrée</span>
-            {templateEntries.length ? <Select className="max-w-[220px]" value={previewEntry?.id ?? ""} options={templateEntries.map((e) => ({ value: e.id, label: String(e.values[template.database.titleField] ?? "") || "Sans titre" }))} onValueChange={(id) => { setPreviewEntryByPage((m) => ({ ...m, [page.id]: id })); select(null); setFrameReady(false); }} /> : <Badge tone="warning">Publiez une entrée de {template.database.name[locale] ?? template.database.slug} pour prévisualiser</Badge>}
+            {templateEntries.length ? <Select className="max-w-[220px]" value={previewEntry?.id ?? ""} options={templateEntries.map((e) => ({ value: e.id, label: String(e.values[template.database.titleField] ?? "") || "Sans titre" }))} onValueChange={(id) => { setPreviewEntryByPage((m) => ({ ...m, [page.id]: id })); select(null); setFrameReady(false); }} /> : <Badge tone="warning" title="Sans entrée publiée, la page s'affiche avec ses textes de repli">Aucune entrée publiée dans {template.database.name[locale] ?? template.database.slug}</Badge>}
           </div>
         ) : null}
         <div className="ml-4"><Tabs variant="pill" tabs={MODES.map((m) => ({ ...m, disabled: m.id === "code" }))} value={editMode} onChange={(m) => switchMode(m as EditMode)} /></div>
