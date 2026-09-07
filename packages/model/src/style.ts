@@ -1,4 +1,4 @@
-import type { Breakpoint, Node, SharedStyle, Site, StyleProps, StyleSet, StyleValue } from "./types";
+import type { Breakpoint, LayoutGrid, Node, SharedStyle, Site, StyleProps, StyleSet, StyleValue } from "./types";
 
 export type StyleSource =
   | { kind: "local" }                                                          // posé ici (ce nœud, ce point, cet état)
@@ -155,5 +155,27 @@ export function stylePath(bp: string, prop: string, state?: string): string {
 export function overridesByBreakpoint(site: Site, node: Node): Record<string, string[]> {
   const out: Record<string, string[]> = { [BASE]: Object.keys(node.style?.base ?? {}) };
   for (const b of site.settings.breakpoints) out[b.id] = Object.keys(node.style?.breakpoints?.[b.id] ?? {});
+  return out;
+}
+
+export type ResolvedLayoutGrid = { columns: number; gutter: StyleValue; margin: StyleValue; maxWidth?: StyleValue };
+
+/** Grille par défaut d'un site qui n'en définit pas : 12 colonnes, puis 8 et 4 sur les tailles plus étroites. */
+export function defaultLayoutGrid(site: Site): LayoutGrid {
+  const bps = [...site.settings.breakpoints].sort((a, b) => b.maxWidth - a.maxWidth);
+  const byBreakpoint: LayoutGrid["byBreakpoint"] = {};
+  bps.forEach((b, i) => { byBreakpoint[b.id] = { columns: i === 0 ? 8 : 4 }; });
+  return { columns: 12, gutter: "24px", margin: "24px", maxWidth: site.theme.tokens.width?.content ? { token: "width.content" } : "1200px", byBreakpoint };
+}
+
+/** Grille effective à un point de rupture (cascade descendante, comme les styles). */
+export function layoutGridAt(site: Site, bp: string): ResolvedLayoutGrid {
+  const g = site.settings.layoutGrid ?? defaultLayoutGrid(site);
+  let out: ResolvedLayoutGrid = { columns: g.columns, gutter: g.gutter, margin: g.margin, maxWidth: g.maxWidth };
+  for (const b of cascadeChain(site.settings.breakpoints, bp)) {
+    if (b === BASE) continue;
+    const o = g.byBreakpoint?.[b];
+    if (o) out = { ...out, ...(o.columns ? { columns: o.columns } : {}), ...(o.gutter !== undefined ? { gutter: o.gutter } : {}), ...(o.margin !== undefined ? { margin: o.margin } : {}) };
+  }
   return out;
 }

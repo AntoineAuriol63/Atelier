@@ -92,7 +92,7 @@ Le panneau de droite actuel est un échafaudage. Il est remplacé, pas amélior�
   - [x] Bandeau « Réglages posés sur… » qui débordait → reformulé et sur deux lignes
   - [x] Voir ce qui est surchargé par taille d'écran → Responsive déplie chaque taille avec ses réglages et leurs valeurs
   - [x] Tailles à la Figma (fill / hug) → oui, c'est le mode Ajustée / Remplit ci-dessus
-  - [ ] Grille de mise en page fluide → à décider (voir question)
+  - [x] Grille de mise en page fluide → décidée le 7 sept. (avant Écriture) et faite : réglage dans Thème (colonnes, gouttière, marge, largeur max., colonnes et marge par taille d'écran), calque affichable par-dessus l'aperçu (⌃G, bouton dans la barre, palette), « Calquer sur la grille du site » pour une disposition en grille, fractions ¼ ⅓ ½ ⅔ ¾ 1 dans Dimensions, gouttière reprise par le bloc Colonnes. L'accrochage automatique lors d'un glissement n'est pas fait (le modèle est en flux CSS, pas en positions libres)
   - [x] Débordement du panneau (« Ligne de base ») → icône, panneaux sans débordement horizontal
   - [x] « Avancé » bizarre → renommé « CSS brut », placé en dernier, présenté comme réservé aux développeurs ; l'identifiant y est déplacé
   - [x] Animer un changement d'état → bouton « Animer les changements » dans la ligne d'état (transition 200 ms), lien vers la transition
@@ -171,4 +171,5 @@ Espaces membres (D49) · synchronisation Git des composants · contributions à 
 - 6 sept. 2026 (nuit) — M2 terminé : palette de blocs, glisser-déposer dans les calques et dans le canvas (planification pure et testée dans le modèle), largeur libre avec poignée et point de rupture actif, raccourcis clavier, renommage en place. Correctif : `null` vaut retrait sur un champ optionnel (les erreurs serveur affichent le détail). Prochaine étape : M3, panneaux Design.
 - 7 sept. 2026 — M3 session 1 : résolution de style avec sources dans le modèle (testée), contrôles communs (pastille de source, champ de longueur, groupe exclusif, schéma de boîte), panneaux Disposition, Espacement, Dimensions, Responsive ; édition sur le point de rupture actif. Correctif : un retrait (`value` absente) est valide côté serveur. Session 2 : Typographie, Apparence, couleur et jetons, Effets.
 - 7 sept. 2026 — M3 session 2 : sélecteur de couleur, Typographie, Apparence, Effets, panneaux Image, Lien, Balise et Collection. Session 3 à faire : états (survol…), styles partagés (appliquer, créer, modifier, détacher), thème (jetons), raccourcis et ⌘K, réglage des points de rupture, puis audit d'usage n°1.
+- 7 sept. 2026 — Grille de mise en page (modèle `settings.layoutGrid`, cascade par point de rupture, testée) et calque dans l'éditeur.
 - 7 sept. 2026 — M3 session 3 : états avec prévisualisation forcée, styles partagés complets, onglet Thème avec points de rupture, palette ⌘K. Reste : erreurs d'affichage à relever pendant l'audit d'usage n°1, qui est la prochaine étape.

@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
-import type { CommitOptions, Op, Site, Theme } from "@atelier/model";
-import { walk } from "@atelier/model";
+import type { CommitOptions, Op, Site, StyleValue, Theme } from "@atelier/model";
+import { defaultLayoutGrid, walk } from "@atelier/model";
+import { UnitInput } from "@/ui/controls";
 import { Button, Hint, IconButton, NumberInput, PanelHeading, Section, TextInput } from "@/ui";
 import { ColorInput } from "@/ui/controls";
 
@@ -106,6 +107,32 @@ function FontsSection({ site, commit }: { site: Site; commit: Commit }) {
   );
 }
 
+function LayoutGridSection({ site, commit }: { site: Site; commit: Commit }) {
+  const grid = site.settings.layoutGrid ?? defaultLayoutGrid(site);
+  const set = (patch: Partial<typeof grid>, label: string) => commit({ op: "site.set", path: "settings.layoutGrid", value: { ...grid, ...patch } }, { label, coalesceKey: `grid:${Object.keys(patch).join(",")}` });
+  const bps = [...site.settings.breakpoints].sort((a, b) => b.maxWidth - a.maxWidth);
+  const setBp = (id: string, patch: { columns?: number; gutter?: StyleValue; margin?: StyleValue }) => set({ byBreakpoint: { ...(grid.byBreakpoint ?? {}), [id]: { ...(grid.byBreakpoint?.[id] ?? {}), ...patch } } }, "Grille par taille d'écran");
+  return (
+    <Section title="Grille de mise en page" defaultOpen={false} hint="Un guide de colonnes affiché par-dessus l'aperçu (⌃G ou le bouton grille de la barre) pour aligner vos sections. Les blocs peuvent s'y caler : Disposition → « Calquer sur la grille », Dimensions → fractions.">
+      <div className="grid grid-cols-[84px_1fr] items-center gap-1.5">
+        <span className="text-xs text-muted">Colonnes</span><NumberInput className="w-20" min={1} max={24} value={grid.columns} onValueChange={(n) => { if (n !== "") set({ columns: n }, "Colonnes de la grille"); }} />
+        <span className="text-xs text-muted">Gouttière</span><UnitInput site={site} tokenGroup="space" value={grid.gutter} onChange={(v) => set({ gutter: v ?? "0px" }, "Gouttière")} />
+        <span className="text-xs text-muted">Marge</span><UnitInput site={site} tokenGroup="space" value={grid.margin} onChange={(v) => set({ margin: v ?? "0px" }, "Marge de la grille")} />
+        <span className="text-xs text-muted">Largeur max.</span><UnitInput site={site} tokenGroup="width" keywords={["none"]} value={grid.maxWidth} onChange={(v) => set({ maxWidth: v }, "Largeur de la grille")} placeholder="aucune" />
+      </div>
+      <div className="text-2xs uppercase tracking-wider text-dim mt-1">Par taille d&apos;écran</div>
+      {bps.map((b) => (
+        <div key={b.id} className="grid grid-cols-[84px_1fr_1fr] items-center gap-1.5">
+          <span className="text-xs text-muted truncate" title={`jusqu'à ${b.maxWidth} px`}>{b.name}</span>
+          <NumberInput unit="col" min={1} max={24} value={grid.byBreakpoint?.[b.id]?.columns ?? ""} placeholder={String(grid.columns)} onValueChange={(n) => setBp(b.id, { columns: n === "" ? undefined : n })} />
+          <UnitInput site={site} tokenGroup="space" value={grid.byBreakpoint?.[b.id]?.margin} onChange={(v) => setBp(b.id, { margin: v })} placeholder="marge" />
+        </div>
+      ))}
+      <Hint>Vide = hérite de la taille au-dessus. Sur mobile, on passe souvent à 4 colonnes et une marge plus petite.</Hint>
+    </Section>
+  );
+}
+
 export function ThemePanel({ site, commit }: { site: Site; commit: Commit }) {
   const bps = [...site.settings.breakpoints].sort((a, b) => b.maxWidth - a.maxWidth);
   const setBps = (list: Site["settings"]["breakpoints"], label: string) => commit({ op: "site.set", path: "settings.breakpoints", value: list }, { label });
@@ -114,6 +141,7 @@ export function ThemePanel({ site, commit }: { site: Site; commit: Commit }) {
     <div className="pb-6">
       <PanelHeading>Thème du site</PanelHeading>
       <p className="px-3 pb-2 text-xs text-dim leading-snug">Les valeurs du thème (couleurs, polices, espacements…) se réutilisent dans tout le site : un élément qui s&apos;y réfère suit chaque changement fait ici. Dans un champ, le losange ◇ permet d&apos;en choisir une.</p>
+      <LayoutGridSection site={site} commit={commit} />
       <FontsSection site={site} commit={commit} />
       <Section title="Couleurs" defaultOpen>
         <div className="grid grid-cols-[64px_1fr_24px] gap-1 text-2xs text-dim uppercase tracking-wider"><span /><div className="flex gap-1">{site.theme.modes.map((m) => <span key={m.id} className="flex-1">{m.name}</span>)}</div><span /></div>

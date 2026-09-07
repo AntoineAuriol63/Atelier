@@ -42,6 +42,14 @@ export function SizePanel({ site, style }: { site: Site; style: StyleApi }) {
   return (
     <Section title="Dimensions" hint="Auto : le navigateur décide (une boîte prend toute la largeur disponible, une hauteur suit son contenu). Ajustée : juste la taille du contenu. Remplit : toute la place du parent. Fixe : une valeur.">
       {dim("width", "Largeur")}
+      <div className="grid grid-cols-[12px_84px_1fr] items-center gap-1.5">
+        <span /><span className="text-xs text-dim">Fractions</span>
+        <div className="flex gap-0.5">
+          {[["25%", "¼"], ["33.333%", "⅓"], ["50%", "½"], ["66.667%", "⅔"], ["75%", "¾"], ["100%", "1"]].map(([v, l]) => (
+            <button key={v} type="button" onClick={() => s.set("width", v, false)} title={`Largeur : ${l} du parent`} className={`h-5 min-w-6 px-1 rounded-xs text-2xs border ${s.value("width") === v ? "border-accent text-accent" : "border-line text-muted hover:text-ink hover:bg-hover"}`}>{l}</button>
+          ))}
+        </div>
+      </div>
       {dim("height", "Hauteur")}
       {len("minWidth", "Largeur min.")}
       {len("maxWidth", "Largeur max.")}

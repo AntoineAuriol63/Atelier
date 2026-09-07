@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { Command as CommandIcon, ExternalLink, FileText, Layers, Moon, Palette, Plus, Redo2, Sun, Undo2, UploadCloud } from "lucide-react";
+import { Command as CommandIcon, ExternalLink, FileText, Grid3x3, Layers, Moon, Palette, Plus, Redo2, Sun, Undo2, UploadCloud } from "lucide-react";
 import type { DropPosition, Node, Page, Site } from "@atelier/model";
-import { BASE, breakpointForWidth, canInsertUnder, cloneWithNewIds, indexSite, newId, planDrop, planInsert, planMove } from "@atelier/model";
+import { BASE, breakpointForWidth, canInsertUnder, cloneWithNewIds, indexSite, layoutGridAt, newId, planDrop, planInsert, planMove } from "@atelier/model";
+import { valueToCss } from "@atelier/renderer";
 import type { Inline } from "@atelier/model";
 import { useDocument } from "@/lib/use-document";
 import { PRODUCT_NAME } from "@/lib/product";
@@ -102,6 +103,8 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
   const [drop, setDrop] = useState<DropState>(null);
   const [notice, setNotice] = useState<{ text: string; tone: "danger" | "success" } | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [showGrid, setShowGrid] = useState<boolean>(() => { try { return localStorage.getItem("atelier:grid") === "1"; } catch { return false; } });
+  const toggleGrid = useCallback(() => setShowGrid((g) => { try { localStorage.setItem("atelier:grid", g ? "0" : "1"); } catch {} return !g; }), []);
   const [previewState, setPreviewState] = useState<string | null>(null);
   const dragId = useRef<string | null>(null);
   const dragBlock = useRef<string | null>(null);
@@ -202,6 +205,13 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
   useEffect(() => { if (frameReady) post({ type: "atelier:mode", mode }); }, [mode, frameReady, post]);
   useEffect(() => { if (frameReady) post({ type: "atelier:highlight", id: selected }); }, [selected, frameReady, post]);
   useEffect(() => { if (frameReady) post({ type: "atelier:state", id: selected, state: previewState }); }, [selected, previewState, frameReady, site, post]);
+  // Grille de mise en page : recalculée au point de rupture actif.
+  const activeBpForGrid = useMemo(() => breakpointForWidth(site.settings.breakpoints, customWidth ?? (PRESETS.find((x) => x.id === preset)?.width ?? 1280)), [site.settings.breakpoints, customWidth, preset]);
+  useEffect(() => {
+    if (!frameReady) return;
+    const g = layoutGridAt(site, activeBpForGrid);
+    post({ type: "atelier:grid", show: showGrid, columns: g.columns, gutter: valueToCss(g.gutter), margin: valueToCss(g.margin), maxWidth: g.maxWidth ? valueToCss(g.maxWidth) : "none" });
+  }, [site, activeBpForGrid, showGrid, frameReady, post]);
 
   // --- raccourcis clavier (fenêtre et aperçu)
   const [editingComponent, setEditingComponent] = useState<string | null>(null);
@@ -211,6 +221,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
     const onKey = (e: KeyLike) => {
       const meta = e.metaKey || e.ctrlKey;
       if (meta && e.key.toLowerCase() === "k") { e.preventDefault(); setPaletteOpen((o) => !o); return; }
+      if (e.ctrlKey && !e.metaKey && e.key.toLowerCase() === "g") { e.preventDefault(); toggleGrid(); return; }
       if (paletteOpen) return;
       if (meta && e.key.toLowerCase() === "z") { e.preventDefault(); if (e.shiftKey) doc.redo(); else doc.undo(); return; }
       if (!e.fromPreview && isTyping()) return;
@@ -239,7 +250,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
     window.addEventListener("keydown", onWindowKey);
     window.addEventListener("message", onMsg);
     return () => { window.removeEventListener("keydown", onWindowKey); window.removeEventListener("message", onMsg); };
-  }, [doc, selected, index, openMap, select, paletteOpen, page.root, notify]);
+  }, [doc, selected, index, openMap, select, paletteOpen, page.root, notify, toggleGrid]);
 
   // --- largeur de l'aperçu : préréglage, valeur libre, poignée, point de rupture actif
   useEffect(() => {
@@ -281,6 +292,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
       { id: "undo", group: "Édition", label: "Annuler", keys: "⌘Z", icon: Undo2, run: doc.undo },
       { id: "redo", group: "Édition", label: "Rétablir", keys: "⇧⌘Z", icon: Redo2, run: doc.redo },
       { id: "preview", group: "Affichage", label: "Ouvrir l'aperçu dans un nouvel onglet", icon: ExternalLink, run: () => window.open(previewPath, "_blank") },
+      { id: "grid", group: "Affichage", label: showGrid ? "Masquer la grille de mise en page" : "Afficher la grille de mise en page", keys: "⌃G", icon: Grid3x3, run: toggleGrid },
       ...site.theme.modes.map((m) => ({ id: `mode:${m.id}`, group: "Affichage", label: `Aperçu en mode ${m.name.toLowerCase()}`, icon: m.id === "dark" ? Moon : Sun, run: () => setMode(m.id) })),
       ...PRESETS.map((p) => ({ id: `width:${p.id}`, group: "Affichage", label: `Largeur ${p.label.toLowerCase()}`, run: () => { setPreset(p.id); setCustomWidth(null); } })),
       ...[{ id: "pages", label: "Pages", icon: FileText }, { id: "layers", label: "Calques", icon: Layers }, { id: "add", label: "Ajouter", icon: Plus }, { id: "theme", label: "Thème", icon: Palette }].map((t) => ({ id: `tab:${t.id}`, group: "Panneaux", label: `Afficher ${t.label}`, icon: t.icon, run: () => setLeftTab(t.id) })),
@@ -297,7 +309,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
     const visit = (n: Node) => { const label = nodeLabel(n); if (!seen.has(n.id)) { seen.add(n.id); nodes.push({ id: `sel:${n.id}`, group: "Sélectionner un calque", label, icon: nodeIcon(n), keywords: n.type, run: () => select(n.id) }); } n.children?.forEach(visit); };
     visit(page.root);
     return [...cmds, ...nodes.slice(0, 80)];
-  }, [doc, site, locale, page.root, previewPath, selected, index, select, addBlock]);
+  }, [doc, site, locale, page.root, previewPath, selected, index, select, addBlock, showGrid, toggleGrid]);
   const setOpen = useCallback((id: string, open: boolean) => setOpenMap((m) => ({ ...m, [id]: open })), []);
   const rename = useCallback((id: string, name: string | null | undefined) => {
     setEditing(null);
@@ -322,6 +334,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
           <NumberInput className="w-[92px]" unit="px" min={MIN_WIDTH} max={MAX_WIDTH} step={10} title="Largeur de l'aperçu (320 à 4000 px)" value={Math.round(effective) || ""} onValueChange={(v) => setCustomWidth(v === "" ? null : v)} />
           <Badge tone="accent" title="Point de rupture actif : les réglages de style se posent dessus">{breakpoint}</Badge>
           {scale < 1 ? <Badge title="Aperçu réduit pour tenir dans la zone">{Math.round(scale * 100)} %</Badge> : null}
+          <IconButton label={showGrid ? "Masquer la grille de mise en page (⌃G)" : "Afficher la grille de mise en page (⌃G)"} icon={Grid3x3} active={showGrid} onClick={toggleGrid} />
           <Separator vertical />
           <div className="flex items-center gap-0.5">
             <IconButton label="Annuler (⌘Z)" icon={Undo2} disabled={!doc.canUndo} onClick={doc.undo} />

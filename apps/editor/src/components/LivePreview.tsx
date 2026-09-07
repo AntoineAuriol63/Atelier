@@ -35,6 +35,21 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     let press: { x: number; y: number; el: HTMLElement } | null = null;
     let dragging = false;
     let target: { id: string; position: "before" | "after" | "inside" } | null = null;
+    // Calque de grille de mise en page (guide, jamais interactif).
+    const gridLayer = document.createElement("div");
+    gridLayer.setAttribute("data-atelier-grid", "");
+    gridLayer.style.cssText = "position:absolute;left:0;top:0;right:0;pointer-events:none;z-index:2147483646;display:none";
+    document.body.appendChild(gridLayer);
+    const sizeGrid = () => { gridLayer.style.height = `${Math.max(document.documentElement.scrollHeight, document.body.scrollHeight)}px`; };
+    const gridObserver = new ResizeObserver(sizeGrid);
+    gridObserver.observe(document.documentElement);
+    const renderGrid = (g: { show: boolean; columns: number; gutter: string; margin: string; maxWidth: string }) => {
+      if (!g.show) { gridLayer.style.display = "none"; return; }
+      gridLayer.style.display = "block";
+      sizeGrid();
+      const cols = Array.from({ length: g.columns }, () => `<div style="background:rgba(31,95,139,.07);box-shadow:inset 1px 0 rgba(31,95,139,.35), inset -1px 0 rgba(31,95,139,.35)"></div>`).join("");
+      gridLayer.innerHTML = `<div style="max-width:${g.maxWidth};margin:0 auto;padding:0 ${g.margin};height:100%;box-sizing:border-box"><div style="display:grid;grid-template-columns:repeat(${g.columns},1fr);gap:${g.gutter};height:100%">${cols}</div></div>`;
+    };
     const indicator = document.createElement("div");
     indicator.style.cssText = "position:absolute;pointer-events:none;z-index:2147483647;display:none;background:#1F5F8B;border-radius:2px;box-shadow:0 0 0 1px #fff";
     document.body.appendChild(indicator);
@@ -95,7 +110,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       }
       // Hors édition, l'aperçu n'a pas de clavier propre : les touches de l'éditeur sont transmises au parent.
       const meta = e.metaKey || e.ctrlKey;
-      if (FORWARDED.has(e.key) || (meta && ["z", "d", "c", "x", "v", "k"].includes(e.key.toLowerCase()))) {
+      if (FORWARDED.has(e.key) || (meta && ["z", "d", "c", "x", "v", "k"].includes(e.key.toLowerCase())) || (e.ctrlKey && e.key.toLowerCase() === "g")) {
         e.preventDefault();
         parent.postMessage({ type: "atelier:key", key: e.key, metaKey: e.metaKey, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, altKey: e.altKey }, "*");
       }
@@ -194,6 +209,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       if (m?.type === "atelier:site" && m.site) { setSite(m.site); if (m.containers) containers = new Set(m.containers); const tn = (m as { textNodes?: string[] }).textNodes; if (tn) textNodes = new Set(tn); }
       if (m?.type === "atelier:edit-text" && m.id) { const el = document.querySelector<HTMLElement>(`[data-node="${m.id}"]`); if (el) onDblClick({ target: el, preventDefault() {} } as unknown as MouseEvent); }
       if (m?.type === "atelier:mode" && m.mode) setModeState(m.mode);
+      if (m?.type === "atelier:grid") renderGrid(m as unknown as { show: boolean; columns: number; gutter: string; margin: string; maxWidth: string });
       if (m?.type === "atelier:state") {
         document.querySelectorAll<HTMLElement>("[data-force-state]").forEach((el) => el.removeAttribute("data-force-state"));
         const st = (m as { state?: string | null }).state;
@@ -233,6 +249,8 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       document.removeEventListener("mouseout", onOut);
       window.removeEventListener("message", onMessage);
       indicator.remove();
+      gridObserver.disconnect();
+      gridLayer.remove();
     };
   }, [editor]);
 

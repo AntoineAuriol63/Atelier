@@ -404,6 +404,7 @@ type Site = {
   settings: {
     defaultLocale: Locale; locales: Locale[];
     breakpoints: Breakpoint[];
+    layoutGrid?: { columns: number; gutter: StyleValue; margin: StyleValue; maxWidth?: StyleValue; byBreakpoint?: { [bp: string]: { columns?: number; gutter?: StyleValue; margin?: StyleValue } } };   // guide de colonnes du designer, fluide par point de rupture
     seo: SiteSeo;                 // valeurs par défaut, réseaux sociaux, favicon
     head?: string; bodyEnd?: string;   // code injecté (D40)
   };

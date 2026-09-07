@@ -1,6 +1,6 @@
 import { Columns2, FormInput, Image, LayoutGrid, Link, List, Minus, MousePointerClick, Puzzle, Square, SquareDashed, Type, type LucideIcon } from "lucide-react";
 import type { Inline, Node, Site } from "@atelier/model";
-import { newId } from "@atelier/model";
+import { layoutGridAt, newId } from "@atelier/model";
 
 export type BlockPreset = { id: string; label: string; description: string; icon: LucideIcon; group: "Structure" | "Contenu" | "Données" | "Composants"; make: (site: Site) => Node };
 
@@ -11,7 +11,7 @@ const shared = (site: Site, name: string): string[] => { const s = site.sharedSt
 export const BLOCKS: BlockPreset[] = [
   { id: "section", label: "Section", description: "Bande pleine largeur avec marges intérieures", icon: SquareDashed, group: "Structure", make: (site) => ({ id: newId(), type: "box", name: "Section", props: { tag: "section" }, style: { shared: shared(site, "Section"), base: { display: "flex", flexDirection: "column", gap: { token: "space.5" } } }, children: [text(site, "h2", "Titre de la section"), text(site, "p", "Un paragraphe pour présenter cette section.")] }) },
   { id: "box", label: "Boîte", description: "Conteneur vide, en colonne", icon: Square, group: "Structure", make: () => ({ id: newId(), type: "box", props: { tag: "div" }, style: { base: { display: "flex", flexDirection: "column", gap: { token: "space.4" } } }, children: [] }) },
-  { id: "columns", label: "Colonnes", description: "Deux colonnes égales, une seule sur mobile", icon: Columns2, group: "Structure", make: (site) => ({ id: newId(), type: "box", name: "Colonnes", props: { tag: "div" }, style: { base: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: { token: "space.6" } }, breakpoints: { mobile: { gridTemplateColumns: "1fr" } } }, children: [
+  { id: "columns", label: "Colonnes", description: "Deux colonnes égales, une seule sur mobile", icon: Columns2, group: "Structure", make: (site) => ({ id: newId(), type: "box", name: "Colonnes", props: { tag: "div" }, style: { base: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: layoutGridAt(site, "base").gutter }, breakpoints: { mobile: { gridTemplateColumns: "1fr" } } }, children: [
     { id: newId(), type: "box", name: "Colonne 1", props: { tag: "div" }, style: { base: { display: "flex", flexDirection: "column", gap: { token: "space.4" } } }, children: [text(site, "p", "Première colonne.")] },
     { id: newId(), type: "box", name: "Colonne 2", props: { tag: "div" }, style: { base: { display: "flex", flexDirection: "column", gap: { token: "space.4" } } }, children: [text(site, "p", "Deuxième colonne.")] },
   ] }) },

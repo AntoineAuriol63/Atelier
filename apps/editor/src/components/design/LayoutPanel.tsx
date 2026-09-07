@@ -2,7 +2,8 @@
 
 import { AlignHorizontalJustifyCenter, AlignHorizontalJustifyEnd, AlignHorizontalJustifyStart, AlignHorizontalSpaceAround, AlignHorizontalSpaceBetween, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, AlignVerticalSpaceAround, AlignVerticalSpaceBetween, ArrowDown, ArrowRight, Baseline, EyeOff, LayoutGrid, Rows3, Square, StretchHorizontal, StretchVertical, WrapText } from "lucide-react";
 import type { Node, Site } from "@atelier/model";
-import { NumberInput, Section, TextInput } from "@/ui";
+import { Button, NumberInput, Section, TextInput } from "@/ui";
+import { layoutGridAt } from "@atelier/model";
 import { PropRow, Segmented, UnitInput } from "@/ui/controls";
 import type { StyleApi } from "./useStyle";
 
@@ -94,6 +95,7 @@ export function LayoutPanel({ site, style, parentDisplay, parentDirection, leaf 
               </div>
             ))}
             {row("gridTemplateRows", "Lignes", <TextInput mono className="flex-1" value={str(s.value("gridTemplateRows")) ?? ""} placeholder="auto" onValueChange={(v) => s.set("gridTemplateRows", v || undefined)} />)}
+            <div className="pl-[18px]"><Button size="sm" onClick={() => { const g = layoutGridAt(site, s.bp); s.set("gridTemplateColumns", `repeat(${g.columns}, 1fr)`, false); s.set("gap", g.gutter, false); }} title="Reprend le nombre de colonnes et la gouttière de la grille de mise en page (onglet Thème) pour cette taille d'écran">Calquer sur la grille du site</Button></div>
             {len("gap", "Écart")}
             {seg("justifyItems", "Horizontal", [{ value: "start", label: "À gauche", icon: AlignHorizontalJustifyStart }, { value: "center", label: "Centrés", icon: AlignHorizontalJustifyCenter }, { value: "end", label: "À droite", icon: AlignHorizontalJustifyEnd }, { value: "stretch", label: "Étirés", icon: StretchHorizontal }])}
             {seg("alignItems", "Vertical", ALIGN_V.slice(0, 4))}

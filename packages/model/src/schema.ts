@@ -225,6 +225,13 @@ export const site = z.object({
     defaultLocale: locale,
     locales: z.array(locale).min(1),
     breakpoints: z.array(z.object({ id: z.string(), name: z.string(), maxWidth: z.number() })),
+    layoutGrid: z.object({
+      columns: z.number().int().min(1).max(24),
+      gutter: styleValue,
+      margin: styleValue,
+      maxWidth: styleValue.optional(),
+      byBreakpoint: z.record(z.string(), z.object({ columns: z.number().int().min(1).max(24).optional(), gutter: styleValue.optional(), margin: styleValue.optional() })).optional(),
+    }).optional(),
     seo: z.object({
       titleSuffix: localized(z.string()).optional(),
       description: localized(z.string()).optional(),

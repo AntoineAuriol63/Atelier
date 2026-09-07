@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { breakpointForWidth, cascadeChain, findNode, overridesByBreakpoint, resolveNodeStyle, resolveSharedStyle, sampleSite, sharedStylePath, sharedStyleUsages, stylePath } from "../src";
+import { breakpointForWidth, cascadeChain, defaultLayoutGrid, findNode, layoutGridAt, overridesByBreakpoint, resolveNodeStyle, resolveSharedStyle, sampleSite, sharedStylePath, sharedStyleUsages, stylePath } from "../src";
 
 const bps = sampleSite.settings.breakpoints;
 
@@ -78,5 +78,20 @@ describe("états et styles partagés", () => {
     expect(sharedStylePath(sampleSite, "st_button", "base", "gap")).toBe("sharedStyles.2.style.base.gap");
     expect(sharedStylePath(sampleSite, "st_button", "mobile", "gap", "hover")).toBe("sharedStyles.2.style.stateBreakpoints.hover.mobile.gap");
     expect(sharedStyleUsages(sampleSite, "st_button").map((u) => u.node.id)).toEqual(["hero_b1", "cta_b", "f_submit"]);
+  });
+});
+
+describe("grille de mise en page", () => {
+  it("cascade des colonnes par point de rupture", () => {
+    expect(layoutGridAt(sampleSite, "base").columns).toBe(12);
+    expect(layoutGridAt(sampleSite, "tablet").columns).toBe(8);
+    expect(layoutGridAt(sampleSite, "mobile")).toMatchObject({ columns: 4, margin: { token: "space.4" } });
+    expect(layoutGridAt(sampleSite, "small")).toMatchObject({ columns: 4, margin: { token: "space.4" }, gutter: { token: "space.5" } });
+  });
+  it("grille par défaut sans réglage", () => {
+    const g = defaultLayoutGrid({ ...sampleSite, settings: { ...sampleSite.settings, layoutGrid: undefined } });
+    expect(g.columns).toBe(12);
+    expect(g.byBreakpoint?.tablet?.columns).toBe(8);
+    expect(g.byBreakpoint?.mobile?.columns).toBe(4);
   });
 });

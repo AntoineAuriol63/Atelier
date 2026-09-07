@@ -31,6 +31,7 @@ export const sampleSite: Site = {
       { id: "mobile", name: "Mobile", maxWidth: 767 },
       { id: "small", name: "Petit mobile", maxWidth: 479 },
     ],
+    layoutGrid: { columns: 12, gutter: { token: "space.5" }, margin: { token: "space.6" }, maxWidth: { token: "width.content" }, byBreakpoint: { tablet: { columns: 8 }, mobile: { columns: 4, margin: { token: "space.4" } }, small: { columns: 4 } } },
     seo: { titleSuffix: { fr: " · Marie Lambert" }, description: { fr: "Photographe de portrait et de mariage à Clermont-Ferrand." } },
   },
   theme: {

@@ -313,10 +313,20 @@ export type Asset = {
 
 export type Redirect = { from: string; to: string; permanent: boolean };
 
+/** Grille de mise en page : un guide de colonnes pour le designer, fluide par taille d'écran. */
+export type LayoutGrid = {
+  columns: number;
+  gutter: StyleValue;                    // écart entre colonnes
+  margin: StyleValue;                    // marge extérieure de la grille
+  maxWidth?: StyleValue;                 // largeur maximale du contenu (centré)
+  byBreakpoint?: { [breakpoint: string]: { columns?: number; gutter?: StyleValue; margin?: StyleValue } };
+};
+
 export type SiteSettings = {
   defaultLocale: Locale;
   locales: Locale[];
   breakpoints: Breakpoint[];
+  layoutGrid?: LayoutGrid;
   seo: SiteSeo;
   head?: string;
   bodyEnd?: string;
