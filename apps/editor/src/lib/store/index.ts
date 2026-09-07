@@ -9,6 +9,9 @@ export type { SiteStore, StoredSite, ChangeInput, ChangeResult } from "./types";
 export type { AssetStorage } from "./assets";
 export { FileAssetStorage } from "./assets";
 
+/** À incrémenter quand l'interface `SiteStore` change. */
+const STORE_VERSION = 2;
+
 declare global {
   var __atelierStore: { key: string; store: SiteStore } | undefined;
 }
@@ -20,7 +23,8 @@ declare global {
 export function getStore(): SiteStore {
   const url = process.env.SUPABASE_URL, key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const dir = process.env.ATELIER_DATA_DIR ?? path.resolve(process.cwd(), "../../.atelier-data");
-  const cacheKey = url && key ? `supabase:${url}` : `file:${dir}`;
+  // La version fait partie de la clé : en développement, un dépôt gardé en mémoire par un ancien module ne survit pas à un changement de son interface.
+  const cacheKey = `${STORE_VERSION}:${url && key ? `supabase:${url}` : `file:${dir}`}`;
   if (globalThis.__atelierStore?.key === cacheKey) return globalThis.__atelierStore.store;
   const store = url && key ? new SupabaseSiteStore(url, key) : new FileSiteStore(dir);
   globalThis.__atelierStore = { key: cacheKey, store };

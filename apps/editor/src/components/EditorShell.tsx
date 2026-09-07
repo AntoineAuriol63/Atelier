@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { Command as CommandIcon, ExternalLink, FileText, Grid3x3, Layers, Moon, Palette, Plus, Redo2, Sun, Undo2, UploadCloud } from "lucide-react";
-import type { DropPosition, Node, Page, Site } from "@atelier/model";
+import { Command as CommandIcon, Database as DatabaseIcon, ExternalLink, FileText, Grid3x3, Layers, Moon, Palette, Plus, Redo2, Sun, Undo2, UploadCloud } from "lucide-react";
+import type { DropPosition, Entry, Node, Page, Site } from "@atelier/model";
 import { BASE, breakpointForWidth, canInsertUnder, planExitBox, cloneWithNewIds, indexSite, layoutGridAt, newId, planDrop, planInsert, planMove, stylePath } from "@atelier/model";
 import type { Op } from "@atelier/model";
 import { valueToCss } from "@atelier/renderer";
@@ -18,6 +18,9 @@ import { PagesPanel } from "./PagesPanel";
 import { CommandPalette, type Command } from "./CommandPalette";
 import { allPresets } from "@/lib/blocks";
 import { MediaLibrary } from "@/components/MediaLibrary";
+import { DataPanel } from "@/components/data/DataPanel";
+import { DatabaseTable } from "@/components/data/DatabaseTable";
+import { useEntries } from "@/lib/use-entries";
 import { nodeIcon, nodeLabel } from "./node-icons";
 
 const PRESETS: { id: string; label: string; width: number | null }[] = [
@@ -90,7 +93,7 @@ function isTyping(): boolean {
   return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
 }
 
-export function EditorShell({ initialSite, initialVersion }: { initialSite: Site; initialVersion: number }) {
+export function EditorShell({ initialSite, initialVersion, initialEntries }: { initialSite: Site; initialVersion: number; initialEntries: Entry[] }) {
   const doc = useDocument(initialSite, initialVersion);
   const site = doc.site;
   // La page ouverte est mémorisée par site : au rechargement, on revient où l'on était.
@@ -148,6 +151,10 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
     window.setTimeout(() => setNotice((n) => (n?.text === text ? null : n)), tone === "info" ? 4500 : 2800);
   }, []);
 
+  /** Entrées des bases (hors document) et base ouverte en vue tableur. */
+  const ents = useEntries(initialSite.id, initialEntries, notify);
+  const [dbOpen, setDbOpen] = useState<string | null>(null);
+
   // --- déplacement (calques et canvas) et insertion
   const moveNode = useCallback((id: string, targetId: string, position: DropPosition) => {
     const r = planMove(index, id, targetId, position);
@@ -174,7 +181,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
     doc.commit({ op: "node.insert", parent: to.parent, index: to.index, node }, { label: `Ajouter ${preset.label}` });
     setOpenMap((m) => ({ ...m, [to.parent]: true }));
     select(node.id);
-  }, [site, index, page.root, selected, doc, select, notify]);
+  }, [site, index, page.root, selected, doc, select, notify, fitHeadings]);
 
   const presetById = useCallback((id: string) => allPresets(site).find((b) => b.id === id), [site]);
   const dropBlock = useCallback((presetId: string, targetId: string, position: DropPosition) => {
@@ -186,7 +193,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
     doc.commit({ op: "node.insert", parent: r.to.parent, index: r.to.index, node }, { label: `Ajouter ${preset.label}` });
     setOpenMap((m) => ({ ...m, [r.to.parent]: true }));
     select(node.id);
-  }, [presetById, index, site, doc, notify, select]);
+  }, [presetById, index, site, doc, notify, select, fitHeadings]);
 
   /** Contenu modifié directement dans l'aperçu (texte et marques sérialisés par le canvas). */
   const setNodeContent = useCallback((id: string, content: Inline[]) => {
@@ -279,7 +286,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
     doc.commit({ op: "batch", ops, label: `Insérer ${preset.label}` });
     select(node.id);
     if (node.type === "text") window.setTimeout(() => post({ type: "atelier:edit-text", id: node.id, caret: "all" }), 30);
-  }, [presetById, index, site, doc, select, post, notify]);
+  }, [presetById, index, site, doc, select, post, notify, fitHeadings]);
   const dropBlockAfter = slashInsert;
   void dropBlockAfter;
 
@@ -326,7 +333,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
     return () => window.removeEventListener("message", onMsg);
   }, [moveNode, select, dropBlock, setNodeContent, splitNode, mergePrev, slashInsert, switchMode, doc, index, site, locale, page.id, notify]);
 
-  useEffect(() => { if (frameReady) post({ type: "atelier:site", site, containers: [...index.values()].filter((l) => ["box", "list", "listItem", "link", "form", "item", "slot"].includes(l.node.type)).map((l) => l.node.id), links: [...index.values()].filter((l) => l.node.type === "link" || (editMode === "write" && l.node.type === "collection")).map((l) => l.node.id), textNodes: textNodeIds, editMode, blocks: blockInfos }); }, [site, index, textNodeIds, frameReady, post, editMode, blockInfos]);
+  useEffect(() => { if (frameReady) post({ type: "atelier:site", site, containers: [...index.values()].filter((l) => ["box", "list", "listItem", "link", "form", "item", "slot"].includes(l.node.type)).map((l) => l.node.id), links: [...index.values()].filter((l) => l.node.type === "link" || (editMode === "write" && l.node.type === "collection")).map((l) => l.node.id), textNodes: textNodeIds, editMode, blocks: blockInfos, entries: ents.entries }); }, [site, index, textNodeIds, frameReady, post, editMode, blockInfos, ents.entries]);
   useEffect(() => { if (frameReady) post({ type: "atelier:editmode", editMode }); }, [editMode, frameReady, post]);
   useEffect(() => { if (frameReady) post({ type: "atelier:mode", mode }); }, [mode, frameReady, post]);
   useEffect(() => { if (frameReady) post({ type: "atelier:highlight", id: selected }); }, [selected, frameReady, post]);
@@ -440,9 +447,10 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
       { id: "grid", group: "Affichage", label: showGrid ? "Masquer la grille de mise en page" : "Afficher la grille de mise en page", keys: "⌃G", icon: Grid3x3, run: toggleGrid },
       ...site.theme.modes.map((m) => ({ id: `mode:${m.id}`, group: "Affichage", label: `Aperçu en mode ${m.name.toLowerCase()}`, icon: m.id === "dark" ? Moon : Sun, run: () => setMode(m.id) })),
       ...PRESETS.map((p) => ({ id: `width:${p.id}`, group: "Affichage", label: `Largeur ${p.label.toLowerCase()}`, run: () => { setPreset(p.id); setCustomWidth(null); } })),
-      ...[{ id: "pages", label: "Pages", icon: FileText }, { id: "layers", label: "Calques", icon: Layers }, { id: "add", label: "Ajouter", icon: Plus }, { id: "theme", label: "Thème", icon: Palette }].map((t) => ({ id: `tab:${t.id}`, group: "Panneaux", label: `Afficher ${t.label}`, icon: t.icon, run: () => setLeftTab(t.id) })),
+      ...[{ id: "pages", label: "Pages", icon: FileText }, { id: "layers", label: "Calques", icon: Layers }, { id: "add", label: "Ajouter", icon: Plus }, { id: "data", label: "Données", icon: DatabaseIcon }, { id: "theme", label: "Thème", icon: Palette }].map((t) => ({ id: `tab:${t.id}`, group: "Panneaux", label: `Afficher ${t.label}`, icon: t.icon, run: () => setLeftTab(t.id) })),
       ...site.pages.map((p) => ({ id: `page:${p.id}`, group: "Pages", label: `Aller à ${p.name[locale] ?? p.path}`, icon: FileText, keywords: p.path, run: () => { setPageId(p.id); select(null); setFrameReady(false); } })),
       { id: "newpage", group: "Pages", label: "Nouvelle page…", icon: Plus, run: () => setLeftTab("pages") },
+      ...site.databases.map((d) => ({ id: `db:${d.id}`, group: "Données", label: `Ouvrir la base ${d.name[locale] ?? d.slug}`, icon: DatabaseIcon, keywords: "base données tableau entrées", run: () => setDbOpen(d.id) })),
       ...allPresets(site).map((b) => ({ id: `add:${b.id}`, group: "Ajouter un bloc", label: b.label, icon: b.icon, keywords: `${b.description} ${b.keywords ?? ""}`, run: () => addBlock(b) })),
     ];
     if (selected && index.get(selected)?.parent) {
@@ -454,7 +462,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
     const visit = (n: Node) => { const label = nodeLabel(n); if (!seen.has(n.id)) { seen.add(n.id); nodes.push({ id: `sel:${n.id}`, group: "Sélectionner un calque", label, icon: nodeIcon(n), keywords: n.type, run: () => select(n.id) }); } n.children?.forEach(visit); };
     visit(page.root);
     return [...cmds, ...nodes.slice(0, 80)];
-  }, [doc, site, locale, page.root, previewPath, selected, index, select, addBlock, showGrid, toggleGrid, switchMode]);
+  }, [doc, site, locale, page.root, previewPath, selected, index, select, addBlock, showGrid, toggleGrid, switchMode, setPageId]);
   const setOpen = useCallback((id: string, open: boolean) => setOpenMap((m) => ({ ...m, [id]: open })), []);
   const rename = useCallback((id: string, name: string | null | undefined) => {
     setEditing(null);
@@ -498,7 +506,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
       </header>
 
       <Panel side="left">
-        <Tabs tabs={[{ id: "pages", label: "Pages", icon: FileText }, { id: "layers", label: "Calques", icon: Layers }, { id: "add", label: "Ajouter", icon: Plus }, { id: "theme", label: "Thème", icon: Palette }]} value={leftTab} onChange={setLeftTab} className="px-1 shrink-0" />
+        <Tabs tabs={[{ id: "pages", label: "Pages", icon: FileText }, { id: "layers", label: "Calques", icon: Layers }, { id: "add", label: "Ajouter", icon: Plus }, { id: "data", label: "Données", icon: DatabaseIcon }, { id: "theme", label: "Thème", icon: Palette }]} value={leftTab} onChange={setLeftTab} className="px-1 shrink-0" />
         <div className="flex-1 overflow-auto py-1" onDragOver={(e) => { if (dragId.current || dragBlock.current) e.preventDefault(); }} onDrop={(e) => { e.preventDefault(); setDrop(null); }}>
           {leftTab === "pages" ? (
             <PagesPanel site={site} pageId={pageId} commit={doc.commit} onOpen={(id) => { setPageId(id); select(null); setFrameReady(false); }} />
@@ -521,6 +529,8 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
                 onDropOn={(id, position) => { if (dragId.current) moveNode(dragId.current, id, position); else if (dragBlock.current) dropBlock(dragBlock.current, id, position); }}
               />
             </div>
+          ) : leftTab === "data" ? (
+            <DataPanel site={site} entries={ents.entries} commit={doc.commit} onOpen={setDbOpen} />
           ) : leftTab === "add" ? (
             <AddPanel site={site} target={insertTarget} onAdd={addBlock} onDragBlock={(id) => { dragBlock.current = id; if (!id) setDrop(null); }} />
           ) : (
@@ -556,6 +566,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
         )}
       </Panel>
       {paletteOpen ? <CommandPalette open onClose={() => setPaletteOpen(false)} commands={commands} /> : null}
+      {dbOpen && site.databases.some((d) => d.id === dbOpen) ? <DatabaseTable site={site} db={site.databases.find((d) => d.id === dbOpen)!} entries={ents.entries} save={ents.save} remove={ents.remove} commit={doc.commit} onClose={() => setDbOpen(null)} saving={ents.saving} /> : null}
       {mediaFor ? <MediaLibrary site={site} open onClose={() => setMediaFor(null)} value={(index.get(mediaFor)?.node.props.asset as string | null) ?? null} onPick={(id) => doc.commit({ op: "node.set", id: mediaFor, path: "props.asset", value: id }, { label: "Changer l'image" })} commit={doc.commit} /> : null}
     </div>
   );

@@ -4,6 +4,6 @@ import { EditorShellClient } from "@/components/EditorShellClient";
 export const dynamic = "force-dynamic";
 
 export default async function EditorPage() {
-  const { site, version } = await loadCurrentSite();
-  return <EditorShellClient initialSite={site} initialVersion={version} />;
+  const { site, version, entries } = await loadCurrentSite();
+  return <EditorShellClient initialSite={site} initialVersion={version} initialEntries={entries} />;
 }

@@ -292,7 +292,7 @@ type Field = {
 };
 ```
 
-Les entrées vivent en base de données (Postgres) sous forme `{ id, databaseId, values: Record<fieldName, unknown>, status: "draft" | "published", ... }`. Un champ `richtext` contient un tableau de `Node` (les mêmes nœuds que les pages, types autorisés : `text`, `list`, `image`, `video`, `divider`, `embed`, `link`).
+Les entrées vivent hors du document et hors de son journal : elles s'échangent par `GET`, `PUT { entries }` et `DELETE { ids }` sur `/api/sites/:id/entries` (schéma `entry`), sans annulation en v0. Les définitions de bases et de champs, elles, sont dans le document (`site.set` sur `databases`) et se retrouvent dans l'historique. Les entrées vivent en base de données (Postgres) sous forme `{ id, databaseId, values: Record<fieldName, unknown>, status: "draft" | "published", ... }`. Un champ `richtext` contient un tableau de `Node` (les mêmes nœuds que les pages, types autorisés : `text`, `list`, `image`, `video`, `divider`, `embed`, `link`).
 
 ### 7.2 Vues de collection
 

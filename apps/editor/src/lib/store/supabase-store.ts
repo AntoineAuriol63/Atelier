@@ -60,4 +60,10 @@ export class SupabaseSiteStore implements SiteStore {
     const { error } = await this.client.from("entries").upsert(rows);
     if (error) throw error;
   }
+  async upsertEntries(id: string, entries: Entry[]): Promise<void> { await this.setEntries(id, entries); }
+  async deleteEntries(id: string, ids: string[]): Promise<void> {
+    if (!ids.length) return;
+    const { error } = await this.client.from("entries").delete().eq("site_id", id).in("id", ids);
+    if (error) throw new Error(error.message);
+  }
 }

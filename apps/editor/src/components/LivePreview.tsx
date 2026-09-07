@@ -56,8 +56,9 @@ function isEmptyText(el: HTMLElement): boolean {
  */
 export function LivePreview({ initialSite, entries, path, mode, editor }: Props) {
   const [site, setSite] = useState(initialSite);
+  const [entriesState, setEntriesState] = useState(entries);
   const [modeState, setModeState] = useState(mode ?? initialSite.theme.defaultMode);
-  const data = useMemo(() => memoryData(entries), [entries]);
+  const data = useMemo(() => memoryData(entriesState), [entriesState]);
   const selectedId = useRef<string | null>(null);
 
   // Après chaque rendu du site, on remet le surlignage sur l'élément sélectionné (il a pu être recréé).
@@ -565,6 +566,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       const m = e.data as { type?: string; id?: string | null; mode?: string; site?: Site; containers?: string[]; textNodes?: string[]; editMode?: EditMode; blocks?: BlockPresetInfo[]; caret?: "start" | "end" | "all"; state?: string | null };
       if (m?.type === "atelier:site" && m.site) {
         setSite(m.site);
+        if (Array.isArray((m as { entries?: Entry[] }).entries)) setEntriesState((m as { entries: Entry[] }).entries);
         if (m.containers) containers = new Set(m.containers);
         if ((m as { links?: string[] }).links) links = new Set((m as { links?: string[] }).links);
         if (m.textNodes) textNodes = new Set(m.textNodes);

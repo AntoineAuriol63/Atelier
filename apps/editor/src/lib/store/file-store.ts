@@ -81,4 +81,14 @@ export class FileSiteStore implements SiteStore {
       await this.write(id, { ...d, entries });
     });
   }
+  async upsertEntries(id: string, entries: Entry[]): Promise<void> {
+    const cur = await this.entries(id);
+    const byId = new Map(cur.map((e) => [e.id, e]));
+    for (const e of entries) byId.set(e.id, e);
+    await this.setEntries(id, [...byId.values()]);
+  }
+  async deleteEntries(id: string, ids: string[]): Promise<void> {
+    const cur = await this.entries(id);
+    await this.setEntries(id, cur.filter((e) => !ids.includes(e.id)));
+  }
 }

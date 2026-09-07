@@ -20,4 +20,7 @@ export interface SiteStore {
   changes(id: string, sinceVersion: number): Promise<Change[]>;
   entries(id: string): Promise<Entry[]>;
   setEntries(id: string, entries: Entry[]): Promise<void>;
+  /** Ajoute ou remplace des entrées (par identifiant). */
+  upsertEntries(id: string, entries: Entry[]): Promise<void>;
+  deleteEntries(id: string, ids: string[]): Promise<void>;
 }

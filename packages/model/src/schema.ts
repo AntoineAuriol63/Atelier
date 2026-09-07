@@ -219,6 +219,16 @@ export const asset = z.object({
   source: sourceRef.optional(),
 });
 
+/** Une entrée de base de données (vit hors du document, voir 7.1). */
+export const entry = z.object({
+  id,
+  database: id,
+  status: z.enum(["draft", "published"]),
+  values: z.record(z.string(), z.unknown()),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
 export const site = z.object({
   schemaVersion: z.literal(1),
   id,
