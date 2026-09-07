@@ -7,7 +7,7 @@ import { BASE, cloneWithNewIds, newId, resolveNodeStyle, resolveSharedStyleSet, 
 import { Badge, Field, FieldGroup, Hint, IconButton, Section, TextArea, TextInput } from "@/ui";
 import { nodeIcon, nodeLabel, TYPE_LABEL } from "./node-icons";
 import { AppearancePanel, CollectionPanel, EffectsPanel, ImagePanel, LayoutPanel, LinkPanel, ResponsivePanel, SharedStylesPanel, SizePanel, SpacingPanel, STATE_LABEL, TagPanel, TypographyPanel, useStyle, type StyleTarget } from "./design";
-import { Segmented } from "@/ui/controls";
+import { PropRow, Segmented } from "@/ui/controls";
 import { sharedStyleUsages } from "@atelier/model";
 
 /** Section de l'inspecteur qui porte chaque propriété (pour y aller en un clic). */
@@ -46,6 +46,8 @@ type Props = {
   onPreviewState: (state: string | null) => void;
   onEditInPreview?: () => void;
   onEnterComponent?: (componentId: string) => void;
+  editMode?: "write" | "design";
+  onSwitchMode?: (m: "write" | "design") => void;
   commit: (op: Op, opts?: CommitOptions) => void;
   onDeleted: () => void;
 };
@@ -68,7 +70,7 @@ function plainText(content: unknown, locale: string): { text: string; rich: bool
   return { text: list.map((s) => (s.t === "text" ? s.v : s.t === "break" ? "\n" : "")).join(""), rich };
 }
 
-export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onPreviewState, onEditInPreview, onEnterComponent, commit, onDeleted }: Props) {
+export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onPreviewState, onEditInPreview, onEnterComponent, editMode = "design", onSwitchMode, commit, onDeleted }: Props) {
   const node: Node = loc.node;
   const locale = site.settings.defaultLocale;
   const [state, setStateRaw] = useState<string | undefined>(undefined);
@@ -129,6 +131,7 @@ export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onP
         ) : null}
       </div>
 
+      {editMode === "write" ? null : (<>
       <div className="flex items-center gap-2 px-3 h-9 border-b border-line">
         <span className="text-2xs uppercase tracking-wider text-dim">État</span>
         <Segmented className="flex-1" size="sm" value={state} options={["hover", "active", "focus"].map((st) => { const n = stateProps(st).length; return { value: st, label: n ? `${STATE_LABEL[st]} · ${n}` : STATE_LABEL[st]! }; })} onChange={(v) => setState(v)} />
@@ -150,6 +153,7 @@ export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onP
           </div>
         </div>
       ) : null}
+      </>)}
       {sharedDef ? (
         <div className="flex items-center gap-2 px-3 h-8 bg-violet-400/15 text-violet-300 text-xs border-b border-line">
           <span className="flex-1 truncate">Vous modifiez le style partagé <strong className="font-medium">« {sharedDef.name} »</strong> ({sharedStyleUsages(site, sharedDef.id).length} usages)</span>
@@ -187,6 +191,23 @@ export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onP
       {!sharedDef && node.type === "link" ? <LinkPanel site={site} node={node} commit={commit} /> : null}
       {!sharedDef && node.type === "collection" ? <CollectionPanel site={site} node={node} commit={commit} /> : null}
 
+      {editMode === "write" ? (
+        <Section title="Mise en forme rapide" hint="L'essentiel pour écrire. Pour tout le reste, passez en mode Design sur cet élément.">
+          {node.type === "text" ? (
+            <PropRow label="Alignement" source={style.source("textAlign")} sourceTitle={style.title("textAlign")} onReset={() => style.reset("textAlign")} wide>
+              <Segmented className="flex-1" value={typeof style.value("textAlign") === "string" ? String(style.value("textAlign")) : undefined} options={[{ value: "left", label: "À gauche" }, { value: "center", label: "Centré" }, { value: "right", label: "À droite" }]} onChange={(v) => style.set("textAlign", v, false)} />
+            </PropRow>
+          ) : null}
+          {node.type === "text" ? (
+            <PropRow label="Taille" source={style.source("fontSize")} sourceTitle={style.title("fontSize")} onReset={() => style.reset("fontSize")} wide>
+              <Segmented className="flex-1" value={(() => { const v = style.value("fontSize"); return typeof v === "object" && v && "token" in v ? v.token.split(".")[1] : undefined; })()} options={[{ value: "sm", label: "Petit" }, { value: "md", label: "Normal" }, { value: "lg", label: "Grand" }, { value: "xl", label: "Très grand" }]} onChange={(v) => style.set("fontSize", v ? { token: `fontSize.${v}` } : undefined, false)} />
+            </PropRow>
+          ) : null}
+          <Hint>Gras, italique, souligné et lien : sélectionnez du texte dans l&apos;aperçu, une barre apparaît (⌘B, ⌘I, ⌘U, ⌘K). Tapez « / » dans un texte pour insérer un bloc, Entrée pour passer au bloc suivant.</Hint>
+          <button type="button" onClick={() => onSwitchMode?.("design")} className="self-start h-7 px-2.5 rounded-sm bg-accent text-accent-ink text-xs font-medium hover:brightness-110">Régler le style en détail</button>
+        </Section>
+      ) : (
+        <>
       <LayoutPanel site={site} node={node} style={style} parentDisplay={parentDisplay} parentDirection={parentDirection} leaf={!sharedDef && ["text", "image", "video", "divider", "icon", "embed", "field", "code"].includes(node.type)} />
       <SpacingPanel site={site} style={style} />
       <SizePanel site={site} style={style} />
@@ -194,11 +215,13 @@ export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onP
       <AppearancePanel site={site} style={style} mode={mode} />
       <EffectsPanel site={site} style={style} />
 
-      {!sharedDef ? <SharedStylesPanel site={site} node={node} commit={commit} onEdit={setEditingShared} /> : null}
+        </>
+      )}
+      {!sharedDef && editMode === "design" ? <SharedStylesPanel site={site} node={node} commit={commit} onEdit={setEditingShared} /> : null}
 
-      <ResponsivePanel site={site} node={node} activeBp={activeBp} onGoTo={onGoToBreakpoint} onReveal={(bp, prop) => { onGoToBreakpoint(bp); window.setTimeout(() => revealProp(prop), 50); }} />
+      {editMode === "design" ? <ResponsivePanel site={site} node={node} activeBp={activeBp} onGoTo={onGoToBreakpoint} onReveal={(bp, prop) => { onGoToBreakpoint(bp); window.setTimeout(() => revealProp(prop), 50); }} /> : null}
 
-      <Section title="CSS brut" defaultOpen={false} hint="Pour les développeurs : toutes les propriétés posées ici, telles que le navigateur les lit. Utile pour ce que les panneaux ne couvrent pas.">
+      {editMode === "design" ? <Section title="CSS brut" defaultOpen={false} hint="Pour les développeurs : toutes les propriétés posées ici, telles que le navigateur les lit. Utile pour ce que les panneaux ne couvrent pas.">
         <FieldGroup>
           <Field label="Identifiant" hint="Identifiant technique de l'élément (classe CSS n-…)"><span className="font-mono text-xs text-dim">{node.id}</span></Field>
           {Object.entries(localProps).map(([prop, value]) => (
@@ -214,7 +237,7 @@ export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onP
           </form>
         </FieldGroup>
         <Hint>Toutes les propriétés posées sur ce point de rupture, en CSS brut.</Hint>
-      </Section>
+      </Section> : null}
     </div>
   );
 }

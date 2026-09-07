@@ -6,6 +6,15 @@ import { findComponent, findDatabase, localized, resolveBinding, resolveHref, ty
 const BOX_TAGS = new Set(["div", "section", "header", "footer", "nav", "article", "aside", "main", "figure", "figcaption", "span"]);
 const TEXT_TAGS = new Set(["p", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "span", "label", "div", "figcaption", "li"]);
 
+/** Clé React d'un enfant : un texte change de clé quand son contenu change, donc il se remonte proprement après une édition en place. */
+function keyOf(c: Node): string {
+  if (c.type !== "text") return c.id;
+  const str = JSON.stringify(c.props.content ?? "");
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+  return `${c.id}:${(h >>> 0).toString(36)}`;
+}
+
 function tagOf(node: Node, allowed: Set<string>, fallback: string): string {
   const t = node.props.tag;
   return typeof t === "string" && allowed.has(t) ? t : fallback;
@@ -26,7 +35,7 @@ export function renderInline(list: Inline[] | undefined, ctx: RenderContext, key
     const key = `${keyPrefix}${i}`;
     switch (seg.t) {
       case "break": return createElement("br", { key });
-      case "link": return createElement("a", { key, href: resolveHref(seg.href, ctx), target: seg.newTab ? "_blank" : undefined, rel: seg.newTab ? "noopener" : undefined }, renderInline(seg.children, ctx, key));
+      case "link": return createElement("a", { key, href: resolveHref(seg.href, ctx), target: seg.newTab ? "_blank" : undefined, rel: seg.newTab ? "noopener" : undefined, "data-link": ctx.editor ? JSON.stringify(seg.href) : undefined }, renderInline(seg.children, ctx, key));
       case "bind": {
         const v = resolveBinding(seg.binding, ctx);
         return wrapMarks(v === undefined || v === null ? "" : String(v), seg.marks, key);
@@ -53,7 +62,7 @@ function wrapMarks(text: string, marks: Mark[] | undefined, key: string): ReactN
 // ---------------------------------------------------------------- nœuds
 
 export function RenderNode({ node, ctx }: { node: Node; ctx: RenderContext }): ReactNode {
-  const children = () => node.children?.map((c) => createElement(RenderNode, { key: c.id, node: c, ctx }));
+  const children = () => node.children?.map((c) => createElement(RenderNode, { key: keyOf(c), node: c, ctx }));
 
   switch (node.type) {
     case "box": {
@@ -89,7 +98,7 @@ export function RenderNode({ node, ctx }: { node: Node; ctx: RenderContext }): R
       const tag = node.props.tag === "button" ? "button" : "a";
       if (ctx.inLink) return createElement("span", attrs(node, ctx, { "data-nested-link": "" }), children());
       const inner: RenderContext = { ...ctx, inLink: true };
-      const kids = () => node.children?.map((c) => createElement(RenderNode, { key: c.id, node: c, ctx: inner }));
+      const kids = () => node.children?.map((c) => createElement(RenderNode, { key: keyOf(c), node: c, ctx: inner }));
       if (tag === "button") return createElement("button", attrs(node, ctx, { type: node.props.type === "submit" ? "submit" : "button" }), kids());
       const href = node.bindings?.href ? String(resolveBinding(node.bindings.href, ctx) ?? "#") : resolveHref(node.props.href as Parameters<typeof resolveHref>[0], ctx);
       const current = !ctx.editor && (node.props.href as { kind?: string; page?: string } | undefined)?.kind === "page" && (node.props.href as { page: string }).page === ctx.page.id;
@@ -122,7 +131,7 @@ export function RenderNode({ node, ctx }: { node: Node; ctx: RenderContext }): R
       const item = node.children?.find((c) => c.type === "item");
       if (!db || !item) return createElement("div", attrs(node, ctx), ctx.editor ? "Collection non configurée" : null);
       const entries = ctx.data.entries(db, view, ctx);
-      if (entries.length === 0 && view.empty) return createElement("div", attrs(node, ctx), view.empty.map((c) => createElement(RenderNode, { key: c.id, node: c, ctx })));
+      if (entries.length === 0 && view.empty) return createElement("div", attrs(node, ctx), view.empty.map((c) => createElement(RenderNode, { key: keyOf(c), node: c, ctx })));
       return createElement("div", attrs(node, ctx, { "data-layout": view.layout }), entries.map((e) => createElement(RenderNode, { key: e.id, node: item, ctx: { ...ctx, item: e } })));
     }
     case "item":
@@ -136,7 +145,7 @@ export function RenderNode({ node, ctx }: { node: Node; ctx: RenderContext }): R
       const name = String(node.props.name ?? "default");
       const provided = ctx.slots?.[name];
       const list = provided ?? node.children ?? [];
-      return createElement(Fragment, null, list.map((c) => createElement(RenderNode, { key: c.id, node: c, ctx })));
+      return createElement(Fragment, null, list.map((c) => createElement(RenderNode, { key: keyOf(c), node: c, ctx })));
     }
     case "code":
       return createElement("div", attrs(node, ctx, { "data-code": String(node.props.component) }), ctx.editor ? `Composant code : ${String(node.props.component)}` : null);

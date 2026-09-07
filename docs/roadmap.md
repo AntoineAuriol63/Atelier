@@ -107,14 +107,14 @@ Le panneau de droite actuel est un échafaudage. Il est remplacé, pas amélior�
   - [x] Bug trouvé via le panneau de problèmes de Next : un lien déposé dans un lien (HTML invalide, erreur d'hydratation à chaque chargement). Règle ajoutée dans le modèle (déplacement, dépôt, insertion, collage) et rendu dégradé en span ; documents réparés
   - [ ] Sélection multiple → M4
 
-### M4 · Mode Écriture (D18)
+### M4 · Mode Écriture (D18) — fait le 8 septembre 2026 (première version)
 
-- [ ] Insertion par « / » avec recherche de blocs
-- [ ] Édition du texte en place dans l'aperçu (texte riche : gras, italique, lien, listes)
-- [ ] Barre d'options au survol d'un bloc (alignement, taille, variante, style en contexte)
-- [ ] Glisser pour réorganiser les blocs
-- [ ] Modèles de section prêts à insérer
-- [ ] Style en contexte : accès au panneau Design d'un bloc sans changer de mode (D06)
+- [x] Insertion par « / » avec recherche de blocs (sections, structure, contenu, données, composants), à la place d'un bloc vide ou après
+- [x] Édition du texte en place dans l'aperçu : un clic place le curseur ; gras, italique, souligné, barré, lien (barre sur la sélection, ⌘B ⌘I ⌘U ⌘K) ; Entrée crée le bloc suivant (ou l'élément de liste suivant), Retour arrière sur un bloc vide le supprime et remonte ; le contenu est sérialisé en marques du modèle
+- [x] Barre au survol d'un bloc : poignée de déplacement, type (paragraphe, titres, citation), alignement, Style (bascule en Design sur l'élément), insérer après, supprimer
+- [x] Glisser pour réorganiser les blocs (poignée ⋮⋮ ou glisser l'élément sélectionné)
+- [x] Modèles de section prêts à insérer : Héros, Texte et image, Trois points forts, Appel à l'action, Questions fréquentes (groupe Sections de l'onglet Ajouter et du menu /)
+- [x] Style en contexte : inspecteur simplifié en Écriture (alignement, taille, aide) avec « Régler le style en détail » qui bascule en Design sur l'élément ; bouton Style dans la barre de bloc
 
 ### M5 · Données et formulaires
 
@@ -171,5 +171,6 @@ Espaces membres (D49) · synchronisation Git des composants · contributions à 
 - 6 sept. 2026 (nuit) — M2 terminé : palette de blocs, glisser-déposer dans les calques et dans le canvas (planification pure et testée dans le modèle), largeur libre avec poignée et point de rupture actif, raccourcis clavier, renommage en place. Correctif : `null` vaut retrait sur un champ optionnel (les erreurs serveur affichent le détail). Prochaine étape : M3, panneaux Design.
 - 7 sept. 2026 — M3 session 1 : résolution de style avec sources dans le modèle (testée), contrôles communs (pastille de source, champ de longueur, groupe exclusif, schéma de boîte), panneaux Disposition, Espacement, Dimensions, Responsive ; édition sur le point de rupture actif. Correctif : un retrait (`value` absente) est valide côté serveur. Session 2 : Typographie, Apparence, couleur et jetons, Effets.
 - 7 sept. 2026 — M3 session 2 : sélecteur de couleur, Typographie, Apparence, Effets, panneaux Image, Lien, Balise et Collection. Session 3 à faire : états (survol…), styles partagés (appliquer, créer, modifier, détacher), thème (jetons), raccourcis et ⌘K, réglage des points de rupture, puis audit d'usage n°1.
+- 8 sept. 2026 — M4 Écriture, première version : mode Écriture / Design réel dans la barre (mémorisé), édition riche dans le canvas, barres flottantes, menu /, Entrée et Retour arrière à la Notion, modèles de sections. Reste pour un M4 bis : listes à puces depuis le menu de bloc, sélection multiple, texte riche dans les champs de base de données.
 - 7 sept. 2026 — Grille de mise en page (modèle `settings.layoutGrid`, cascade par point de rupture, testée) et calque dans l'éditeur.
 - 7 sept. 2026 — M3 session 3 : états avec prévisualisation forcée, styles partagés complets, onglet Thème avec points de rupture, palette ⌘K. Reste : erreurs d'affichage à relever pendant l'audit d'usage n°1, qui est la prochaine étape.

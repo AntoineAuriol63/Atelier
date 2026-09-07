@@ -2,12 +2,12 @@
 
 import { createElement } from "react";
 import type { Site } from "@atelier/model";
-import { BLOCKS, componentPresets, type BlockPreset } from "@/lib/blocks";
+import { allPresets, type BlockPreset } from "@/lib/blocks";
 import { Hint, PanelHeading } from "@/ui";
 
 export function AddPanel({ site, target, onAdd, onDragBlock }: { site: Site; target: string; onAdd: (preset: BlockPreset) => void; onDragBlock?: (presetId: string | null) => void }) {
-  const all = [...BLOCKS, ...componentPresets(site)];
-  const groups = ["Structure", "Contenu", "Données", "Composants"] as const;
+  const all = allPresets(site);
+  const groups = ["Sections", "Structure", "Contenu", "Données", "Composants"] as const;
   return (
     <div className="pb-4">
       <div className="px-3 pt-2 pb-1"><Hint>{target} Ou glissez un bloc directement dans l&apos;aperçu ou dans les calques.</Hint></div>
