@@ -132,10 +132,21 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     const startGhost = (el: HTMLElement, x: number, y: number) => {
       const r = el.getBoundingClientRect();
       const clone = el.cloneNode(true) as HTMLElement;
+      // Hors de son contexte, la copie perdrait police, couleur et tailles héritées : on fige les styles calculés de chaque élément.
+      const src = [el, ...el.querySelectorAll<HTMLElement>("*")];
+      const dst = [clone, ...clone.querySelectorAll<HTMLElement>("*")];
+      src.forEach((o, i) => {
+        const c = dst[i]; if (!c) return;
+        const cs = getComputedStyle(o);
+        let css = "";
+        for (let k = 0; k < cs.length; k++) { const prop = cs[k]!; css += `${prop}:${cs.getPropertyValue(prop)};`; }
+        c.style.cssText = css;
+      });
       clone.removeAttribute("data-node");
       clone.querySelectorAll("[data-node]").forEach((n) => n.removeAttribute("data-node"));
+      clone.querySelectorAll("[data-selected], [contenteditable]").forEach((n) => { n.removeAttribute("data-selected"); n.removeAttribute("contenteditable"); });
       clone.setAttribute("data-atelier-ui", "");
-      clone.style.cssText += `;position:absolute;left:${r.left + window.scrollX}px;top:${r.top + window.scrollY}px;width:${r.width}px;height:${r.height}px;margin:0;opacity:.55;pointer-events:none;z-index:2147483647;box-shadow:0 12px 32px rgba(0,0,0,.25);outline:none;transform:scale(1.01);transition:none`;
+      clone.style.cssText += `;position:absolute;left:${r.left + window.scrollX}px;top:${r.top + window.scrollY}px;width:${r.width}px;height:${r.height}px;margin:0;opacity:.55;pointer-events:none;z-index:2147483647;box-shadow:0 12px 32px rgba(0,0,0,.25);outline:none;transform:none;transition:none;box-sizing:border-box`;
       document.body.appendChild(clone);
       ghost = { el: clone, dx: x - r.left, dy: y - r.top };
     };
