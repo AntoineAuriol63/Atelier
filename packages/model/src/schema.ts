@@ -212,8 +212,10 @@ export const asset = z.object({
   url: z.string(),
   width: z.number().optional(),
   height: z.number().optional(),
+  name: z.string().optional(),
   alt: localized(z.string()).optional(),
   mime: z.string().optional(),
+  variants: z.array(z.object({ width: z.number(), height: z.number().optional(), url: z.string(), format: z.string() })).optional(),
   source: sourceRef.optional(),
 });
 

@@ -419,7 +419,7 @@ type Site = {
 };
 ```
 
-Les `Asset` référencent un fichier stocké (`{ id, kind: "image" | "video" | "file", url, width, height, alt?: Localized<string>, source? }`).
+Les `Asset` référencent un fichier stocké (`{ id, kind: "image" | "video" | "file", url, width, height, name?, alt?: Localized<string>, mime?, variants?, source? }`). `name` est le nom lisible (le nom du fichier à l'import, modifiable). `variants` liste les déclinaisons optimisées produites à l'import (D37) : `{ width, height?, url, format }`, du plus petit au plus grand ; le rendu en fait un `srcset`, `url` reste l'original. Les fichiers eux-mêmes vivent dans le stockage (dossier `.atelier-data/assets` en développement, Supabase Storage sinon), jamais dans le document.
 
 ## 11. Ce que le rendu fait du modèle
 

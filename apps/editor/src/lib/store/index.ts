@@ -3,8 +3,11 @@ import { sampleSite, sampleEntries } from "@atelier/model";
 import type { SiteStore, StoredSite } from "./types";
 import { FileSiteStore } from "./file-store";
 import { SupabaseSiteStore } from "./supabase-store";
+import { FileAssetStorage, SupabaseAssetStorage, type AssetStorage } from "./assets";
 
 export type { SiteStore, StoredSite, ChangeInput, ChangeResult } from "./types";
+export type { AssetStorage } from "./assets";
+export { FileAssetStorage } from "./assets";
 
 declare global {
   var __atelierStore: { key: string; store: SiteStore } | undefined;
@@ -22,6 +25,13 @@ export function getStore(): SiteStore {
   const store = url && key ? new SupabaseSiteStore(url, key) : new FileSiteStore(dir);
   globalThis.__atelierStore = { key: cacheKey, store };
   return store;
+}
+
+/** Stockage des fichiers, même règle de configuration que le dépôt. */
+export function getAssetStorage(): AssetStorage {
+  const url = process.env.SUPABASE_URL, key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const dir = process.env.ATELIER_DATA_DIR ?? path.resolve(process.cwd(), "../../.atelier-data");
+  return url && key ? new SupabaseAssetStorage(url, key) : new FileAssetStorage(dir);
 }
 
 export function storeKind(): "supabase" | "file" {

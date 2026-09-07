@@ -11,6 +11,19 @@ function ctxFor(path: string): RenderContext {
   return { site: sampleSite, page: m.page, entry: m.entry, params: m.params, locale: "fr", data, assets: assetMap(sampleSite), basePath: "" };
 }
 
+describe("image", () => {
+  it("émet un srcset à partir des déclinaisons, l'original en repli", () => {
+    const site = structuredClone(sampleSite);
+    const a = site.assets.find((x) => x.id === "as_hero")!;
+    a.variants = [{ width: 480, url: "/w480.webp", format: "webp" }, { width: 960, url: "/w960.webp", format: "webp" }];
+    const m = matchPath(site, data, "/")!;
+    const ctx: RenderContext = { site, page: m.page, entry: m.entry, params: m.params, locale: "fr", data, assets: assetMap(site), basePath: "" };
+    const html = renderToStaticMarkup(createElement(RenderPage, { ctx }));
+    expect(html).toContain('srcSet="/w480.webp 480w, /w960.webp 960w, https://picsum.photos/id/1027/1200/1500 1200w"');
+    expect(html).toContain('sizes="(max-width: 1152px) 100vw, 1152px"');
+  });
+});
+
 describe("séparateur", () => {
   const bps = sampleSite.settings.breakpoints;
   it("est vertical dans une rangée et redevient horizontal quand la rangée s'empile", () => {

@@ -505,6 +505,8 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       const el = nodeOf(e.target);
       if (!el) return;
       select(el, true);
+      // Une image vide s'ouvre sur la bibliothèque : on choisit ou on importe sans passer par le panneau.
+      if (el.getAttribute("data-empty") === "image") parent.postMessage({ type: "atelier:pick-image", id: idOf(el) }, "*");
     };
     const onDblClick = (e: MouseEvent) => {
       if ((e.target as Element).closest?.("[data-atelier-ui]")) return;

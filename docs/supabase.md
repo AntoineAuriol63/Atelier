@@ -31,3 +31,7 @@ npm run dev
 Au premier chargement de l'éditeur, le site d'exemple est créé dans Supabase (version 0). Les données du mode fichier (`.atelier-data/`) ne sont pas migrées automatiquement.
 
 La clé `service_role` donne tous les droits : elle ne quitte jamais le serveur. Le client n'appelle que l'API d'Atelier.
+
+## Fichiers (images importées)
+
+Les images importées vont dans le seau Storage `assets` (créé par `supabase/schema.sql`, public en lecture, limite 50 Mo par fichier). L'import passe par `POST /api/sites/:id/assets` : le serveur lit l'image, produit les déclinaisons WebP (480, 960, 1600, 2400 px) et écrit le tout dans le seau avec la clé de service. Le document ne garde que les adresses publiques. En mode fichier, les mêmes fichiers vont dans `.atelier-data/assets/` et sont servis par `GET /api/sites/:id/assets/…`. Si le schéma a été exécuté avant l'ajout du seau, relancer seulement le bloc `insert into storage.buckets` du fichier.

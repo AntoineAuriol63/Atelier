@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import type { CommitOptions, LinkTarget, Node, Op, Site } from "@atelier/model";
-import { newId } from "@atelier/model";
-import { Button, Field, FieldGroup, Hint, NumberInput, Section, Select, TextInput } from "@/ui";
+import { Field, FieldGroup, Hint, NumberInput, Section, Select, TextInput } from "@/ui";
 import { Segmented } from "@/ui/controls";
 import { AssetPicker } from "./AppearancePanel";
+import { MediaLibrary, useImageImport } from "@/components/MediaLibrary";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
 
@@ -25,29 +25,20 @@ export function TagPanel({ node, commit }: { node: Node; commit: Commit }) {
 
 export function ImagePanel({ site, node, commit }: { site: Site; node: Node; commit: Commit }) {
   const locale = site.settings.defaultLocale;
-  const [url, setUrl] = useState("");
+  const [library, setLibrary] = useState(false);
+  const { importFiles, busy, error } = useImageImport(site, commit);
   const bound = !!node.bindings?.asset;
   const alt = (node.props.alt as Record<string, string> | undefined)?.[locale] ?? "";
-  const addByUrl = () => {
-    const u = url.trim();
-    if (!/^https?:\/\//.test(u)) return;
-    const asset = { id: newId(), kind: "image" as const, url: u };
-    commit({ op: "batch", label: "Ajouter une image", ops: [
-      { op: "site.set", path: "assets", value: [...site.assets, asset] },
-      { op: "node.set", id: node.id, path: "props.asset", value: asset.id },
-    ] });
-    setUrl("");
-  };
+  const setAsset = (id: string | null) => commit({ op: "node.set", id: node.id, path: "props.asset", value: id }, { label: "Changer l'image" });
+  // Importer depuis le panneau pose directement la première image importée sur l'élément.
+  const importHere = async (files: File[]) => { const added = await importFiles(files); if (added[0]) setAsset(added[0].id); };
   return (
     <Section title="Image">
       {bound ? <Hint>Cette image est liée à un champ de base de données ({node.bindings!.asset!.path}). Le choix se fait dans la base.</Hint> : (
         <>
-          <AssetPicker site={site} value={node.props.asset as string | null} onChange={(id) => commit({ op: "node.set", id: node.id, path: "props.asset", value: id }, { label: "Changer l'image" })} />
-          <form className="flex gap-1" onSubmit={(e) => { e.preventDefault(); addByUrl(); }}>
-            <TextInput className="flex-1" value={url} placeholder="https://… (ajouter par adresse)" onValueChange={setUrl} />
-            <Button size="md" type="submit" disabled={!/^https?:\/\//.test(url.trim())}>Ajouter</Button>
-          </form>
-          <Hint>L&apos;import de fichiers depuis l&apos;ordinateur arrive au jalon M5.</Hint>
+          <AssetPicker site={site} value={node.props.asset as string | null} onChange={setAsset} onImport={(files) => void importHere(files)} busy={busy} onOpenLibrary={() => setLibrary(true)} />
+          {error ? <p className="text-xs text-danger">{error}</p> : null}
+          <MediaLibrary site={site} open={library} onClose={() => setLibrary(false)} value={node.props.asset as string | null} onPick={setAsset} commit={commit} />
         </>
       )}
       <FieldGroup>

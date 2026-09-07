@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, X } from "lucide-react";
+import { useRef, useState } from "react";
+import { Images, Plus, Upload, X } from "lucide-react";
+import { assetLabel } from "@/lib/upload";
 import type { Asset, Gradient, Site, StyleValue } from "@atelier/model";
-import { Hint, NumberInput, Section, Select, TextInput } from "@/ui";
+import { Button, Hint, NumberInput, Section, Select, TextInput } from "@/ui";
 import { ColorInput, PropRow, Segmented, UnitInput } from "@/ui/controls";
 import { tokenOptions } from "@/lib/css-value";
 import type { StyleApi } from "./useStyle";
@@ -40,17 +41,35 @@ function GradientEditor({ site, value, onChange, mode }: { site: Site; value: Gr
   );
 }
 
-export function AssetPicker({ site, value, onChange, kind = "image" }: { site: Site; value: string | null | undefined; onChange: (id: string | null) => void; kind?: Asset["kind"] }) {
+export function AssetPicker({ site, value, onChange, kind = "image", onImport, busy, onOpenLibrary }: { site: Site; value: string | null | undefined; onChange: (id: string | null) => void; kind?: Asset["kind"]; onImport?: (files: File[]) => void; busy?: string | null; onOpenLibrary?: () => void }) {
+  const locale = site.settings.defaultLocale;
   const assets = site.assets.filter((a) => a.kind === kind);
+  const input = useRef<HTMLInputElement>(null);
   return (
-    <div className="grid grid-cols-4 gap-1">
-      {assets.map((a) => (
-        <button key={a.id} type="button" title={a.alt?.[site.settings.defaultLocale] ?? a.id} onClick={() => onChange(a.id)} className={`aspect-square rounded-xs overflow-hidden border ${value === a.id ? "border-accent ring-1 ring-accent" : "border-line hover:border-line-strong"}`}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={a.url} alt="" className="w-full h-full object-cover" loading="lazy" />
-        </button>
-      ))}
-      <button type="button" title="Aucune image" onClick={() => onChange(null)} className={`aspect-square rounded-xs border border-dashed text-2xs text-dim ${!value ? "border-accent" : "border-line-strong hover:border-line"}`}>aucune</button>
+    <div className="flex flex-col gap-1.5">
+      <div className="grid grid-cols-4 gap-1">
+        {assets.map((a) => {
+          const label = assetLabel(a, locale);
+          return (
+            <button key={a.id} type="button" title={label} onClick={() => onChange(a.id)} className={`flex flex-col gap-0.5 min-w-0 rounded-xs p-0.5 ${value === a.id ? "bg-accent-soft" : "hover:bg-hover"}`}>
+              <span className={`block aspect-square w-full rounded-xs overflow-hidden border ${value === a.id ? "border-accent" : "border-line"}`}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={a.variants?.[0]?.url ?? a.url} alt="" className="w-full h-full object-cover" loading="lazy" />
+              </span>
+              <span className="block text-2xs text-muted truncate w-full text-left">{label}</span>
+            </button>
+          );
+        })}
+        {onImport ? (
+          <button type="button" title="Importer des images depuis l'ordinateur" disabled={!!busy} onClick={() => input.current?.click()} className="aspect-square rounded-xs border border-dashed border-line-strong text-dim hover:text-ink hover:border-accent grid place-items-center disabled:opacity-50">
+            <Upload size={14} strokeWidth={1.75} />
+          </button>
+        ) : null}
+        <button type="button" title={`Aucune ${kind === "image" ? "image" : "ressource"}`} onClick={() => onChange(null)} className={`aspect-square rounded-xs border border-dashed text-2xs text-dim ${!value ? "border-accent" : "border-line-strong hover:border-line-strong hover:text-ink"}`}>Aucune</button>
+      </div>
+      {onImport ? <input ref={input} type="file" accept="image/*,.heic,.heif" multiple hidden onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ""; if (files.length) onImport(files); }} /> : null}
+      {busy ? <span className="text-2xs text-muted">{busy}</span> : null}
+      {onOpenLibrary ? <Button size="sm" variant="ghost" icon={Images} onClick={onOpenLibrary}>Toutes les images…</Button> : null}
     </div>
   );
 }

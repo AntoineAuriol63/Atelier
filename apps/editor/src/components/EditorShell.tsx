@@ -17,6 +17,7 @@ import { ThemePanel } from "./ThemePanel";
 import { PagesPanel } from "./PagesPanel";
 import { CommandPalette, type Command } from "./CommandPalette";
 import { allPresets } from "@/lib/blocks";
+import { MediaLibrary } from "@/components/MediaLibrary";
 import { nodeIcon, nodeLabel } from "./node-icons";
 
 const PRESETS: { id: string; label: string; width: number | null }[] = [
@@ -104,6 +105,8 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
   const [selected, setSelected] = useState<string | null>(null);
   const [editing, setEditing] = useState<string | null>(null);
   const [frameReady, setFrameReady] = useState(false);
+  /** Élément image pour lequel la bibliothèque d'images est ouverte (clic sur une image vide dans l'aperçu). */
+  const [mediaFor, setMediaFor] = useState<string | null>(null);
   const [openMap, setOpenMap] = useState<Record<string, boolean>>({});
   const [drop, setDrop] = useState<DropState>(null);
   const [notice, setNotice] = useState<{ text: string; tone: "danger" | "success" | "info" } | null>(null);
@@ -316,6 +319,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
       if (d?.type === "atelier:style-in-context" && d.id) { switchMode("design"); select(d.id); }
       if (d?.type === "atelier:set-style" && d.id && d.prop) doc.commit({ op: "node.set", id: d.id, path: stylePath(activeBpRef.current, d.prop), value: d.value }, { label: `${d.prop}` });
       if (d?.type === "atelier:set-tag" && d.id && d.tag) doc.commit({ op: "node.set", id: d.id, path: "props.tag", value: d.tag }, { label: "Type de bloc" });
+      if (d?.type === "atelier:pick-image" && d.id) { select(d.id); setMediaFor(d.id); }
       if (d?.type === "atelier:remove" && d.id) { const loc = index.get(d.id); if (loc?.parent) { doc.commit({ op: "node.remove", id: d.id }, { label: "Supprimer" }); select(loc.parent.id); } }
     };
     window.addEventListener("message", onMsg);
@@ -552,6 +556,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
         )}
       </Panel>
       {paletteOpen ? <CommandPalette open onClose={() => setPaletteOpen(false)} commands={commands} /> : null}
+      {mediaFor ? <MediaLibrary site={site} open onClose={() => setMediaFor(null)} value={(index.get(mediaFor)?.node.props.asset as string | null) ?? null} onPick={(id) => doc.commit({ op: "node.set", id: mediaFor, path: "props.asset", value: id }, { label: "Changer l'image" })} commit={doc.commit} /> : null}
     </div>
   );
 }

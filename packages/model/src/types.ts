@@ -306,10 +306,16 @@ export type Asset = {
   url: string;
   width?: number;
   height?: number;
+  /** Nom lisible (nom du fichier à l'import, modifiable). */
+  name?: string;
   alt?: Localized<string>;
   mime?: string;
+  /** Déclinaisons optimisées produites à l'import (D37), du plus petit au plus grand ; `url` reste l'original. */
+  variants?: AssetVariant[];
   source?: SourceRef;
 };
+
+export type AssetVariant = { width: number; height?: number; url: string; format: string };
 
 export type Redirect = { from: string; to: string; permanent: boolean };
 

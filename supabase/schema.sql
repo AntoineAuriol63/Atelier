@@ -82,3 +82,8 @@ begin
   get diagnostics v_deleted = row_count;
   return v_deleted;
 end $$;
+
+-- Stockage des fichiers (images importées) : un seau public en lecture, écrit par le serveur seulement (clé de service).
+insert into storage.buckets (id, name, public, file_size_limit)
+values ('assets', 'assets', true, 52428800)
+on conflict (id) do update set public = true, file_size_limit = 52428800;

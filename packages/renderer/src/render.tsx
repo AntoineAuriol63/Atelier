@@ -87,7 +87,11 @@ export function RenderNode({ node, ctx }: { node: Node; ctx: RenderContext }): R
       if (!asset) {
         return createElement("div", attrs(node, ctx, { style: { ...style, background: "var(--color-line, #ddd)", display: "grid", placeItems: "center", color: "var(--color-muted, #777)", fontSize: ".8rem" }, "data-empty": "image" }), ctx.editor ? "Image" : null);
       }
-      return createElement("img", attrs(node, ctx, { src: asset.url, alt, width: asset.width, height: asset.height, loading: node.props.priority ? "eager" : "lazy", decoding: "async", style }));
+      // Déclinaisons optimisées (D37) : le navigateur choisit la taille, l'original reste le repli.
+      const candidates = [...(asset.variants ?? []), ...(asset.width ? [{ width: asset.width, url: asset.url }] : [])].sort((a, b) => a.width - b.width);
+      const srcSet = candidates.length > 1 ? candidates.map((c) => `${c.url} ${c.width}w`).join(", ") : undefined;
+      const sizes = srcSet ? (typeof node.props.sizes === "string" ? node.props.sizes : "(max-width: 1152px) 100vw, 1152px") : undefined;
+      return createElement("img", attrs(node, ctx, { src: asset.url, srcSet, sizes, alt, width: asset.width, height: asset.height, loading: node.props.priority ? "eager" : "lazy", decoding: "async", style }));
     }
     case "video": {
       const asset = node.props.asset ? ctx.assets.get(String(node.props.asset)) : undefined;
