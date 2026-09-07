@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { applyOp, findNode, indexSite, planInsert, planMove, sampleSite } from "../src";
+import { applyOp, findNode, indexSite, planDrop, planInsert, planMove, sampleSite } from "../src";
 
 const idx = indexSite(sampleSite);
 const home = sampleSite.pages[0]!.root;
@@ -47,5 +47,16 @@ describe("planInsert", () => {
   });
   it("collection sélectionnée : après, jamais dedans", () => {
     expect(planInsert(idx, home, "work_list")).toEqual({ parent: "work", index: 2 });
+  });
+});
+
+describe("planDrop", () => {
+  it("avant, après, dedans, et sur la racine", () => {
+    expect(planDrop(idx, "hero_p", "before")).toEqual({ ok: true, to: { parent: "hero_txt", index: 2 } });
+    expect(planDrop(idx, "hero_p", "after")).toEqual({ ok: true, to: { parent: "hero_txt", index: 3 } });
+    expect(planDrop(idx, "hero_txt", "inside")).toEqual({ ok: true, to: { parent: "hero_txt", index: 4 } });
+    expect(planDrop(idx, "home", "after")).toEqual({ ok: true, to: { parent: "home", index: home.children!.length } });
+    expect(planDrop(idx, "hero_h1", "inside").ok).toBe(false);
+    expect(planDrop(idx, "work_item", "after").ok).toBe(false);
   });
 });

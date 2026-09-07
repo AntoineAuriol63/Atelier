@@ -18,6 +18,7 @@ type Props = {
   onGoToBreakpoint: (bp: string) => void;
   /** État prévisualisé de force dans l'aperçu (survol…), ou null. */
   onPreviewState: (state: string | null) => void;
+  onEditInPreview?: () => void;
   commit: (op: Op, opts?: CommitOptions) => void;
   onDeleted: () => void;
 };
@@ -40,7 +41,7 @@ function plainText(content: unknown, locale: string): { text: string; rich: bool
   return { text: list.map((s) => (s.t === "text" ? s.v : s.t === "break" ? "\n" : "")).join(""), rich };
 }
 
-export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onPreviewState, commit, onDeleted }: Props) {
+export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onPreviewState, onEditInPreview, commit, onDeleted }: Props) {
   const node: Node = loc.node;
   const locale = site.settings.defaultLocale;
   const [state, setStateRaw] = useState<string | undefined>(undefined);
@@ -50,6 +51,19 @@ export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onP
   const target: StyleTarget = sharedTarget ? { kind: "shared", id: sharedTarget } : { kind: "node", node };
   const style = useStyle(site, target, activeBp, state, commit);
   const sharedDef = sharedTarget ? site.sharedStyles.find((x) => x.id === sharedTarget) : undefined;
+  /** Propriétés posées sur chaque état, tous points de rupture confondus (badges du sélecteur d'état). */
+  const stateProps = (st: string): string[] => {
+    const src = sharedDef ? sharedDef.style : node.style;
+    const set = new Set<string>(Object.keys(src?.states?.[st] ?? {}));
+    for (const byBp of [src?.stateBreakpoints?.[st] ?? {}]) for (const props of Object.values(byBp)) Object.keys(props).forEach((p) => set.add(p));
+    return [...set];
+  };
+  const clearState = (st: string) => {
+    const ops: Op[] = [];
+    if (sharedDef) { const i = site.sharedStyles.findIndex((x) => x.id === sharedDef.id); ops.push({ op: "site.set", path: `sharedStyles.${i}.style.states.${st}`, value: undefined }, { op: "site.set", path: `sharedStyles.${i}.style.stateBreakpoints.${st}`, value: undefined }); }
+    else ops.push({ op: "node.set", id: node.id, path: `style.states.${st}`, value: undefined }, { op: "node.set", id: node.id, path: `style.stateBreakpoints.${st}`, value: undefined });
+    commit({ op: "batch", ops, label: `Retirer l'état ${STATE_LABEL[st] ?? st}` });
+  };
   const parentDisplay = loc.parent ? (resolveNodeStyle(site, loc.parent, activeBp).display?.value as string | undefined) : undefined;
   const siblings = loc.parent?.children ?? [];
   const canText = node.type === "text" && !node.bindings?.content;
@@ -75,8 +89,18 @@ export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onP
 
       <div className="flex items-center gap-2 px-3 h-9 border-b border-line">
         <span className="text-2xs uppercase tracking-wider text-dim">État</span>
-        <Segmented className="flex-1" size="sm" value={state} options={[{ value: "hover", label: STATE_LABEL.hover! }, { value: "active", label: STATE_LABEL.active! }, { value: "focus", label: STATE_LABEL.focus! }]} onChange={(v) => setState(v)} />
+        <Segmented className="flex-1" size="sm" value={state} options={["hover", "active", "focus"].map((st) => { const n = stateProps(st).length; return { value: st, label: n ? `${STATE_LABEL[st]} · ${n}` : STATE_LABEL[st]! }; })} onChange={(v) => setState(v)} />
       </div>
+      {state ? (
+        <div className="flex items-center gap-2 px-3 py-1.5 text-xs border-b border-line bg-surface/60">
+          {stateProps(state).length ? (
+            <>
+              <span className="flex-1 text-muted"><span className="text-ink">{STATE_LABEL[state]}</span> modifie : <span className="font-mono text-ink">{stateProps(state).join(", ")}</span></span>
+              <button type="button" onClick={() => clearState(state)} className="h-6 px-2 rounded-sm text-danger hover:bg-danger-soft whitespace-nowrap">Tout retirer</button>
+            </>
+          ) : <span className="text-dim">Aucun réglage propre à cet état : ce que vous posez maintenant ne s&apos;appliquera qu&apos;au {STATE_LABEL[state]?.toLowerCase()}.</span>}
+        </div>
+      ) : null}
       {sharedDef ? (
         <div className="flex items-center gap-2 px-3 h-8 bg-violet-400/15 text-violet-300 text-xs border-b border-line">
           <span className="flex-1 truncate">Vous modifiez le style partagé <strong className="font-medium">« {sharedDef.name} »</strong> ({sharedStyleUsages(site, sharedDef.id).length} usages)</span>
@@ -89,7 +113,7 @@ export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onP
         </div>
       ) : null}
 
-      <Section title="Général" defaultOpen={false}>
+      <Section title="Élément" defaultOpen={false} hint="Nom dans les calques, balise HTML rendue, identifiant technique.">
         <FieldGroup>
           <Field label="Nom" hint="Nom affiché dans les calques">
             <TextInput value={node.name ?? ""} placeholder={nodeLabel(node)} onValueChange={(v) => commit({ op: "node.set", id: node.id, path: "name", value: v || undefined }, { coalesceKey: `name:${node.id}`, label: "Renommer" })} />
@@ -99,10 +123,13 @@ export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onP
         </FieldGroup>
       </Section>
 
-      {canText ? (
-        <Section title="Texte">
-          {rich ? <Hint>Ce texte contient des mises en forme ou des liens. L&apos;édition en place arrive avec le mode Écriture.</Hint> : (
-            <TextArea value={text} onValueChange={(v) => commit({ op: "node.set", id: node.id, path: `props.content.${locale}`, value: v.split("\n").flatMap((line, i) => (i === 0 ? [{ t: "text", v: line }] : [{ t: "break" }, { t: "text", v: line }])) }, { coalesceKey: `text:${node.id}`, label: "Modifier le texte" })} />
+      {canText && !sharedDef ? (
+        <Section title="Texte" hint="Double-cliquez le texte dans l'aperçu pour le modifier sur place, ou éditez-le ici. Entrée valide, Échap annule.">
+          {rich ? <Hint>Ce texte contient des mises en forme ou des liens. L&apos;édition riche arrive avec le mode Écriture.</Hint> : (
+            <>
+              <TextArea value={text} onValueChange={(v) => commit({ op: "node.set", id: node.id, path: `props.content.${locale}`, value: v.split("\n").flatMap((line, i) => (i === 0 ? [{ t: "text", v: line }] : [{ t: "break" }, { t: "text", v: line }])) }, { coalesceKey: `text:${node.id}`, label: "Modifier le texte" })} />
+              {onEditInPreview ? <button type="button" onClick={onEditInPreview} className="self-start text-xs text-accent hover:underline">Modifier dans l&apos;aperçu</button> : null}
+            </>
           )}
         </Section>
       ) : null}
@@ -122,7 +149,7 @@ export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onP
 
       <ResponsivePanel site={site} node={node} activeBp={activeBp} onGoTo={onGoToBreakpoint} />
 
-      <Section title="Avancé" defaultOpen={false}>
+      <Section title="Avancé" defaultOpen={false} hint="Toutes les propriétés CSS posées sur ce point de rupture, en brut. Pour ce que les panneaux ne couvrent pas.">
         <FieldGroup>
           {Object.entries(localProps).map(([prop, value]) => (
             <div key={prop} className="grid grid-cols-[88px_1fr_24px] items-center gap-1">

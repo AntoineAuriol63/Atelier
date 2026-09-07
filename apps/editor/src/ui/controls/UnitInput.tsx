@@ -45,10 +45,10 @@ export function UnitInput({ value, onChange, site, tokenGroup, keywords = [], pl
   if (parsed.kind === "token" && !editingToken) {
     const resolved = tokenValue(site, parsed.token);
     return (
-      <div className={cx(FIELD, "flex items-center gap-1 pl-1.5 pr-0.5", className)} title={`Jeton ${parsed.token}${resolved ? ` = ${resolved}` : ""}`}>
+      <div className={cx(FIELD, "flex items-center gap-1 pl-1.5 pr-0.5", className)} title={`Valeur du thème ${parsed.token}${resolved ? ` = ${resolved}` : ""}`}>
         <Diamond size={11} className="text-accent shrink-0" aria-hidden />
         <span className="flex-1 min-w-0 truncate text-xs font-mono">{parsed.token.split(".").slice(1).join(".")}</span>
-        <button type="button" aria-label="Remplacer le jeton par une valeur" title="Remplacer par une valeur" onClick={() => { setEditingToken(true); setDraft(""); }} className="w-5 h-5 inline-flex items-center justify-center rounded-xs text-dim hover:text-ink hover:bg-hover"><X size={11} /></button>
+        <button type="button" aria-label="Remplacer par une valeur libre" title="Remplacer par une valeur" onClick={() => { setEditingToken(true); setDraft(""); }} className="w-5 h-5 inline-flex items-center justify-center rounded-xs text-dim hover:text-ink hover:bg-hover"><X size={11} /></button>
       </div>
     );
   }
@@ -84,7 +84,7 @@ export function UnitInput({ value, onChange, site, tokenGroup, keywords = [], pl
         </select>
       ) : null}
       {tokens.length ? (
-        <select aria-label="Jeton du thème" value="" onChange={(e) => { if (e.target.value) onChange({ token: e.target.value }); }} className="h-full w-5 bg-transparent text-dim appearance-none text-center text-[10px] focus:outline-none hover:text-accent cursor-pointer" title="Utiliser un jeton du thème">
+        <select aria-label="Valeurs du thème" value="" onChange={(e) => { if (e.target.value) onChange({ token: e.target.value }); }} className="h-full w-5 bg-transparent text-dim appearance-none text-center text-[10px] focus:outline-none hover:text-accent cursor-pointer" title="Utiliser une valeur du thème (réglée dans l'onglet Thème, réutilisée partout)">
           <option value="">◇</option>
           {tokens.map((t) => <option key={t.token} value={t.token}>{t.label} · {t.value}</option>)}
         </select>

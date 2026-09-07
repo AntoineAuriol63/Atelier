@@ -23,13 +23,15 @@ export default async function PreviewPage({ params, searchParams }: Props) {
   const sp = await searchParams;
   const { site, entries } = await loadCurrentSite();
   const urlPath = "/" + (path ?? []).join("/");
-  if (!matchPath(site, memoryData(entries), urlPath)) notFound();
+  const editor = sp.editor === "1";
+  // En mode éditeur, une page qui vient d'être créée peut ne pas être encore enregistrée : l'aperçu attend le document de l'éditeur.
+  if (!editor && !matchPath(site, memoryData(entries), urlPath)) notFound();
   const fonts = fontsHref(site.theme);
   const mode = typeof sp.mode === "string" ? sp.mode : undefined;
   return (
     <>
       {fonts ? <link rel="stylesheet" href={fonts} /> : null}
-      <LivePreview initialSite={site} entries={entries} path={urlPath} mode={mode} editor={sp.editor === "1"} />
+      <LivePreview initialSite={site} entries={entries} path={urlPath} mode={mode} editor={editor} />
     </>
   );
 }

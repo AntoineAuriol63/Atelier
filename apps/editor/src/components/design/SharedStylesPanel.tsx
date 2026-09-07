@@ -51,7 +51,7 @@ export function SharedStylesPanel({ site, node, commit, onEdit }: { site: Site; 
   };
 
   return (
-    <Section title="Styles partagés" defaultOpen={applied.length > 0}>
+    <Section title="Styles partagés" defaultOpen={applied.length > 0} hint="Un style partagé regroupe des réglages réutilisés par plusieurs éléments. Le modifier met à jour tous ses usages ; le détacher garde les valeurs sur cet élément seul.">
       {applied.length ? (
         <ul className="flex flex-col gap-1">
           {applied.map((id) => {

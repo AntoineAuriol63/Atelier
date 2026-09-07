@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Command as CommandIcon, ExternalLink, FileText, Layers, Moon, Palette, Plus, Redo2, Sun, Undo2, UploadCloud } from "lucide-react";
 import type { DropPosition, Node, Page, Site } from "@atelier/model";
-import { BASE, breakpointForWidth, cloneWithNewIds, indexSite, newId, planInsert, planMove } from "@atelier/model";
+import { BASE, breakpointForWidth, cloneWithNewIds, indexSite, newId, planDrop, planInsert, planMove } from "@atelier/model";
+import type { Inline } from "@atelier/model";
 import { useDocument } from "@/lib/use-document";
 import { PRODUCT_NAME } from "@/lib/product";
 import type { BlockPreset } from "@/lib/blocks";
@@ -11,12 +12,13 @@ import { Badge, Button, Hint, IconButton, NumberInput, Panel, PanelHeading, Sepa
 import { NodeInspector } from "./NodeInspector";
 import { AddPanel } from "./AddPanel";
 import { ThemePanel } from "./ThemePanel";
+import { PagesPanel } from "./PagesPanel";
 import { CommandPalette, type Command } from "./CommandPalette";
 import { BLOCKS, componentPresets } from "@/lib/blocks";
 import { nodeIcon, nodeLabel } from "./node-icons";
 
 const PRESETS: { id: string; label: string; width: number | null }[] = [
-  { id: "base", label: "Bureau", width: null },
+  { id: "base", label: "Bureau", width: 1280 },
   { id: "tablet", label: "Tablette", width: 900 },
   { id: "mobile", label: "Mobile", width: 390 },
 ];
@@ -101,9 +103,12 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [previewState, setPreviewState] = useState<string | null>(null);
   const dragId = useRef<string | null>(null);
+  const dragBlock = useRef<string | null>(null);
+  const clipboard = useRef<Node | null>(null);
   const frame = useRef<HTMLIFrameElement>(null);
   const canvas = useRef<HTMLElement>(null);
   const page: Page = site.pages.find((p) => p.id === pageId) ?? site.pages[0]!;
+  const previewKey = `${page.id}:${page.path}`;
   const index = useMemo(() => indexSite(site), [site]);
   const selectedLoc = selected ? index.get(selected) : undefined;
   const locale = site.settings.defaultLocale;
@@ -120,6 +125,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
   }, [index]);
 
   const previewPath = page.kind === "template" ? "/preview/projets/lea-et-tom" : `/preview${page.path === "/" ? "" : page.path}`;
+  void previewKey;
   const post = useCallback((msg: unknown) => frame.current?.contentWindow?.postMessage(msg, "*"), []);
 
   const notify = useCallback((text: string, tone: "danger" | "success" = "danger") => {
@@ -143,6 +149,28 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
     select(node.id);
   }, [site, index, page.root, selected, doc, select]);
 
+  const presetById = useCallback((id: string) => [...BLOCKS, ...componentPresets(site)].find((b) => b.id === id), [site]);
+  const dropBlock = useCallback((presetId: string, targetId: string, position: DropPosition) => {
+    const preset = presetById(presetId);
+    if (!preset) return;
+    const r = planDrop(index, targetId, position);
+    if (!r.ok) { notify(r.reason); return; }
+    const node = preset.make(site);
+    doc.commit({ op: "node.insert", parent: r.to.parent, index: r.to.index, node }, { label: `Ajouter ${preset.label}` });
+    setOpenMap((m) => ({ ...m, [r.to.parent]: true }));
+    select(node.id);
+  }, [presetById, index, site, doc, notify, select]);
+
+  /** Texte modifié directement dans l'aperçu (texte simple, sans mise en forme). */
+  const setNodeText = useCallback((id: string, text: string) => {
+    const loc = index.get(id);
+    if (!loc || loc.node.type !== "text") return;
+    const value: Inline[] = text.split("\n").flatMap((line, i) => (i === 0 ? [{ t: "text", v: line }] : [{ t: "break" }, { t: "text", v: line }])) as Inline[];
+    doc.commit({ op: "node.set", id, path: `props.content.${locale}`, value }, { label: "Modifier le texte" });
+  }, [index, doc, locale]);
+
+  const textNodeIds = useMemo(() => [...index.values()].filter((l) => l.node.type === "text" && !l.node.bindings?.content && !((l.node.props.content as Record<string, Inline[]> | undefined)?.[locale] ?? []).some((seg) => (seg.t !== "text" && seg.t !== "break") || (seg.t === "text" && seg.marks?.length))).map((l) => l.node.id), [index, locale]);
+
   const insertTarget = useMemo(() => {
     const to = planInsert(index, page.root, selected);
     const parent = index.get(to.parent)?.node;
@@ -159,12 +187,15 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
       if (m?.type === "atelier:select" && m.id) select(m.id);
       if (m?.type === "atelier:ready") setFrameReady(true);
       if (m?.type === "atelier:move" && m.id && m.target && m.position) moveNode(m.id, m.target, m.position);
+      const d = m as { type?: string; preset?: string; target?: string; position?: DropPosition; text?: string; id?: string };
+      if (d?.type === "atelier:drop-block" && d.preset && d.target && d.position) dropBlock(d.preset, d.target, d.position);
+      if (d?.type === "atelier:text" && d.id && typeof d.text === "string") setNodeText(d.id, d.text);
     };
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
-  }, [moveNode, select]);
+  }, [moveNode, select, dropBlock, setNodeText]);
 
-  useEffect(() => { if (frameReady) post({ type: "atelier:site", site, containers: [...index.values()].filter((l) => ["box", "list", "listItem", "link", "form", "item", "slot"].includes(l.node.type)).map((l) => l.node.id) }); }, [site, index, frameReady, post]);
+  useEffect(() => { if (frameReady) post({ type: "atelier:site", site, containers: [...index.values()].filter((l) => ["box", "list", "listItem", "link", "form", "item", "slot"].includes(l.node.type)).map((l) => l.node.id), textNodes: textNodeIds }); }, [site, index, textNodeIds, frameReady, post]);
   useEffect(() => { if (frameReady) post({ type: "atelier:mode", mode }); }, [mode, frameReady, post]);
   useEffect(() => { if (frameReady) post({ type: "atelier:highlight", id: selected }); }, [selected, frameReady, post]);
   useEffect(() => { if (frameReady) post({ type: "atelier:state", id: selected, state: previewState }); }, [selected, previewState, frameReady, site, post]);
@@ -180,6 +211,9 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
       const loc = selected ? index.get(selected) : undefined;
       if (e.key === "Escape") { select(null); return; }
       if (!loc) return;
+      if (meta && e.key.toLowerCase() === "c") { e.preventDefault(); clipboard.current = structuredClone(loc.node); void navigator.clipboard?.writeText(JSON.stringify(loc.node)).catch(() => {}); notify("Copié", "success"); return; }
+      if (meta && e.key.toLowerCase() === "x") { e.preventDefault(); if (!loc.parent) return; clipboard.current = structuredClone(loc.node); doc.commit({ op: "node.remove", id: loc.node.id }, { label: "Couper" }); select(loc.parent.id); return; }
+      if (meta && e.key.toLowerCase() === "v") { e.preventDefault(); if (!clipboard.current) return; const { node: copy } = cloneWithNewIds(clipboard.current, newId); const to = planInsert(index, page.root, loc.node.id, "after"); doc.commit({ op: "node.insert", parent: to.parent, index: to.index, node: copy }, { label: "Coller" }); select(copy.id); return; }
       if (meta && e.key.toLowerCase() === "d") { e.preventDefault(); if (!loc.parent) return; const { node: copy } = cloneWithNewIds(loc.node, newId); doc.commit({ op: "node.insert", parent: loc.parent.id, index: loc.index + 1, node: copy }, { label: "Dupliquer" }); select(copy.id); return; }
       if ((e.key === "Backspace" || e.key === "Delete") && loc.parent) { e.preventDefault(); doc.commit({ op: "node.remove", id: loc.node.id }, { label: "Supprimer" }); select(loc.parent.id); return; }
       if (e.key === "ArrowUp" || e.key === "ArrowDown") {
@@ -196,7 +230,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [doc, selected, index, openMap, select, paletteOpen]);
+  }, [doc, selected, index, openMap, select, paletteOpen, page.root, notify]);
 
   // --- largeur de l'aperçu : préréglage, valeur libre, poignée, point de rupture actif
   useEffect(() => {
@@ -242,6 +276,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
       ...PRESETS.map((p) => ({ id: `width:${p.id}`, group: "Affichage", label: `Largeur ${p.label.toLowerCase()}`, run: () => { setPreset(p.id); setCustomWidth(null); } })),
       ...[{ id: "pages", label: "Pages", icon: FileText }, { id: "layers", label: "Calques", icon: Layers }, { id: "add", label: "Ajouter", icon: Plus }, { id: "theme", label: "Thème", icon: Palette }].map((t) => ({ id: `tab:${t.id}`, group: "Panneaux", label: `Afficher ${t.label}`, icon: t.icon, run: () => setLeftTab(t.id) })),
       ...site.pages.map((p) => ({ id: `page:${p.id}`, group: "Pages", label: `Aller à ${p.name[locale] ?? p.path}`, icon: FileText, keywords: p.path, run: () => { setPageId(p.id); select(null); setFrameReady(false); } })),
+      { id: "newpage", group: "Pages", label: "Nouvelle page…", icon: Plus, run: () => setLeftTab("pages") },
       ...[...BLOCKS, ...componentPresets(site)].map((b) => ({ id: `add:${b.id}`, group: "Ajouter un bloc", label: b.label, icon: b.icon, keywords: b.description, run: () => addBlock(b) })),
     ];
     if (selected && index.get(selected)?.parent) {
@@ -297,19 +332,9 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
 
       <Panel side="left">
         <Tabs tabs={[{ id: "pages", label: "Pages", icon: FileText }, { id: "layers", label: "Calques", icon: Layers }, { id: "add", label: "Ajouter", icon: Plus }, { id: "theme", label: "Thème", icon: Palette }]} value={leftTab} onChange={setLeftTab} className="px-1 shrink-0" />
-        <div className="flex-1 overflow-auto py-1" onDragOver={(e) => { if (dragId.current) e.preventDefault(); }} onDrop={(e) => { e.preventDefault(); setDrop(null); }}>
+        <div className="flex-1 overflow-auto py-1" onDragOver={(e) => { if (dragId.current || dragBlock.current) e.preventDefault(); }} onDrop={(e) => { e.preventDefault(); setDrop(null); }}>
           {leftTab === "pages" ? (
-            <ul>
-              {site.pages.map((p) => (
-                <li key={p.id}>
-                  <button type="button" onClick={() => { setPageId(p.id); select(null); setFrameReady(false); setLeftTab("layers"); }} className={`w-full flex items-center gap-2 h-[28px] px-3 text-sm text-left ${p.id === pageId ? "bg-accent-soft text-ink" : "text-ink hover:bg-hover"}`}>
-                    <FileText size={13} className={p.id === pageId ? "text-accent" : "text-muted"} aria-hidden />
-                    <span className="truncate">{p.name[locale]}</span>
-                    <span className="ml-auto font-mono text-2xs text-dim truncate max-w-[45%]">{p.kind === "template" ? "modèle" : p.path}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+            <PagesPanel site={site} pageId={pageId} commit={doc.commit} onOpen={(id) => { setPageId(id); select(null); setFrameReady(false); }} />
           ) : leftTab === "layers" ? (
             <div role="tree" onDragEnd={() => { dragId.current = null; setDrop(null); }}>
               <Layer
@@ -318,13 +343,13 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
                 editing={editing} onEditStart={setEditing} onRename={rename}
                 drop={drop}
                 onDragStart={(id) => { dragId.current = id; select(id); }}
-                onDragOver={(id, position) => { if (dragId.current && dragId.current !== id) setDrop((d) => (d?.id === id && d.position === position ? d : { id, position })); }}
-                onDragEnd={() => { dragId.current = null; setDrop(null); }}
-                onDropOn={(id, position) => { if (dragId.current) moveNode(dragId.current, id, position); }}
+                onDragOver={(id, position) => { if ((dragId.current && dragId.current !== id) || dragBlock.current) setDrop((d) => (d?.id === id && d.position === position ? d : { id, position })); }}
+                onDragEnd={() => { dragId.current = null; dragBlock.current = null; setDrop(null); }}
+                onDropOn={(id, position) => { if (dragId.current) moveNode(dragId.current, id, position); else if (dragBlock.current) dropBlock(dragBlock.current, id, position); }}
               />
             </div>
           ) : leftTab === "add" ? (
-            <AddPanel site={site} target={insertTarget} onAdd={addBlock} />
+            <AddPanel site={site} target={insertTarget} onAdd={addBlock} onDragBlock={(id) => { dragBlock.current = id; if (!id) setDrop(null); }} />
           ) : (
             <ThemePanel site={site} commit={doc.commit} />
           )}
@@ -350,7 +375,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
 
       <Panel side="right">
         {selectedLoc ? (
-          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} site={site} loc={selectedLoc} activeBp={activeBp} mode={mode} onGoToBreakpoint={goToBreakpoint} onPreviewState={setPreviewState} commit={doc.commit} onDeleted={() => select(selectedLoc.parent?.id ?? null)} /></div>
+          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} site={site} loc={selectedLoc} activeBp={activeBp} mode={mode} onGoToBreakpoint={goToBreakpoint} onPreviewState={setPreviewState} onEditInPreview={() => post({ type: "atelier:edit-text", id: selectedLoc.node.id })} commit={doc.commit} onDeleted={() => select(selectedLoc.parent?.id ?? null)} /></div>
         ) : (
           <div className="p-3 flex flex-col gap-2">
             <PanelHeading className="px-0">Sélection</PanelHeading>

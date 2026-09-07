@@ -47,7 +47,7 @@ export function EffectsPanel({ style }: { site: Site; style: StyleApi }) {
   const setTr = (patch: Partial<typeof tr>) => { const n = { ...tr, ...patch }; s.set("transition", `${n.prop} ${n.ms}ms ${n.easing}`, false); };
 
   return (
-    <Section title="Effets" defaultOpen={false}>
+    <Section title="Effets" defaultOpen={false} hint="Transformations (rotation, échelle, décalage), transitions, filtres et curseur.">
       {tf.raw ? (
         row("transform", "Transform.", <TextInput mono className="flex-1" value={str(s.value("transform")) ?? ""} onValueChange={(v) => s.set("transform", v || undefined)} />)
       ) : (

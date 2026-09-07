@@ -25,10 +25,11 @@ export function TypographyPanel({ site, style, mode }: { site: Site; style: Styl
   if (familyValue && !families.some((f) => f.value === familyValue)) families.unshift({ value: familyValue, label: familyValue });
 
   return (
-    <Section title="Typographie" defaultOpen={false}>
+    <Section title="Typographie" defaultOpen={false} hint="Police, taille et alignement du texte de cet élément et de tout ce qu'il contient.">
       {row("fontFamily", "Police", <Select className="flex-1" value={familyValue} placeholder="Héritée" options={families} onValueChange={(v) => { const m = v.match(/^\{(.+)\}$/); s.set("fontFamily", !v ? undefined : m ? { token: m[1]! } : v, false); }} />)}
       <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
-        {row("fontSize", "Taille", <UnitInput className="flex-1" site={site} tokenGroup="fontSize" value={s.value("fontSize")} onChange={(v) => s.set("fontSize", v)} placeholder="16" />)}
+        {(() => { const prop = "fontSize"; return <PropRow key={prop} label="Taille" source={s.source(prop)} sourceTitle={s.title(prop)} onReset={() => s.reset(prop)} onScrub={s.scrub(prop)}><UnitInput className="flex-1" site={site} tokenGroup="fontSize" value={s.value(prop)} onChange={(v) => s.set(prop, v)} placeholder="16" /></PropRow>; })()}
+        {false && row("fontSize", "Taille", <UnitInput className="flex-1" site={site} tokenGroup="fontSize" value={s.value("fontSize")} onChange={(v) => s.set("fontSize", v)} placeholder="16" />)}
         {row("lineHeight", "Interligne", <UnitInput className="flex-1" site={site} tokenGroup="lineHeight" defaultUnit="" keywords={["normal"]} value={s.value("lineHeight")} onChange={(v) => s.set("lineHeight", v)} placeholder="1.5" />)}
         {row("fontWeight", "Graisse", <Select className="flex-1" value={str(s.value("fontWeight")) ?? ""} placeholder="Héritée" options={WEIGHTS} onValueChange={(v) => s.set("fontWeight", v || undefined, false)} />)}
         {row("letterSpacing", "Espacement", <UnitInput className="flex-1" site={site} defaultUnit="em" keywords={["normal"]} value={s.value("letterSpacing")} onChange={(v) => s.set("letterSpacing", v)} placeholder="0" />)}

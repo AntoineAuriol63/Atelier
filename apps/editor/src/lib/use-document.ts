@@ -64,6 +64,7 @@ export function useDocument(initialSite: Site, initialVersion: number) {
 
   function apply(next: Doc, applied: Op) {
     docRef.current = next;
+    if (process.env.NODE_ENV !== "production") (globalThis as unknown as { __atelierDoc?: Doc }).__atelierDoc = next;
     setDoc(next);
     pending.current.push(applied);
     setStatus("saving");

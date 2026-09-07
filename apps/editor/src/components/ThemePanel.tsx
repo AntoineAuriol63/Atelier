@@ -38,9 +38,9 @@ function TokenList({ site, group, commit }: { site: Site; group: keyof Theme["to
               })}
             </div>
           ) : (
-            <TextInput mono value={typeof v === "string" ? v : Object.values(v)[0] ?? ""} onValueChange={(t) => set(n, t, `Jeton ${n}`)} />
+            <TextInput mono value={typeof v === "string" ? v : Object.values(v)[0] ?? ""} onValueChange={(t) => set(n, t, `Valeur ${n}`)} />
           )}
-          <IconButton size="sm" label={`Supprimer le jeton ${n}`} icon={Trash2} tone="danger" onClick={() => { if (window.confirm(`Supprimer le jeton ${group}.${n} ? Les éléments qui l'utilisent perdront cette valeur.`)) set(n, undefined, `Supprimer ${n}`, false); }} />
+          <IconButton size="sm" label={`Supprimer ${n}`} icon={Trash2} tone="danger" onClick={() => { if (window.confirm(`Supprimer la valeur ${group}.${n} ? Les éléments qui l'utilisent perdront cette valeur.`)) set(n, undefined, `Supprimer ${n}`, false); }} />
         </div>
       ))}
       {adding ? (
@@ -71,6 +71,7 @@ export function ThemePanel({ site, commit }: { site: Site; commit: Commit }) {
   return (
     <div className="pb-6">
       <PanelHeading>Thème du site</PanelHeading>
+      <p className="px-3 pb-2 text-xs text-dim leading-snug">Les valeurs du thème (couleurs, polices, espacements…) se réutilisent dans tout le site : un élément qui s&apos;y réfère suit chaque changement fait ici. Dans un champ, le losange ◇ permet d&apos;en choisir une.</p>
       <Section title="Couleurs" defaultOpen>
         <div className="grid grid-cols-[64px_1fr_24px] gap-1 text-2xs text-dim uppercase tracking-wider"><span /><div className="flex gap-1">{site.theme.modes.map((m) => <span key={m.id} className="flex-1">{m.name}</span>)}</div><span /></div>
         <TokenList site={site} group="color" commit={commit} />

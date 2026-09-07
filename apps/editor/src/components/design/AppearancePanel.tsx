@@ -68,7 +68,7 @@ export function AppearancePanel({ site, style, mode }: { site: Site; style: Styl
   const opacity = (() => { const v = str(s.value("opacity")); if (!v) return ""; const n = Number(v); return Number.isFinite(n) ? Math.round(n * 100) : ""; })();
 
   return (
-    <Section title="Apparence" defaultOpen={false}>
+    <Section title="Apparence" defaultOpen={false} hint="Fond, bordure, arrondi, ombre et opacité de l'élément.">
       {row("background", "Fond", (
         <Segmented className="flex-1" value={kind === "none" ? undefined : kind} options={[{ value: "color", label: "Couleur" }, { value: "gradient", label: "Dégradé" }, { value: "image", label: "Image" }]} onChange={(k) => {
           if (!k) s.set("background", undefined, false);

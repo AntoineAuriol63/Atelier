@@ -63,3 +63,17 @@ export function planInsert(index: Map<Id, NodeLocation>, root: Node, selectedId:
   if (!sel.parent || sel.parent.type === "collection") return { parent: sel.node.id, index: (sel.node.children ?? []).length };
   return { parent: sel.parent.id, index: mode === "before" ? sel.index : sel.index + 1 };
 }
+
+/** Où insérer un NOUVEAU nœud déposé sur `targetId` (glisser depuis la palette). */
+export function planDrop(index: Map<Id, NodeLocation>, targetId: Id, position: DropPosition): { ok: true; to: Placement } | { ok: false; reason: string } {
+  const target = index.get(targetId);
+  if (!target) return { ok: false, reason: "Cible introuvable" };
+  if (position === "inside") {
+    if (!CONTAINER_TYPES.has(target.node.type)) return { ok: false, reason: `Un ${target.node.type} n'accepte pas d'enfants` };
+    if (target.node.type === "collection") return { ok: false, reason: "Une collection ne contient que son élément répété" };
+    return { ok: true, to: { parent: targetId, index: (target.node.children ?? []).length } };
+  }
+  if (!target.parent) return { ok: true, to: { parent: targetId, index: position === "before" ? 0 : (target.node.children ?? []).length } };
+  if (target.parent.type === "collection") return { ok: false, reason: "Une collection ne contient que son élément répété" };
+  return { ok: true, to: { parent: target.parent.id, index: position === "before" ? target.index : target.index + 1 } };
+}

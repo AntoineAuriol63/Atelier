@@ -55,8 +55,8 @@ export function ColorInput({ value, onChange, site, className, placeholder = "au
         {token ? (
           <>
             <Diamond size={11} className="text-accent shrink-0" aria-hidden />
-            <span className="flex-1 min-w-0 truncate text-xs font-mono" title={`Jeton ${token} = ${resolved}`}>{token.split(".").slice(1).join(".")}</span>
-            <button type="button" aria-label="Remplacer le jeton par une valeur" onClick={() => { onChange(resolved || undefined); }} className="w-5 h-5 inline-flex items-center justify-center rounded-xs text-dim hover:text-ink hover:bg-hover"><X size={11} /></button>
+            <span className="flex-1 min-w-0 truncate text-xs font-mono" title={`Valeur du thème ${token} = ${resolved}`}>{token.split(".").slice(1).join(".")}</span>
+            <button type="button" aria-label="Remplacer par une valeur libre" onClick={() => { onChange(resolved || undefined); }} className="w-5 h-5 inline-flex items-center justify-center rounded-xs text-dim hover:text-ink hover:bg-hover"><X size={11} /></button>
           </>
         ) : (
           <input
@@ -71,7 +71,7 @@ export function ColorInput({ value, onChange, site, className, placeholder = "au
             className="min-w-0 flex-1 h-full bg-transparent px-1 text-xs font-mono placeholder:text-dim focus:outline-none"
           />
         )}
-        <button type="button" onClick={() => setOpen((o) => !o)} title="Jetons de couleur du thème" aria-label="Jetons de couleur du thème" aria-expanded={open} className={cx("w-5 h-5 inline-flex items-center justify-center rounded-xs hover:bg-hover", open ? "text-accent" : "text-dim hover:text-accent")}>
+        <button type="button" onClick={() => setOpen((o) => !o)} title="Couleurs du thème" aria-label="Couleurs du thème" aria-expanded={open} className={cx("w-5 h-5 inline-flex items-center justify-center rounded-xs hover:bg-hover", open ? "text-accent" : "text-dim hover:text-accent")}>
           <Diamond size={11} />
         </button>
       </div>

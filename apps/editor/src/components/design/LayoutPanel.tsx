@@ -46,11 +46,15 @@ export function LayoutPanel({ site, style, parentDisplay }: { site: Site; style:
     <PropRow key={`${prop}:${label}`} label={label} source={s.source(prop)} sourceTitle={s.title(prop)} onReset={() => s.reset(prop)} wide={wide}>{children}</PropRow>
   );
   const seg = (prop: string, label: string, options: typeof DISPLAY, wide = true) => row(prop, label, <Segmented className="flex-1" value={str(s.value(prop))} options={options} onChange={(v) => s.set(prop, v, false)} />, wide);
-  const len = (prop: string, label: string, kw = LENGTH_KW) => row(prop, label, <UnitInput className="flex-1" site={site} tokenGroup="space" keywords={kw} value={s.value(prop)} onChange={(v) => s.set(prop, v)} placeholder="0" />);
+  const len = (prop: string, label: string, kw = LENGTH_KW) => (
+    <PropRow key={`${prop}:${label}`} label={label} source={s.source(prop)} sourceTitle={s.title(prop)} onReset={() => s.reset(prop)} onScrub={s.scrub(prop)}>
+      <UnitInput className="flex-1" site={site} tokenGroup="space" keywords={kw} value={s.value(prop)} onChange={(v) => s.set(prop, v)} placeholder="0" />
+    </PropRow>
+  );
 
   return (
     <>
-      <Section title="Disposition">
+      <Section title="Disposition" hint="Comment les éléments contenus dans celui-ci se rangent : en colonne, en ligne ou en grille, et comment ils s'alignent.">
         {seg("display", "Affichage", DISPLAY)}
         {isFlex ? (
           <>
@@ -82,7 +86,7 @@ export function LayoutPanel({ site, style, parentDisplay }: { site: Site; style:
       </Section>
 
       {parentDisplay === "flex" || parentDisplay === "grid" ? (
-        <Section title="Dans le parent" defaultOpen={false}>
+        <Section title="Dans le parent" defaultOpen={false} hint="Comment cet élément se comporte dans la disposition de son parent : grandir, rétrécir, ordre.">
           {parentDisplay === "flex" ? (
             <>
               {row("flexGrow", "Grandir", <NumberInput className="w-20" min={0} value={typeof s.value("flexGrow") === "string" ? Number(s.value("flexGrow")) : ""} onValueChange={(n) => s.set("flexGrow", n === "" ? undefined : String(n))} />)}
@@ -100,7 +104,7 @@ export function LayoutPanel({ site, style, parentDisplay }: { site: Site; style:
         </Section>
       ) : null}
 
-      <Section title="Position et débordement" defaultOpen={false}>
+      <Section title="Position et débordement" defaultOpen={false} hint="Position dans le flux : normal, ou décalé, fixé à l'écran, collant au défilement. Débordement : ce qui dépasse est visible, coupé ou défilable.">
         {seg("position", "Position", POSITION)}
         {position !== "static" ? (
           <div className="grid grid-cols-2 gap-1.5">

@@ -29,6 +29,8 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     let hovered: HTMLElement | null = null;
     const selectedEl = () => (selectedId.current ? document.querySelector<HTMLElement>(`[data-node="${selectedId.current}"]`) : null);
     let containers = new Set<string>();
+    let textNodes = new Set<string>();
+    let editing: HTMLElement | null = null;
     // Glisser depuis le canvas
     let press: { x: number; y: number; el: HTMLElement } | null = null;
     let dragging = false;
@@ -59,8 +61,73 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     };
     const hideIndicator = () => { indicator.style.display = "none"; };
 
+    // --- édition du texte en place (double-clic sur un texte simple)
+    const endEdit = (commit: boolean) => {
+      if (!editing) return;
+      const el = editing; editing = null;
+      el.contentEditable = "false";
+      el.style.outline = "";
+      if (commit) parent.postMessage({ type: "atelier:text", id: el.getAttribute("data-node"), text: el.innerText }, "*");
+      else el.innerText = el.getAttribute("data-original-text") ?? el.innerText;
+      el.removeAttribute("data-original-text");
+    };
+    const onDblClick = (e: MouseEvent) => {
+      const el = nodeOf(e.target);
+      if (!el) return;
+      const id = el.getAttribute("data-node")!;
+      if (!textNodes.has(id)) return;
+      e.preventDefault();
+      endEdit(true);
+      editing = el;
+      el.setAttribute("data-original-text", el.innerText);
+      el.contentEditable = "plaintext-only";
+      el.style.outline = "2px solid #e7b458";
+      el.focus();
+      const range = document.createRange(); range.selectNodeContents(el);
+      const sel = window.getSelection(); sel?.removeAllRanges(); sel?.addRange(range);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!editing) return;
+      if (e.key === "Escape") { e.preventDefault(); endEdit(false); }
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); endEdit(true); }
+    };
+    const onFocusOut = (e: FocusEvent) => { if (editing && e.target === editing) endEdit(true); };
+
+    // --- dépôt d'un bloc glissé depuis la palette
+    const targetAt = (x: number, y: number, exclude?: HTMLElement | null) => {
+      const under = document.elementFromPoint(x, y);
+      let el = nodeOf(under);
+      while (el && exclude && (el === exclude || exclude.contains(el))) el = nodeOf(el.parentElement);
+      if (!el) return null;
+      const id = el.getAttribute("data-node")!;
+      const r = el.getBoundingClientRect();
+      const ry = (y - r.top) / r.height;
+      const canInside = containers.has(id);
+      const position: "before" | "after" | "inside" = canInside ? (ry < 0.25 ? "before" : ry > 0.75 ? "after" : "inside") : (ry < 0.5 ? "before" : "after");
+      return { el, id, position };
+    };
+    const isBlockDrag = (e: DragEvent) => !!e.dataTransfer && Array.from(e.dataTransfer.types).includes("text/atelier-block");
+    const onDragOver = (e: DragEvent) => {
+      if (!isBlockDrag(e)) return;
+      e.preventDefault();
+      e.dataTransfer!.dropEffect = "copy";
+      const t = targetAt(e.clientX, e.clientY);
+      if (!t) { hideIndicator(); return; }
+      showIndicator(t.el, t.position);
+    };
+    const onDragLeave = (e: DragEvent) => { if (!e.relatedTarget) hideIndicator(); };
+    const onDrop = (e: DragEvent) => {
+      if (!isBlockDrag(e)) return;
+      e.preventDefault();
+      hideIndicator();
+      const preset = e.dataTransfer!.getData("text/atelier-block");
+      const t = targetAt(e.clientX, e.clientY);
+      if (preset && t) parent.postMessage({ type: "atelier:drop-block", preset, target: t.id, position: t.position }, "*");
+    };
+
     const onMouseDown = (e: MouseEvent) => {
       const el = nodeOf(e.target);
+      if (editing) { if (el !== editing) endEdit(true); return; }
       if (!el || e.button !== 0) return;
       // On ne glisse que l'élément déjà sélectionné, jamais la racine.
       const isRoot = el.getAttribute("data-node") === document.querySelector(".at-page > [data-node]")?.getAttribute("data-node");
@@ -107,7 +174,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     };
     const onClick = (e: MouseEvent) => {
       e.preventDefault();
-      if (dragging) return;
+      if (dragging || editing) return;
       const el = nodeOf(e.target);
       if (!el) return;
       select(el, true);
@@ -115,7 +182,8 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     const onOut = (e: MouseEvent) => { if (!nodeOf(e.relatedTarget)) { clear(hovered); hovered = null; } };
     const onMessage = (e: MessageEvent) => {
       const m = e.data as { type?: string; id?: string | null; mode?: string; site?: Site; containers?: string[] };
-      if (m?.type === "atelier:site" && m.site) { setSite(m.site); if (m.containers) containers = new Set(m.containers); }
+      if (m?.type === "atelier:site" && m.site) { setSite(m.site); if (m.containers) containers = new Set(m.containers); const tn = (m as { textNodes?: string[] }).textNodes; if (tn) textNodes = new Set(tn); }
+      if (m?.type === "atelier:edit-text" && m.id) { const el = document.querySelector<HTMLElement>(`[data-node="${m.id}"]`); if (el) onDblClick({ target: el, preventDefault() {} } as unknown as MouseEvent); }
       if (m?.type === "atelier:mode" && m.mode) setModeState(m.mode);
       if (m?.type === "atelier:state") {
         document.querySelectorAll<HTMLElement>("[data-force-state]").forEach((el) => el.removeAttribute("data-force-state"));
@@ -129,6 +197,12 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
         el?.scrollIntoView({ block: "nearest" });
       }
     };
+    document.addEventListener("dblclick", onDblClick, true);
+    document.addEventListener("keydown", onKeyDown, true);
+    document.addEventListener("focusout", onFocusOut, true);
+    document.addEventListener("dragover", onDragOver);
+    document.addEventListener("dragleave", onDragLeave);
+    document.addEventListener("drop", onDrop);
     document.addEventListener("mousedown", onMouseDown, true);
     document.addEventListener("mousemove", onMouseMove);
     document.addEventListener("mouseup", onMouseUp, true);
@@ -137,6 +211,12 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     window.addEventListener("message", onMessage);
     parent.postMessage({ type: "atelier:ready" }, "*");
     return () => {
+      document.removeEventListener("dblclick", onDblClick, true);
+      document.removeEventListener("keydown", onKeyDown, true);
+      document.removeEventListener("focusout", onFocusOut, true);
+      document.removeEventListener("dragover", onDragOver);
+      document.removeEventListener("dragleave", onDragLeave);
+      document.removeEventListener("drop", onDrop);
       document.removeEventListener("mousedown", onMouseDown, true);
       document.removeEventListener("mousemove", onMouseMove);
       document.removeEventListener("mouseup", onMouseUp, true);
@@ -148,7 +228,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
   }, [editor]);
 
   const match = matchPath(site, data, path);
-  if (!match) return <p style={{ padding: 24, fontFamily: "system-ui" }}>Page introuvable : {path}</p>;
+  if (!match) return <p style={{ padding: 24, fontFamily: "system-ui", color: "#777" }}>{editor ? "Chargement de la page…" : `Page introuvable : ${path}`}</p>;
   const ctx: RenderContext = { site, page: match.page, entry: match.entry, params: match.params, locale: site.settings.defaultLocale, data, assets: assetMap(site), basePath: "/preview", editor };
   return (
     <>

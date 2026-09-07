@@ -65,10 +65,11 @@ export function themeCss(theme: Theme): string {
     if (mode === theme.defaultMode || decls.length === 0) continue;
     out.push(`[data-mode="${mode}"]{${decls.join(";")}}`);
   }
+  // Les défauts du thème sont enveloppés dans :where() : spécificité nulle, un réglage d'élément ou de style partagé gagne toujours.
   const selectorFor: Record<string, string> = { body: ".at-page", image: ".at-page img", a: ".at-page a" };
   for (const [key, props] of Object.entries(theme.typeDefaults)) {
     const sel = selectorFor[key] ?? `.at-page ${key}`;
-    out.push(`${sel}{${declarations(props)}}`);
+    out.push(key === "body" ? `${sel}{${declarations(props)}}` : `:where(${sel}){${declarations(props)}}`);
   }
   // Base minimale, indépendante de tout reset externe.
   out.push(`.at-page{margin:0;min-height:100%}.at-page *,.at-page *::before,.at-page *::after{box-sizing:border-box}.at-page h1,.at-page h2,.at-page h3,.at-page h4,.at-page p,.at-page ul,.at-page ol{margin:0}.at-page ul,.at-page ol{padding-left:1.25em}.at-page img,.at-page video{max-width:100%}.at-page button{font:inherit;cursor:pointer;border:0;background:none}.at-page input,.at-page textarea,.at-page select{font:inherit}`);

@@ -22,6 +22,11 @@ Créateur de sites web designer-first, code-natif, sans verrou. Voir `docs/decis
 - Interface en français. Les identifiants de code en anglais.
 - Next.js : cette version a des changements de rupture. Lire `node_modules/next/dist/docs/` avant d'écrire du code Next (params et searchParams sont des promesses ; plusieurs root layouts via groupes de routes).
 
+## Débogage
+
+- En développement, `window.__atelierDoc` expose le document courant de l'éditeur (site + historique) après chaque opération.
+- Le panneau du navigateur intégré, quand il est masqué, ralentit les minuteries et fige les transitions CSS : ne pas en déduire des bugs de regroupement ou d'état.
+
 ## Commandes
 
 ```bash

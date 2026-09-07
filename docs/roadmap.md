@@ -44,6 +44,7 @@ Ce qui empêche aujourd'hui de construire une page : on ne peut ni ajouter ni d�
 - [x] Sélection au clavier : flèches pour parent/enfant/frères, Suppr, ⌘D dupliquer, Échap
 - [x] Renommer un calque en double-cliquant (ou Entrée)
 - [x] Arbre : replier/déplier mémorisé, ancêtres ouverts et défilement à la sélection
+- [x] Pages : créer (en-tête et pied de page du site ajoutés, adresse déduite du nom), dupliquer, réglages (nom, adresse, titre et description SEO), supprimer (sauf la dernière et les modèles de base) — ajouté le 7 sept. au premier retour de l'audit
 
 ### M3 · Panneaux Design (D19) — fait le 7 septembre 2026 (reste l'audit d'usage)
 
@@ -63,8 +64,19 @@ Le panneau de droite actuel est un échafaudage. Il est remplacé, pas amélior�
 - [x] **Thème** : onglet Thème avec les jetons par groupe (couleurs par mode, polices, tailles, interlignes, espacements, arrondis, ombres, largeurs), ajout et suppression
 - [x] Propriétés par type : image (ressource du site ou ajout par adresse, alt, ajustement, ratio, priorité), lien ou bouton (page, adresse, email, téléphone, ancre, nouvel onglet), texte et boîte (balise sémantique, D38), collection (base, tri, limite)
 - [x] Palette de commandes ⌘K : annuler, rétablir, modes, largeurs, panneaux, pages, ajout de blocs, sélection d'un calque par son nom ; raccourcis affichés dans la palette
-- [ ] Erreurs d'affichage : relever et corriger (à auditer avec l'éditeur ouvert)
-- [ ] **Audit d'usage n°1** : Antoine construit une page complète et note tout ce qui bloque ; l'audit alimente les finitions de M3
+- [x] **Audit d'usage n°1** (7 sept. 2026) — retours d'Antoine et suites :
+  - [x] Modifier le texte directement dans le canvas → double-clic sur un texte, Entrée valide, Échap annule (texte simple ; le texte riche viendra avec M4)
+  - [x] Glisser un bloc depuis Ajouter vers le canvas ou les calques
+  - [x] Dimensions incompréhensible et qui déborde → panneau sur une colonne, explication, libellés clairs
+  - [x] ⌘C, ⌘X, ⌘V sur les calques
+  - [ ] Sélection multiple (Maj / Alt) → M4, chantier à part : sélection, déplacement et style groupés
+  - [x] Changer la police ou l'alignement ne faisait rien → bug de priorité CSS des défauts du thème (corrigé avec `:where()`, et ça explique aussi le titre qui ne se centrait pas)
+  - [x] Faire varier un nombre en glissant → glisser sur le libellé de la propriété (Maj ×10)
+  - [x] « Bureau » restait à la largeur du panneau (868 px = Tablette) → force 1280 px, réduit à l'échelle si besoin
+  - [x] Panneau de droite peu clair → explication sous chaque section, sections renommées et réordonnées (Élément, Texte/Image/Lien, Disposition, Espacement, Dimensions, Typographie, Apparence, Effets, Styles partagés, Responsive, Avancé)
+  - [x] « Jeton » incompréhensible → « valeur du thème » partout, explication en tête de l'onglet Thème
+  - [x] États : savoir qui a un survol et sur quoi → badge avec le nombre de réglages par état, liste des propriétés modifiées par l'état actif, « Tout retirer »
+  - [ ] Audit n°2 à faire après M4 (Écriture) sur une page complète, avec un deuxième site de nature différente (D10)
 
 ### M4 · Mode Écriture (D18)
 
