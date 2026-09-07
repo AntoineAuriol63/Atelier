@@ -199,7 +199,11 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
       {!sharedDef && node.type === "link" ? <LinkPanel site={site} node={node} commit={commit} /> : null}
       {!sharedDef && node.type === "collection" ? <CollectionPanel site={site} node={node} commit={commit} editMode={editMode} /> : null}
 
-      {dataSource && !sharedDef && (node.type === "text" || node.type === "image" || node.type === "link") ? <BindingPanel site={site} node={node} source={dataSource} commit={commit} /> : null}
+      {!sharedDef && (node.type === "text" || node.type === "image" || node.type === "link") ? (dataSource ? <BindingPanel site={site} node={node} source={dataSource} commit={commit} /> : (
+        <Section title="Données" defaultOpen={false} hint="Afficher ici un champ d'une base de données.">
+          <Hint>Cet élément n&apos;a pas de données à portée : il n&apos;est ni dans une vue de base de données, ni dans un modèle de page. Pour lier son contenu à un champ (le titre d&apos;un projet, par exemple), placez-le dans la carte d&apos;une vue, ou faites de cette page un modèle : Pages → réglages de la page → Rôle.</Hint>
+        </Section>
+      )) : null}
       {editMode === "write" ? (
         <Section title="Mise en forme rapide" hint="L'essentiel pour écrire. Pour tout le reste, passez en mode Design sur cet élément.">
           {node.type === "text" ? (

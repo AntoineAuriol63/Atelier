@@ -159,7 +159,7 @@ function FieldEditor({ site, db, field, onChange, onMove, onRemove, onClose, isN
 }
 
 // ---------------------------------------------------------------- la vue tableur
-export function DatabaseTable({ site, db, entries, save, remove, commit, onClose, saving }: { site: Site; db: Database; entries: Entry[]; save: (e: Entry) => void; remove: (id: string) => void; commit: Commit; onClose: () => void; saving?: boolean }) {
+export function DatabaseTable({ site, db, entries, save, remove, commit, onClose, saving, onDeleteDatabase }: { site: Site; db: Database; entries: Entry[]; save: (e: Entry) => void; remove: (id: string) => void; commit: Commit; onClose: () => void; saving?: boolean; onDeleteDatabase?: () => void }) {
   const locale = site.settings.defaultLocale;
   const dbIndex = site.databases.findIndex((d) => d.id === db.id);
   const [fieldEdit, setFieldEdit] = useState<string | null>(null);
@@ -260,7 +260,10 @@ export function DatabaseTable({ site, db, entries, save, remove, commit, onClose
           </tbody>
         </table>
       </div>
-      <div className="px-3 py-2 border-t border-line"><Hint>Une entrée en brouillon reste invisible sur le site. Cliquez un en-tête pour régler le champ. Les images se choisissent dans la bibliothèque du site ; dans une galerie, cliquer une vignette la retire.</Hint></div>
+      <div className="px-3 py-2 border-t border-line flex items-center gap-3">
+        <Hint>Une entrée en brouillon reste invisible sur le site. Cliquez un en-tête pour régler le champ. Les images se choisissent dans la bibliothèque du site ; dans une galerie, cliquer une vignette la retire.</Hint>
+        {onDeleteDatabase ? <Button size="sm" variant="danger" icon={Trash2} className="shrink-0" onClick={onDeleteDatabase}>Supprimer la base…</Button> : null}
+      </div>
       {media ? <MediaLibrary site={site} open onClose={() => setMedia(null)} value={media.mode === "image" ? (entries.find((x) => x.id === media.entryId)?.values[media.field] as string | null) ?? null : null} onPick={pickMedia} commit={commit} /> : null}
     </Dialog>
   );

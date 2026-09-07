@@ -31,5 +31,10 @@ export function useEntries(siteId: string, initial: Entry[], onError?: (message:
     setEntries((list) => list.filter((x) => x.id !== id));
     run(() => call("DELETE", { ids: [id] }));
   }, [run, call]);
-  return { entries, save, remove, saving: pending > 0 };
+  const removeMany = useCallback((ids: string[]) => {
+    if (!ids.length) return;
+    setEntries((list) => list.filter((x) => !ids.includes(x.id)));
+    run(() => call("DELETE", { ids }));
+  }, [run, call]);
+  return { entries, save, remove, removeMany, saving: pending > 0 };
 }

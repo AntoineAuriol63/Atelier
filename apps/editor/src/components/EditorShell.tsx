@@ -14,7 +14,7 @@ import { Badge, Button, Hint, IconButton, NumberInput, Panel, PanelHeading, Sepa
 import { NodeInspector } from "./NodeInspector";
 import { AddPanel } from "./AddPanel";
 import { ThemePanel } from "./ThemePanel";
-import { PagesPanel } from "./PagesPanel";
+import { PagesPanel, slugify } from "./PagesPanel";
 import { CommandPalette, type Command } from "./CommandPalette";
 import { allPresets } from "@/lib/blocks";
 import { MediaLibrary } from "@/components/MediaLibrary";
@@ -160,6 +160,29 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
   const previewEntry = templateEntries.find((e) => e.id === previewEntryByPage[page.id]) ?? templateEntries[0];
   const previewPath = template ? `/preview${previewEntry ? entryPath(template.database, previewEntry) ?? "" : "/__modele-sans-entree"}` : page.kind === "template" ? "/preview/__modele-sans-base" : `/preview${page.path === "/" ? "" : page.path}`;
   const dataSource = useMemo(() => (selected ? dataSourceFor(site, index, page, selected) : undefined), [site, index, page, selected]);
+
+  /** Supprimer une base : ses entrées partent (sans retour), ses pages modèles redeviennent fixes, ses vues restent à reconfigurer. */
+  const deleteDatabase = useCallback((dbId: string) => {
+    const db = site.databases.find((d) => d.id === dbId);
+    if (!db) return;
+    const name = db.name[locale] ?? db.slug;
+    const entryIds = ents.entries.filter((e) => e.database === dbId).map((e) => e.id);
+    const views: string[] = [];
+    const visit = (n: Node) => { if (n.type === "collection" && n.props.database === dbId) views.push(n.id); n.children?.forEach(visit); };
+    site.pages.forEach((p) => visit(p.root)); site.components.forEach((c) => visit(c.root));
+    const templates = (db.pageTemplates ?? []).map((t) => t.page);
+    const lines = [`Supprimer la base « ${name} » ?`, ""];
+    if (entryIds.length) lines.push(`• ${entryIds.length} entrée${entryIds.length > 1 ? "s" : ""} supprimée${entryIds.length > 1 ? "s" : ""}, sans retour possible.`);
+    if (views.length) lines.push(`• ${views.length} vue${views.length > 1 ? "s" : ""} de base de données à reconfigurer.`);
+    if (templates.length) lines.push(`• ${templates.length} page${templates.length > 1 ? "s" : ""} modèle${templates.length > 1 ? "s" : ""} redevien${templates.length > 1 ? "nent" : "t"} fixe${templates.length > 1 ? "s" : ""}.`);
+    if (!window.confirm(lines.join("\n"))) return;
+    const ops: Op[] = [{ op: "site.set", path: "databases", value: site.databases.filter((d) => d.id !== dbId) }];
+    if (templates.length) ops.push({ op: "site.set", path: "pages", value: site.pages.map((p) => (templates.includes(p.id) ? { ...p, kind: "static" as const, path: p.path === "/" || site.pages.some((x) => x.id !== p.id && x.path === p.path) ? `/${slugify(p.name[locale] ?? "page")}` : p.path } : p)) });
+    doc.commit(ops.length === 1 ? ops[0]! : { op: "batch", ops, label: `Supprimer la base ${name}` }, { label: `Supprimer la base ${name}` });
+    ents.removeMany(entryIds);
+    setDbOpen(null);
+    notify(`Base « ${name} » supprimée${entryIds.length ? ` avec ${entryIds.length} entrée${entryIds.length > 1 ? "s" : ""}` : ""}.`, "info");
+  }, [site, locale, ents, doc, notify]);
 
   // --- déplacement (calques et canvas) et insertion
   const moveNode = useCallback((id: string, targetId: string, position: DropPosition) => {
@@ -578,7 +601,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
         )}
       </Panel>
       {paletteOpen ? <CommandPalette open onClose={() => setPaletteOpen(false)} commands={commands} /> : null}
-      {dbOpen && site.databases.some((d) => d.id === dbOpen) ? <DatabaseTable site={site} db={site.databases.find((d) => d.id === dbOpen)!} entries={ents.entries} save={ents.save} remove={ents.remove} commit={doc.commit} onClose={() => setDbOpen(null)} saving={ents.saving} /> : null}
+      {dbOpen && site.databases.some((d) => d.id === dbOpen) ? <DatabaseTable site={site} db={site.databases.find((d) => d.id === dbOpen)!} entries={ents.entries} save={ents.save} remove={ents.remove} commit={doc.commit} onClose={() => setDbOpen(null)} saving={ents.saving} onDeleteDatabase={() => deleteDatabase(dbOpen)} /> : null}
       {mediaFor ? <MediaLibrary site={site} open onClose={() => setMediaFor(null)} value={(index.get(mediaFor)?.node.props.asset as string | null) ?? null} onPick={(id) => doc.commit({ op: "node.set", id: mediaFor, path: "props.asset", value: id }, { label: "Changer l'image" })} commit={doc.commit} /> : null}
     </div>
   );
