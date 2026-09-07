@@ -306,16 +306,57 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     const caretAtStart = (el: HTMLElement) => { const sel = window.getSelection(); if (!sel || sel.rangeCount === 0 || !sel.isCollapsed) return false; const r = document.createRange(); r.selectNodeContents(el); r.setEnd(sel.getRangeAt(0).startContainer, sel.getRangeAt(0).startOffset); return r.toString().length === 0; };
 
     // ---------------------------------------------------------------- dépôt d'un bloc depuis la palette
-    const targetAt = (x: number, y: number, exclude?: HTMLElement | null) => {
+    /**
+     * Cible d'un dépôt à la position (x, y). Sur un enfant : avant ou après lui. Sur l'espace vide d'un conteneur :
+     * la place la plus proche parmi ses enfants (ou dedans s'il est vide) ; ses bords, sur 8 px, visent avant ou après
+     * le conteneur lui-même. La place actuelle de l'élément déplacé ne compte pas comme cible.
+     */
+    const targetAt = (x: number, y: number, exclude?: HTMLElement | null): { el: HTMLElement; id: string; position: "before" | "after" | "inside" } | null => {
       const under = document.elementFromPoint(x, y);
       let el = nodeOf(under);
       while (el && exclude && (el === exclude || exclude.contains(el))) el = nodeOf(el.parentElement);
       if (!el) return null;
       const id = idOf(el);
       const r = el.getBoundingClientRect();
+      const kids = [...el.children].filter((c): c is HTMLElement => c instanceof HTMLElement && c.hasAttribute("data-node") && c !== exclude);
+      const isSame = (child: HTMLElement, position: "before" | "after") => {
+        if (!exclude || exclude.parentElement !== el) return false;
+        const sib = [...el.children].filter((c) => c instanceof HTMLElement && c.hasAttribute("data-node")) as HTMLElement[];
+        const i = sib.indexOf(exclude);
+        return (position === "before" && sib[i + 1] === child) || (position === "after" && sib[i - 1] === child);
+      };
+      if (containers.has(id) && !isRoot(el)) {
+        const edge = 8;
+        if (y < r.top + edge) return { el, id, position: "before" };
+        if (y > r.bottom - edge) return { el, id, position: "after" };
+      }
+      if (containers.has(id)) {
+        if (!kids.length) return isRoot(el) ? null : { el, id, position: "inside" };
+        const cs = getComputedStyle(el);
+        const horizontal = (cs.display.includes("flex") && !cs.flexDirection.startsWith("column")) || (cs.display.includes("grid") && cs.gridTemplateColumns.split(" ").length > 1);
+        let best: { child: HTMLElement; position: "before" | "after"; d: number } | null = null;
+        // L'élément déplacé entre dans la comparaison : s'il est le plus proche du curseur, la cible est sa propre place.
+        let dSelf = Infinity;
+        if (exclude && exclude.parentElement === el) {
+          const er = exclude.getBoundingClientRect();
+          const dx = x < er.left ? er.left - x : x > er.right ? x - er.right : 0;
+          const dy = y < er.top ? er.top - y : y > er.bottom ? y - er.bottom : 0;
+          dSelf = Math.hypot(dx, dy);
+        }
+        for (const child of kids) {
+          const cr = child.getBoundingClientRect();
+          const dx = x < cr.left ? cr.left - x : x > cr.right ? x - cr.right : 0;
+          const dy = y < cr.top ? cr.top - y : y > cr.bottom ? y - cr.bottom : 0;
+          const d = Math.hypot(dx, dy);
+          const position: "before" | "after" = horizontal && dy < cr.height ? (x < cr.left + cr.width / 2 ? "before" : "after") : (y < cr.top + cr.height / 2 ? "before" : "after");
+          if (!best || d < best.d) best = { child, position, d };
+        }
+        if (!best || best.d >= dSelf || isSame(best.child, best.position)) return null;
+        return { el: best.child, id: idOf(best.child), position: best.position };
+      }
       const ry = (y - r.top) / r.height;
-      const canInside = containers.has(id);
-      const position: "before" | "after" | "inside" = canInside ? (ry < 0.25 ? "before" : ry > 0.75 ? "after" : "inside") : (ry < 0.5 ? "before" : "after");
+      const position: "before" | "after" = ry < 0.5 ? "before" : "after";
+      if (isSame(el, position)) return null;
       return { el, id, position };
     };
     const isBlockDrag = (e: DragEvent) => !!e.dataTransfer && Array.from(e.dataTransfer.types).includes("text/atelier-block");
