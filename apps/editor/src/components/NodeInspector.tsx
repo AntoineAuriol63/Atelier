@@ -108,7 +108,8 @@ export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onP
   const parentDisplay = parentStyle?.display?.value as string | undefined;
   const parentDirection = (parentStyle?.flexDirection?.value as string | undefined) ?? "row";
   const siblings = loc.parent?.children ?? [];
-  const canText = node.type === "text" && !node.bindings?.content;
+  const boundPath = node.type === "text" ? (node.bindings?.content?.path ?? ((node.props.content as Record<string, Inline[]> | undefined)?.[locale] ?? []).find((seg): seg is Extract<Inline, { t: "bind" }> => seg.t === "bind")?.binding.path) : undefined;
+  const canText = node.type === "text" && !boundPath;
   const { text, rich } = canText ? plainText(node.props.content, locale) : { text: "", rich: false };
   const localProps = activeBp === BASE ? node.style?.base ?? {} : node.style?.breakpoints?.[activeBp] ?? {};
   const [newProp, setNewProp] = useState("");
@@ -176,6 +177,11 @@ export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onP
         </FieldGroup>
       </Section>
 
+      {!sharedDef && boundPath ? (
+        <Section title="Texte" hint="Ce texte est relié à une base de données.">
+          <Hint>Le contenu vient du champ <span className="font-mono">{boundPath}</span> de la base de données. Pour le changer, modifiez l&apos;entrée dans la base (jalon M5 : édition des bases dans l&apos;éditeur).</Hint>
+        </Section>
+      ) : null}
       {canText && !sharedDef ? (
         <Section title="Texte" hint="Double-cliquez le texte dans l'aperçu pour le modifier sur place, ou éditez-le ici. Entrée valide, Échap annule.">
           {rich ? <Hint>Ce texte contient des mises en forme ou des liens. L&apos;édition riche arrive avec le mode Écriture.</Hint> : (

@@ -170,7 +170,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       handle.addEventListener("mousedown", (e) => { e.preventDefault(); e.stopPropagation(); if (editing) endEdit(true); select(el, true); press = { x: e.clientX, y: e.clientY, el }; });
       const r = el.getBoundingClientRect();
       grip.style.display = "flex";
-      grip.style.left = `${Math.max(2, r.left - 26) + window.scrollX}px`;
+      grip.style.left = `${Math.max(2, r.left - 22) + window.scrollX}px`;
       grip.style.top = `${r.top + window.scrollY}px`;
     };
     const hideBlockBar = () => { blockBar.style.display = "none"; grip.style.display = "none"; };
@@ -337,7 +337,8 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       if (el !== hovered) {
         clear(hovered); hovered = el;
         if (el && idOf(el) !== selectedId.current && el !== editing) outline(el, "hover");
-        if (editMode === "write") { if (el && !isRoot(el)) renderBlockBar(el); else if (!el) hideBlockBar(); }
+        // La barre reste tant qu'on ne survole pas un autre bloc : le chemin vers la poignée passe hors du bloc.
+        if (editMode === "write" && el && !isRoot(el)) renderBlockBar(el);
       }
     };
     const onMouseUp = () => {
@@ -385,6 +386,12 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       }
       if (editing) {
         if (e.key === "Escape") { e.preventDefault(); endEdit(false); return; }
+        // Annuler pendant la frappe : d'abord la frappe (navigateur), puis, s'il n'y a plus rien, l'opération précédente d'Atelier.
+        if (meta && e.key.toLowerCase() === "z" && !e.shiftKey) {
+          let native = false; try { native = document.queryCommandEnabled("undo"); } catch { native = false; }
+          if (!native) { e.preventDefault(); endEdit(true); parent.postMessage({ type: "atelier:key", key: "z", metaKey: e.metaKey, ctrlKey: e.ctrlKey, shiftKey: false, altKey: false }, "*"); }
+          return;
+        }
         if (meta && e.key.toLowerCase() === "b" && editMode === "write") { e.preventDefault(); document.execCommand("bold"); renderSelBar(); return; }
         if (meta && e.key.toLowerCase() === "i" && editMode === "write") { e.preventDefault(); document.execCommand("italic"); renderSelBar(); return; }
         if (meta && e.key.toLowerCase() === "u" && editMode === "write") { e.preventDefault(); document.execCommand("underline"); renderSelBar(); return; }

@@ -103,7 +103,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
   const [frameReady, setFrameReady] = useState(false);
   const [openMap, setOpenMap] = useState<Record<string, boolean>>({});
   const [drop, setDrop] = useState<DropState>(null);
-  const [notice, setNotice] = useState<{ text: string; tone: "danger" | "success" } | null>(null);
+  const [notice, setNotice] = useState<{ text: string; tone: "danger" | "success" | "info" } | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [editMode, setEditMode] = useState<EditMode>(() => { try { return (localStorage.getItem("atelier:editmode") as EditMode) || "design"; } catch { return "design"; } });
   const switchMode = useCallback((m: EditMode) => { setEditMode(m); try { localStorage.setItem("atelier:editmode", m); } catch {} }, []);
@@ -137,9 +137,9 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
   void previewKey;
   const post = useCallback((msg: unknown) => frame.current?.contentWindow?.postMessage(msg, "*"), []);
 
-  const notify = useCallback((text: string, tone: "danger" | "success" = "danger") => {
+  const notify = useCallback((text: string, tone: "danger" | "success" | "info" = "danger") => {
     setNotice({ text, tone });
-    window.setTimeout(() => setNotice((n) => (n?.text === text ? null : n)), 2800);
+    window.setTimeout(() => setNotice((n) => (n?.text === text ? null : n)), tone === "info" ? 4500 : 2800);
   }, []);
 
   // --- déplacement (calques et canvas) et insertion
@@ -184,7 +184,18 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
   const splitNode = useCallback((id: string, before: Inline[], after: Inline[]) => {
     const loc = index.get(id);
     if (!loc || !loc.parent || loc.node.type !== "text") return;
+    const isBlank = (c: Inline[]) => c.every((s) => s.t === "break" || (s.t === "text" && !s.v));
+    // Dans un lien ou un bouton, Entrée ne crée rien : on valide simplement le texte.
+    if (loc.parent.type === "link") { setNodeContent(id, [...before, ...after]); return; }
     const tag = typeof loc.node.props.tag === "string" && loc.node.props.tag === "p" ? "p" : loc.parent.type === "listItem" ? String(loc.node.props.tag ?? "span") : "p";
+    // Curseur au début d'un texte non vide : un bloc vide apparaît au-dessus, le texte reste où il est (comme Notion).
+    if (isBlank(before) && !isBlank(after)) {
+      const empty: Node = { id: newId(), type: "text", props: { tag: "p", content: { [locale]: [{ t: "text", v: "" }] } } };
+      if (loc.parent.type === "listItem") { const li = index.get(loc.parent.id)!; doc.commit({ op: "node.insert", parent: li.parent!.id, index: li.index, node: { id: newId(), type: "listItem", props: {}, children: [empty] } }, { label: "Nouveau bloc" }); }
+      else doc.commit({ op: "node.insert", parent: loc.parent.id, index: loc.index, node: empty }, { label: "Nouveau bloc" });
+      window.setTimeout(() => post({ type: "atelier:edit-text", id, caret: "start" }), 30);
+      return;
+    }
     const next: Node = { id: newId(), type: "text", props: { tag, content: { [locale]: after } } };
     const ops: Op[] = [{ op: "node.set", id, path: `props.content.${locale}`, value: before }];
     if (loc.parent.type === "listItem") {
@@ -196,7 +207,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
     doc.commit({ op: "batch", ops, label: "Nouveau bloc" });
     select(next.id);
     window.setTimeout(() => post({ type: "atelier:edit-text", id: next.id, caret: "start" }), 30);
-  }, [index, doc, locale, select, post]);
+  }, [index, doc, locale, select, post, setNodeContent]);
   /** Retour arrière dans un bloc vide : on le retire et on reprend l'édition du texte précédent. */
   const mergePrev = useCallback((id: string) => {
     const loc = index.get(id);
@@ -244,7 +255,15 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
       const m = e.data as { type?: string; id?: string; target?: string; position?: DropPosition };
-      if (m?.type === "atelier:select" && m.id) select(m.id);
+      if (m?.type === "atelier:select" && m.id) {
+        select(m.id);
+        const n = index.get(m.id)?.node;
+        const boundPath = n && n.type === "text" ? (n.bindings?.content?.path ?? ((n.props.content as Record<string, Inline[]> | undefined)?.[locale] ?? []).find((seg): seg is Extract<Inline, { t: "bind" }> => seg.t === "bind")?.binding.path) : undefined;
+        if (n && boundPath) {
+          const dbName = (() => { const e = index.get(m.id); let cur = e?.parent ?? null; while (cur) { if (cur.type === "collection") return site.databases.find((d) => d.id === cur!.props.database)?.name[locale]; cur = index.get(cur.id)?.parent ?? null; } return site.databases.find((d) => d.pageTemplates?.some((t) => t.page === page.id))?.name[locale]; })();
+          notify(`Ce texte vient de la base de données${dbName ? ` « ${dbName} »` : ""} (champ ${boundPath}) : il se modifie dans la base, pas dans la page.`, "info");
+        }
+      }
       if (m?.type === "atelier:ready") setFrameReady(true);
       if (m?.type === "atelier:move" && m.id && m.target && m.position) moveNode(m.id, m.target, m.position);
       const d = m as { type?: string; preset?: string; target?: string; position?: DropPosition; content?: Inline[]; before?: Inline[]; after?: Inline[]; id?: string; replace?: boolean; prop?: string; value?: unknown; tag?: string };
@@ -260,7 +279,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
     };
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
-  }, [moveNode, select, dropBlock, setNodeContent, splitNode, mergePrev, slashInsert, switchMode, doc, index]);
+  }, [moveNode, select, dropBlock, setNodeContent, splitNode, mergePrev, slashInsert, switchMode, doc, index, site, locale, page.id, notify]);
 
   useEffect(() => { if (frameReady) post({ type: "atelier:site", site, containers: [...index.values()].filter((l) => ["box", "list", "listItem", "link", "form", "item", "slot"].includes(l.node.type)).map((l) => l.node.id), textNodes: textNodeIds, editMode, blocks: blockInfos }); }, [site, index, textNodeIds, frameReady, post, editMode, blockInfos]);
   useEffect(() => { if (frameReady) post({ type: "atelier:editmode", editMode }); }, [editMode, frameReady, post]);
@@ -452,7 +471,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
 
       <main ref={canvas} className="relative min-w-0 overflow-auto bg-app flex justify-center items-start p-2">
         {(doc.error || notice) ? (
-          <div className={`fixed top-12 left-1/2 -translate-x-1/2 z-10 rounded-sm border px-3 py-1.5 text-xs shadow-lg ${notice?.tone === "success" ? "bg-success-soft text-success border-success/40" : "bg-danger-soft text-danger border-danger/40"}`}>{notice?.text ?? doc.error}</div>
+          <div className={`fixed top-12 left-1/2 -translate-x-1/2 z-10 max-w-[520px] rounded-sm border px-3 py-1.5 text-xs shadow-lg ${notice?.tone === "success" ? "bg-success-soft text-success border-success/40" : notice?.tone === "info" ? "bg-accent-soft text-ink border-accent/40" : "bg-danger-soft text-danger border-danger/40"}`}>{notice?.text ?? doc.error}</div>
         ) : null}
         <div className="relative flex flex-col gap-1.5" style={{ width: width ? `${Math.min(width, measured || width)}px` : "100%", maxWidth: "100%" }}>
           <div style={{ width: "100%", height: `calc(${frameHeight} * ${scale})`, overflow: "visible", marginTop: 0 }}>
