@@ -356,14 +356,25 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
       }
       if (e.key === "ArrowLeft") { e.preventDefault(); const open = openMap[loc.node.id] ?? loc.depth < 2; if (open && loc.node.children?.length) setOpenMap((m) => ({ ...m, [loc.node.id]: false })); else if (loc.parent) select(loc.parent.id); return; }
       if (e.key === "ArrowRight") { e.preventDefault(); const kids = loc.node.children ?? []; if (!kids.length) return; const open = openMap[loc.node.id] ?? loc.depth < 2; if (!open) setOpenMap((m) => ({ ...m, [loc.node.id]: true })); else select(kids[0]!.id); return; }
-      if (e.key === "Enter") { e.preventDefault(); setEditing(loc.node.id); }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (editMode !== "write") { setEditing(loc.node.id); return; }
+        // En Écriture, Entrée sur un texte sélectionné reprend la frappe à la fin ; sur tout autre bloc, un paragraphe vide apparaît juste après lui (ou dedans, à la fin, si rien ne peut suivre le bloc).
+        if (loc.node.type === "text") { post({ type: "atelier:edit-text", id: loc.node.id, caret: "end" }); return; }
+        const para: Node = { id: newId(), type: "text", props: { tag: "p", content: { [locale]: [{ t: "text", v: "" }] } } };
+        const to = loc.parent && canInsertUnder(index, loc.parent.id, para).ok ? { parent: loc.parent.id, index: loc.index + 1 } : canInsertUnder(index, loc.node.id, para).ok ? { parent: loc.node.id, index: (loc.node.children ?? []).length } : null;
+        if (!to) { notify("Impossible d'ajouter un paragraphe ici"); return; }
+        doc.commit({ op: "node.insert", parent: to.parent, index: to.index, node: para }, { label: "Nouveau bloc" });
+        select(para.id);
+        window.setTimeout(() => post({ type: "atelier:edit-text", id: para.id, caret: "start" }), 30);
+      }
     };
     const onWindowKey = (e: KeyboardEvent) => onKey(e);
     const onMsg = (e: MessageEvent) => { const m = e.data as { type?: string; key?: string; metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; altKey?: boolean }; if (m?.type === "atelier:key" && m.key) onKey({ key: m.key, metaKey: !!m.metaKey, ctrlKey: !!m.ctrlKey, shiftKey: !!m.shiftKey, altKey: !!m.altKey, preventDefault() {}, fromPreview: true }); };
     window.addEventListener("keydown", onWindowKey);
     window.addEventListener("message", onMsg);
     return () => { window.removeEventListener("keydown", onWindowKey); window.removeEventListener("message", onMsg); };
-  }, [doc, selected, index, openMap, select, paletteOpen, page.root, notify, toggleGrid]);
+  }, [doc, selected, index, openMap, select, paletteOpen, page.root, notify, toggleGrid, editMode, post, locale]);
 
   // --- largeur de l'aperçu : préréglage, valeur libre, poignée, point de rupture actif
   useEffect(() => {
