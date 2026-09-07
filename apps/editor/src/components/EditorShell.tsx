@@ -351,6 +351,8 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
   // Au-delà de la zone visible, le cadre garde sa vraie largeur et est réduit à l'échelle pour tenir.
   const scale = measured > 0 && effective > measured ? measured / effective : 1;
   const frameHeight = `calc((100vh - 40px - 16px) / ${scale})`;
+  // L'interface dessinée dans l'aperçu (barres, poignée, menu) compense l'échelle pour garder sa taille réelle.
+  useEffect(() => { if (frameReady) post({ type: "atelier:zoom", scale }); }, [scale, frameReady, post]);
   const activeBp = useMemo(() => breakpointForWidth(site.settings.breakpoints, effective), [site.settings.breakpoints, effective]);
   useEffect(() => { activeBpRef.current = activeBp; }, [activeBp]);
   const breakpoint = activeBp === BASE ? "Base" : site.settings.breakpoints.find((b) => b.id === activeBp)?.name ?? activeBp;

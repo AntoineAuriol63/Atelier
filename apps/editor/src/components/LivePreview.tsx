@@ -99,7 +99,10 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
 
     // ---------------------------------------------------------------- calques d'interface (dans l'aperçu)
     const layer = (css: string) => { const d = document.createElement("div"); d.setAttribute("data-atelier-ui", ""); d.style.cssText = css; document.body.appendChild(d); return d; };
-    const UI = "font:12px/1.4 system-ui,sans-serif;color:#e8e8ec;pointer-events:auto;z-index:2147483647;position:absolute;box-sizing:border-box";
+    const UI = "font:13px/1.4 system-ui,sans-serif;color:#e8e8ec;pointer-events:auto;z-index:2147483647;position:absolute;box-sizing:border-box;transform-origin:top left";
+    // L'aperçu est souvent réduit à l'échelle : l'interface dans l'aperçu compense pour garder sa vraie taille à l'écran.
+    let uiScale = 1;
+    const applyUiScale = () => { [blockBar, selBar, slashMenu, grip].forEach((l) => { l.style.transform = `scale(${uiScale})`; }); };
     const indicator = layer("position:absolute;pointer-events:none;z-index:2147483647;display:none;background:#1F5F8B;border-radius:2px;box-shadow:0 0 0 1px #fff");
     const gridLayer = layer("position:absolute;left:0;top:0;right:0;pointer-events:none;z-index:2147483646;display:none");
     gridLayer.setAttribute("data-atelier-grid", "");
@@ -108,9 +111,9 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     const slashMenu = layer(`${UI};display:none;background:#1a1b1f;border:1px solid #3a3b42;border-radius:6px;box-shadow:0 12px 32px rgba(0,0,0,.5);min-width:240px;max-height:280px;overflow:auto;padding:4px`);
     // Poignée à gauche du bloc, comme dans Notion : « + » pour insérer, « ⋮⋮ » pour glisser.
     const grip = layer(`${UI};display:none;flex-direction:column;gap:1px;background:transparent`);
-    const BTN = "background:none;border:0;color:#c9cad0;font:inherit;font-weight:600;height:24px;min-width:24px;padding:0 6px;border-radius:4px;cursor:pointer";
+    const BTN = "background:none;border:0;color:#c9cad0;font:inherit;font-weight:600;height:28px;min-width:28px;padding:0 8px;border-radius:5px;cursor:pointer";
     const style = document.createElement("style");
-    style.textContent = `[data-atelier-ui] button:hover{background:#2a2b30;color:#fff}[data-atelier-ui] select{background:#232428;color:#e8e8ec;border:1px solid #3a3b42;border-radius:4px;height:24px;font:inherit;padding:0 4px}[data-atelier-ui] .on{background:rgba(106,166,255,.18);color:#6aa6ff}[data-atelier-ui] .item{display:flex;gap:8px;align-items:center;height:28px;padding:0 8px;border-radius:4px;cursor:pointer;white-space:nowrap}[data-atelier-ui] .item.cur{background:rgba(106,166,255,.18)}[data-atelier-ui] .grp{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#6c6d76;padding:6px 8px 2px}`;
+    style.textContent = `[data-atelier-ui] button:hover{background:#2a2b30;color:#fff}[data-atelier-ui] select{background:#232428;color:#e8e8ec;border:1px solid #3a3b42;border-radius:5px;height:28px;font:inherit;padding:0 6px}[data-atelier-ui] .on{background:rgba(106,166,255,.18);color:#6aa6ff}[data-atelier-ui] .item{display:flex;gap:8px;align-items:center;height:32px;padding:0 10px;border-radius:5px;cursor:pointer;white-space:nowrap}[data-atelier-ui] .item.cur{background:rgba(106,166,255,.18)}[data-atelier-ui] .grp{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#6c6d76;padding:8px 10px 2px}`;
     document.head.appendChild(style);
 
     const sizeGrid = () => { gridLayer.style.height = `${Math.max(document.documentElement.scrollHeight, document.body.scrollHeight)}px`; };
@@ -138,9 +141,9 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     const placeBar = (bar: HTMLElement, el: HTMLElement) => {
       const r = el.getBoundingClientRect();
       bar.style.display = "flex";
-      const w = bar.offsetWidth;
+      const w = bar.offsetWidth * uiScale, h = 34 * uiScale;
       bar.style.left = `${Math.max(4, Math.min(r.right - w, window.innerWidth - w - 4)) + window.scrollX}px`;
-      bar.style.top = `${r.top + window.scrollY - 30}px`;
+      bar.style.top = `${Math.max(2, r.top - h) + window.scrollY}px`;
     };
     const renderBlockBar = (el: HTMLElement) => {
       const id = idOf(el);
@@ -167,13 +170,16 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       grip.innerHTML = "";
       const g = (label: string, title: string, cursor: string) => { const x = document.createElement("button"); x.textContent = label; x.title = title; x.style.cssText = BTN + `;height:20px;min-width:20px;padding:0;font-size:13px;background:#1a1b1f;border:1px solid #3a3b42;color:#9c9da6;cursor:${cursor}`; x.addEventListener("mousedown", (e) => e.preventDefault()); grip.appendChild(x); return x; };
       const plus = g("+", "Insérer un bloc après (ou tapez / dans un texte)", "pointer");
+      plus.style.height = "24px"; plus.style.minWidth = "24px";
       plus.addEventListener("click", (e) => { e.stopPropagation(); openSlash(el, true); });
       const handle = g("⋮⋮", "Glisser pour déplacer le bloc", "grab");
+      handle.style.height = "24px"; handle.style.minWidth = "24px";
       handle.addEventListener("mousedown", (e) => { e.preventDefault(); e.stopPropagation(); if (editing) endEdit(true); select(el, true); press = { x: e.clientX, y: e.clientY, el }; });
       const r = el.getBoundingClientRect();
       grip.style.display = "flex";
       // À gauche du bloc s'il y a la place, sinon à l'intérieur de son bord gauche.
-      grip.style.left = `${(r.left >= 30 ? r.left - 24 : r.left + 4) + window.scrollX}px`;
+      const gw = 28 * uiScale;
+      grip.style.left = `${(r.left >= gw + 6 ? r.left - gw : r.left + 4) + window.scrollX}px`;
       grip.style.top = `${r.top + window.scrollY}px`;
     };
     const hideBlockBar = () => { blockBar.style.display = "none"; grip.style.display = "none"; barEl = null; };
@@ -199,9 +205,9 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       const link = document.createElement("button"); link.textContent = "🔗"; link.title = "Lien (⌘K) : adresse, ou /page du site"; link.style.cssText = BTN; link.addEventListener("mousedown", (e) => e.preventDefault()); link.addEventListener("click", (e) => { e.stopPropagation(); makeLink(); }); selBar.appendChild(link);
       const r = range.getBoundingClientRect();
       selBar.style.display = "flex";
-      const w = selBar.offsetWidth;
+      const w = selBar.offsetWidth * uiScale;
       selBar.style.left = `${Math.max(4, r.left + r.width / 2 - w / 2) + window.scrollX}px`;
-      selBar.style.top = `${r.top + window.scrollY - 34}px`;
+      selBar.style.top = `${Math.max(2, r.top - 38 * uiScale) + window.scrollY}px`;
     };
     const makeLink = () => {
       const sel = window.getSelection();
@@ -433,6 +439,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
         if (m.editMode) editMode = m.editMode;
       }
       if (m?.type === "atelier:editmode" && m.editMode) { editMode = m.editMode; if (editing) endEdit(true); hideBlockBar(); }
+      if (m?.type === "atelier:zoom") { const z = Number((m as { scale?: number }).scale); uiScale = z > 0 && z < 1 ? Math.min(1 / z, 2.2) : 1; applyUiScale(); }
       if (m?.type === "atelier:mode" && m.mode) setModeState(m.mode);
       if (m?.type === "atelier:grid") renderGrid(m as unknown as { show: boolean; columns: number; gutter: string; margin: string; maxWidth: string });
       if (m?.type === "atelier:highlight") {
