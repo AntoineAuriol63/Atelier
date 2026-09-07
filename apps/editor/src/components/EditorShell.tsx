@@ -92,7 +92,10 @@ function isTyping(): boolean {
 export function EditorShell({ initialSite, initialVersion }: { initialSite: Site; initialVersion: number }) {
   const doc = useDocument(initialSite, initialVersion);
   const site = doc.site;
-  const [pageId, setPageId] = useState(site.pages[0]!.id);
+  // La page ouverte est mémorisée par site : au rechargement, on revient où l'on était.
+  const pageKey = `atelier:page:${site.id}`;
+  const [pageId, setPageIdState] = useState(() => { try { const saved = localStorage.getItem(pageKey); return site.pages.some((p) => p.id === saved) ? saved! : site.pages[0]!.id; } catch { return site.pages[0]!.id; } });
+  const setPageId = useCallback((id: string) => { setPageIdState(id); try { localStorage.setItem(pageKey, id); } catch {} }, [pageKey]);
   const [leftTab, setLeftTab] = useState("layers");
   const [preset, setPreset] = useState<string>("base");
   const [customWidth, setCustomWidth] = useState<number | null>(null);
@@ -153,8 +156,15 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
     select(id);
   }, [index, doc, notify, select]);
 
+  /** Un modèle qui apporte un h1 alors que la page en a déjà un : son titre devient h2 (une page, un seul h1). */
+  const fitHeadings = useCallback((node: Node): Node => {
+    const hasH1 = (n: Node): boolean => (n.type === "text" && n.props.tag === "h1") || (n.children ?? []).some(hasH1);
+    if (!hasH1(page.root) || !hasH1(node)) return node;
+    const demote = (n: Node): Node => ({ ...n, props: n.type === "text" && n.props.tag === "h1" ? { ...n.props, tag: "h2" } : n.props, children: n.children?.map(demote) });
+    return demote(node);
+  }, [page.root]);
   const addBlock = useCallback((preset: BlockPreset) => {
-    const node = preset.make(site);
+    const node = fitHeadings(preset.make(site));
     const to = planInsert(index, page.root, selected);
     const ok = canInsertUnder(index, to.parent, node);
     if (!ok.ok) { notify(ok.reason); return; }
@@ -167,7 +177,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
   const dropBlock = useCallback((presetId: string, targetId: string, position: DropPosition) => {
     const preset = presetById(presetId);
     if (!preset) return;
-    const node = preset.make(site);
+    const node = fitHeadings(preset.make(site));
     const r = planDrop(index, targetId, position, node);
     if (!r.ok) { notify(r.reason); return; }
     doc.commit({ op: "node.insert", parent: r.to.parent, index: r.to.index, node }, { label: `Ajouter ${preset.label}` });
@@ -197,6 +207,24 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
       if (loc.parent.type === "listItem") { const li = index.get(loc.parent.id)!; doc.commit({ op: "node.insert", parent: li.parent!.id, index: li.index, node: { id: newId(), type: "listItem", props: {}, children: [empty] } }, { label: "Nouveau bloc" }); }
       else doc.commit({ op: "node.insert", parent: loc.parent.id, index: loc.index, node: empty }, { label: "Nouveau bloc" });
       window.setTimeout(() => post({ type: "atelier:edit-text", id, caret: "start" }), 30);
+      return;
+    }
+    // Entrée sur un élément de liste vide : on sort de la liste, un paragraphe apparaît juste après elle (comme Notion).
+    if (loc.parent.type === "listItem" && isBlank(before) && isBlank(after)) {
+      const li = index.get(loc.parent.id)!;
+      const list = index.get(li.parent!.id)!;
+      if (!list.parent) return;
+      const para: Node = { id: newId(), type: "text", props: { tag: "p", content: { [locale]: [{ t: "text", v: "" }] } } };
+      const ops: Op[] = [{ op: "node.remove", id: li.node.id }];
+      // Les éléments qui suivaient repartent dans une seconde liste, après le paragraphe.
+      const rest = (list.node.children ?? []).slice(li.index + 1);
+      rest.forEach((n) => ops.push({ op: "node.remove", id: n.id }));
+      ops.push({ op: "node.insert", parent: list.parent.id, index: list.index + 1, node: para });
+      if (rest.length) ops.push({ op: "node.insert", parent: list.parent.id, index: list.index + 2, node: { id: newId(), type: "list", props: { ...list.node.props }, style: list.node.style, children: rest } });
+      if (li.index === 0) ops.push({ op: "node.remove", id: list.node.id });
+      doc.commit({ op: "batch", ops, label: "Sortir de la liste" });
+      select(para.id);
+      window.setTimeout(() => post({ type: "atelier:edit-text", id: para.id, caret: "start" }), 30);
       return;
     }
     const next: Node = { id: newId(), type: "text", props: { tag, content: { [locale]: after } } };
@@ -229,7 +257,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
     const preset = presetById(presetId);
     const loc = index.get(id);
     if (!preset || !loc || !loc.parent) return;
-    const node = preset.make(site);
+    const node = fitHeadings(preset.make(site));
     const ok = canInsertUnder(index, loc.parent.id, node);
     if (!ok.ok) { notify(ok.reason); return; }
     const ops: Op[] = [];
@@ -243,7 +271,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
   void dropBlockAfter;
 
   const textNodeIds = useMemo(() => [...index.values()].filter((l) => l.node.type === "text" && !l.node.bindings?.content && !((l.node.props.content as Record<string, Inline[]> | undefined)?.[locale] ?? []).some((seg) => seg.t === "bind")).map((l) => l.node.id), [index, locale]);
-  const blockInfos = useMemo(() => allPresets(site).map((b) => ({ id: b.id, label: b.label, group: b.group, keywords: b.description })), [site]);
+  const blockInfos = useMemo(() => allPresets(site).map((b) => ({ id: b.id, label: b.label, group: b.group, keywords: `${b.description} ${b.keywords ?? ""}` })), [site]);
 
   const insertTarget = useMemo(() => {
     const to = planInsert(index, page.root, selected);
@@ -284,7 +312,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
     return () => window.removeEventListener("message", onMsg);
   }, [moveNode, select, dropBlock, setNodeContent, splitNode, mergePrev, slashInsert, switchMode, doc, index, site, locale, page.id, notify]);
 
-  useEffect(() => { if (frameReady) post({ type: "atelier:site", site, containers: [...index.values()].filter((l) => ["box", "list", "listItem", "link", "form", "item", "slot"].includes(l.node.type)).map((l) => l.node.id), links: [...index.values()].filter((l) => l.node.type === "link").map((l) => l.node.id), textNodes: textNodeIds, editMode, blocks: blockInfos }); }, [site, index, textNodeIds, frameReady, post, editMode, blockInfos]);
+  useEffect(() => { if (frameReady) post({ type: "atelier:site", site, containers: [...index.values()].filter((l) => ["box", "list", "listItem", "link", "form", "item", "slot"].includes(l.node.type)).map((l) => l.node.id), links: [...index.values()].filter((l) => l.node.type === "link" || (editMode === "write" && l.node.type === "collection")).map((l) => l.node.id), textNodes: textNodeIds, editMode, blocks: blockInfos }); }, [site, index, textNodeIds, frameReady, post, editMode, blockInfos]);
   useEffect(() => { if (frameReady) post({ type: "atelier:editmode", editMode }); }, [editMode, frameReady, post]);
   useEffect(() => { if (frameReady) post({ type: "atelier:mode", mode }); }, [mode, frameReady, post]);
   useEffect(() => { if (frameReady) post({ type: "atelier:highlight", id: selected }); }, [selected, frameReady, post]);
@@ -388,7 +416,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
       ...[{ id: "pages", label: "Pages", icon: FileText }, { id: "layers", label: "Calques", icon: Layers }, { id: "add", label: "Ajouter", icon: Plus }, { id: "theme", label: "Thème", icon: Palette }].map((t) => ({ id: `tab:${t.id}`, group: "Panneaux", label: `Afficher ${t.label}`, icon: t.icon, run: () => setLeftTab(t.id) })),
       ...site.pages.map((p) => ({ id: `page:${p.id}`, group: "Pages", label: `Aller à ${p.name[locale] ?? p.path}`, icon: FileText, keywords: p.path, run: () => { setPageId(p.id); select(null); setFrameReady(false); } })),
       { id: "newpage", group: "Pages", label: "Nouvelle page…", icon: Plus, run: () => setLeftTab("pages") },
-      ...allPresets(site).map((b) => ({ id: `add:${b.id}`, group: "Ajouter un bloc", label: b.label, icon: b.icon, keywords: b.description, run: () => addBlock(b) })),
+      ...allPresets(site).map((b) => ({ id: `add:${b.id}`, group: "Ajouter un bloc", label: b.label, icon: b.icon, keywords: `${b.description} ${b.keywords ?? ""}`, run: () => addBlock(b) })),
     ];
     if (selected && index.get(selected)?.parent) {
       cmds.push({ id: "dup", group: "Édition", label: "Dupliquer la sélection", keys: "⌘D", run: () => { const loc = index.get(selected)!; const { node: copy } = cloneWithNewIds(loc.node, newId); doc.commit({ op: "node.insert", parent: loc.parent!.id, index: loc.index + 1, node: copy }, { label: "Dupliquer" }); select(copy.id); } });

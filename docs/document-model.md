@@ -82,7 +82,7 @@ type Node = {
 | `video` | Vidéo hébergée ou intégrée | non | `asset \| url`, `autoplay`, `loop`, `muted`, `controls` |
 | `link` | Lien ou bouton | oui | `href: LinkTarget`, `newTab`, `tag` (`a`, `button`) |
 | `icon` | Icône vectorielle | non | `name` ou `svg` |
-| `divider` | Séparateur | non | — |
+| `divider` | Séparateur : trait horizontal dans une colonne, vertical dans une rangée (décidé par le conteneur, section 11) | non | — |
 | `embed` | HTML intégré (widget tiers) | non | `html: string` |
 | `form` | Formulaire | oui | `formId: Id`, `successAction` |
 | `field` | Champ de formulaire | non | `fieldType`, `name`, `label`, `required`, `options` |
@@ -426,6 +426,7 @@ Les `Asset` référencent un fichier stocké (`{ id, kind: "image" | "video" | "
 - Chaque nœud produit un élément HTML avec l'attribut `data-node` (dans l'éditeur seulement) et une classe stable `n-<id>`.
 - Le CSS est généré par nœud à partir de la cascade (5.1) : styles partagés en classes `s-<id>`, styles locaux en classes par nœud, points de rupture en `@media (max-width)`, états en pseudo-classes ou en attributs `data-state`.
 - Les jetons deviennent des variables CSS sur `:root` et par mode.
+- Un `divider` n'a pas d'orientation propre : le CSS du conteneur (nœud ou style partagé) le rend vertical quand ce conteneur dispose ses enfants côte à côte (flex en ligne, grille à plusieurs colonnes) et horizontal sinon, point de rupture par point de rupture. Un réglage de bordure posé sur le séparateur lui-même en Design reste possible mais le conteneur a le dernier mot sur l'orientation.
 - Les liaisons sont résolues au rendu à partir d'un contexte `{ site, page, entry?, item?, props?, params, locale, state }`.
 - Le même moteur sert l'éditeur (dans une iframe, D16), le site publié et l'export (D15). L'export émet des composants nommés d'après `name`.
 

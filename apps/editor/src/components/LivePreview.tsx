@@ -13,38 +13,35 @@ const ACCENT = "#1F5F8B";
 
 /** Sérialise le DOM d'un texte édité en contenu en ligne (marques et liens). */
 function serialize(root: HTMLElement): Inline[] {
-  const out: Inline[] = [];
-  const push = (seg: Inline) => {
+  // Chaque niveau (racine, intérieur d'un lien) a sa propre liste : un texte de lien ne doit pas fusionner avec le texte qui précède le lien.
+  const push = (out: Inline[], seg: Inline) => {
     const last = out[out.length - 1];
     if (seg.t === "text" && last && last.t === "text" && JSON.stringify(last.marks ?? []) === JSON.stringify(seg.marks ?? [])) { last.v += seg.v; return; }
     out.push(seg);
   };
-  const walk = (node: Node, marks: Mark[], first: { v: boolean }) => {
-    if (node.nodeType === Node.TEXT_NODE) { const v = node.textContent ?? ""; if (v) push({ t: "text", v, marks: marks.length ? [...marks] : undefined }); return; }
+  const walk = (out: Inline[], node: Node, marks: Mark[], first: { v: boolean }) => {
+    if (node.nodeType === Node.TEXT_NODE) { const v = node.textContent ?? ""; if (v) push(out, { t: "text", v, marks: marks.length ? [...marks] : undefined }); return; }
     if (node.nodeType !== Node.ELEMENT_NODE) return;
     const el = node as HTMLElement;
     const tag = el.tagName;
-    if (tag === "BR") { push({ t: "break" }); return; }
+    if (tag === "BR") { push(out, { t: "break" }); return; }
     if (tag === "A") {
       const raw = el.getAttribute("data-link");
       let href: LinkTarget = { kind: "url", url: el.getAttribute("href") ?? "#" };
       try { if (raw) href = JSON.parse(raw) as LinkTarget; } catch { /* lien saisi à la main */ }
       const children: Inline[] = [];
-      const sub: Inline[] = [];
-      const saved = out.length;
-      el.childNodes.forEach((c) => walk(c, marks, first));
-      children.push(...out.splice(saved));
-      void sub;
-      out.push({ t: "link", href, newTab: el.getAttribute("target") === "_blank" || undefined, children });
+      el.childNodes.forEach((c) => walk(children, c, marks, first));
+      if (children.length) out.push({ t: "link", href, newTab: el.getAttribute("target") === "_blank" || undefined, children });
       return;
     }
     const mark = tag === "B" || tag === "STRONG" ? "bold" : tag === "I" || tag === "EM" ? "italic" : tag === "U" ? "underline" : tag === "S" || tag === "STRIKE" || tag === "DEL" ? "strike" : tag === "CODE" ? "code" : null;
-    if ((tag === "DIV" || tag === "P") && !first.v) push({ t: "break" });
+    if ((tag === "DIV" || tag === "P") && !first.v) push(out, { t: "break" });
     first.v = false;
     const next: Mark[] = mark && !marks.includes(mark) ? [...marks, mark] : marks;
-    el.childNodes.forEach((c) => walk(c, next, first));
+    el.childNodes.forEach((c) => walk(out, c, next, first));
   };
-  root.childNodes.forEach((c) => walk(c, [], { v: true }));
+  const out: Inline[] = [];
+  root.childNodes.forEach((c) => walk(out, c, [], { v: true }));
   return out.length ? out : [{ t: "text", v: "" }];
 }
 
@@ -75,7 +72,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     if (!editor) return;
     let hovered: HTMLElement | null = null;
     let containers = new Set<string>();
-    let links = new Set<string>();       // liens et boutons : atomiques pour le dépôt (ils n'acceptent que du contenu en ligne)
+    let links = new Set<string>();       // blocs atomiques pour le dépôt : liens et boutons (contenu en ligne seulement) et, en mode Écriture, les vues de base de données (leur carte est un modèle répété)
     let textNodes = new Set<string>();
     let editMode: EditMode = "design";
     let blocks: BlockPresetInfo[] = [];
@@ -271,14 +268,26 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
 
     // ---------------------------------------------------------------- menu « / »
     let slash: { el: HTMLElement; query: string; cursor: number; after: boolean } | null = null;
-    const filtered = () => { const q = slash?.query.toLowerCase() ?? ""; return blocks.filter((b) => !q || `${b.label} ${b.group} ${b.keywords ?? ""}`.toLowerCase().includes(q)); };
+    // Classement : libellé qui commence par la recherche > libellé qui la contient > groupe ou mot-clé.
+    const filtered = () => {
+      const q = slash?.query.toLowerCase().trim() ?? "";
+      if (!q) return blocks;
+      const rank = (b: BlockPresetInfo) => {
+        const label = b.label.toLowerCase();
+        if (label.startsWith(q)) return 0;
+        if (label.includes(q)) return 1;
+        if (`${b.group} ${b.keywords ?? ""}`.toLowerCase().includes(q)) return 2;
+        return -1;
+      };
+      return blocks.map((b, i) => ({ b, i, r: rank(b) })).filter((x) => x.r >= 0).sort((a, c) => a.r - c.r || a.i - c.i).map((x) => x.b);
+    };
     const renderSlash = () => {
       if (!slash) { slashMenu.style.display = "none"; return; }
       const list = filtered();
       slashMenu.innerHTML = `<div class="grp">${slash.query ? `Recherche : ${slash.query}` : "Insérer un bloc — tapez pour filtrer"}</div>`;
       let lastGroup = "";
       list.forEach((b, i) => {
-        if (b.group !== lastGroup) { lastGroup = b.group; const g = document.createElement("div"); g.className = "grp"; g.textContent = b.group; slashMenu.appendChild(g); }
+        if (!slash!.query && b.group !== lastGroup) { lastGroup = b.group; const g = document.createElement("div"); g.className = "grp"; g.textContent = b.group; slashMenu.appendChild(g); }
         const it = document.createElement("div"); it.className = "item" + (i === slash!.cursor ? " cur" : ""); it.textContent = b.label;
         it.addEventListener("mousedown", (e) => { e.preventDefault(); pickSlash(b); });
         slashMenu.appendChild(it);
@@ -524,7 +533,8 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
         return;
       }
       if (editing) {
-        if (e.key === "Escape") { e.preventDefault(); endEdit(false); return; }
+        // Échap termine l’édition en gardant le texte (⌘Z pour revenir en arrière) : perdre un paragraphe sur une touche serait trop cruel.
+        if (e.key === "Escape") { e.preventDefault(); endEdit(true); return; }
         // Annuler pendant la frappe : d'abord la frappe (navigateur), puis, s'il n'y a plus rien, l'opération précédente d'Atelier.
         if (meta && e.key.toLowerCase() === "z" && !e.shiftKey) {
           let native = false; try { native = document.queryCommandEnabled("undo"); } catch { native = false; }

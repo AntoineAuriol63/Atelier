@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
 import { sampleSite, sampleEntries } from "@atelier/model";
-import { RenderPage, siteCss, memoryData, matchPath, assetMap, pageTitle, type RenderContext } from "../src";
+import { RenderPage, siteCss, styleSetCss, memoryData, matchPath, assetMap, pageTitle, type RenderContext } from "../src";
 
 const data = memoryData(sampleEntries);
 function ctxFor(path: string): RenderContext {
@@ -10,6 +10,20 @@ function ctxFor(path: string): RenderContext {
   if (!m) throw new Error("page introuvable " + path);
   return { site: sampleSite, page: m.page, entry: m.entry, params: m.params, locale: "fr", data, assets: assetMap(sampleSite), basePath: "" };
 }
+
+describe("séparateur", () => {
+  const bps = sampleSite.settings.breakpoints;
+  it("est vertical dans une rangée et redevient horizontal quand la rangée s'empile", () => {
+    const css = styleSetCss(".n-row", { base: { display: "flex", flexDirection: "row" }, breakpoints: { mobile: { flexDirection: "column" } } }, bps);
+    expect(css).toContain(".n-row>hr{width:0;");
+    expect(css).toMatch(/@media \(max-width:767px\)\{[^}]*\}\.n-row>hr\{width:100%;/);
+  });
+  it("suit une grille à plusieurs colonnes", () => {
+    expect(styleSetCss(".n-g", { base: { display: "grid", gridTemplateColumns: "1fr 1fr" }, breakpoints: { mobile: { gridTemplateColumns: "1fr" } } }, bps)).toContain(".n-g>hr{width:0;");
+    expect(styleSetCss(".n-g", { base: { display: "grid", gridTemplateColumns: "repeat(3, 1fr)" } }, bps)).toContain(".n-g>hr{width:0;");
+    expect(styleSetCss(".n-c", { base: { display: "flex", flexDirection: "column" } }, bps)).not.toContain(">hr");
+  });
+});
 
 describe("css", () => {
   const css = siteCss(sampleSite);

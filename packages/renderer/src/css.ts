@@ -72,7 +72,7 @@ export function themeCss(theme: Theme): string {
     out.push(key === "body" ? `${sel}{${declarations(props)}}` : `:where(${sel}){${declarations(props)}}`);
   }
   // Base minimale, indépendante de tout reset externe.
-  out.push(`.at-page{margin:0;min-height:100%}.at-page *,.at-page *::before,.at-page *::after{box-sizing:border-box}.at-page h1,.at-page h2,.at-page h3,.at-page h4,.at-page p,.at-page ul,.at-page ol{margin:0}.at-page ul,.at-page ol{padding-left:1.25em}.at-page img,.at-page video{max-width:100%}.at-page button{font:inherit;cursor:pointer;border:0;background:none}.at-page input,.at-page textarea,.at-page select{font:inherit}`);
+  out.push(`.at-page{margin:0;min-height:100%}.at-page *,.at-page *::before,.at-page *::after{box-sizing:border-box}.at-page h1,.at-page h2,.at-page h3,.at-page h4,.at-page h5,.at-page h6,.at-page p,.at-page ul,.at-page ol,.at-page blockquote,.at-page figure{margin:0}.at-page ul,.at-page ol{padding-left:1.25em}.at-page img,.at-page video{max-width:100%}.at-page hr{border:0;border-top:1px solid var(--color-line,#ddd);width:100%;height:0;margin:0;flex:none}.at-page button{font:inherit;cursor:pointer;border:0;background:none}.at-page input,.at-page textarea,.at-page select{font:inherit}`);
   return out.join("\n");
 }
 
@@ -102,12 +102,42 @@ function stateRule(selector: string, state: string): string {
   return `${selector}${pseudo},${selector}[data-force-state~="${state}"]`;
 }
 
+const DIVIDER_VERTICAL = "width:0;height:auto;min-height:1em;align-self:stretch;border-top:0;border-left:1px solid var(--color-line,#ddd)";
+const DIVIDER_HORIZONTAL = "width:100%;height:0;min-height:0;align-self:auto;border-left:0;border-top:1px solid var(--color-line,#ddd)";
+
+/** Vrai si ces propriétés disposent les enfants côte à côte : flex en ligne, ou grille à plusieurs colonnes. */
+export function isRow(props: StyleProps): boolean {
+  const display = typeof props.display === "string" ? props.display : "";
+  if (display === "flex" || display === "inline-flex") {
+    const dir = typeof props.flexDirection === "string" ? props.flexDirection : "row";
+    return dir === "row" || dir === "row-reverse";
+  }
+  if (display === "grid" || display === "inline-grid") {
+    if (props.gridAutoFlow === "column") return true;
+    const cols = typeof props.gridTemplateColumns === "string" ? props.gridTemplateColumns.trim() : "";
+    if (!cols || cols === "none") return false;
+    if (/repeat\(\s*(auto-fit|auto-fill|[2-9]|\d{2,})/.test(cols)) return true;
+    return cols.split(/\s+(?![^(]*\))/).length > 1;
+  }
+  return false;
+}
+
 /** Règles CSS d'un jeu de styles pour un sélecteur, points de rupture en cascade descendante. */
 export function styleSetCss(selector: string, style: Omit<StyleSet, "shared"> | undefined, breakpoints: Breakpoint[], assets?: Map<string, Asset>, hidden?: Record<string, boolean>): string {
   if (!style && !hidden) return "";
   const out: string[] = [];
   const base = declarations(style?.base, assets);
   if (base) out.push(`${selector}{${base}}`);
+  // Un séparateur suit son conteneur : trait vertical dans une rangée, horizontal dans une colonne. Décidé par point de rupture, comme la disposition.
+  let effective: StyleProps = { ...(style?.base ?? {}) };
+  let orientation = isRow(effective);
+  if (orientation) out.push(`${selector}>hr{${DIVIDER_VERTICAL}}`);
+  const bpRules = new Map<string, string>();
+  for (const bp of [...breakpoints].sort((a, b) => b.maxWidth - a.maxWidth)) {
+    effective = { ...effective, ...(style?.breakpoints?.[bp.id] ?? {}) };
+    const now = isRow(effective);
+    if (now !== orientation) { bpRules.set(bp.id, `${selector}>hr{${now ? DIVIDER_VERTICAL : DIVIDER_HORIZONTAL}}`); orientation = now; }
+  }
   for (const [state, props] of Object.entries(style?.states ?? {})) {
     const d = declarations(props, assets);
     if (d) out.push(`${stateRule(selector, state)}{${d}}`);
@@ -118,6 +148,8 @@ export function styleSetCss(selector: string, style: Omit<StyleSet, "shared"> | 
     const d = declarations(style?.breakpoints?.[bp.id], assets);
     if (d) rules.push(`${selector}{${d}}`);
     if (hidden?.[bp.id]) rules.push(`${selector}{display:none}`);
+    const hr = bpRules.get(bp.id);
+    if (hr) rules.push(hr);
     for (const [state, byBp] of Object.entries(style?.stateBreakpoints ?? {})) {
       const ds = declarations(byBp[bp.id], assets);
       if (ds) rules.push(`${stateRule(selector, state)}{${ds}}`);
