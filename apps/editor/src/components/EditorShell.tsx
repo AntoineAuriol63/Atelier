@@ -616,7 +616,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
         )}
       </Panel>
       {paletteOpen ? <CommandPalette open onClose={() => setPaletteOpen(false)} commands={commands} /> : null}
-      {dbOpen && site.databases.some((d) => d.id === dbOpen) ? <DatabaseTable site={site} db={site.databases.find((d) => d.id === dbOpen)!} entries={ents.entries} save={ents.save} remove={ents.remove} commit={doc.commit} onClose={() => setDbOpen(null)} saving={ents.saving} onDeleteDatabase={() => deleteDatabase(dbOpen)} /> : null}
+      {dbOpen && site.databases.some((d) => d.id === dbOpen) ? <DatabaseTable site={site} db={site.databases.find((d) => d.id === dbOpen)!} entries={ents.entries} save={ents.save} saveMany={ents.saveMany} remove={ents.remove} commit={doc.commit} onClose={() => setDbOpen(null)} saving={ents.saving} onDeleteDatabase={() => deleteDatabase(dbOpen)} notify={notify} /> : null}
       {dbOpen && formForOpen ? <DatabaseTable site={site} db={formDatabase(site, formForOpen)} entries={ents.entries} save={ents.save} remove={ents.remove} commit={doc.commit} onClose={() => setDbOpen(null)} saving={ents.saving} readOnly /> : null}
       {publishOpen ? <PublishDialog site={site} version={doc.version} dirty={doc.status !== "saved"} commit={doc.commit} onClose={() => setPublishOpen(false)} notify={notify} /> : null}
 

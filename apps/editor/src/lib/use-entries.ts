@@ -31,10 +31,17 @@ export function useEntries(siteId: string, initial: Entry[], onError?: (message:
     setEntries((list) => list.filter((x) => x.id !== id));
     run(() => call("DELETE", { ids: [id] }));
   }, [run, call]);
+  /** Ajoute ou remplace plusieurs entrées en un seul envoi (import). */
+  const saveMany = useCallback((list: Entry[]) => {
+    if (!list.length) return;
+    const stamped = list.map((e) => ({ ...e, updatedAt: new Date().toISOString() }));
+    setEntries((cur) => { const byId = new Map(cur.map((x) => [x.id, x])); for (const e of stamped) byId.set(e.id, e); return [...byId.values()]; });
+    run(() => call("PUT", { entries: stamped }));
+  }, [run, call]);
   const removeMany = useCallback((ids: string[]) => {
     if (!ids.length) return;
     setEntries((list) => list.filter((x) => !ids.includes(x.id)));
     run(() => call("DELETE", { ids }));
   }, [run, call]);
-  return { entries, save, remove, removeMany, saving: pending > 0 };
+  return { entries, save, saveMany, remove, removeMany, saving: pending > 0 };
 }

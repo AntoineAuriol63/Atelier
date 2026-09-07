@@ -1,8 +1,8 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- vignettes de l'éditeur, pas du site publié */
 
-import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Download, Plus, Trash2, X } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, Download, Plus, Trash2, Upload, X } from "lucide-react";
 import type { CommitOptions, Database, Entry, Field, FieldType, Node, Op, Site } from "@atelier/model";
 import { newId } from "@atelier/model";
 import { Button, Dialog, Hint, IconButton, Select, TextArea, TextInput } from "@/ui";
@@ -10,6 +10,8 @@ import { Segmented } from "@/ui/controls";
 import { MediaLibrary } from "@/components/MediaLibrary";
 import { assetLabel } from "@/lib/upload";
 import { slugify } from "@/components/PagesPanel";
+import { readTable, type Table } from "@/lib/csv";
+import { ImportDialog } from "./ImportDialog";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
 
@@ -168,7 +170,7 @@ export function toCsv(db: Database, rows: Entry[], locale: string): string {
   return "\ufeff" + [head.map(cell).join(";"), ...lines].join("\r\n");
 }
 
-export function DatabaseTable({ site, db, entries, save, remove, commit, onClose, saving, onDeleteDatabase, readOnly }: { site: Site; db: Database; entries: Entry[]; save: (e: Entry) => void; remove: (id: string) => void; commit: Commit; onClose: () => void; saving?: boolean; onDeleteDatabase?: () => void; /** Base virtuelle (messages reçus) : pas de champs à régler ni d'entrées à créer. */ readOnly?: boolean }) {
+export function DatabaseTable({ site, db, entries, save, saveMany, remove, commit, onClose, saving, onDeleteDatabase, readOnly, notify }: { site: Site; db: Database; entries: Entry[]; save: (e: Entry) => void; saveMany?: (list: Entry[]) => void; remove: (id: string) => void; commit: Commit; onClose: () => void; saving?: boolean; onDeleteDatabase?: () => void; /** Base virtuelle (messages reçus) : pas de champs à régler ni d'entrées à créer. */ readOnly?: boolean; notify?: (text: string, tone?: "danger" | "success" | "info") => void }) {
   const locale = site.settings.defaultLocale;
   const dbIndex = site.databases.findIndex((d) => d.id === db.id);
   const [fieldEdit, setFieldEdit] = useState<string | null>(null);
@@ -225,6 +227,12 @@ export function DatabaseTable({ site, db, entries, save, remove, commit, onClose
     else if (id) setValue(e, f, [...(Array.isArray(e.values[f.name]) ? (e.values[f.name] as string[]) : []), id]);
   };
 
+  const [importTable, setImportTable] = useState<Table | null>(null);
+  const importInput = useRef<HTMLInputElement>(null);
+  const onImportFile = async (file: File) => {
+    try { const t = await readTable(file); if (!t.columns.length) throw new Error("Fichier vide"); setImportTable(t); }
+    catch (e) { notify?.(e instanceof Error ? `Import impossible : ${e.message}` : "Import impossible"); }
+  };
   const exportCsv = () => {
     const blob = new Blob([toCsv(db, rows, locale)], { type: "text/csv;charset=utf-8" });
     const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `${db.slug}.csv`; a.click(); window.setTimeout(() => URL.revokeObjectURL(a.href), 1000);
@@ -232,7 +240,7 @@ export function DatabaseTable({ site, db, entries, save, remove, commit, onClose
   const editing = fieldEdit && !readOnly ? db.fields.find((f) => f.name === fieldEdit) : undefined;
   const title = (e: Entry) => String(e.values[db.titleField] ?? "") || "Sans titre";
   return (
-    <Dialog open onClose={onClose} title={`${db.name[locale] ?? db.slug} · ${rows.length} entrée${rows.length > 1 ? "s" : ""}`} width={1240} actions={<div className="flex items-center gap-1">{saving ? <span className="text-2xs text-dim mr-2">Enregistrement…</span> : null}<Button size="sm" icon={Download} onClick={exportCsv} disabled={!rows.length} title="Télécharger toutes les entrées en CSV (tableur)">CSV</Button>{readOnly ? null : <><Button size="sm" icon={Plus} onClick={addField}>Champ</Button><Button size="sm" variant="primary" icon={Plus} onClick={addEntry}>Nouvelle entrée</Button></>}</div>}>
+    <Dialog open onClose={onClose} title={`${db.name[locale] ?? db.slug} · ${rows.length} entrée${rows.length > 1 ? "s" : ""}`} width={1240} actions={<div className="flex items-center gap-1">{saving ? <span className="text-2xs text-dim mr-2">Enregistrement…</span> : null}<Button size="sm" icon={Download} onClick={exportCsv} disabled={!rows.length} title="Télécharger toutes les entrées en CSV (tableur)">CSV</Button>{readOnly || !saveMany ? null : <><input ref={importInput} type="file" accept=".csv,.json,text/csv,application/json" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void onImportFile(f); }} /><Button size="sm" icon={Upload} onClick={() => importInput.current?.click()} title="Importer un CSV (tableur) ou un JSON : les colonnes deviennent des champs">Importer…</Button></>}{readOnly ? null : <><Button size="sm" icon={Plus} onClick={addField}>Champ</Button><Button size="sm" variant="primary" icon={Plus} onClick={addEntry}>Nouvelle entrée</Button></>}</div>}>
       {editing ? <FieldEditor site={site} db={db} field={editing} isNew={editing.name.startsWith("champ")} onChange={(f) => updateField(editing.name, f)} onMove={(d) => moveField(editing.name, d)} onRemove={() => removeField(editing.name)} onClose={() => setFieldEdit(null)} /> : null}
       <div className="overflow-auto">
         <table className="border-collapse text-sm min-w-full">
@@ -277,6 +285,7 @@ export function DatabaseTable({ site, db, entries, save, remove, commit, onClose
         <Hint>{readOnly ? "Les messages arrivent ici à chaque envoi du formulaire. Le point en tête de ligne marque un message traité ; la corbeille le supprime." : "Une entrée en brouillon reste invisible sur le site. Cliquez un en-tête pour régler le champ. Les images se choisissent dans la bibliothèque du site ; dans une galerie, cliquer une vignette la retire."}</Hint>
         {onDeleteDatabase ? <Button size="sm" variant="danger" icon={Trash2} className="shrink-0" onClick={onDeleteDatabase}>Supprimer la base…</Button> : null}
       </div>
+      {importTable && saveMany ? <ImportDialog site={site} db={db} table={importTable} entries={entries} commit={commit} saveMany={saveMany} onClose={() => setImportTable(null)} onDone={(n) => { setImportTable(null); notify?.(`${n} entrée${n > 1 ? "s" : ""} importée${n > 1 ? "s" : ""}.`, "success"); }} /> : null}
       {media ? <MediaLibrary site={site} entries={entries} open onClose={() => setMedia(null)} value={media.mode === "image" ? (entries.find((x) => x.id === media.entryId)?.values[media.field] as string | null) ?? null : null} onPick={pickMedia} commit={commit} saveEntry={save} /> : null}
     </Dialog>
   );
