@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { ChevronRight, Info } from "lucide-react";
+import { Tooltip } from "./Tooltip";
 import { cx } from "./cx";
 
 /** Colonne latérale. */
@@ -39,7 +40,7 @@ export function Section({ title, children, defaultOpen = true, actions, classNam
         <button type="button" onClick={() => setOpen((o) => !o)} className="flex-1 flex items-center gap-1.5 h-full pl-2 text-xs font-medium text-ink hover:bg-hover/60" aria-expanded={open}>
           <ChevronRight size={12} className={cx("text-dim transition-transform", open && "rotate-90")} aria-hidden />
           {title}
-          {hint ? <span title={hint} className="inline-flex"><Info size={11} className="text-dim ml-0.5" aria-hidden /></span> : null}
+          {hint ? <Tooltip text={hint}><span className="inline-flex" tabIndex={-1}><Info size={11} className="text-dim ml-0.5" aria-hidden /></span></Tooltip> : null}
         </button>
         {actions}
       </div>

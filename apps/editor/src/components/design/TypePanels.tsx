@@ -82,7 +82,7 @@ export function LinkPanel({ site, node, commit }: { site: Site; node: Node; comm
     <Section title={isButton ? "Bouton" : "Lien"}>
       <FieldGroup>
         <Field label="Rôle">
-          <Segmented value={isButton ? "button" : "a"} options={[{ value: "a", label: "Lien vers une cible" }, { value: "button", label: "Envoi de formulaire" }]} onChange={(v) => { if (v) commit({ op: "node.set", id: node.id, path: "props.tag", value: v }, { label: "Rôle" }); }} />
+          <Segmented value={isButton ? "button" : "a"} options={[{ value: "a", label: "Lien" }, { value: "button", label: "Formulaire" }]} onChange={(v) => { if (v) commit({ op: "node.set", id: node.id, path: "props.tag", value: v }, { label: "Rôle" }); }} />
         </Field>
         {isButton ? (
           <Field label="Action"><Select value={String(node.props.type ?? "button")} options={[{ value: "submit", label: "Envoyer le formulaire" }, { value: "button", label: "Aucune (interaction)" }]} onValueChange={(v) => commit({ op: "node.set", id: node.id, path: "props.type", value: v })} /></Field>

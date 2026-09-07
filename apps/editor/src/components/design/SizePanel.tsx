@@ -43,10 +43,10 @@ export function SizePanel({ site, style }: { site: Site; style: StyleApi }) {
     <Section title="Dimensions" hint="Auto : le navigateur décide (une boîte prend toute la largeur disponible, une hauteur suit son contenu). Ajustée : juste la taille du contenu. Remplit : toute la place du parent. Fixe : une valeur.">
       {dim("width", "Largeur")}
       {dim("height", "Hauteur")}
-      <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
-        {len("minWidth", "Larg. min.")}{len("maxWidth", "Larg. max.")}
-        {len("minHeight", "Haut. min.")}{len("maxHeight", "Haut. max.")}
-      </div>
+      {len("minWidth", "Largeur min.")}
+      {len("maxWidth", "Largeur max.")}
+      {len("minHeight", "Hauteur min.")}
+      {len("maxHeight", "Hauteur max.")}
       <PropRow label="Ratio" source={s.source("aspectRatio")} sourceTitle={s.title("aspectRatio")} onReset={() => s.reset("aspectRatio")}>
         <TextInput mono className="flex-1" value={typeof s.value("aspectRatio") === "string" ? String(s.value("aspectRatio")) : ""} placeholder="16 / 9" onValueChange={(v) => s.set("aspectRatio", v || undefined)} />
       </PropRow>

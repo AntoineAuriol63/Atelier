@@ -2,6 +2,7 @@
 
 import type { StyleSource } from "@atelier/model";
 import { cx } from "../cx";
+import { Tooltip } from "../Tooltip";
 
 export const SOURCE_COLOR: Record<StyleSource["kind"], string> = { local: "bg-accent", inherited: "bg-warning", shared: "bg-violet-400", default: "bg-line-strong" };
 
@@ -22,9 +23,9 @@ export function SourceDot({ source, title, onReset }: { source: StyleSource | un
   const kind = source?.kind;
   const local = kind === "local";
   return (
+    <Tooltip text={title} side="left">
     <button
       type="button"
-      title={title}
       aria-label={title}
       disabled={!local}
       onClick={local ? onReset : undefined}
@@ -32,5 +33,6 @@ export function SourceDot({ source, title, onReset }: { source: StyleSource | un
     >
       <span className={cx("block rounded-full", kind ? "w-1.5 h-1.5" : "w-1.5 h-1.5 border border-line-strong", kind && SOURCE_COLOR[kind])} />
     </button>
+    </Tooltip>
   );
 }

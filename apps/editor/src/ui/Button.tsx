@@ -3,6 +3,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { cx } from "./cx";
+import { Tooltip } from "./Tooltip";
 
 type Variant = "default" | "primary" | "ghost" | "danger";
 type Size = "sm" | "md";
@@ -35,14 +36,15 @@ export type IconButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & { label:
 /** Bouton à icône seule : le libellé est obligatoire (infobulle et lecteur d'écran). */
 export function IconButton({ label, icon: Icon, active, size = "md", tone = "default", className, ...rest }: IconButtonProps) {
   return (
-    <button
-      type="button"
-      title={label}
-      aria-label={label}
-      className={cx("inline-flex items-center justify-center rounded-sm transition-colors disabled:opacity-40 disabled:pointer-events-none", size === "sm" ? "h-6 w-6" : "h-7 w-7", active ? "bg-accent-soft text-ink" : tone === "danger" ? "text-muted hover:bg-danger-soft hover:text-danger" : "text-muted hover:bg-hover hover:text-ink", className)}
-      {...rest}
-    >
-      <Icon size={size === "sm" ? 13 : 15} strokeWidth={1.75} aria-hidden />
-    </button>
+    <Tooltip text={label}>
+      <button
+        type="button"
+        aria-label={label}
+        className={cx("inline-flex items-center justify-center rounded-sm transition-colors disabled:opacity-40 disabled:pointer-events-none", size === "sm" ? "h-6 w-6" : "h-7 w-7", active ? "bg-accent-soft text-ink" : tone === "danger" ? "text-muted hover:bg-danger-soft hover:text-danger" : "text-muted hover:bg-hover hover:text-ink", className)}
+        {...rest}
+      >
+        <Icon size={size === "sm" ? 13 : 15} strokeWidth={1.75} aria-hidden />
+      </button>
+    </Tooltip>
   );
 }

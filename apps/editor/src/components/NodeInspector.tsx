@@ -95,7 +95,7 @@ export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onP
   };
   const stateProps = (st: string) => stateEntries(st).map((e) => e.prop);
   const transitionValue = style.value("transition");
-  const animate = () => { if (transitionValue) revealProp("transition"); else commit({ op: "node.set", id: node.id, path: stylePath(BASE, "transition"), value: "all 200ms ease" }, { label: "Animer les changements d'état" }); };
+  const animate = () => { if (!transitionValue) commit({ op: "node.set", id: node.id, path: stylePath(BASE, "transition"), value: "all 200ms ease" }, { label: "Animer les changements d'état" }); window.setTimeout(() => revealProp("transition"), 80); };
   const clearState = (st: string) => {
     const ops: Op[] = [];
     if (sharedDef) { const i = site.sharedStyles.findIndex((x) => x.id === sharedDef.id); ops.push({ op: "site.set", path: `sharedStyles.${i}.style.states.${st}`, value: undefined }, { op: "site.set", path: `sharedStyles.${i}.style.stateBreakpoints.${st}`, value: undefined }); }
@@ -145,8 +145,8 @@ export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onP
             </div>
           ) : <span className="text-dim">Rien ne change encore au {STATE_LABEL[state]?.toLowerCase()} : ce que vous réglez maintenant ne s&apos;appliquera qu&apos;à cet état.</span>}
           <div className="flex items-center gap-2">
-            <button type="button" onClick={animate} className={`h-5 px-1.5 rounded-xs text-2xs border ${transitionValue ? "border-success/50 text-success" : "border-line-strong text-muted hover:text-ink"}`} title={transitionValue ? "Une transition est réglée : les changements d'état sont animés. Cliquer pour la voir." : "Ajouter une transition de 200 ms : les changements d'état seront animés (couleur, taille, opacité…)."}>{transitionValue ? "Animé ✓" : "Animer les changements"}</button>
-            <span className="text-dim">◆ = vient d&apos;un style partagé</span>
+            <button type="button" onClick={animate} className={`h-5 px-1.5 rounded-xs text-2xs border ${transitionValue ? "border-success/50 text-success" : "border-line-strong text-muted hover:text-ink"}`} title={transitionValue ? "Les changements d'état sont animés. Cliquer pour régler la durée et la courbe (section Effets)." : "Animer les changements d'état avec une transition de 200 ms, réglable ensuite dans Effets."}>{transitionValue ? "Animé ✓ · régler" : "Animer"}</button>
+            <span className="text-dim truncate">◆ = vient d&apos;un style partagé</span>
           </div>
         </div>
       ) : null}

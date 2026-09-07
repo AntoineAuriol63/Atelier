@@ -10,7 +10,7 @@ import { ColorInput } from "@/ui/controls";
 type Commit = (op: Op, opts?: CommitOptions) => void;
 
 const GROUPS: { key: keyof Theme["tokens"]; label: string; hint: string }[] = [
-  { key: "font", label: "Polices", hint: "Famille CSS complète, avec ses secours." },
+  { key: "font", label: "Rôles de police", hint: "Les rôles utilisés par les styles du site (titres, texte courant…). Chaque rôle pointe vers une famille : changer le rôle change tous les textes qui l'utilisent. Les familles disponibles sont dans « Polices chargées »." },
   { key: "fontSize", label: "Tailles de texte", hint: "" },
   { key: "lineHeight", label: "Interlignes", hint: "" },
   { key: "space", label: "Espacements", hint: "Utilisés par les marges, remplissages et écarts." },
@@ -78,7 +78,7 @@ function FontsSection({ site, commit }: { site: Site; commit: Commit }) {
     setName("");
   };
   return (
-    <Section title="Polices" defaultOpen={false} hint="Les polices du site, chargées automatiquement sur les pages. Ajoutez n'importe quelle police Google Fonts par son nom exact.">
+    <Section title="Polices chargées" defaultOpen={false} hint="Les familles de polices disponibles sur le site, chargées automatiquement sur les pages. Ajoutez n'importe quelle police Google Fonts par son nom exact.">
       <ul className="flex flex-col gap-1">
         {fonts.map((f) => (
           <li key={f.family} className="flex items-center gap-2 h-7 pl-2 pr-0.5 rounded-sm bg-surface border border-line">

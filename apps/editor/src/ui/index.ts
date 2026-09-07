@@ -5,3 +5,4 @@ export * from "./Tabs";
 export * from "./Panel";
 export * from "./TreeRow";
 export * from "./Misc";
+export * from "./Tooltip";

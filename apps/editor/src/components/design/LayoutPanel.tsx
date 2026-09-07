@@ -111,9 +111,9 @@ export function LayoutPanel({ site, style, parentDisplay, parentDirection, leaf 
         <Section title="Place dans son parent" defaultOpen={false} hint="Le parent de cet élément range ses enfants en ligne, en colonne ou en grille. Ici, vous réglez comment cet élément-ci s'y comporte.">
           {parentDisplay === "flex" ? (
             <>
-              {seg("flexGrow", "Espace libre", [{ value: "1", label: "Prend l'espace libre" }, { value: "0", label: "Reste à sa taille" }])}
-              {seg("flexShrink", "Si ça manque", [{ value: "1", label: "Peut rétrécir" }, { value: "0", label: "Ne rétrécit pas" }])}
-              {seg("alignSelf", "Alignement", [{ value: "auto", label: "Comme les autres" }, ...(parentDirection === "column" ? ALIGN_H : ALIGN_V.slice(0, 4))])}
+              {seg("flexGrow", "Espace libre", [{ value: "1", label: "Étendre" }, { value: "0", label: "Fixe" }])}
+              {seg("flexShrink", "Si ça manque", [{ value: "1", label: "Rétrécir" }, { value: "0", label: "Rigide" }])}
+              {seg("alignSelf", "Aligner", [{ value: "auto", label: "Idem" }, ...(parentDirection === "column" ? ALIGN_H : ALIGN_V.slice(0, 4))])}
             </>
           ) : (
             <>

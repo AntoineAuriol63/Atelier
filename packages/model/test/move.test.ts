@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { applyOp, findNode, indexSite, planDrop, planInsert, planMove, sampleSite } from "../src";
+import { applyOp, canInsertUnder, findNode, indexSite, planDrop, planInsert, planMove, sampleSite } from "../src";
 
 const idx = indexSite(sampleSite);
 const home = sampleSite.pages[0]!.root;
@@ -58,5 +58,17 @@ describe("planDrop", () => {
     expect(planDrop(idx, "home", "after")).toEqual({ ok: true, to: { parent: "home", index: home.children!.length } });
     expect(planDrop(idx, "hero_h1", "inside").ok).toBe(false);
     expect(planDrop(idx, "work_item", "after").ok).toBe(false);
+  });
+});
+
+describe("lien dans un lien", () => {
+  it("refuse de déplacer, déposer ou insérer un lien sous un lien", () => {
+    // hero_b2 est un lien ; hero_b1 aussi (contient un span)
+    expect(planMove(idx, "hero_b2", "hero_b1", "inside").ok).toBe(false);
+    expect(planMove(idx, "hero_b2", "hero_b1_t", "after").ok).toBe(false);   // à côté du span, donc dans le lien
+    expect(planDrop(idx, "hero_b1", "inside", { id: "x1", type: "link", props: {} }).ok).toBe(false);
+    expect(planDrop(idx, "hero_b1", "inside", { id: "x2", type: "text", props: {} }).ok).toBe(true);
+    expect(canInsertUnder(idx, "hero_b1", { id: "x3", type: "box", props: {}, children: [{ id: "x4", type: "link", props: {} }] }).ok).toBe(false);
+    expect(canInsertUnder(idx, "hero_txt", { id: "x5", type: "link", props: {} }).ok).toBe(true);
   });
 });

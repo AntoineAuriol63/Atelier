@@ -103,6 +103,8 @@ Le panneau de droite actuel est un échafaudage. Il est remplacé, pas amélior�
   - [x] Ombres sm / md → libellés « petite (sm) », « moyenne (md) »… pour les valeurs du thème nommées par taille
   - [x] Bouton avec survol sans réglage → les états venant d'un style partagé sont listés avec ◆ et le nom du style
   - [ ] Refonte complète du panneau de droite → faite par touches ci-dessus ; une passe globale d'harmonisation est prévue après l'audit n°3
+  - [x] Suite du 7 sept. (soir) : infobulles réelles (composant Tooltip, immédiates) sur les (i), les boutons icône, les pastilles, les options et les libellés ; panneau droit à 340 px et libellés courts ; espace perdu autour du canvas supprimé ; deux sections « Polices » du thème distinguées (« Polices chargées » / « Rôles de police ») ; « Animer » ouvre aussitôt les réglages de la transition
+  - [x] Bug trouvé via le panneau de problèmes de Next : un lien déposé dans un lien (HTML invalide, erreur d'hydratation à chaque chargement). Règle ajoutée dans le modèle (déplacement, dépôt, insertion, collage) et rendu dégradé en span ; documents réparés
   - [ ] Sélection multiple → M4
 
 ### M4 · Mode Écriture (D18)

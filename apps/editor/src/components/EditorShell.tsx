@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { Command as CommandIcon, ExternalLink, FileText, Layers, Moon, Palette, Plus, Redo2, Sun, Undo2, UploadCloud } from "lucide-react";
 import type { DropPosition, Node, Page, Site } from "@atelier/model";
-import { BASE, breakpointForWidth, cloneWithNewIds, indexSite, newId, planDrop, planInsert, planMove } from "@atelier/model";
+import { BASE, breakpointForWidth, canInsertUnder, cloneWithNewIds, indexSite, newId, planDrop, planInsert, planMove } from "@atelier/model";
 import type { Inline } from "@atelier/model";
 import { useDocument } from "@/lib/use-document";
 import { PRODUCT_NAME } from "@/lib/product";
@@ -145,18 +145,20 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
   const addBlock = useCallback((preset: BlockPreset) => {
     const node = preset.make(site);
     const to = planInsert(index, page.root, selected);
+    const ok = canInsertUnder(index, to.parent, node);
+    if (!ok.ok) { notify(ok.reason); return; }
     doc.commit({ op: "node.insert", parent: to.parent, index: to.index, node }, { label: `Ajouter ${preset.label}` });
     setOpenMap((m) => ({ ...m, [to.parent]: true }));
     select(node.id);
-  }, [site, index, page.root, selected, doc, select]);
+  }, [site, index, page.root, selected, doc, select, notify]);
 
   const presetById = useCallback((id: string) => [...BLOCKS, ...componentPresets(site)].find((b) => b.id === id), [site]);
   const dropBlock = useCallback((presetId: string, targetId: string, position: DropPosition) => {
     const preset = presetById(presetId);
     if (!preset) return;
-    const r = planDrop(index, targetId, position);
-    if (!r.ok) { notify(r.reason); return; }
     const node = preset.make(site);
+    const r = planDrop(index, targetId, position, node);
+    if (!r.ok) { notify(r.reason); return; }
     doc.commit({ op: "node.insert", parent: r.to.parent, index: r.to.index, node }, { label: `Ajouter ${preset.label}` });
     setOpenMap((m) => ({ ...m, [r.to.parent]: true }));
     select(node.id);
@@ -217,7 +219,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
       if (!loc) return;
       if (meta && e.key.toLowerCase() === "c") { e.preventDefault(); clipboard.current = structuredClone(loc.node); void navigator.clipboard?.writeText(JSON.stringify(loc.node)).catch(() => {}); notify("Copié", "success"); return; }
       if (meta && e.key.toLowerCase() === "x") { e.preventDefault(); if (!loc.parent) return; clipboard.current = structuredClone(loc.node); doc.commit({ op: "node.remove", id: loc.node.id }, { label: "Couper" }); select(loc.parent.id); return; }
-      if (meta && e.key.toLowerCase() === "v") { e.preventDefault(); if (!clipboard.current) return; const { node: copy } = cloneWithNewIds(clipboard.current, newId); const to = planInsert(index, page.root, loc.node.id, "after"); doc.commit({ op: "node.insert", parent: to.parent, index: to.index, node: copy }, { label: "Coller" }); select(copy.id); return; }
+      if (meta && e.key.toLowerCase() === "v") { e.preventDefault(); if (!clipboard.current) return; const { node: copy } = cloneWithNewIds(clipboard.current, newId); const to = planInsert(index, page.root, loc.node.id, "after"); const ok = canInsertUnder(index, to.parent, copy); if (!ok.ok) { notify(ok.reason); return; } doc.commit({ op: "node.insert", parent: to.parent, index: to.index, node: copy }, { label: "Coller" }); select(copy.id); return; }
       if (meta && e.key.toLowerCase() === "d") { e.preventDefault(); if (!loc.parent) return; const { node: copy } = cloneWithNewIds(loc.node, newId); doc.commit({ op: "node.insert", parent: loc.parent.id, index: loc.index + 1, node: copy }, { label: "Dupliquer" }); select(copy.id); return; }
       if ((e.key === "Backspace" || e.key === "Delete") && loc.parent) { e.preventDefault(); doc.commit({ op: "node.remove", id: loc.node.id }, { label: "Supprimer" }); select(loc.parent.id); return; }
       if (e.key === "ArrowUp" || e.key === "ArrowDown") {
@@ -244,7 +246,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
     const el = canvas.current;
     if (!el) return;
     const ro = new ResizeObserver((entries) => {
-      const w = Math.round((entries[0]?.contentRect.width ?? el.getBoundingClientRect().width) - 40);
+      const w = Math.round((entries[0]?.contentRect.width ?? el.getBoundingClientRect().width) - 16);
       if (w >= 100) setMeasured(w);
     });
     ro.observe(el);
@@ -255,7 +257,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
   const effective = width ?? (measured || 1280);
   // Au-delà de la zone visible, le cadre garde sa vraie largeur et est réduit à l'échelle pour tenir.
   const scale = measured > 0 && effective > measured ? measured / effective : 1;
-  const frameHeight = `calc((100vh - 40px - 40px - 18px) / ${scale})`;
+  const frameHeight = `calc((100vh - 40px - 16px) / ${scale})`;
   const activeBp = useMemo(() => breakpointForWidth(site.settings.breakpoints, effective), [site.settings.breakpoints, effective]);
   const breakpoint = activeBp === BASE ? "Base" : site.settings.breakpoints.find((b) => b.id === activeBp)?.name ?? activeBp;
   const goToBreakpoint = useCallback((bp: string) => {
@@ -306,7 +308,7 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
   }, [index, doc]);
 
   return (
-    <div className="h-full grid grid-rows-[40px_1fr] grid-cols-[264px_1fr_300px]">
+    <div className="h-full grid grid-rows-[40px_1fr] grid-cols-[264px_1fr_340px]">
       <header className="col-span-3 flex items-center gap-2 px-3 border-b border-line bg-panel">
         <span className="font-semibold text-base tracking-tight text-ink">{PRODUCT_NAME}</span>
         <Separator vertical />
@@ -369,18 +371,17 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
         </div>
       </Panel>
 
-      <main ref={canvas} className="relative min-w-0 overflow-auto bg-app flex justify-center items-start p-5">
+      <main ref={canvas} className="relative min-w-0 overflow-auto bg-app flex justify-center items-start p-2">
         {(doc.error || notice) ? (
           <div className={`fixed top-12 left-1/2 -translate-x-1/2 z-10 rounded-sm border px-3 py-1.5 text-xs shadow-lg ${notice?.tone === "success" ? "bg-success-soft text-success border-success/40" : "bg-danger-soft text-danger border-danger/40"}`}>{notice?.text ?? doc.error}</div>
         ) : null}
         <div className="relative flex flex-col gap-1.5" style={{ width: width ? `${Math.min(width, measured || width)}px` : "100%", maxWidth: "100%" }}>
-          <div className="self-start text-2xs text-dim font-mono">{Math.round(effective)} px{scale < 1 ? ` · réduit à ${Math.round(scale * 100)} %` : ""} · {page.path}</div>
-          <div style={{ width: "100%", height: `calc(${frameHeight} * ${scale})`, overflow: "visible" }}>
+          <div style={{ width: "100%", height: `calc(${frameHeight} * ${scale})`, overflow: "visible", marginTop: 0 }}>
             <div style={{ width: `${effective || measured}px`, height: frameHeight, transform: `scale(${scale})`, transformOrigin: "top left" }}>
               <iframe ref={frame} key={previewPath} src={`${previewPath}?editor=1&mode=${mode}`} title="Aperçu" className="bg-white rounded-xs shadow-[0_0_0_1px_var(--color-line-strong),0_12px_40px_rgba(0,0,0,.45)]" style={{ width: "100%", height: "100%" }} />
             </div>
           </div>
-          <div role="separator" aria-label="Redimensionner l'aperçu" title="Glisser pour changer la largeur" onPointerDown={startResize} className="absolute top-[24px] -right-3 w-2.5 h-[calc(100%-24px)] cursor-col-resize group">
+          <div role="separator" aria-label="Redimensionner l'aperçu" title="Glisser pour changer la largeur" onPointerDown={startResize} className="absolute top-0 -right-2.5 w-2.5 h-full cursor-col-resize group">
             <div className="absolute top-1/2 -translate-y-1/2 left-0.5 w-1 h-12 rounded-full bg-line-strong group-hover:bg-accent" />
           </div>
         </div>

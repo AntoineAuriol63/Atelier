@@ -87,10 +87,13 @@ export function RenderNode({ node, ctx }: { node: Node; ctx: RenderContext }): R
     }
     case "link": {
       const tag = node.props.tag === "button" ? "button" : "a";
-      if (tag === "button") return createElement("button", attrs(node, ctx, { type: node.props.type === "submit" ? "submit" : "button" }), children());
+      if (ctx.inLink) return createElement("span", attrs(node, ctx, { "data-nested-link": "" }), children());
+      const inner: RenderContext = { ...ctx, inLink: true };
+      const kids = () => node.children?.map((c) => createElement(RenderNode, { key: c.id, node: c, ctx: inner }));
+      if (tag === "button") return createElement("button", attrs(node, ctx, { type: node.props.type === "submit" ? "submit" : "button" }), kids());
       const href = node.bindings?.href ? String(resolveBinding(node.bindings.href, ctx) ?? "#") : resolveHref(node.props.href as Parameters<typeof resolveHref>[0], ctx);
       const current = !ctx.editor && (node.props.href as { kind?: string; page?: string } | undefined)?.kind === "page" && (node.props.href as { page: string }).page === ctx.page.id;
-      return createElement("a", attrs(node, ctx, { href, target: node.props.newTab ? "_blank" : undefined, rel: node.props.newTab ? "noopener" : undefined, "aria-current": current ? "page" : undefined }), children());
+      return createElement("a", attrs(node, ctx, { href, target: node.props.newTab ? "_blank" : undefined, rel: node.props.newTab ? "noopener" : undefined, "aria-current": current ? "page" : undefined }), kids());
     }
     case "icon":
       return createElement("span", attrs(node, ctx, { "aria-hidden": true, dangerouslySetInnerHTML: node.props.svg ? { __html: String(node.props.svg) } : undefined }), node.props.svg ? undefined : "◆");

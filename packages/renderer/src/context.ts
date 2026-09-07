@@ -19,6 +19,8 @@ export type RenderContext = {
   slots?: Record<string, Node[]>;
   state?: Record<string, unknown>;
   editor?: boolean;
+  /** Vrai sous un lien : un lien imbriqué se rend alors en span (le HTML interdit a > a). */
+  inLink?: boolean;
   assets: Map<string, Asset>;
   /** Préfixe des URLs (ex. "/preview") */
   basePath?: string;
