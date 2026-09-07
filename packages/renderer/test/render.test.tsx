@@ -52,6 +52,29 @@ describe("liaisons", () => {
   });
 });
 
+describe("formulaire", () => {
+  it("rend le piège à robots, la page d'origine, les messages, et le script hors éditeur", () => {
+    const site = structuredClone(sampleSite);
+    const contact = site.pages.find((p) => p.path === "/contact")!;
+    const main = contact.root.children!.find((c) => c.type === "box")!;
+    main.children!.push({ id: "frm1", type: "form", props: { formId: "frm_test", successMessage: { fr: "Bien reçu !" } }, children: [
+      { id: "fld1", type: "field", props: { fieldType: "email", name: "email", label: { fr: "Email" }, required: true } },
+      { id: "btn1", type: "link", props: { tag: "button", type: "submit" }, children: [{ id: "btn1t", type: "text", props: { tag: "span", content: { fr: [{ t: "text", v: "Envoyer" }] } } }] },
+    ] });
+    const m = matchPath(site, data, "/contact")!;
+    const ctx: RenderContext = { site, page: m.page, entry: m.entry, params: m.params, locale: "fr", data, assets: assetMap(site), basePath: "" };
+    const html = renderToStaticMarkup(createElement(RenderPage, { ctx }));
+    expect(html).toContain('action="/api/forms/frm_test"');
+    expect(html).toContain('name="_hp"');
+    expect(html).toContain('name="_page" value="/contact"');
+    expect(html).toContain('<p data-form-success="" hidden="" role="status">Bien reçu !</p>');
+    expect(html).toContain('<button class="n-btn1" type="submit">');
+    expect(html).toContain("<script>");
+    const inEditor = renderToStaticMarkup(createElement(RenderPage, { ctx: { ...ctx, editor: true } }));
+    expect(inEditor).not.toContain("<script>");
+  });
+});
+
 describe("image", () => {
   it("émet un srcset à partir des déclinaisons, l'original en repli", () => {
     const site = structuredClone(sampleSite);

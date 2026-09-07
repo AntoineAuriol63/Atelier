@@ -1,0 +1,34 @@
+import type { Database, Field, Node, Site } from "@atelier/model";
+
+export type FormInfo = { formId: string; node: Node; where: string };
+
+/** Tous les formulaires du site, avec la page ou le composant qui les porte. */
+export function findForms(site: Site): FormInfo[] {
+  const out: FormInfo[] = [];
+  const locale = site.settings.defaultLocale;
+  const visit = (n: Node, where: string) => { if (n.type === "form") out.push({ formId: String(n.props.formId ?? n.id), node: n, where }); n.children?.forEach((c) => visit(c, where)); };
+  site.pages.forEach((p) => visit(p.root, p.name[locale] ?? p.path));
+  site.components.forEach((c) => visit(c.root, c.name));
+  return out;
+}
+
+/** Identifiant de la base virtuelle qui reçoit les envois d'un formulaire. */
+export const formDatabaseId = (formId: string) => `frm_${formId}`.slice(0, 32);
+
+/** Base virtuelle des messages reçus par un formulaire : ses champs sont ceux du formulaire, plus la page d'origine. */
+export function formDatabase(site: Site, form: FormInfo): Database {
+  const locale = site.settings.defaultLocale;
+  const fields: Field[] = [];
+  const visit = (n: Node) => {
+    if (n.type === "field") {
+      const name = String(n.props.name ?? n.id);
+      const type = String(n.props.fieldType ?? "text");
+      fields.push({ name, label: (n.props.label as Record<string, string> | undefined) ?? { [locale]: name }, type: type === "checkbox" ? "boolean" : type === "number" ? "number" : type === "date" ? "date" : type === "textarea" ? "richtext" : "text" });
+    }
+    n.children?.forEach(visit);
+  };
+  visit(form.node);
+  fields.push({ name: "_page", label: { [locale]: "Page" }, type: "text" }, { name: "createdAt", label: { [locale]: "Reçu le" }, type: "createdAt" });
+  const title = fields.find((f) => f.name === "name" || f.name === "nom") ?? fields.find((f) => f.name === "email") ?? fields[0]!;
+  return { id: formDatabaseId(form.formId), name: { [locale]: `Messages · ${form.node.name ?? form.where}` }, slug: formDatabaseId(form.formId), fields, titleField: title.name };
+}

@@ -6,7 +6,7 @@ import type { CommitOptions, Inline, Node, NodeLocation, Op, Site, StyleValue, D
 import { BASE, cloneWithNewIds, newId, resolveNodeStyle, resolveSharedStyleSet, stylePath } from "@atelier/model";
 import { Badge, Field, FieldGroup, Hint, IconButton, Section, TextArea, TextInput } from "@/ui";
 import { nodeIcon, nodeLabel, TYPE_LABEL } from "./node-icons";
-import { AppearancePanel, BindingPanel, CollectionPanel, EffectsPanel, ImagePanel, LayoutPanel, LinkPanel, ResponsivePanel, SharedStylesPanel, SizePanel, SpacingPanel, STATE_LABEL, TagPanel, TypographyPanel, useStyle, type StyleTarget } from "./design";
+import { AppearancePanel, BindingPanel, CollectionPanel, EffectsPanel, FieldPanel, FormPanel, ImagePanel, LayoutPanel, LinkPanel, ResponsivePanel, SharedStylesPanel, SizePanel, SpacingPanel, STATE_LABEL, TagPanel, TypographyPanel, useStyle, type StyleTarget } from "./design";
 import { PropRow, Segmented } from "@/ui/controls";
 import { sharedStyleUsages } from "@atelier/model";
 
@@ -198,6 +198,8 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
       {!sharedDef && node.type === "image" ? <ImagePanel site={site} node={node} commit={commit} /> : null}
       {!sharedDef && node.type === "link" ? <LinkPanel site={site} node={node} commit={commit} /> : null}
       {!sharedDef && node.type === "collection" ? <CollectionPanel site={site} node={node} commit={commit} editMode={editMode} /> : null}
+      {!sharedDef && node.type === "form" ? <FormPanel site={site} node={node} commit={commit} /> : null}
+      {!sharedDef && node.type === "field" ? <FieldPanel site={site} node={node} commit={commit} /> : null}
 
       {!sharedDef && (node.type === "text" || node.type === "image" || node.type === "link") ? (dataSource ? <BindingPanel site={site} node={node} source={dataSource} commit={commit} /> : (
         <Section title="Données" defaultOpen={false} hint="Afficher ici un champ d'une base de données.">

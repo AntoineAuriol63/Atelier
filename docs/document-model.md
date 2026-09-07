@@ -84,7 +84,7 @@ type Node = {
 | `icon` | Icône vectorielle | non | `name` ou `svg` |
 | `divider` | Séparateur : trait horizontal dans une colonne, vertical dans une rangée (décidé par le conteneur, section 11) | non | — |
 | `embed` | HTML intégré (widget tiers) | non | `html: string` |
-| `form` | Formulaire | oui | `formId: Id`, `successAction` |
+| `form` | Formulaire (envois : `docs/formulaires.md`) | oui | `formId: Id`, `successMessage: Localized<string>`, `successAction` |
 | `field` | Champ de formulaire | non | `fieldType`, `name`, `label`, `required`, `options` |
 | `collection` | Vue de base de données (section 7) | `item` | `database: Id`, `view: ViewConfig` |
 | `item` | Modèle de l'élément répété d'une `collection` | oui | — |

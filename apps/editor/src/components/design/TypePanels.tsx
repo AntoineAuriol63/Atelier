@@ -203,3 +203,39 @@ export function CollectionPanel({ site, node, commit, editMode = "design" }: { s
     </Section>
   );
 }
+
+const FIELD_KINDS = [{ value: "text", label: "Texte court" }, { value: "email", label: "Email" }, { value: "tel", label: "Téléphone" }, { value: "number", label: "Nombre" }, { value: "date", label: "Date" }, { value: "textarea", label: "Texte long" }, { value: "select", label: "Liste de choix" }, { value: "checkbox", label: "Case à cocher" }];
+
+/** Réglages d'un formulaire : message de succès, rappel du branchement (docs/formulaires.md). */
+export function FormPanel({ site, node, commit }: { site: Site; node: Node; commit: Commit }) {
+  const locale = site.settings.defaultLocale;
+  const msg = (node.props.successMessage as Record<string, string> | undefined)?.[locale] ?? "";
+  return (
+    <Section title="Formulaire" hint="Les envois arrivent dans Données → Messages reçus, et par email si la notification est configurée.">
+      <FieldGroup>
+        <Field label="Après l'envoi" hint="Message affiché à la place des champs"><TextInput value={msg} placeholder="Merci, votre message est bien envoyé." onValueChange={(v) => commit({ op: "node.set", id: node.id, path: `props.successMessage.${locale}`, value: v || undefined }, { coalesceKey: `form-ok:${node.id}`, label: "Message de succès" })} /></Field>
+      </FieldGroup>
+      <Hint>Ajoutez des champs avec « / » ou l&apos;onglet Ajouter, puis réglez chacun (libellé, sorte, obligatoire). Un bouton avec le type « envoi » déclenche l&apos;envoi.</Hint>
+    </Section>
+  );
+}
+
+/** Réglages d'un champ de formulaire : libellé, clé, sorte, obligatoire, aide, options. */
+export function FieldPanel({ site, node, commit }: { site: Site; node: Node; commit: Commit }) {
+  const locale = site.settings.defaultLocale;
+  const set = (path: string, value: unknown, label: string, coalesce?: boolean) => commit({ op: "node.set", id: node.id, path, value }, { label, coalesceKey: coalesce ? `${path}:${node.id}` : undefined });
+  const kind = String(node.props.fieldType ?? "text");
+  const options = ((node.props.options as { value: string; label: Record<string, string> }[] | undefined) ?? []).map((o) => o.label[locale] ?? o.value).join(", ");
+  return (
+    <Section title="Champ">
+      <FieldGroup>
+        <Field label="Libellé"><TextInput value={(node.props.label as Record<string, string> | undefined)?.[locale] ?? ""} onValueChange={(v) => set(`props.label.${locale}`, v || undefined, "Libellé du champ", true)} /></Field>
+        <Field label="Clé" hint="Nom technique de la valeur reçue (name, email, message…)"><TextInput mono value={String(node.props.name ?? "")} onValueChange={(v) => set("props.name", v.replace(/[^a-zA-Z0-9_-]/g, "") || undefined, "Clé du champ", true)} /></Field>
+        <Field label="Sorte"><Select value={kind} options={FIELD_KINDS} onValueChange={(v) => set("props.fieldType", v, "Sorte du champ")} /></Field>
+        <Field label="Aide" hint="Texte dans le champ vide"><TextInput value={(node.props.placeholder as Record<string, string> | undefined)?.[locale] ?? ""} onValueChange={(v) => set(`props.placeholder.${locale}`, v || undefined, "Aide du champ", true)} /></Field>
+        <Field label="Obligatoire"><Segmented value={node.props.required ? "1" : undefined} options={[{ value: "1", label: "Obligatoire" }]} onChange={(v) => set("props.required", v ? true : undefined, "Champ obligatoire")} /></Field>
+        {kind === "select" ? <Field label="Choix" hint="Séparés par des virgules"><TextInput value={options} onValueChange={(v) => set("props.options", v.split(",").map((x) => x.trim()).filter(Boolean).map((l) => ({ value: l.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || l, label: { [locale]: l } })), "Choix du champ", true)} /></Field> : null}
+      </FieldGroup>
+    </Section>
+  );
+}

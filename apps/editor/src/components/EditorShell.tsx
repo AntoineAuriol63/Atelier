@@ -21,6 +21,7 @@ import { MediaLibrary } from "@/components/MediaLibrary";
 import { DataPanel } from "@/components/data/DataPanel";
 import { DatabaseTable } from "@/components/data/DatabaseTable";
 import { useEntries } from "@/lib/use-entries";
+import { findForms, formDatabase, formDatabaseId } from "@/lib/forms";
 import { nodeIcon, nodeLabel } from "./node-icons";
 
 const PRESETS: { id: string; label: string; width: number | null }[] = [
@@ -153,6 +154,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
   /** Entrées des bases (hors document) et base ouverte en vue tableur. */
   const ents = useEntries(initialSite.id, initialEntries, notify);
   const [dbOpen, setDbOpen] = useState<string | null>(null);
+  const formForOpen = useMemo(() => (dbOpen ? findForms(site).find((f) => formDatabaseId(f.formId) === dbOpen) : undefined), [dbOpen, site]);
   // Modèle de page : l'aperçu se fait avec une entrée au choix (publiée, pour que l'adresse existe).
   const template = useMemo(() => templateOf(site, page.id), [site, page.id]);
   const [previewEntryByPage, setPreviewEntryByPage] = useState<Record<string, string>>({});
@@ -605,6 +607,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
       </Panel>
       {paletteOpen ? <CommandPalette open onClose={() => setPaletteOpen(false)} commands={commands} /> : null}
       {dbOpen && site.databases.some((d) => d.id === dbOpen) ? <DatabaseTable site={site} db={site.databases.find((d) => d.id === dbOpen)!} entries={ents.entries} save={ents.save} remove={ents.remove} commit={doc.commit} onClose={() => setDbOpen(null)} saving={ents.saving} onDeleteDatabase={() => deleteDatabase(dbOpen)} /> : null}
+      {dbOpen && formForOpen ? <DatabaseTable site={site} db={formDatabase(site, formForOpen)} entries={ents.entries} save={ents.save} remove={ents.remove} commit={doc.commit} onClose={() => setDbOpen(null)} saving={ents.saving} readOnly /> : null}
       {mediaFor ? <MediaLibrary site={site} open onClose={() => setMediaFor(null)} value={(index.get(mediaFor)?.node.props.asset as string | null) ?? null} onPick={(id) => doc.commit({ op: "node.set", id: mediaFor, path: "props.asset", value: id }, { label: "Changer l'image" })} commit={doc.commit} /> : null}
     </div>
   );

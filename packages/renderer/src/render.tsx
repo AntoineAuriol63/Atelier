@@ -116,8 +116,18 @@ export function RenderNode({ node, ctx }: { node: Node; ctx: RenderContext }): R
       return createElement("hr", attrs(node, ctx));
     case "embed":
       return createElement("div", attrs(node, ctx, { dangerouslySetInnerHTML: { __html: String(node.props.html ?? "") } }));
-    case "form":
-      return createElement("form", attrs(node, ctx, { method: "post", action: `${ctx.basePath ?? ""}/api/forms/${String(node.props.formId ?? node.id)}`, "data-form": String(node.props.formId ?? node.id) }), children());
+    case "form": {
+      const formId = String(node.props.formId ?? node.id);
+      const success = localized<string>(node.props.successMessage, ctx) ?? "Merci, votre message est bien envoyé.";
+      return createElement("form", attrs(node, ctx, { method: "post", action: `/api/forms/${formId}`, "data-form": formId, noValidate: false }),
+        // Piège à robots : un champ que personne ne voit ; rempli, l'envoi est ignoré en silence.
+        createElement("input", { type: "text", name: "_hp", tabIndex: -1, autoComplete: "off", "aria-hidden": true, style: { position: "absolute", left: "-10000px", width: 1, height: 1, opacity: 0 } }),
+        createElement("input", { type: "hidden", name: "_page", value: ctx.page.path }),
+        children(),
+        createElement("p", { "data-form-success": "", hidden: true, role: "status" }, success),
+        createElement("p", { "data-form-error": "", hidden: true, role: "alert" }),
+      );
+    }
     case "field": {
       const type = String(node.props.fieldType ?? "text");
       const name = String(node.props.name ?? node.id);
@@ -184,9 +194,18 @@ function renderInstance(node: Node, cmp: ComponentDef, ctx: RenderContext): Reac
 
 // ---------------------------------------------------------------- page
 
+/** Script des formulaires (D47) : envoi sans rechargement, message de succès ou d'erreur en place ; sans script, le serveur redirige avec `?envoye=`. */
+export const FORM_SCRIPT = `(function(){var q=new URLSearchParams(location.search).get("envoye");document.querySelectorAll("form[data-form]").forEach(function(f){var ok=f.querySelector("[data-form-success]"),ko=f.querySelector("[data-form-error]");function show(el,msg){if(!el)return;if(msg)el.textContent=msg;el.hidden=false;}if(q&&q===f.getAttribute("data-form")){show(ok);f.querySelectorAll("input:not([type=hidden]),textarea,select,button").forEach(function(c){c.hidden=true;});}f.addEventListener("submit",function(e){if(!f.checkValidity())return;e.preventDefault();var b=f.querySelector("button[type=submit]");if(b){b.disabled=true;}if(ko)ko.hidden=true;fetch(f.action,{method:"POST",headers:{accept:"application/json"},body:new FormData(f)}).then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j};});}).then(function(x){if(x.ok){f.querySelectorAll("input:not([type=hidden]),textarea,select,button").forEach(function(c){c.hidden=true;});show(ok);}else{show(ko,(x.j&&x.j.error)||"L'envoi a échoué, réessayez.");if(b)b.disabled=false;}}).catch(function(){show(ko,"Pas de connexion, réessayez.");if(b)b.disabled=false;});});});})();`;
+
+function hasForm(n: Node): boolean { return n.type === "form" || (n.children ?? []).some(hasForm); }
+
 export function RenderPage({ ctx, mode }: { ctx: RenderContext; mode?: string }): ReactNode {
   const page: Page = ctx.page;
-  return createElement("div", { className: "at-page", "data-mode": mode ?? ctx.site.theme.defaultMode, lang: ctx.locale }, createElement(RenderNode, { node: page.root, ctx }));
+  const withForm = hasForm(page.root) || ctx.site.components.some((c) => hasForm(c.root));
+  return createElement("div", { className: "at-page", "data-mode": mode ?? ctx.site.theme.defaultMode, lang: ctx.locale },
+    createElement(RenderNode, { node: page.root, ctx }),
+    withForm && !ctx.editor ? createElement("script", { dangerouslySetInnerHTML: { __html: FORM_SCRIPT } }) : null,
+  );
 }
 
 /** Titre de la page (SEO), avec composition {champ} pour les modèles. */

@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Database as DatabaseIcon, Plus, Table2 } from "lucide-react";
+import { Database as DatabaseIcon, Inbox, Plus, Table2 } from "lucide-react";
 import type { CommitOptions, Database, Entry, Op, Site } from "@atelier/model";
 import { newId } from "@atelier/model";
 import { Button, Hint, TextInput } from "@/ui";
 import { slugify, templatePage } from "@/components/PagesPanel";
+import { findForms, formDatabaseId } from "@/lib/forms";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
 
@@ -15,6 +16,7 @@ export function DataPanel({ site, entries, commit, onOpen }: { site: Site; entri
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [withPage, setWithPage] = useState(true);
+  const forms = findForms(site);
   const create = () => {
     const n = name.trim();
     if (!n) return;
@@ -59,6 +61,27 @@ export function DataPanel({ site, entries, commit, onOpen }: { site: Site; entri
           );
         })}
       </ul>
+      {forms.length ? (
+        <div className="border-t border-line">
+          <div className="flex items-center gap-1.5 h-7 px-3 mt-1 text-2xs uppercase tracking-[0.12em] text-dim" title="Les envois de chaque formulaire du site"><Inbox size={11} aria-hidden />Messages reçus</div>
+          <ul className="flex flex-col pb-1">
+            {forms.map((f) => {
+              const dbId = formDatabaseId(f.formId);
+              const all = entries.filter((e) => e.database === dbId);
+              const fresh = all.filter((e) => e.status === "draft").length;
+              return (
+                <li key={f.formId}>
+                  <button type="button" onClick={() => onOpen(dbId)} className="w-full flex items-center gap-2 h-[34px] pl-3 pr-2 text-left text-sm text-ink hover:bg-hover" title={`Formulaire de la page « ${f.where} »`}>
+                    <Inbox size={13} strokeWidth={1.75} className="text-dim shrink-0" />
+                    <span className="flex-1 min-w-0 truncate">{f.node.name ?? "Formulaire"} <span className="text-dim">· {f.where}</span></span>
+                    {fresh ? <span className="h-4 min-w-4 px-1 rounded-full bg-accent text-accent-ink text-2xs grid place-items-center tabular-nums" title={`${fresh} nouveau${fresh > 1 ? "x" : ""}`}>{fresh}</span> : <span className="text-2xs text-dim tabular-nums">{all.length}</span>}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ) : null}
       <div className="px-3 py-2 border-t border-line flex flex-col gap-2">
         {creating ? (
           <form className="flex flex-col gap-1.5" onSubmit={(e) => { e.preventDefault(); create(); }}>

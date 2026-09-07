@@ -2,7 +2,7 @@
 /* eslint-disable @next/next/no-img-element -- vignettes de l'éditeur, pas du site publié */
 
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, Trash2, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Plus, Trash2, X } from "lucide-react";
 import type { CommitOptions, Database, Entry, Field, FieldType, Node, Op, Site } from "@atelier/model";
 import { newId } from "@atelier/model";
 import { Button, Dialog, Hint, IconButton, Select, TextArea, TextInput } from "@/ui";
@@ -20,7 +20,8 @@ export const FIELD_TYPES: { value: FieldType; label: string }[] = [
   { value: "color", label: "Couleur" }, { value: "relation", label: "Relation" }, { value: "position", label: "Ordre" },
 ];
 const READONLY: FieldType[] = ["formula", "backlink", "createdAt", "updatedAt"];
-const typeLabel = (t: FieldType) => FIELD_TYPES.find((x) => x.value === t)?.label ?? t;
+const READONLY_LABEL: Partial<Record<FieldType, string>> = { createdAt: "Date de création", updatedAt: "Dernière modification", formula: "Formule", backlink: "Relation inverse" };
+const typeLabel = (t: FieldType) => FIELD_TYPES.find((x) => x.value === t)?.label ?? READONLY_LABEL[t] ?? t;
 
 // ---------------------------------------------------------------- texte long ↔ texte simple (v0 : paragraphes seulement)
 function inlineText(list: unknown, locale: string): string {
@@ -159,7 +160,15 @@ function FieldEditor({ site, db, field, onChange, onMove, onRemove, onClose, isN
 }
 
 // ---------------------------------------------------------------- la vue tableur
-export function DatabaseTable({ site, db, entries, save, remove, commit, onClose, saving, onDeleteDatabase }: { site: Site; db: Database; entries: Entry[]; save: (e: Entry) => void; remove: (id: string) => void; commit: Commit; onClose: () => void; saving?: boolean; onDeleteDatabase?: () => void }) {
+/** Export CSV d'une base : une ligne par entrée, libellés des champs en tête, valeurs texte (les listes jointes par « ; »). */
+export function toCsv(db: Database, rows: Entry[], locale: string): string {
+  const cell = (v: unknown): string => { const t = v === undefined || v === null ? "" : Array.isArray(v) ? v.map((x) => (typeof x === "object" && x ? richToText([x], locale) : String(x))).join("; ") : typeof v === "object" ? richToText(v, locale) : String(v); return /[";\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+  const head = ["id", "statut", ...db.fields.map((f) => f.label[locale] ?? f.name), "créé le", "modifié le"];
+  const lines = rows.map((e) => [e.id, e.status === "published" ? "publié" : "brouillon", ...db.fields.map((f) => cell(f.type === "createdAt" ? e.createdAt : f.type === "updatedAt" ? e.updatedAt : e.values[f.name])), e.createdAt, e.updatedAt].map(cell).join(";"));
+  return "\ufeff" + [head.map(cell).join(";"), ...lines].join("\r\n");
+}
+
+export function DatabaseTable({ site, db, entries, save, remove, commit, onClose, saving, onDeleteDatabase, readOnly }: { site: Site; db: Database; entries: Entry[]; save: (e: Entry) => void; remove: (id: string) => void; commit: Commit; onClose: () => void; saving?: boolean; onDeleteDatabase?: () => void; /** Base virtuelle (messages reçus) : pas de champs à régler ni d'entrées à créer. */ readOnly?: boolean }) {
   const locale = site.settings.defaultLocale;
   const dbIndex = site.databases.findIndex((d) => d.id === db.id);
   const [fieldEdit, setFieldEdit] = useState<string | null>(null);
@@ -216,10 +225,14 @@ export function DatabaseTable({ site, db, entries, save, remove, commit, onClose
     else if (id) setValue(e, f, [...(Array.isArray(e.values[f.name]) ? (e.values[f.name] as string[]) : []), id]);
   };
 
-  const editing = fieldEdit ? db.fields.find((f) => f.name === fieldEdit) : undefined;
+  const exportCsv = () => {
+    const blob = new Blob([toCsv(db, rows, locale)], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `${db.slug}.csv`; a.click(); window.setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+  const editing = fieldEdit && !readOnly ? db.fields.find((f) => f.name === fieldEdit) : undefined;
   const title = (e: Entry) => String(e.values[db.titleField] ?? "") || "Sans titre";
   return (
-    <Dialog open onClose={onClose} title={`${db.name[locale] ?? db.slug} · ${rows.length} entrée${rows.length > 1 ? "s" : ""}`} width={1240} actions={<div className="flex items-center gap-1">{saving ? <span className="text-2xs text-dim mr-2">Enregistrement…</span> : null}<Button size="sm" icon={Plus} onClick={addField}>Champ</Button><Button size="sm" variant="primary" icon={Plus} onClick={addEntry}>Nouvelle entrée</Button></div>}>
+    <Dialog open onClose={onClose} title={`${db.name[locale] ?? db.slug} · ${rows.length} entrée${rows.length > 1 ? "s" : ""}`} width={1240} actions={<div className="flex items-center gap-1">{saving ? <span className="text-2xs text-dim mr-2">Enregistrement…</span> : null}<Button size="sm" icon={Download} onClick={exportCsv} disabled={!rows.length} title="Télécharger toutes les entrées en CSV (tableur)">CSV</Button>{readOnly ? null : <><Button size="sm" icon={Plus} onClick={addField}>Champ</Button><Button size="sm" variant="primary" icon={Plus} onClick={addEntry}>Nouvelle entrée</Button></>}</div>}>
       {editing ? <FieldEditor site={site} db={db} field={editing} isNew={editing.name.startsWith("champ")} onChange={(f) => updateField(editing.name, f)} onMove={(d) => moveField(editing.name, d)} onRemove={() => removeField(editing.name)} onClose={() => setFieldEdit(null)} /> : null}
       <div className="overflow-auto">
         <table className="border-collapse text-sm min-w-full">
@@ -228,7 +241,7 @@ export function DatabaseTable({ site, db, entries, save, remove, commit, onClose
               <th className="w-8 border-b border-r border-line" title="Publié / brouillon" />
               {db.fields.map((f) => (
                 <th key={f.name} className="text-left font-medium text-xs text-muted border-b border-r border-line px-1.5 h-8 whitespace-nowrap min-w-[140px]">
-                  <button type="button" onClick={() => setFieldEdit(f.name)} className={`flex items-center gap-1.5 w-full text-left hover:text-ink ${fieldEdit === f.name ? "text-ink" : ""}`} title="Régler ce champ (nom, type, options, ordre)">
+                  <button type="button" disabled={readOnly} onClick={() => setFieldEdit(f.name)} className={`flex items-center gap-1.5 w-full text-left hover:text-ink ${fieldEdit === f.name ? "text-ink" : ""}`} title={readOnly ? undefined : "Régler ce champ (nom, type, options, ordre)"}>
                     <span className="truncate">{f.label[locale] ?? f.name}</span>
                     <span className="text-2xs text-dim font-normal">{typeLabel(f.type)}</span>
                     {f.name === db.titleField ? <span className="text-2xs text-dim font-normal">· titre</span> : null}
@@ -242,7 +255,7 @@ export function DatabaseTable({ site, db, entries, save, remove, commit, onClose
             {rows.map((e) => (
               <tr key={e.id} className="group hover:bg-hover/40">
                 <td className="border-b border-r border-line text-center align-middle">
-                  <button type="button" onClick={() => save({ ...e, status: e.status === "published" ? "draft" : "published" })} title={e.status === "published" ? "Publiée · cliquer pour passer en brouillon" : "Brouillon (invisible sur le site) · cliquer pour publier"} className="h-7 w-8 grid place-items-center">
+                  <button type="button" onClick={() => save({ ...e, status: e.status === "published" ? "draft" : "published" })} title={readOnly ? (e.status === "published" ? "Traité · cliquer pour remettre en nouveau" : "Nouveau · cliquer pour marquer traité") : e.status === "published" ? "Publiée · cliquer pour passer en brouillon" : "Brouillon (invisible sur le site) · cliquer pour publier"} className="h-7 w-8 grid place-items-center">
                     <span className={`h-2 w-2 rounded-full ${e.status === "published" ? "bg-success" : "border border-line-strong"}`} />
                   </button>
                 </td>
@@ -256,12 +269,12 @@ export function DatabaseTable({ site, db, entries, save, remove, commit, onClose
                 </td>
               </tr>
             ))}
-            {rows.length === 0 ? <tr><td colSpan={db.fields.length + 2} className="p-6 text-center text-sm text-dim">Aucune entrée. Créez la première avec « Nouvelle entrée ».</td></tr> : null}
+            {rows.length === 0 ? <tr><td colSpan={db.fields.length + 2} className="p-6 text-center text-sm text-dim">{readOnly ? "Aucun message reçu pour l'instant." : "Aucune entrée. Créez la première avec « Nouvelle entrée »."}</td></tr> : null}
           </tbody>
         </table>
       </div>
       <div className="px-3 py-2 border-t border-line flex items-center gap-3">
-        <Hint>Une entrée en brouillon reste invisible sur le site. Cliquez un en-tête pour régler le champ. Les images se choisissent dans la bibliothèque du site ; dans une galerie, cliquer une vignette la retire.</Hint>
+        <Hint>{readOnly ? "Les messages arrivent ici à chaque envoi du formulaire. Le point en tête de ligne marque un message traité ; la corbeille le supprime." : "Une entrée en brouillon reste invisible sur le site. Cliquez un en-tête pour régler le champ. Les images se choisissent dans la bibliothèque du site ; dans une galerie, cliquer une vignette la retire."}</Hint>
         {onDeleteDatabase ? <Button size="sm" variant="danger" icon={Trash2} className="shrink-0" onClick={onDeleteDatabase}>Supprimer la base…</Button> : null}
       </div>
       {media ? <MediaLibrary site={site} open onClose={() => setMedia(null)} value={media.mode === "image" ? (entries.find((x) => x.id === media.entryId)?.values[media.field] as string | null) ?? null : null} onPick={pickMedia} commit={commit} /> : null}
