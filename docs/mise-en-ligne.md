@@ -17,7 +17,8 @@ Ce document explique la vraie mise en ligne : l'éditeur hébergé, les sites pu
 2. Variables d'environnement (Production et Preview) :
    - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (les mêmes que `.env.local`) ;
    - `ATELIER_SITES_DOMAIN` = le domaine des sites, par exemple `atelier.site` (sans `https://`) ;
-   - `RESEND_API_KEY`, `FORM_NOTIFY_TO`, `MAIL_FROM` pour les formulaires.
+   - `RESEND_API_KEY`, `FORM_NOTIFY_TO`, `MAIL_FROM` pour les formulaires ;
+   - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `ATELIER_ALLOWED_EMAILS` pour la connexion (voir `docs/supabase.md`, section Comptes), sans quoi l'éditeur est ouvert à tous.
 3. Premier déploiement : l'éditeur répond sur `https://<projet>.vercel.app/`, les sites publiés sur `https://<projet>.vercel.app/s/<sous-domaine>/`.
 
 ## 3. Les sous-domaines des sites
@@ -38,5 +39,5 @@ Sans domaine acheté, tout fonctionne déjà sur `/s/<sous-domaine>/` du domaine
 
 ## 5. Ce qui manque encore pour un client
 
-- Un compte et des droits (v1, D50) : aujourd'hui l'éditeur est ouvert à qui connaît l'adresse. **Ne pas diffuser l'adresse de l'éditeur** avant l'authentification.
+- Des rôles et un partage par site (v1, D50–D51) : aujourd'hui, un compte voit ses propres sites, et la liste des adresses autorisées est une variable d'environnement.
 - Le domaine personnalisé d'un client (`v1`), l'export du code (D15), les sauvegardes planifiées.

@@ -1,6 +1,7 @@
 import type { Change, Entry, Op, Site } from "@atelier/model";
 
-export type StoredSite = { site: Site; version: number };
+export type StoredSite = { site: Site; version: number; owner?: string | null };
+export type SiteSummary = { id: string; name: string; version: number; updatedAt: string; publishedVersion: number | null; subdomain: string | null; owner: string | null };
 
 export type PublicationMeta = { version: number; label?: string; createdAt: string };
 /** Ce que sert le site publié : l'instantané désigné, jamais le document de travail. */
@@ -18,7 +19,10 @@ export type ChangeResult =
  */
 export interface SiteStore {
   get(id: string): Promise<StoredSite | null>;
-  create(site: Site): Promise<StoredSite>;
+  create(site: Site, owner?: string): Promise<StoredSite>;
+  /** Sites visibles par un propriétaire (les sites sans propriétaire sont visibles de tous), ou tous si `owner` absent. */
+  listSites(owner?: string): Promise<SiteSummary[]>;
+  delete(id: string): Promise<void>;
   /** Applique les opérations si `baseVersion` est la version courante ; sinon conflit. */
   appendChange(id: string, change: ChangeInput): Promise<ChangeResult>;
   changes(id: string, sinceVersion: number): Promise<Change[]>;

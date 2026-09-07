@@ -5,12 +5,12 @@ import { FileSiteStore } from "./file-store";
 import { SupabaseSiteStore } from "./supabase-store";
 import { FileAssetStorage, SupabaseAssetStorage, type AssetStorage } from "./assets";
 
-export type { SiteStore, StoredSite, ChangeInput, ChangeResult, PublicationMeta, Published } from "./types";
+export type { SiteStore, StoredSite, SiteSummary, ChangeInput, ChangeResult, PublicationMeta, Published } from "./types";
 export type { AssetStorage } from "./assets";
 export { FileAssetStorage } from "./assets";
 
 /** À incrémenter quand l'interface `SiteStore` change. */
-const STORE_VERSION = 4;
+const STORE_VERSION = 7;
 
 declare global {
   var __atelierStore: { key: string; store: SiteStore } | undefined;
@@ -45,23 +45,18 @@ export function storeKind(): "supabase" | "file" {
   return !forcedFile() && process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY ? "supabase" : "file";
 }
 
-/** Identifiant du site courant (v0 : un seul site, celui de l'exemple). */
-export const CURRENT_SITE_ID = sampleSite.id;
-
-/** Charge le site courant ; le crée depuis l'exemple s'il n'existe pas encore (amorçage de développement). */
-export async function loadCurrentSite(): Promise<StoredSite & { entries: Awaited<ReturnType<SiteStore["entries"]>> }> {
+/** Charge un site et ses entrées ; `null` s'il n'existe pas. */
+export async function loadSite(id: string): Promise<(StoredSite & { entries: Awaited<ReturnType<SiteStore["entries"]>> }) | null> {
   const store = getStore();
-  let stored = await store.get(CURRENT_SITE_ID);
-  if (!stored) {
-    // Deux requêtes peuvent amorcer en même temps (éditeur et aperçu) : la seconde relit simplement.
-    try {
-      stored = await store.create(sampleSite);
-      await store.setEntries(CURRENT_SITE_ID, sampleEntries);
-    } catch {
-      stored = await store.get(CURRENT_SITE_ID);
-      if (!stored) throw new Error("Impossible d'amorcer le site courant");
-    }
-  }
-  const entries = await store.entries(CURRENT_SITE_ID);
+  const stored = await store.get(id);
+  if (!stored) return null;
+  const entries = await store.entries(id);
   return { ...stored, entries };
+}
+
+/** Amorçage de développement : sans aucun site, l'exemple de la photographe est créé pour le propriétaire. */
+export async function ensureSampleSite(owner?: string): Promise<void> {
+  const store = getStore();
+  if ((await store.listSites(owner)).length) return;
+  try { await store.create(sampleSite, owner); await store.setEntries(sampleSite.id, sampleEntries); } catch { /* créé entre-temps */ }
 }

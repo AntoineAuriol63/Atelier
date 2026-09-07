@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { applyOps, type Change, type Entry, type Site } from "@atelier/model";
-import type { ChangeInput, ChangeResult, PublicationMeta, Published, SiteStore, StoredSite } from "./types";
+import type { ChangeInput, ChangeResult, PublicationMeta, Published, SiteStore, SiteSummary, StoredSite } from "./types";
 
 /**
  * Dépôt Supabase (Postgres). Schéma : supabase/schema.sql.
@@ -12,16 +12,44 @@ export class SupabaseSiteStore implements SiteStore {
     this.client = createClient(url, serviceKey, { auth: { persistSession: false } });
   }
 
+  /** La colonne `owner` (bloc « comptes » du schéma) peut manquer sur un projet créé avant : on s'en passe alors, sans propriétaire. */
+  private ownerColumn: boolean | null = null;
+  private isUndefinedColumn(e: { code?: string; message: string } | null) { return !!e && (e.code === "42703" || /column .* does not exist/.test(e.message)); }
+
   async get(id: string): Promise<StoredSite | null> {
+    if (this.ownerColumn !== false) {
+      const r = await this.client.from("sites").select("document, version, owner").eq("id", id).maybeSingle();
+      if (!r.error) { this.ownerColumn = true; return r.data ? { site: r.data.document as Site, version: r.data.version as number, owner: (r.data.owner as string | null) ?? null } : null; }
+      if (!this.isUndefinedColumn(r.error)) throw r.error;
+      this.ownerColumn = false;
+    }
     const { data, error } = await this.client.from("sites").select("document, version").eq("id", id).maybeSingle();
     if (error) throw error;
-    return data ? { site: data.document as Site, version: data.version as number } : null;
+    return data ? { site: data.document as Site, version: data.version as number, owner: null } : null;
   }
 
-  async create(site: Site): Promise<StoredSite> {
-    const { error } = await this.client.from("sites").insert({ id: site.id, name: site.name, document: site, version: 0 });
-    if (error) throw error;
-    return { site, version: 0 };
+  async create(site: Site, owner?: string): Promise<StoredSite> {
+    const row: Record<string, unknown> = { id: site.id, name: site.name, document: site, version: 0 };
+    if (this.ownerColumn !== false) row.owner = owner ?? null;
+    let { error } = await this.client.from("sites").insert(row);
+    if (error && this.isUndefinedColumn(error) && "owner" in row) { this.ownerColumn = false; delete row.owner; ({ error } = await this.client.from("sites").insert(row)); }
+    if (error) throw new Error(error.message);
+    return { site, version: 0, owner: this.ownerColumn === false ? null : owner ?? null };
+  }
+
+  async listSites(owner?: string): Promise<SiteSummary[]> {
+    const cols = (withOwner: boolean) => `id, name, version, updated_at, published_version, subdomain${withOwner ? ", owner" : ""}`;
+    let q = this.client.from("sites").select(cols(this.ownerColumn !== false)).order("updated_at", { ascending: false });
+    if (owner && this.ownerColumn !== false) q = q.or(`owner.eq.${owner},owner.is.null`);
+    let { data, error } = await q;
+    if (error && this.isUndefinedColumn(error) && this.ownerColumn !== false) { this.ownerColumn = false; ({ data, error } = await this.client.from("sites").select(cols(false)).order("updated_at", { ascending: false })); }
+    if (error) this.missingColumn(error);
+    return ((data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({ id: r.id as string, name: r.name as string, version: r.version as number, updatedAt: r.updated_at as string, publishedVersion: (r.published_version as number | null) ?? null, subdomain: (r.subdomain as string | null) ?? null, owner: (r.owner as string | null) ?? null }));
+  }
+
+  async delete(id: string): Promise<void> {
+    const { error } = await this.client.from("sites").delete().eq("id", id);
+    if (error) throw new Error(error.message);
   }
 
   async appendChange(id: string, change: ChangeInput): Promise<ChangeResult> {
@@ -68,7 +96,7 @@ export class SupabaseSiteStore implements SiteStore {
   }
 
   private missingColumn(e: { message: string }): never {
-    if (/published_version|subdomain|column/.test(e.message)) throw new Error(`${e.message} — exécutez le bloc « publication » de supabase/schema.sql`);
+    if (/published_version|subdomain|owner|column/.test(e.message)) throw new Error(`${e.message} — exécutez les blocs « publication » et « comptes » de supabase/schema.sql`);
     throw new Error(e.message);
   }
   async publish(id: string, label?: string): Promise<PublicationMeta> {
@@ -78,7 +106,9 @@ export class SupabaseSiteStore implements SiteStore {
     const createdAt = new Date().toISOString();
     const snap = await this.client.from("snapshots").upsert({ site_id: id, version: current.version, document: { site: current.site, entries }, kind: "publish", label: label ?? null, created_at: createdAt }, { onConflict: "site_id,version" });
     if (snap.error) throw new Error(snap.error.message);
-    const up = await this.client.from("sites").update({ published_version: current.version, subdomain: current.site.settings.subdomain ?? null }).eq("id", id);
+    // Le sous-domaine enregistré est toujours celui qui répond (réglé, sinon dérivé de l'identifiant), pour que la recherche par hôte soit directe.
+    const sub = current.site.settings.subdomain ?? id.replace(/[^a-z0-9-]/gi, "-").toLowerCase();
+    const up = await this.client.from("sites").update({ published_version: current.version, subdomain: sub }).eq("id", id);
     if (up.error) this.missingColumn(up.error);
     return { version: current.version, label, createdAt };
   }
@@ -109,7 +139,7 @@ export class SupabaseSiteStore implements SiteStore {
   async findBySubdomain(sub: string): Promise<string | null> {
     // Un sous-domaine dérivé de l'identifiant (`site_marie` → `site-marie`) répond aussi.
     const guess = sub.replace(/-/g, "_");
-    const { data, error } = await this.client.from("sites").select("id").or(`subdomain.eq.${sub},id.eq.${sub},id.eq.${guess}`).limit(1).maybeSingle();
+    const { data, error } = await this.client.from("sites").select("id").or(`subdomain.eq.${sub},id.eq.${sub},id.ilike.${guess}`).limit(1).maybeSingle();
     if (error) this.missingColumn(error);
     return (data?.id as string | undefined) ?? null;
   }

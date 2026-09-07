@@ -146,6 +146,13 @@ Le panneau de droite actuel est un échafaudage. Il est remplacé, pas amélior�
 
 ---
 
+### Comptes et tableau de bord — première version le 9 septembre 2026 (avancé depuis v1, D50)
+
+- [x] Connexion par lien magique (Supabase Auth via `@supabase/ssr`) : page `/connexion`, envoi côté serveur après vérification des adresses autorisées (`ATELIER_ALLOWED_EMAILS`), retour `/auth/callback`, déconnexion ; `src/proxy.ts` protège l'éditeur, l'aperçu et l'API, laisse publics les sites publiés, les formulaires, les fichiers ; sans variables publiques Supabase, accès libre (développement)
+- [x] Multi-sites : `sites.owner`, `listSites(owner)`, création (`POST /api/sites`, site vierge `blankSite` testé ou exemple photographe), suppression, éditeur à `/sites/<id>`, aperçu à `/preview/<id>/…`, formulaires à `/api/forms/<id>/<formId>`, garde du propriétaire dans chaque route d'un site
+- [x] Tableau de bord `/` : sites du compte avec état de publication, changements à publier, adresse en ligne, nouveau site, suppression
+- [ ] Rôles et partage d'un site entre comptes (D51), gabarit d'email de connexion en français via Resend SMTP
+
 ## v1 · Utilisable pour un client
 
 Domaine personnalisé · export Next.js (D15) · panneau SEO et redirections (D39) · code head/body (D40) · interactions et états (D31–D33) · espace de travail et rôles (D50–D51) · import et export CSV/JSON, API des bases (D25, D46) · email et webhooks (D43–D45) · import Figma structurel (D26) · interface bilingue (D05) · audit d'usage n°2 avec un vrai client.
@@ -175,6 +182,7 @@ Espaces membres (D49) · synchronisation Git des composants · contributions à 
 
 ## Journal
 
+- 9 sept. 2026 — Comptes et tableau de bord : connexion par lien magique, multi-sites avec propriétaire, tableau de bord, site vierge. Vérifié sans connexion configurée : tableau de bord avec le site de Marie (en ligne, dix changements à publier), création de « Boulangerie Martin » vierge, éditeur et aperçu par site, publication, suppression depuis le tableau de bord. Corrigé au passage : le dépôt Supabase se passe de la colonne `owner` tant que le bloc « comptes » n'est pas exécuté ; les identifiants de site sont en minuscules et le sous-domaine dérivé est enregistré à la publication. À faire côté Supabase : bloc « comptes » du schéma, fournisseur Email avec lien magique, URL de redirection, clés publiques dans `.env.local` (`docs/supabase.md`).
 - 9 sept. 2026 — Demandes d'Antoine : une explication claire de la vraie mise en ligne (`docs/mise-en-ligne.md`, à suivre ensemble) et un document fonctionnel et technique de l'état de l'outil (`docs/fonctionnel.md`, tenu à jour à chaque évolution, règle ajoutée dans `CLAUDE.md`).
 
 - 6 sept. 2026 — M0 terminé. Supabase branché et vérifié. Remarques d'Antoine sur le mode Design intégrées dans M1 à M3. Trois décisions prises (identité, nom, hébergement). Prochaine étape : M1, système de design.

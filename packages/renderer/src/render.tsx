@@ -120,7 +120,7 @@ export function RenderNode({ node, ctx }: { node: Node; ctx: RenderContext }): R
     case "form": {
       const formId = String(node.props.formId ?? node.id);
       const success = localized<string>(node.props.successMessage, ctx) ?? "Merci, votre message est bien envoyé.";
-      return createElement("form", attrs(node, ctx, { method: "post", action: `/api/forms/${formId}`, "data-form": formId, noValidate: false }),
+      return createElement("form", attrs(node, ctx, { method: "post", action: `/api/forms/${ctx.site.id}/${formId}`, "data-form": formId, noValidate: false }),
         // Piège à robots : un champ que personne ne voit ; rempli, l'envoi est ignoré en silence.
         createElement("input", { type: "text", name: "_hp", tabIndex: -1, autoComplete: "off", "aria-hidden": true, style: { position: "absolute", left: "-10000px", width: 1, height: 1, opacity: 0 } }),
         createElement("input", { type: "hidden", name: "_page", value: ctx.page.path }),

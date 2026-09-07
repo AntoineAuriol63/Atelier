@@ -92,3 +92,7 @@ on conflict (id) do update set public = true, file_size_limit = 52428800;
 alter table sites add column if not exists published_version integer;
 alter table sites add column if not exists subdomain text;
 create unique index if not exists sites_subdomain_idx on sites (subdomain) where subdomain is not null;
+
+-- Comptes (D50, première version) : propriétaire d'un site (email du compte Supabase Auth). Sans propriétaire, le site est visible de tous les comptes.
+alter table sites add column if not exists owner text;
+create index if not exists sites_owner_idx on sites (owner);

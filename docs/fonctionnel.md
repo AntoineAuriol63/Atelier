@@ -2,9 +2,13 @@
 
 Ce que l'outil fait aujourd'hui, et comment. Tenu à jour à chaque évolution (règle dans `CLAUDE.md`). Les décisions de fond sont dans `docs/decisions.md`, le contrat de données dans `docs/document-model.md`, le plan dans `docs/roadmap.md`. Ici : l'état réel.
 
-*Dernière mise à jour : 9 septembre 2026 (M6 première version, médias second temps).*
+*Dernière mise à jour : 9 septembre 2026 (comptes et tableau de bord).*
 
 ## Partie 1 · Fonctionnel
+
+### 1.0 Compte et tableau de bord
+
+Connexion par lien magique (Supabase Auth), adresses autorisées par variable d'environnement, sans connexion configurée l'accès est libre (développement). Tableau de bord : les sites du compte, état de publication, changements à publier, adresse en ligne, création (site vierge ou exemple photographe), suppression, déconnexion. Chaque site s'ouvre dans l'éditeur à `/sites/<id>`.
 
 ### 1.1 L'éditeur en un coup d'œil
 
@@ -64,7 +68,7 @@ Fenêtre Publier : état en ligne, écart avec la version de travail, note, hist
 
 ### 1.10 Pas encore là (voir la feuille de route)
 
-Comptes et rôles, domaine personnalisé, export du code, bases externes, texte riche dans les champs, sélection multiple, pagination des vues, calendrier et carte, animations d'interaction, langues multiples, membres.
+Rôles et partage par site, domaine personnalisé, export du code, bases externes, texte riche dans les champs, sélection multiple, pagination des vues, calendrier et carte, animations d'interaction, langues multiples, membres.
 
 ## Partie 2 · Technique
 
@@ -74,7 +78,7 @@ Monorepo npm workspaces.
 
 - `packages/model` — types, schéma de validation (zod), opérations inversibles (`node.insert/remove/move/set/replace`, `site.set`, `batch`), historique avec fusion, arbre et index, planification des déplacements et dépôts (`planMove`, `planDrop`, `planInsert`, `planExitBox`, `canInsertUnder`), résolution de style avec sources, grille de mise en page, sources de données (`templateOf`, `dataSourceFor`, `entryPath`), site d'exemple. Sans React. Tests vitest.
 - `packages/renderer` — CSS d'un site (jetons par mode, défauts de thème dans `:where()`, styles partagés, nœuds, points de rupture, états, vues de collection, séparateurs, base `hr` et champs) et rendu React (`RenderPage`, `RenderNode`, liaisons, vues, formulaires avec script, `srcset`). Le même moteur sert l'éditeur, l'aperçu et le site publié. Tests vitest.
-- `apps/editor` — Next.js (App Router, Tailwind v4, lucide-react, IBM Plex) : l'éditeur (`/`), l'aperçu vivant (`/preview/…?editor=1`), les sites publiés (`/s/<sous-domaine>/…`, réécriture par `src/proxy.ts`), l'API.
+- `apps/editor` — Next.js (App Router, Tailwind v4, lucide-react, IBM Plex) : le tableau de bord (`/`), l'éditeur (`/sites/<id>`), l'aperçu vivant (`/preview/<id>/…?editor=1`), les sites publiés (`/s/<sous-domaine>/…`, réécriture par `src/proxy.ts`), la connexion (`/connexion`, `/auth/*`), l'API. `src/proxy.ts` exige une session sur tout sauf le public (sites publiés, formulaires, fichiers, connexion) ; `lib/auth.ts` et `lib/site-access.ts` vérifient le propriétaire dans les routes.
 
 ### 2.2 Données et dépôts
 
@@ -83,7 +87,7 @@ Monorepo npm workspaces.
 - Fichiers : `AssetStorage` (Supabase Storage seau `assets`, ou `.atelier-data/assets`), `POST /api/sites/:id/assets` avec sharp ; usages calculés côté éditeur (`lib/asset-usage.ts`) ; bibliothèque fournie par `MediaLibraryProvider`, ouverte par `openMediaLibrary()` ou `useMediaLibrary()`.
 - Publication : `snapshots` (`kind = 'publish'`, document + entrées), `sites.published_version`, `sites.subdomain` ; `GET/POST /api/sites/:id/publish`, `POST …/publish/restore`.
 - `getStore()` et `getAssetStorage()` choisissent Supabase ou fichiers ; `ATELIER_STORE=file` force les fichiers ; la clé de cache du dépôt en mémoire porte `STORE_VERSION`.
-- Interface `SiteStore` : `get`, `create`, `appendChange`, `changes`, `entries`, `setEntries`, `upsertEntries`, `deleteEntries`, `publish`, `publications`, `published`, `restore`, `findBySubdomain`.
+- Interface `SiteStore` : `get`, `create(site, owner)`, `listSites(owner)`, `delete`, `appendChange`, `changes`, `entries`, `setEntries`, `upsertEntries`, `deleteEntries`, `publish`, `publications`, `published`, `restore`, `findBySubdomain`.
 
 ### 2.3 Éditeur
 
@@ -98,7 +102,7 @@ Monorepo npm workspaces.
 
 ### 2.5 Variables d'environnement
 
-`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ATELIER_DATA_DIR`, `ATELIER_STORE`, `ATELIER_SITES_DOMAIN`, `RESEND_API_KEY`, `FORM_NOTIFY_TO`, `MAIL_FROM`, `NEXT_DIST_DIR` (second serveur de développement). Modèle dans `.env.example`.
+`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `ATELIER_ALLOWED_EMAILS`, `ATELIER_DATA_DIR`, `ATELIER_STORE`, `ATELIER_SITES_DOMAIN`, `RESEND_API_KEY`, `FORM_NOTIFY_TO`, `MAIL_FROM`, `NEXT_DIST_DIR` (second serveur de développement). Modèle dans `.env.example`.
 
 ### 2.6 Commandes et vérifications
 

@@ -1,3 +1,4 @@
+import { guardSite } from "@/lib/site-access";
 import sharp, { type Metadata } from "sharp";
 import { newId, type Asset, type AssetVariant } from "@atelier/model";
 import { getAssetStorage } from "@/lib/store";
@@ -12,6 +13,8 @@ function baseName(name: string) { return name.replace(/\.[^.]+$/, "").replace(/[
 /** Import d'images : `POST` multipart, champ `file` (plusieurs possibles). Rend les `Asset` à ajouter au document. */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: siteId } = await params;
+  const denied = await guardSite(siteId);
+  if (denied) return denied;
   let form: FormData;
   try { form = await req.formData(); } catch { return Response.json({ error: "Envoi invalide" }, { status: 400 }); }
   const files = form.getAll("file").filter((f): f is File => f instanceof File);

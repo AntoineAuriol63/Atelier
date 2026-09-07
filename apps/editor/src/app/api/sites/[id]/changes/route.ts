@@ -1,9 +1,12 @@
+import { guardSite } from "@/lib/site-access";
 import { schema, type Op } from "@atelier/model";
 import { getStore } from "@/lib/store";
 
 /** Journal des changements d'un site. GET ?since=<version> ; POST { ops, baseVersion, label? }. */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const denied = await guardSite(id);
+  if (denied) return denied;
   const since = Number(new URL(req.url).searchParams.get("since") ?? "0");
   const changes = await getStore().changes(id, Number.isFinite(since) ? since : 0);
   return Response.json({ changes });
@@ -11,6 +14,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const denied = await guardSite(id);
+  if (denied) return denied;
   let body: { ops?: unknown; baseVersion?: unknown; label?: unknown };
   try { body = await req.json(); } catch { return Response.json({ error: "Corps JSON invalide" }, { status: 400 }); }
   if (!Array.isArray(body.ops) || body.ops.length === 0) return Response.json({ error: "ops manquantes" }, { status: 400 });

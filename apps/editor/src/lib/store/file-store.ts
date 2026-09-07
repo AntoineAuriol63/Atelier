@@ -1,11 +1,11 @@
-import { mkdir, readFile, writeFile, appendFile, rename, readdir } from "node:fs/promises";
+import { mkdir, readFile, writeFile, appendFile, rename, readdir, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { applyOps, type Change, type Entry, type Site } from "@atelier/model";
-import type { ChangeInput, ChangeResult, PublicationMeta, Published, SiteStore, StoredSite } from "./types";
+import type { ChangeInput, ChangeResult, PublicationMeta, Published, SiteStore, SiteSummary, StoredSite } from "./types";
 
 type Publication = PublicationMeta & { site: Site; entries: Entry[] };
-type FileDoc = { site: Site; version: number; entries: Entry[]; publications?: Publication[]; publishedVersion?: number };
+type FileDoc = { site: Site; version: number; entries: Entry[]; publications?: Publication[]; publishedVersion?: number; owner?: string | null; updatedAt?: string };
 
 /**
  * Dépôt sur fichiers JSON : `<dir>/sites/<id>.json` (document courant) et `<dir>/sites/<id>.changes.jsonl` (journal).
@@ -25,6 +25,7 @@ export class FileSiteStore implements SiteStore {
   }
 
   private async write(id: string, doc: FileDoc) {
+    doc = { ...doc, updatedAt: new Date().toISOString() };
     await mkdir(path.dirname(this.file(id)), { recursive: true });
     const tmp = this.file(id) + ".tmp";
     await writeFile(tmp, JSON.stringify(doc), "utf8");
@@ -40,13 +41,35 @@ export class FileSiteStore implements SiteStore {
 
   async get(id: string): Promise<StoredSite | null> {
     const d = await this.read(id);
-    return d ? { site: d.site, version: d.version } : null;
+    return d ? { site: d.site, version: d.version, owner: d.owner ?? null } : null;
   }
 
-  async create(site: Site): Promise<StoredSite> {
+  async create(site: Site, owner?: string): Promise<StoredSite> {
     return this.serialize(site.id, async () => {
-      await this.write(site.id, { site, version: 0, entries: [] });
-      return { site, version: 0 };
+      await this.write(site.id, { site, version: 0, entries: [], owner: owner ?? null, updatedAt: new Date().toISOString() });
+      return { site, version: 0, owner: owner ?? null };
+    });
+  }
+
+  async listSites(owner?: string): Promise<SiteSummary[]> {
+    const dir = path.join(this.dir, "sites");
+    if (!existsSync(dir)) return [];
+    const out: SiteSummary[] = [];
+    for (const f of await readdir(dir)) {
+      if (!f.endsWith(".json")) continue;
+      try {
+        const d = JSON.parse(await readFile(path.join(dir, f), "utf8")) as FileDoc;
+        if (owner && d.owner && d.owner !== owner) continue;
+        out.push({ id: d.site.id, name: d.site.name, version: d.version, updatedAt: d.updatedAt ?? "", publishedVersion: d.publishedVersion ?? null, subdomain: d.site.settings.subdomain ?? null, owner: d.owner ?? null });
+      } catch { /* fichier temporaire */ }
+    }
+    return out.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }
+
+  async delete(id: string): Promise<void> {
+    await this.serialize(id, async () => {
+      await rm(this.file(id), { force: true });
+      await rm(this.journal(id), { force: true });
     });
   }
 

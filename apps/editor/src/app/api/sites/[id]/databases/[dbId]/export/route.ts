@@ -1,3 +1,4 @@
+import { guardSite } from "@/lib/site-access";
 import { getStore } from "@/lib/store";
 import { toCsv } from "@/lib/csv";
 import { findForms, formDatabase, formDatabaseId } from "@/lib/forms";
@@ -5,6 +6,8 @@ import { findForms, formDatabase, formDatabaseId } from "@/lib/forms";
 /** Export CSV d'une base (ou des messages d'un formulaire, `frm_<formId>`), en pièce jointe. */
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string; dbId: string }> }) {
   const { id, dbId } = await params;
+  const denied = await guardSite(id);
+  if (denied) return denied;
   const store = getStore();
   const stored = await store.get(id);
   if (!stored) return new Response("Site introuvable", { status: 404 });

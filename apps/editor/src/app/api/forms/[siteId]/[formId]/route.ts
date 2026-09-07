@@ -1,5 +1,5 @@
 import { newId, type Entry, type Node } from "@atelier/model";
-import { CURRENT_SITE_ID, getStore, loadCurrentSite } from "@/lib/store";
+import { getStore, loadSite } from "@/lib/store";
 import { findForms, formDatabaseId } from "@/lib/forms";
 import { sendMail } from "@/lib/mail";
 
@@ -25,8 +25,8 @@ function fieldsOf(form: Node, locale: string): FieldSpec[] {
 }
 
 /** Réception d'un envoi de formulaire (D47) : validation, piège à robots, enregistrement comme entrée, notification. */
-export async function POST(req: Request, { params }: { params: Promise<{ formId: string }> }) {
-  const { formId } = await params;
+export async function POST(req: Request, { params }: { params: Promise<{ siteId: string; formId: string }> }) {
+  const { siteId, formId } = await params;
   const wantsJson = (req.headers.get("accept") ?? "").includes("application/json");
   const reply = (status: number, body: Record<string, unknown>, redirectTo?: string) => {
     if (wantsJson || !redirectTo) return Response.json(body, { status });
@@ -38,7 +38,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ formId:
     if (ct.includes("application/json")) data = Object.fromEntries(Object.entries((await req.json()) as Record<string, unknown>).map(([k, v]) => [k, String(v ?? "")]));
     else { const fd = await req.formData(); data = {}; fd.forEach((v, k) => { data[k] = typeof v === "string" ? v : v.name; }); }
   } catch { return reply(400, { error: "Envoi illisible" }); }
-  const { site } = await loadCurrentSite();
+  const loaded = await loadSite(siteId);
+  if (!loaded) return reply(404, { error: "Site introuvable" });
+  const { site } = loaded;
   const form = findForms(site).find((f) => f.formId === formId);
   if (!form) return reply(404, { error: "Formulaire introuvable" });
   const locale = site.settings.defaultLocale;
@@ -62,7 +64,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ formId:
   values._page = data._page ?? "";
   const now = new Date().toISOString();
   const entry: Entry = { id: newId(), database: formDatabaseId(formId), status: "draft", values, createdAt: now, updatedAt: now };
-  try { await getStore().upsertEntries(CURRENT_SITE_ID, [entry]); } catch (e) { return reply(500, { error: e instanceof Error ? e.message : "Enregistrement impossible" }); }
+  try { await getStore().upsertEntries(siteId, [entry]); } catch (e) { return reply(500, { error: e instanceof Error ? e.message : "Enregistrement impossible" }); }
   const siteName = site.name ?? "Atelier";
   const lines = fieldsOf(form.node, locale).map((f) => `${f.label} : ${values[f.name] === undefined ? "—" : String(values[f.name])}`);
   const mail = await sendMail({ subject: `[${siteName}] Nouveau message · ${form.node.name ?? form.where}`, text: [...lines, "", `Page : ${values._page || "?"}`, `Reçu le ${now}`].join("\n"), replyTo: typeof values.email === "string" ? values.email : undefined });

@@ -1,14 +1,19 @@
+import { guardSite } from "@/lib/site-access";
 import { schema, type Entry } from "@atelier/model";
 import { getStore } from "@/lib/store";
 
 /** Entrées des bases de données d'un site : `GET` liste, `PUT { entries }` ajoute ou remplace, `DELETE { ids }` supprime. */
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const denied = await guardSite(id);
+  if (denied) return denied;
   return Response.json({ entries: await getStore().entries(id) });
 }
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const denied = await guardSite(id);
+  if (denied) return denied;
   let body: { entries?: unknown };
   try { body = await req.json(); } catch { return Response.json({ error: "Corps JSON invalide" }, { status: 400 }); }
   if (!Array.isArray(body.entries) || body.entries.length === 0) return Response.json({ error: "entries manquantes" }, { status: 400 });
@@ -24,6 +29,8 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const denied = await guardSite(id);
+  if (denied) return denied;
   let body: { ids?: unknown };
   try { body = await req.json(); } catch { return Response.json({ error: "Corps JSON invalide" }, { status: 400 }); }
   const ids = Array.isArray(body.ids) ? body.ids.filter((x): x is string => typeof x === "string") : [];

@@ -8,6 +8,7 @@ import type { Op } from "@atelier/model";
 import { valueToCss } from "@atelier/renderer";
 import type { Inline } from "@atelier/model";
 import { useDocument } from "@/lib/use-document";
+import Link from "next/link";
 import { PRODUCT_NAME } from "@/lib/product";
 import type { BlockPreset } from "@/lib/blocks";
 import { Badge, Button, Hint, IconButton, NumberInput, Panel, PanelHeading, Separator, Tabs, TreeRow, type DropIndicator, Select } from "@/ui";
@@ -161,7 +162,8 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
   const [previewEntryByPage, setPreviewEntryByPage] = useState<Record<string, string>>({});
   const templateEntries = useMemo(() => (template ? ents.entries.filter((e) => e.database === template.database.id && e.status === "published") : []), [template, ents.entries]);
   const previewEntry = templateEntries.find((e) => e.id === previewEntryByPage[page.id]) ?? templateEntries[0];
-  const previewPath = template && previewEntry ? `/preview${entryPath(template.database, previewEntry) ?? ""}` : page.kind === "template" ? `/preview/__template/${page.id}` : `/preview${page.path === "/" ? "" : page.path}`;
+  const previewBase = `/preview/${site.id}`;
+  const previewPath = template && previewEntry ? `${previewBase}${entryPath(template.database, previewEntry) ?? ""}` : page.kind === "template" ? `${previewBase}/__template/${page.id}` : `${previewBase}${page.path === "/" ? "" : page.path}`;
   const dataSource = useMemo(() => (selected ? dataSourceFor(site, index, page, selected) : undefined), [site, index, page, selected]);
 
   /** Supprimer une base : ses entrées partent (sans retour), ses pages modèles redeviennent fixes, ses vues restent à reconfigurer. */
@@ -517,7 +519,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
     <MediaLibraryProvider site={site} entries={ents.entries} commit={doc.commit} saveEntry={ents.save} onGoTo={goToUsage}>
     <div className="h-full grid grid-rows-[40px_1fr] grid-cols-[300px_1fr_340px]">
       <header className="col-span-3 flex items-center gap-2 px-3 border-b border-line bg-panel">
-        <span className="font-semibold text-base tracking-tight text-ink">{PRODUCT_NAME}</span>
+        <Link href="/" className="font-semibold text-base tracking-tight text-ink hover:text-accent" title="Retour à vos sites">{PRODUCT_NAME}</Link>
         <Separator vertical />
         <span className="text-sm text-muted truncate max-w-[200px]" title={site.name}>{site.name}</span>
         <span className="text-dim">/</span>

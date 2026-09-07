@@ -39,3 +39,11 @@ Les images importées vont dans le seau Storage `assets` (créé par `supabase/s
 ## Publication (M6)
 
 Le schéma a gagné deux colonnes sur `sites` (`published_version`, `subdomain`) : relancer le bloc « publication » de `supabase/schema.sql` sur un projet créé avant, puis vérifier avec `scripts/check-supabase.mjs`. Les instantanés publiés vont dans `snapshots` (`kind = 'publish'`). `ATELIER_STORE=file` force le mode fichier même avec Supabase configuré (essais locaux).
+
+## Comptes et connexion (D50, première version)
+
+1. Exécuter le bloc « comptes » de `supabase/schema.sql` (colonne `sites.owner`).
+2. Dans Supabase → Authentication → Providers : Email activé, avec « Magic link » (les mots de passe restent désactivés). Dans Authentication → URL Configuration : Site URL = l'adresse de l'éditeur (`http://localhost:3000` puis l'adresse Vercel), et dans Redirect URLs `http://localhost:3000/auth/callback` et `https://<éditeur>/auth/callback`.
+3. Dans `.env.local` : `NEXT_PUBLIC_SUPABASE_URL` (la même adresse que `SUPABASE_URL`), `NEXT_PUBLIC_SUPABASE_ANON_KEY` (clé publique « anon », Project Settings → API), et `ATELIER_ALLOWED_EMAILS` avec votre adresse. Redémarrer le serveur.
+
+Dès lors l'éditeur, l'aperçu et l'API demandent une session ; les sites publiés, les envois de formulaires et les fichiers restent publics. Chaque site créé appartient au compte qui l'a créé ; les sites d'avant (sans propriétaire) sont visibles de tous les comptes autorisés. Les emails de connexion partent avec le gabarit par défaut de Supabase (en anglais, 3 par heure sur le plan gratuit) : à personnaliser dans Authentication → Email Templates, et à brancher sur Resend (SMTP) pour un vrai volume.

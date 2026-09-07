@@ -28,6 +28,8 @@ for (const table of ["sites", "changes", "entries", "snapshots"]) {
   // Publication (M6) : colonnes ajoutées après le premier schéma.
   const cols = await sb.from("sites").select("published_version, subdomain", { head: true, count: "exact" });
   check("colonnes de publication (sites.published_version, sites.subdomain)", !cols.error, cols.error ? cols.error.message + " → exécuter le bloc « publication » de supabase/schema.sql" : "");
+  const owner = await sb.from("sites").select("owner", { head: true, count: "exact" });
+  check("colonne des comptes (sites.owner)", !owner.error, owner.error ? owner.error.message + " → exécuter le bloc « comptes » de supabase/schema.sql" : "");
   const bucket = await sb.storage.getBucket("assets");
   check("seau de fichiers « assets »", !bucket.error, bucket.error ? "créé automatiquement au premier import" : "");
   if (bucket.error) ok = true && ok;

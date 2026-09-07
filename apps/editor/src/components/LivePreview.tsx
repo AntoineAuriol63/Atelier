@@ -640,7 +640,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
   const templatePage = templateOnly ? site.pages.find((p) => p.id === templateOnly) : undefined;
   const match = templatePage ? { page: templatePage, entry: undefined, params: {} } : matchPath(site, data, path);
   if (!match) return <p style={{ padding: 24, fontFamily: "system-ui", color: "#777" }}>{editor ? "Chargement de la page…" : `Page introuvable : ${path}`}</p>;
-  const ctx: RenderContext = { site, page: match.page, entry: match.entry, params: match.params, locale: site.settings.defaultLocale, data, assets: assetMap(site), basePath: "/preview", editor };
+  const ctx: RenderContext = { site, page: match.page, entry: match.entry, params: match.params, locale: site.settings.defaultLocale, data, assets: assetMap(site), basePath: `/preview/${site.id}`, editor };
   const fonts = fontsHref(site.theme);
   return (
     <>

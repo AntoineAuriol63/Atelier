@@ -1,16 +1,18 @@
-import { notFound } from "next/navigation";
 import { assetMap, matchPath, memoryData, pageTitle, type RenderContext } from "@atelier/renderer";
-import { loadCurrentSite } from "@/lib/site";
+import { notFound } from "next/navigation";
+import { loadSite } from "@/lib/site";
 import { LivePreview } from "@/components/LivePreview";
 
 type Props = {
-  params: Promise<{ path?: string[] }>;
+  params: Promise<{ siteId: string; path?: string[] }>;
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 };
 
 export async function generateMetadata({ params }: Props) {
-  const { path } = await params;
-  const { site, entries } = await loadCurrentSite();
+  const { siteId, path } = await params;
+  const loaded = await loadSite(siteId);
+  if (!loaded) return { title: "Site introuvable" };
+  const { site, entries } = loaded;
   const data = memoryData(entries);
   const m = matchPath(site, data, "/" + (path ?? []).join("/"));
   if (!m) return { title: "Page introuvable" };
@@ -19,9 +21,11 @@ export async function generateMetadata({ params }: Props) {
 }
 
 export default async function PreviewPage({ params, searchParams }: Props) {
-  const { path } = await params;
+  const { siteId, path } = await params;
   const sp = await searchParams;
-  const { site, entries } = await loadCurrentSite();
+  const loaded = await loadSite(siteId);
+  if (!loaded) notFound();
+  const { site, entries } = loaded;
   const urlPath = "/" + (path ?? []).join("/");
   const editor = sp.editor === "1";
   // En mode éditeur, une page qui vient d'être créée peut ne pas être encore enregistrée : l'aperçu attend le document de l'éditeur.

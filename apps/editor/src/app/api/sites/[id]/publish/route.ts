@@ -1,9 +1,12 @@
+import { guardSite } from "@/lib/site-access";
 import { getStore } from "@/lib/store";
 import { invalidatePublished, publicUrl } from "@/lib/published";
 
 /** `GET` : version publiée, historique, adresse. `POST { label? }` : publie le document courant et ses entrées (D36). */
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const denied = await guardSite(id);
+  if (denied) return denied;
   const store = getStore();
   try {
     const [published, publications, stored] = await Promise.all([store.published(id), store.publications(id), store.get(id)]);
@@ -13,6 +16,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const denied = await guardSite(id);
+  if (denied) return denied;
   let body: { label?: unknown } = {};
   try { body = await req.json(); } catch { /* sans corps : sans étiquette */ }
   try {

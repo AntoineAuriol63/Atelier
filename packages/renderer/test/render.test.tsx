@@ -64,7 +64,7 @@ describe("formulaire", () => {
     const m = matchPath(site, data, "/contact")!;
     const ctx: RenderContext = { site, page: m.page, entry: m.entry, params: m.params, locale: "fr", data, assets: assetMap(site), basePath: "" };
     const html = renderToStaticMarkup(createElement(RenderPage, { ctx }));
-    expect(html).toContain('action="/api/forms/frm_test"');
+    expect(html).toContain('action="/api/forms/site_marie/frm_test"');
     expect(html).toContain('name="_hp"');
     expect(html).toContain('name="_page" value="/contact"');
     expect(html).toContain('<p data-form-success="" hidden="" role="status">Bien reçu !</p>');
