@@ -203,7 +203,7 @@ export function NodeInspector({ site, loc, activeBp, mode, onGoToBreakpoint, onP
               <Segmented className="flex-1" value={(() => { const v = style.value("fontSize"); return typeof v === "object" && v && "token" in v ? v.token.split(".")[1] : undefined; })()} options={[{ value: "sm", label: "Petit" }, { value: "md", label: "Normal" }, { value: "lg", label: "Grand" }, { value: "xl", label: "Très grand" }]} onChange={(v) => style.set("fontSize", v ? { token: `fontSize.${v}` } : undefined, false)} />
             </PropRow>
           ) : null}
-          <Hint>Gras, italique, souligné et lien : sélectionnez du texte dans l&apos;aperçu, une barre apparaît (⌘B, ⌘I, ⌘U, ⌘K). Tapez « / » dans un texte pour insérer un bloc, Entrée pour passer au bloc suivant.</Hint>
+          <Hint>Sélectionnez du texte dans l&apos;aperçu : une barre propose gras, italique, souligné, lien (⌘B, ⌘I, ⌘U, ⌘K). Entrée termine le bloc et en commence un nouveau ; Maj+Entrée va à la ligne dans le même bloc ; « / » insère un bloc ; la poignée ⋮⋮ à gauche d&apos;un bloc le déplace.</Hint>
           <button type="button" onClick={() => onSwitchMode?.("design")} className="self-start h-7 px-2.5 rounded-sm bg-accent text-accent-ink text-xs font-medium hover:brightness-110">Régler le style en détail</button>
         </Section>
       ) : (

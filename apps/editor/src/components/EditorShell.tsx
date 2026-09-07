@@ -272,8 +272,9 @@ export function EditorShell({ initialSite, initialVersion }: { initialSite: Site
   useEffect(() => {
     if (!frameReady) return;
     const g = layoutGridAt(site, activeBpForGrid);
-    post({ type: "atelier:grid", show: showGrid, columns: g.columns, gutter: valueToCss(g.gutter), margin: valueToCss(g.margin), maxWidth: g.maxWidth ? valueToCss(g.maxWidth) : "none" });
-  }, [site, activeBpForGrid, showGrid, frameReady, post]);
+    // La grille est un guide de mise en page : elle n'a pas sa place pendant qu'on écrit.
+    post({ type: "atelier:grid", show: showGrid && editMode === "design", columns: g.columns, gutter: valueToCss(g.gutter), margin: valueToCss(g.margin), maxWidth: g.maxWidth ? valueToCss(g.maxWidth) : "none" });
+  }, [site, activeBpForGrid, showGrid, frameReady, post, editMode]);
 
   // --- raccourcis clavier (fenêtre et aperçu)
   const [editingComponent, setEditingComponent] = useState<string | null>(null);

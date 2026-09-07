@@ -106,6 +106,8 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     const blockBar = layer(`${UI};display:none;background:#1a1b1f;border:1px solid #3a3b42;border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.4);padding:2px;gap:2px;align-items:center`);
     const selBar = layer(`${UI};display:none;background:#1a1b1f;border:1px solid #3a3b42;border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.4);padding:2px;gap:2px;align-items:center`);
     const slashMenu = layer(`${UI};display:none;background:#1a1b1f;border:1px solid #3a3b42;border-radius:6px;box-shadow:0 12px 32px rgba(0,0,0,.5);min-width:240px;max-height:280px;overflow:auto;padding:4px`);
+    // Poignée à gauche du bloc, comme dans Notion : « + » pour insérer, « ⋮⋮ » pour glisser.
+    const grip = layer(`${UI};display:none;flex-direction:column;gap:1px;background:transparent`);
     const BTN = "background:none;border:0;color:#c9cad0;font:inherit;font-weight:600;height:24px;min-width:24px;padding:0 6px;border-radius:4px;cursor:pointer";
     const style = document.createElement("style");
     style.textContent = `[data-atelier-ui] button:hover{background:#2a2b30;color:#fff}[data-atelier-ui] select{background:#232428;color:#e8e8ec;border:1px solid #3a3b42;border-radius:4px;height:24px;font:inherit;padding:0 4px}[data-atelier-ui] .on{background:rgba(106,166,255,.18);color:#6aa6ff}[data-atelier-ui] .item{display:flex;gap:8px;align-items:center;height:28px;padding:0 8px;border-radius:4px;cursor:pointer;white-space:nowrap}[data-atelier-ui] .item.cur{background:rgba(106,166,255,.18)}[data-atelier-ui] .grp{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#6c6d76;padding:6px 8px 2px}`;
@@ -145,9 +147,6 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       const tag = el.tagName.toLowerCase();
       blockBar.innerHTML = "";
       const b = (label: string, title: string, onClick: () => void, cls = "") => { const x = document.createElement("button"); x.textContent = label; x.title = title; x.className = cls; x.style.cssText = BTN; x.addEventListener("mousedown", (e) => e.preventDefault()); x.addEventListener("click", (e) => { e.stopPropagation(); onClick(); }); blockBar.appendChild(x); return x; };
-      const handle = b("⋮⋮", "Glisser pour déplacer le bloc", () => {});
-      handle.style.cursor = "grab";
-      handle.addEventListener("mousedown", (e) => { e.preventDefault(); press = { x: e.clientX, y: e.clientY, el }; if (editing) endEdit(true); select(el, true); });
       if (isText) {
         const sel = document.createElement("select");
         sel.title = "Type de bloc";
@@ -162,8 +161,19 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       b("＋", "Insérer un bloc après (menu /)", () => openSlash(el, true));
       b("🗑", "Supprimer le bloc", () => parent.postMessage({ type: "atelier:remove", id }, "*"));
       placeBar(blockBar, el);
+      // poignée gauche
+      grip.innerHTML = "";
+      const g = (label: string, title: string, cursor: string) => { const x = document.createElement("button"); x.textContent = label; x.title = title; x.style.cssText = BTN + `;height:20px;min-width:20px;padding:0;font-size:13px;background:#1a1b1f;border:1px solid #3a3b42;color:#9c9da6;cursor:${cursor}`; x.addEventListener("mousedown", (e) => e.preventDefault()); grip.appendChild(x); return x; };
+      const plus = g("+", "Insérer un bloc après (ou tapez / dans un texte)", "pointer");
+      plus.addEventListener("click", (e) => { e.stopPropagation(); openSlash(el, true); });
+      const handle = g("⋮⋮", "Glisser pour déplacer le bloc", "grab");
+      handle.addEventListener("mousedown", (e) => { e.preventDefault(); e.stopPropagation(); if (editing) endEdit(true); select(el, true); press = { x: e.clientX, y: e.clientY, el }; });
+      const r = el.getBoundingClientRect();
+      grip.style.display = "flex";
+      grip.style.left = `${Math.max(2, r.left - 26) + window.scrollX}px`;
+      grip.style.top = `${r.top + window.scrollY}px`;
     };
-    const hideBlockBar = () => { blockBar.style.display = "none"; };
+    const hideBlockBar = () => { blockBar.style.display = "none"; grip.style.display = "none"; };
 
     // ---------------------------------------------------------------- barre de sélection (texte riche)
     const renderSelBar = () => {
@@ -455,7 +465,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       document.documentElement.removeEventListener("mouseleave", onLeaveDoc);
       window.removeEventListener("message", onMessage);
       gridObserver.disconnect();
-      [indicator, gridLayer, blockBar, selBar, slashMenu, style].forEach((n) => n.remove());
+      [indicator, gridLayer, blockBar, selBar, slashMenu, grip, style].forEach((n) => n.remove());
     };
   }, [editor]);
 
