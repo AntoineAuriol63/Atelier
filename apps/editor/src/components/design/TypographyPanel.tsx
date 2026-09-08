@@ -32,7 +32,7 @@ export function TypographyPanel({ site, style, mode }: { site: Site; style: Styl
         {false && row("fontSize", "Taille", <UnitInput className="flex-1" site={site} tokenGroup="fontSize" value={s.value("fontSize")} onChange={(v) => s.set("fontSize", v)} placeholder="16" />)}
         {row("lineHeight", "Interligne", <UnitInput className="flex-1" site={site} tokenGroup="lineHeight" defaultUnit="" keywords={["normal"]} value={s.value("lineHeight")} onChange={(v) => s.set("lineHeight", v)} placeholder="1.5" />)}
         {row("fontWeight", "Graisse", <Select className="flex-1" value={str(s.value("fontWeight")) ?? ""} placeholder="Héritée" options={WEIGHTS} onValueChange={(v) => s.set("fontWeight", v || undefined, false)} />)}
-        {row("letterSpacing", "Espacement", <UnitInput className="flex-1" site={site} defaultUnit="em" keywords={["normal"]} value={s.value("letterSpacing")} onChange={(v) => s.set("letterSpacing", v)} placeholder="0" />)}
+        {row("letterSpacing", "Espacement", <UnitInput step={0.01} className="flex-1" site={site} defaultUnit="em" keywords={["normal"]} value={s.value("letterSpacing")} onChange={(v) => s.set("letterSpacing", v)} placeholder="0" />)}
       </div>
       {row("color", "Couleur", <ColorInput className="flex-1" site={site} mode={mode} value={s.value("color")} onChange={(v) => s.set("color", v)} />)}
       {row("textAlign", "Alignement", <Segmented className="flex-1" value={str(s.value("textAlign"))} options={ALIGN} onChange={(v) => s.set("textAlign", v, false)} />, true)}

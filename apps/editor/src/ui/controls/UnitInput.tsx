@@ -5,7 +5,7 @@ import { Diamond, X } from "lucide-react";
 import type { Site, StyleValue, Theme } from "@atelier/model";
 import { LENGTH_UNITS, parseInput, parseValue, tokenOptions, tokenValue } from "@/lib/css-value";
 import { cx } from "../cx";
-import { startDragValue } from "./useDragValue";
+import { startDragValue, stepFor } from "./useDragValue";
 
 const FIELD = "h-7 rounded-sm bg-surface text-ink border border-line hover:border-line-strong focus-within:border-accent";
 
@@ -13,9 +13,9 @@ const FIELD = "h-7 rounded-sm bg-surface text-ink border border-line hover:borde
  * Champ de longueur CSS : nombre + unité, mot-clé, ou jeton du thème.
  * Validation à la fin de la saisie ; flèches ±1 (Maj ±10) ; glisser horizontalement sur l'unité pour ajuster.
  */
-export function UnitInput({ value, onChange, site, tokenGroup, keywords = [], placeholder, defaultUnit = "px", className, muted, compact }: {
+export function UnitInput({ value, onChange, site, tokenGroup, keywords = [], placeholder, defaultUnit = "px", className, muted, compact, step: dragStep }: {
   value: StyleValue | undefined; onChange: (v: StyleValue | undefined) => void; site: Site; tokenGroup?: keyof Theme["tokens"];
-  keywords?: string[]; placeholder?: string; defaultUnit?: string; className?: string; muted?: boolean; compact?: boolean;
+  keywords?: string[]; placeholder?: string; defaultUnit?: string; className?: string; muted?: boolean; compact?: boolean; /** Pas du glisser, sinon déduit de l'unité. */ step?: number;
 }) {
   const parsed = parseValue(value);
   const text = parsed.kind === "number" ? String(parsed.n) : parsed.kind === "keyword" ? parsed.keyword : parsed.kind === "raw" ? parsed.raw : "";
@@ -37,7 +37,7 @@ export function UnitInput({ value, onChange, site, tokenGroup, keywords = [], pl
     if (focused || (parsed.kind !== "number" && draft !== "")) return;
     const n0 = parsed.kind === "number" ? parsed.n : 0;
     const u = parsed.kind === "number" ? parsed.unit || (parsed.n === 0 ? defaultUnit : "") : defaultUnit;
-    startDragValue(e, { from: n0, step: u === "rem" || u === "em" ? 0.05 : u === "%" || u === "vw" || u === "vh" ? 0.5 : 1, onChange: (n) => onChange(`${n}${u}`) });
+    startDragValue(e, { from: n0, step: dragStep ?? stepFor(u), onChange: (n) => onChange(`${n}${u}`) });
   };
   const tokens = tokenGroup ? tokenOptions(site, tokenGroup) : [];
 

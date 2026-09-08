@@ -5,13 +5,14 @@ import { Link2, Unlink2 } from "lucide-react";
 import type { ResolvedValue, Site, StyleValue } from "@atelier/model";
 import { parseInput, shortLabel, tokenValue } from "@/lib/css-value";
 import { cx } from "../cx";
+import { startDragValue, stepFor } from "./useDragValue";
 
 const SIDES = ["Top", "Right", "Bottom", "Left"] as const;
 type Side = (typeof SIDES)[number];
 
 const SOURCE_TEXT: Record<string, string> = { local: "text-ink", inherited: "text-warning", shared: "text-violet-400", default: "text-dim" };
 
-function Cell({ value, site, onCommit, title, className }: { value: ResolvedValue | undefined; site: Site; onCommit: (v: StyleValue | undefined) => void; title: string; className?: string }) {
+function Cell({ value, site, onCommit, title, className }: { value: ResolvedValue | undefined; site: Site; onCommit: (v: StyleValue | undefined, coalesce?: boolean) => void; title: string; className?: string }) {
   // Une valeur du thème (ex. space.12) s'affiche par ce qu'elle vaut (6rem), jamais par son nom, pour ne pas la confondre avec des pixels.
   const raw = value?.value;
   const isToken = typeof raw === "object" && raw !== null && "token" in raw;
@@ -30,10 +31,17 @@ function Cell({ value, site, onCommit, title, className }: { value: ResolvedValu
       title={isToken ? `${title} · valeur du thème ${(raw as { token: string }).token} = ${text}` : title}
       aria-label={title}
       onFocus={() => setFocused(true)}
+      onPointerDown={(e) => {
+        if (focused) return;
+        const m = text.match(/^(-?\d*\.?\d+)([a-z%]*)$/i);
+        if (text && !m) return; // auto, mot-clé : rien à glisser
+        const from = m ? Number(m[1]) : 0, unit = m ? m[2] || "px" : "px";
+        startDragValue(e, { from, step: stepFor(unit), onChange: (n) => onCommit(`${n}${unit}`, true) });
+      }}
       onBlur={() => { setFocused(false); onCommit(parseInput(draft, "px", ["auto"])); }}
       onChange={(e) => setDraft(e.target.value)}
       onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setDraft(text); (e.target as HTMLInputElement).blur(); } }}
-      className={cx("w-12 h-5 text-center text-[11px] font-mono tabular-nums bg-transparent rounded-xs border border-transparent hover:border-line-strong focus:border-accent focus:bg-surface focus:outline-none", tone, isToken && "underline decoration-dotted underline-offset-2", className)}
+      className={cx("w-12 h-5 text-center text-[11px] font-mono tabular-nums bg-transparent rounded-xs border border-transparent hover:border-line-strong focus:border-accent focus:bg-surface focus:outline-none", !focused && "cursor-ew-resize", tone, isToken && "underline decoration-dotted underline-offset-2", className)}
     />
   );
 }
@@ -49,9 +57,9 @@ function LinkToggle({ linked, onToggle, what }: { linked: boolean; onToggle: () 
 /** Schéma de la boîte : marges à l'extérieur, remplissage à l'intérieur, une case par côté. */
 export function BoxModel({ site, get, set }: { site: Site; get: (prop: string) => ResolvedValue | undefined; set: (prop: string, v: StyleValue | undefined, coalesce?: boolean) => void }) {
   const [linked, setLinked] = useState<{ margin: boolean; padding: boolean }>({ margin: false, padding: false });
-  const commit = (kind: "margin" | "padding", side: Side) => (v: StyleValue | undefined) => {
-    if (linked[kind]) SIDES.forEach((s) => set(`${kind}${s}`, v));
-    else set(`${kind}${side}`, v);
+  const commit = (kind: "margin" | "padding", side: Side) => (v: StyleValue | undefined, coalesce?: boolean) => {
+    if (linked[kind]) SIDES.forEach((s) => set(`${kind}${s}`, v, coalesce));
+    else set(`${kind}${side}`, v, coalesce);
   };
   const toggle = (kind: "margin" | "padding") => setLinked((l) => ({ ...l, [kind]: !l[kind] }));
   return (

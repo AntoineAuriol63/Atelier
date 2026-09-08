@@ -1,5 +1,7 @@
 "use client";
 
+import { isDraggingValue } from "@/ui/controls/useDragValue";
+
 import { useMemo } from "react";
 import type { CommitOptions, Node, Op, ResolvedStyle, ResolvedValue, Site, StyleSource, StyleValue } from "@atelier/model";
 import { BASE, resolveNodeStyle, resolveSharedStyle, sharedStylePath, stylePath } from "@atelier/model";
@@ -33,7 +35,7 @@ export function useStyle(site: Site, target: StyleTarget, bp: string, state: str
     const styleName = (id: string) => site.sharedStyles.find((s) => s.id === id)?.name ?? id;
     const resolved = target.kind === "node" ? resolveNodeStyle(site, target.node, bp, state) : resolveSharedStyle(site, target.id, bp, state);
     const where = `${bpName(bp)}${state ? ` · ${STATE_LABEL[state] ?? state}` : ""}`;
-    const set = (prop: string, v: StyleValue | undefined, coalesce = true, coalesceWindowMs?: number) => {
+    const set = (prop: string, v: StyleValue | undefined, coalesce = true, coalesceWindowMs: number | undefined = isDraggingValue() ? 120_000 : undefined) => {
       const key = target.kind === "node" ? target.node.id : `shared:${target.id}`;
       const opts: CommitOptions = { coalesceKey: coalesce ? `style:${key}:${bp}:${state ?? ""}:${prop}` : undefined, label: `${prop} (${where})`, coalesceWindowMs };
       if (target.kind === "node") commit({ op: "node.set", id: target.node.id, path: stylePath(bp, prop, state), value: v }, opts);

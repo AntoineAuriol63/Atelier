@@ -37,7 +37,7 @@ Deux modes, qui sont des préréglages du même éditeur et non des outils sépa
 ### 1.4 Design
 
 - Panneaux : Disposition, Espacement, Dimensions, Typographie, Apparence (fond, bordure, arrondi, ombre, opacité), Effets, Responsive (cascade descendante par point de rupture : base > tablette > mobile > petit), états (survol, focus, actif…) avec prévisualisation forcée et animation des changements, styles partagés (appliquer, créer, modifier, détacher, héritage), CSS brut.
-- Chaque propriété montre sa source (locale, héritée, partagée, par défaut) et se réinitialise. Toute valeur numérique se règle à la souris : glisser horizontalement sur le champ lui-même (ou sur son libellé) fait défiler la valeur, un pixel par pas, dix fois plus vite avec Maj ; un simple clic met le curseur pour taper ; flèches haut et bas ±1 (Maj ±10). Les pas suivent l'unité (0,05 en rem, 0,5 en %).
+- Chaque propriété montre sa source (locale, héritée, partagée, par défaut) et se réinitialise. Toute valeur numérique se règle à la souris : glisser horizontalement sur le champ lui-même (ou sur son libellé) fait défiler la valeur, un pixel par pas, dix fois plus vite avec Maj ; un simple clic met le curseur pour taper ; flèches haut et bas ±1 (Maj ±10). Les pas suivent l'unité (1 px, 1 %, un quart de rem, 0,1 sans unité) : jamais de centièmes. Vaut aussi pour les cases du schéma de boîte (marges et remplissage).
 - Grille de mise en page par point de rupture (colonnes, gouttière, marge, largeur maximale), affichable.
 - Largeur d'aperçu libre avec poignée, préréglages Bureau / Tablette / Mobile, réduction à l'échelle.
 - Propriétés par type : image, lien ou bouton, balise, vue de base de données, formulaire, champ, données (liaisons).
