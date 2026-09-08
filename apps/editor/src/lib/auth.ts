@@ -4,7 +4,7 @@ import { createServerClient } from "@supabase/ssr";
 export type SessionUser = { email: string };
 
 /** La connexion est active dès que l'URL et la clé publique Supabase sont connues du navigateur. Sans elles (mode fichier, essais) : accès libre. */
-export const authEnabled = () => !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+export const authEnabled = () => process.env.ATELIER_AUTH !== "off" && !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 /** Adresses autorisées à se connecter (`ATELIER_ALLOWED_EMAILS`, séparées par des virgules) ; vide = toutes. */
 export function emailAllowed(email: string): boolean {

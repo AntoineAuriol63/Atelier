@@ -5,6 +5,7 @@ import { Diamond, X } from "lucide-react";
 import type { Site, StyleValue, Theme } from "@atelier/model";
 import { LENGTH_UNITS, parseInput, parseValue, tokenOptions, tokenValue } from "@/lib/css-value";
 import { cx } from "../cx";
+import { startDragValue } from "./useDragValue";
 
 const FIELD = "h-7 rounded-sm bg-surface text-ink border border-line hover:border-line-strong focus-within:border-accent";
 
@@ -31,14 +32,12 @@ export function UnitInput({ value, onChange, site, tokenGroup, keywords = [], pl
     const n = Math.round((base.n + dir * (big ? 10 : 1)) * 100) / 100;
     onChange(`${n}${base.unit || (n === 0 ? "" : defaultUnit)}`);
   };
-  const scrub = (e: React.PointerEvent) => {
-    if (parsed.kind !== "number") return;
-    e.preventDefault();
-    const x0 = e.clientX, n0 = parsed.n, u = parsed.unit;
-    const onMove = (ev: PointerEvent) => onChange(`${Math.round((n0 + (ev.clientX - x0) * (ev.shiftKey ? 10 : 1)) * 100) / 100}${u}`);
-    const onUp = () => { window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); document.body.style.cursor = ""; };
-    document.body.style.cursor = "ew-resize";
-    window.addEventListener("pointermove", onMove); window.addEventListener("pointerup", onUp);
+  /** Glisser sur le champ (nombre ou vide) règle la valeur ; un simple clic met le curseur pour taper. */
+  const scrub = (e: React.PointerEvent<HTMLElement>) => {
+    if (focused || (parsed.kind !== "number" && draft !== "")) return;
+    const n0 = parsed.kind === "number" ? parsed.n : 0;
+    const u = parsed.kind === "number" ? parsed.unit || (parsed.n === 0 ? defaultUnit : "") : defaultUnit;
+    startDragValue(e, { from: n0, step: u === "rem" || u === "em" ? 0.05 : u === "%" || u === "vw" || u === "vh" ? 0.5 : 1, onChange: (n) => onChange(`${n}${u}`) });
   };
   const tokens = tokenGroup ? tokenOptions(site, tokenGroup) : [];
 
@@ -60,6 +59,8 @@ export function UnitInput({ value, onChange, site, tokenGroup, keywords = [], pl
         value={draft}
         placeholder={placeholder}
         onFocus={() => setFocused(true)}
+        onPointerDown={scrub}
+        title={focused ? undefined : "Glisser horizontalement pour ajuster (Maj : dix fois plus vite), cliquer pour saisir"}
         autoFocus={editingToken}
         onBlur={() => { setFocused(false); commit(); if (editingToken && !draft.trim()) setEditingToken(false); }}
         onChange={(e) => setDraft(e.target.value)}
@@ -68,14 +69,12 @@ export function UnitInput({ value, onChange, site, tokenGroup, keywords = [], pl
           if (e.key === "Escape") { setDraft(text); (e.target as HTMLInputElement).blur(); }
           if (e.key === "ArrowUp" || e.key === "ArrowDown") { e.preventDefault(); step(e.key === "ArrowUp" ? 1 : -1, e.shiftKey); }
         }}
-        className={cx("min-w-0 flex-1 h-full bg-transparent pl-2 pr-1 text-xs font-mono tabular-nums placeholder:text-dim focus:outline-none", muted && !focused && "text-muted", compact && "pl-1.5")}
+        className={cx("min-w-0 flex-1 h-full bg-transparent pl-2 pr-1 text-xs font-mono tabular-nums placeholder:text-dim focus:outline-none", !focused && (parsed.kind === "number" || draft === "") && "cursor-ew-resize", muted && !focused && "text-muted", compact && "pl-1.5")}
       />
       {parsed.kind === "number" || draft === "" ? (
         <select
           aria-label="Unité"
           value={unit}
-          onPointerDown={(e) => { if (e.altKey) scrub(e); }}
-          onMouseDown={(e) => { if (e.altKey) e.preventDefault(); }}
           onChange={(e) => { const u = e.target.value; const n = parsed.kind === "number" ? parsed.n : Number(draft) || 0; onChange(`${n}${u}`); }}
           className="h-full bg-transparent text-2xs text-dim pr-0.5 focus:outline-none cursor-ew-resize appearance-none text-right w-[30px]"
           title="Unité. Pour ajuster la valeur à la souris, glisser sur le libellé de la propriété (ou Alt + glisser ici)."

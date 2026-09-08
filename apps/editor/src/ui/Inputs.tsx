@@ -3,6 +3,7 @@
 import { useState, type InputHTMLAttributes, type TextareaHTMLAttributes } from "react";
 import { ChevronDown } from "lucide-react";
 import { cx } from "./cx";
+import { startDragValue } from "./controls/useDragValue";
 
 const FIELD = "w-full h-7 px-2 rounded-sm bg-surface text-ink border border-line placeholder:text-dim hover:border-line-strong focus:border-accent focus:outline-none text-sm";
 
@@ -83,6 +84,8 @@ export function NumberInput({ value, onValueChange, unit, min, max, step = 1, cl
         inputMode="decimal"
         value={draft}
         placeholder={placeholder}
+        onPointerDown={(e) => { if (!focused) startDragValue(e, { from: value === "" ? (min ?? 0) : value, step, onChange: (n) => { const c = clamp(n); setDraft(String(c)); onValueChange(c); } }); }}
+        title={focused ? title : "Glisser horizontalement pour ajuster, cliquer pour saisir"}
         onFocus={() => setFocused(true)}
         onBlur={() => { setFocused(false); commit(); }}
         onChange={(e) => setDraft(e.target.value)}

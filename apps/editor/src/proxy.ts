@@ -24,7 +24,7 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next();
   }
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL, key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key || PUBLIC.some((re) => re.test(path))) return NextResponse.next();
+  if (process.env.ATELIER_AUTH === "off" || !url || !key || PUBLIC.some((re) => re.test(path))) return NextResponse.next();
   let res = NextResponse.next({ request: req });
   const supabase = createServerClient(url, key, {
     cookies: {
