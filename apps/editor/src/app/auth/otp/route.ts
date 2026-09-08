@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { serverSupabase, authEnabled, emailAllowed } from "@/lib/auth";
 
 /** Envoie le lien de connexion par email (Supabase Auth, lien magique), après vérification des adresses autorisées. */
@@ -11,7 +12,14 @@ export async function POST(req: Request) {
   const origin = new URL(req.url).origin;
   const suite = typeof body.suite === "string" && body.suite.startsWith("/") ? body.suite : "/";
   const supabase = await serverSupabase();
-  const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: `${origin}/auth/callback?suite=${encodeURIComponent(suite)}` } });
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  // L'adresse de retour reste exactement celle déclarée dans Supabase ; la page à rouvrir voyage dans un cookie court.
+  const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: `${origin}/auth/callback` } });
+  if (error) {
+    const msg = /rate limit/i.test(error.message) ? "Trop d'emails envoyés pour l'instant : l'envoi intégré de Supabase est limité à quelques messages par heure. Réessayez dans une heure, ou branchez un service d'envoi (docs/supabase.md)."
+      : /timeout|timed out|gateway/i.test(error.message) ? "Le service d'envoi d'emails ne répond pas : vérifiez le réglage SMTP dans Supabase (hôte, port 587, identifiants), puis réessayez."
+      : /smtp|mail/i.test(error.message) ? `Envoi de l'email refusé par le service : ${error.message}` : error.message;
+    return Response.json({ error: msg }, { status: /rate limit/i.test(error.message) ? 429 : 500 });
+  }
+  (await cookies()).set("atelier_suite", suite, { path: "/", maxAge: 900, httpOnly: true, sameSite: "lax" });
   return Response.json({ ok: true });
 }

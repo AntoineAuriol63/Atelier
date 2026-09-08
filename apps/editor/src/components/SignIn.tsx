@@ -6,7 +6,11 @@ import { Mail } from "lucide-react";
 import { Button, Hint, TextInput } from "@/ui";
 import { PRODUCT_NAME } from "@/lib/product";
 
-const ERRORS: Record<string, string> = { "non-autorise": "Cette adresse n'est pas autorisée sur cet Atelier.", "lien-invalide": "Ce lien de connexion n'est plus valable. Demandez-en un nouveau." };
+const ERRORS: Record<string, string> = {
+  "non-autorise": "Cette adresse n'est pas autorisée sur cet Atelier.",
+  "lien-invalide": "Ce lien de connexion n'est plus valable. Demandez-en un nouveau.",
+  "autre-navigateur": "Ce lien a été demandé depuis un autre navigateur. Demandez un nouveau lien ici, et ouvrez-le depuis ce même navigateur.",
+};
 
 /** Connexion par lien magique : on saisit son adresse, on reçoit un lien, on est connecté. */
 export function SignIn() {

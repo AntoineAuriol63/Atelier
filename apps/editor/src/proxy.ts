@@ -3,7 +3,8 @@ import { createServerClient } from "@supabase/ssr";
 
 /** Ce qui reste public : les sites publiés, les envois de formulaires, les fichiers servis, la connexion. */
 const PUBLIC = [/^\/s\//, /^\/api\/forms\//, /^\/api\/sites\/[^/]+\/assets\//, /^\/connexion/, /^\/auth\//, /^\/favicon/];
-const ALLOWED = (process.env.ATELIER_ALLOWED_EMAILS ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+/** Adresses autorisées, lues à chaque requête (le fichier .env.local peut changer sans redémarrage en développement). */
+const allowed = () => (process.env.ATELIER_ALLOWED_EMAILS ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
 
 /**
  * 1. `<sous-domaine>.<domaine d'Atelier>` est réécrit vers `/s/<sous-domaine>/…` (sites publiés, publics).
@@ -33,7 +34,8 @@ export async function proxy(req: NextRequest) {
   });
   const { data } = await supabase.auth.getUser();
   const email = data.user?.email?.toLowerCase();
-  const ok = !!email && (ALLOWED.length === 0 || ALLOWED.includes(email));
+  const list = allowed();
+  const ok = !!email && (list.length === 0 || list.includes(email));
   if (ok) return res;
   if (path.startsWith("/api/")) return NextResponse.json({ error: "Connexion requise" }, { status: 401 });
   const to = req.nextUrl.clone();
