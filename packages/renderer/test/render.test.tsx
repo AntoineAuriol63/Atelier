@@ -126,6 +126,14 @@ describe("variantes de composant", () => {
   });
 });
 
+describe("base CSS", () => {
+  it("ne prend jamais le pas sur le style d'un nœud (boutons et champs en :where)", () => {
+    const css = siteCss(sampleSite);
+    expect(css).toContain(":where(.at-page button){");
+    expect(css).not.toMatch(/(^|\})\.at-page button\{/);
+  });
+});
+
 describe("séparateur", () => {
   const bps = sampleSite.settings.breakpoints;
   it("est vertical dans une rangée et redevient horizontal quand la rangée s'empile", () => {
