@@ -41,6 +41,8 @@ Un site n'est accessible qu'à son propriétaire et aux personnes qu'il invite. 
 
 ## 4. Vérifier après déploiement
 
+Fait le 9 septembre 2026 sur `atelier-editor.vercel.app` : connexion par lien magique, publication depuis l'éditeur en ligne, site servi avec son thème, plan du site, robots, page 404, en-têtes, formulaire de contact reçu dans Données → Messages reçus. Lighthouse reste à mesurer.
+
 - Ouvrir l'éditeur en ligne, publier, ouvrir l'adresse affichée dans la fenêtre Publier.
 - `https://<site>/sitemap.xml` et `/robots.txt` répondent.
 - Envoyer le formulaire de contact : le message apparaît dans Données → Messages reçus, et par email si Resend est configuré.

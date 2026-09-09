@@ -142,7 +142,7 @@ Le panneau de droite actuel est un échafaudage. Il est remplacé, pas amélior�
 
 ### Sortie de v0
 
-- [ ] Le site de la photographe est en ligne, construit dans Atelier
+- [x] Le site de la photographe est en ligne, construit dans Atelier (9 sept. 2026 : `https://atelier-editor.vercel.app/s/site-marie`, publié depuis l'éditeur en ligne, formulaire de contact reçu ; reste les deux domaines, `docs/mise-en-ligne.md`)
 - [ ] Un deuxième site de nature différente est commencé pour vérifier qu'on n'est pas enfermé (D10)
 
 ---
@@ -186,6 +186,8 @@ Espaces membres (D49) · synchronisation Git des composants · contributions à 
 Cinq examens (architecture, charge, UI/UX, cohérence produit, sécurité) consolidés dans `docs/revue-globale-2026-09.md`, avec un plan en trois temps : A. avant toute mise en ligne (pagination des entrées qui perd des données au-delà de 1 000, sécurité de la mise en ligne, opérations jamais perdues, allègements de transport) ; B. points de passage anti-dette (migration de schéma, protocole d'aperçu typé, tests communs aux dépôts, intégration continue, régie UI) ; C. v1 fidèle au positionnement (export du code en premier, composants, minimum professionnel, rôles, images hors du document). Dette sans domicile récupérée : sélection multiple et texte riche dans les champs (ex « M4 bis »), destinataire par formulaire et domaine d'envoi.
 
 ## Journal
+
+- 9 sept. 2026 — **Site de Marie en ligne.** Publié par Antoine depuis l'éditeur déployé ; formulaire de contact envoyé depuis le site public et reçu dans la base `frm_form_contact` (nom, email, message, page). Deux défauts repérés à cette occasion et corrigés (jetons de l'éditeur dans l'aperçu, base CSS des boutons). Lighthouse : à mesurer depuis Chrome (le quota de l'API PageSpeed était épuisé ce jour). Sortie de v0 : première case cochée, domaines à brancher, deuxième site à commencer (point 15).
 
 - 9 sept. 2026 — **Bouton de formulaire sans fond** (repéré par Antoine dans l'éditeur). La base CSS du moteur (`.at-page button{border:0;background:none}`) avait plus de poids que le style du nœud (`.n-<id>`) : le fond et la bordure réglés dans Apparence n'apparaissaient ni dans l'éditeur ni en ligne. Toute la base des éléments passe en `:where()` (spécificité nulle) ; test ajouté.
 
