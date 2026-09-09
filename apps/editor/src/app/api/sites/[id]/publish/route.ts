@@ -10,7 +10,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const store = getStore();
   try {
     const [published, publications, stored] = await Promise.all([store.published(id), store.publications(id), store.get(id)]);
-    return Response.json({ publishedVersion: published?.version ?? null, publishedAt: published?.publishedAt ?? null, publications, url: stored ? publicUrl(stored.site) : null, version: stored?.version ?? null });
+    return Response.json({ publishedVersion: published?.version ?? null, publishedAt: published?.publishedAt ?? null, publications, url: stored ? await publicUrl(stored.site) : null, version: stored?.version ?? null });
   } catch (e) { return Response.json({ error: e instanceof Error ? e.message : "Erreur" }, { status: 500 }); }
 }
 
@@ -25,6 +25,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const meta = contentOnly ? await getStore().publishEntries(id) : await getStore().publish(id, typeof body.label === "string" && body.label.trim() ? body.label.trim() : undefined);
     invalidatePublished(id);
     const stored = await getStore().get(id);
-    return Response.json({ ...meta, url: stored ? publicUrl(stored.site) : null });
+    return Response.json({ ...meta, url: stored ? await publicUrl(stored.site) : null });
   } catch (e) { return Response.json({ error: e instanceof Error ? e.message : "Publication impossible" }, { status: 500 }); }
 }

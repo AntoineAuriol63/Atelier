@@ -35,6 +35,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ sub: st
     m = { page: notFound, params: {} }; status = 404;
   }
   const ctx: RenderContext = { site, page: m.page, entry: m.entry, params: m.params, locale: site.settings.defaultLocale, data, assets: assetMap(site), basePath };
-  const html = htmlDocument(ctx, { path: urlPath, isEntry: !!m.entry, base: publicUrl(site), css: { inline: siteCss(site, { pageId: m.page.id }) }, noindex: status === 404 });
+  const html = htmlDocument(ctx, { path: urlPath, isEntry: !!m.entry, base: await publicUrl(site), css: { inline: siteCss(site, { pageId: m.page.id }) }, noindex: status === 404 });
   return new Response(html, { status, headers: { ...HTML, "x-atelier-version": String(pub.version) } });
 }

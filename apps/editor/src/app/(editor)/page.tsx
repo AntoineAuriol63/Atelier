@@ -16,6 +16,6 @@ export default async function DashboardPage() {
   catch (e) {
     return <main style={{ padding: 48, fontFamily: "var(--font-plex-sans), system-ui", color: "#ddd", maxWidth: 640 }}><h1 style={{ fontSize: 18, marginBottom: 8 }}>Le dépôt des sites répond par une erreur</h1><p style={{ color: "#aaa", fontSize: 14 }}>{e instanceof Error ? e.message : String(e)}</p><p style={{ color: "#aaa", fontSize: 14 }}>Voir <code>docs/supabase.md</code>, puis rechargez.</p></main>;
   }
-  const withUrls = sites.map((s) => ({ ...s, url: s.publishedVersion !== null ? publicUrl({ id: s.id, settings: { subdomain: s.subdomain ?? undefined } } as Parameters<typeof publicUrl>[0]) : null }));
+  const withUrls = await Promise.all(sites.map(async (s) => ({ ...s, url: s.publishedVersion !== null ? await publicUrl({ id: s.id, settings: { subdomain: s.subdomain ?? undefined } } as Parameters<typeof publicUrl>[0]) : null })));
   return <Dashboard sites={withUrls} user={authEnabled() ? user.email : null} />;
 }

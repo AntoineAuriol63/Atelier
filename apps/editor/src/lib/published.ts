@@ -7,11 +7,18 @@ import { pathFallbackAllowed } from "@/lib/env";
 /** Domaine sous lequel les sites publiés répondent (`<sous-domaine>.<domaine>`). En développement : localhost:3000. */
 export const SITES_DOMAIN = process.env.ATELIER_SITES_DOMAIN ?? "localhost:3000";
 export const subdomainOf = (site: Site) => site.settings.subdomain ?? site.id.replace(/[^a-z0-9-]/gi, "-").toLowerCase();
-/** Adresse publique d'un site : sous-domaine si le domaine d'Atelier est configuré, sinon le chemin de repli `/s/<sous-domaine>`. */
-export function publicUrl(site: Site): string {
-  const sub = subdomainOf(site);
-  const https = !SITES_DOMAIN.startsWith("localhost");
-  return `${https ? "https" : "http"}://${sub}.${SITES_DOMAIN}`;
+/**
+ * Adresse publique d'un site : `https://<sous-domaine>.<domaine>` si `ATELIER_SITES_DOMAIN` est réglé, sinon le chemin de repli
+ * `/s/<sous-domaine>` derrière l'origine de la requête en cours (déploiement sans domaine de sites, développement).
+ */
+export async function publicUrl(site: Pick<Site, "id" | "settings">): Promise<string> {
+  const sub = subdomainOf(site as Site);
+  const domain = process.env.ATELIER_SITES_DOMAIN;
+  if (domain) return `${domain.startsWith("localhost") ? "http" : "https"}://${sub}.${domain}`;
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
+  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  return `${proto}://${host}/s/${sub}`;
 }
 
 /** Instantané publié d'un site, mis en cache et régénéré à la demande (D35) par l'étiquette `site:<id>`. */

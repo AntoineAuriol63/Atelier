@@ -21,7 +21,9 @@ Ce document explique la vraie mise en ligne : l'éditeur hébergé, les sites pu
    - `ATELIER_SITES_DOMAIN` = le domaine des sites, par exemple `atelier.site` (sans `https://`) ;
    - `RESEND_API_KEY`, `FORM_NOTIFY_TO`, `MAIL_FROM` pour les formulaires ;
    - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `ATELIER_ALLOWED_EMAILS` pour la connexion (voir `docs/supabase.md`, section Comptes), sans quoi l'éditeur est ouvert à tous.
-3. Premier déploiement : l'éditeur répond sur `https://<projet>.vercel.app/`. Sans domaine de sites, les sites publiés ne répondent pas encore (le repli `/s/…` est réservé au développement) : pour un premier contrôle, poser temporairement `ATELIER_ALLOW_PATH_FALLBACK=1` et ouvrir `https://<projet>.vercel.app/s/<sous-domaine>/`, puis retirer la variable dès que le domaine des sites est branché.
+3. Premier déploiement : l'éditeur répond sur `https://<projet>.vercel.app/`. Sans domaine de sites, les sites publiés ne répondent pas encore (le repli `/s/…` est réservé au développement) : pour un premier contrôle, poser temporairement `ATELIER_ALLOW_PATH_FALLBACK=1` et ouvrir `https://<projet>.vercel.app/s/<sous-domaine>/`, puis retirer la variable dès que le domaine des sites est branché. Tant que `ATELIER_SITES_DOMAIN` est absent, l'adresse publique (fenêtre Publier, canonique, plan du site, robots) est ce chemin de repli derrière l'origine de la requête.
+
+Fait le 9 septembre 2026 : projet `atelier-editor` sur Vercel, `https://atelier-editor.vercel.app` ; connexion, site de Marie sous `/s/site-marie`, plan du site, robots, page 404 et en-têtes vérifiés.
 4. Republier chaque site une fois depuis l'éditeur en ligne : la publication enregistre le sous-domaine qui répond (les sites publiés avant le 9 septembre 2026 n'en ont pas ; en attendant, l'identifiant du site sert de repli).
 
 ## 3. Les sous-domaines des sites

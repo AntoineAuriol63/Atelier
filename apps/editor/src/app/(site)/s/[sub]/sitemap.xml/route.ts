@@ -9,7 +9,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ sub: st
   const id = await getSiteIdBySub(sub);
   const pub = id ? await getPublished(id) : null;
   if (!pub) return new Response("Introuvable", { status: 404 });
-  const base = publicUrl(pub.site);
+  const base = await publicUrl(pub.site);
   const urls: { loc: string; lastmod?: string }[] = [];
   for (const p of pub.site.pages) if (p.kind === "static" && p.seo?.index !== false && p.path !== NOT_FOUND_PATH) urls.push({ loc: `${base}${p.path === "/" ? "" : p.path}`, lastmod: pub.publishedAt });
   const data = memoryData(pub.entries);
