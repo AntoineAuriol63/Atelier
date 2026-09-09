@@ -245,7 +245,9 @@ props: {
 }
 ```
 
-« Détacher l'instance » est une opération qui remplace le nœud `instance` par une copie de l'arbre résolu.
+« Détacher l'instance » (`planDetach`) remplace le nœud `instance` par une copie de l'arbre résolu : surcharges appliquées, propriétés liées (`bindings` de source `prop`) remplacées par leur valeur, emplacements remplis, identifiants neufs. « En faire un composant » (`planMakeComponent`) fait l'inverse : le sous-arbre sélectionné devient `root` d'une nouvelle définition (identifiants conservés), remplacé dans la page par une instance.
+
+Variantes (`packages/model/src/components.ts`) : la clé de `variantStyles` est `axe:valeur` (une clé par valeur, les axes se combinent). Au rendu, la racine de l'instance reçoit une classe `v-<axe>-<valeur>` par axe (valeur de l'instance, sinon défaut de l'axe), et le moteur émet `.racine.v-axe-valeur .nœud { … }` pour chaque nœud réglé. L'éditeur écrit ces styles par `site.set` sur `components.<i>.variantStyles.<clé>.<nœud>.<base|breakpoints…>`. Les styles de variante s'ajoutent au style normal du nœud, qui reste hérité.
 
 ### 6.1 Composants code
 

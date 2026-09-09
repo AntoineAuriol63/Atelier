@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { AlertTriangle, CheckCircle2, Command as CommandIcon, Database as DatabaseIcon, ExternalLink, Info, FileText, Grid3x3, Layers, Moon, Palette, Plus, Redo2, Sun, Undo2, UploadCloud } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Command as CommandIcon, Database as DatabaseIcon, ExternalLink, Info, FileText, Grid3x3, Layers, Moon, Palette, Plus, Puzzle, Redo2, Sun, Undo2, UploadCloud } from "lucide-react";
 import type { DropPosition, Entry, Node, Page, Site, StyleValue } from "@atelier/model";
-import { BASE, breakpointForWidth, canInsertUnder, cloneWithNewIds, dataSourceFor, entryPath, fitHeadings as fitHeadingsInPage, indexSite, layoutGridAt, newId, planDrop, planInsert, planMergePrev, planMove, planSlashInsert, planSplit, stylePath, templateOf, type TextPlan } from "@atelier/model";
+import { BASE, breakpointForWidth, canInsertUnder, cloneWithNewIds, dataSourceFor, entryPath, fitHeadings as fitHeadingsInPage, indexSite, layoutGridAt, newId, planDetach, planDrop, planInsert, planMakeComponent, planMergePrev, planMove, planSlashInsert, planSplit, stylePath, templateOf, type ComponentPlan, type TextPlan } from "@atelier/model";
 import type { Op } from "@atelier/model";
 import { valueToCss } from "@atelier/renderer";
 import type { Inline } from "@atelier/model";
@@ -136,9 +136,13 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
   const locale = site.settings.defaultLocale;
 
   /** Sélectionne un nœud, ouvre ses ancêtres dans les calques et fait défiler jusqu'à lui. */
+  // Composant ouvert dans les calques (sélectionner un nœud d'un composant, depuis l'aperçu, l'ouvre ; un nœud de page referme).
+  const [editingComponent, setEditingComponent] = useState<string | null>(null);
   const select = useCallback((id: string | null) => {
     setSelected(id);
     if (!id) return;
+    const owner = index.get(id)?.owner;
+    if (owner) setEditingComponent("component" in owner ? owner.component : null);
     const ancestors: string[] = [];
     let cur = index.get(id)?.parent ?? null;
     while (cur) { ancestors.push(cur.id); cur = index.get(cur.id)?.parent ?? null; }
@@ -329,7 +333,6 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
   }, [site, activeBpForGrid, showGrid, frameReady, post, editMode]);
 
   // --- raccourcis clavier (fenêtre et aperçu)
-  const [editingComponent, setEditingComponent] = useState<string | null>(null);
   const treeRoot = editingComponent ? site.components.find((c) => c.id === editingComponent)?.root ?? page.root : page.root;
   useEffect(() => {
     type KeyLike = { key: string; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey?: boolean; preventDefault: () => void; fromPreview?: boolean };
@@ -418,6 +421,14 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
   };
 
   const status = STATUS[doc.status] ?? STATUS.saved!;
+  const runComponentPlan = useCallback((plan: ComponentPlan) => {
+    if (!plan.ok) { notify(plan.reason); return; }
+    doc.commit({ op: "batch", ops: plan.ops, label: plan.label }, { label: plan.label });
+    if (plan.component) notify(`Composant « ${plan.component.name} » créé : il apparaît dans Ajouter → Composants.`, "success");
+    if (plan.select) select(plan.select);
+  }, [doc, notify, select]);
+  const makeComponent = useCallback((name: string) => { const loc = selected ? index.get(selected) : undefined; if (loc) runComponentPlan(planMakeComponent(site, loc, name)); }, [selected, index, site, runComponentPlan]);
+  const detachInstance = useCallback(() => { const loc = selected ? index.get(selected) : undefined; if (loc) runComponentPlan(planDetach(site, loc)); }, [selected, index, site, runComponentPlan]);
   const commands = useMemo<Command[]>(() => {
     const cmds: Command[] = [
       { id: "undo", group: "Édition", label: "Annuler", keys: "⌘Z", icon: Undo2, run: doc.undo },
@@ -438,13 +449,16 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
     if (selected && index.get(selected)?.parent) {
       cmds.push({ id: "dup", group: "Édition", label: "Dupliquer la sélection", keys: "⌘D", run: () => { const loc = index.get(selected)!; const { node: copy } = cloneWithNewIds(loc.node, newId); doc.commit({ op: "node.insert", parent: loc.parent!.id, index: loc.index + 1, node: copy }, { label: "Dupliquer" }); select(copy.id); } });
       cmds.push({ id: "del", group: "Édition", label: "Supprimer la sélection", keys: "⌫", run: () => { const loc = index.get(selected)!; doc.commit({ op: "node.remove", id: selected }, { label: "Supprimer" }); select(loc.parent!.id); } });
+      const sel = index.get(selected)!.node;
+      if (sel.type === "instance") cmds.push({ id: "detach", group: "Édition", label: "Détacher l'instance du composant", icon: Puzzle, run: detachInstance });
+      else cmds.push({ id: "makecmp", group: "Édition", label: `Faire de « ${nodeLabel(sel)} » un composant`, icon: Puzzle, keywords: "composant réutiliser", run: () => makeComponent(sel.name ?? nodeLabel(sel)) });
     }
     const seen = new Set<string>();
     const nodes: Command[] = [];
     const visit = (n: Node) => { const label = nodeLabel(n); if (!seen.has(n.id)) { seen.add(n.id); nodes.push({ id: `sel:${n.id}`, group: "Sélectionner un calque", label, icon: nodeIcon(n), keywords: n.type, run: () => select(n.id) }); } n.children?.forEach(visit); };
     visit(page.root);
     return [...cmds, ...nodes.slice(0, 80)];
-  }, [doc, site, locale, page.root, previewPath, selected, index, select, addBlock, showGrid, toggleGrid, switchMode, setPageId]);
+  }, [doc, site, locale, page.root, previewPath, selected, index, select, addBlock, showGrid, toggleGrid, switchMode, setPageId, makeComponent, detachInstance]);
   const setOpen = useCallback((id: string, open: boolean) => setOpenMap((m) => ({ ...m, [id]: open })), []);
   const rename = useCallback((id: string, name: string | null | undefined) => {
     setEditing(null);
@@ -552,7 +566,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
 
       <Panel side="right">
         {selectedLoc ? (
-          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} site={site} loc={selectedLoc} dataSource={dataSource} activeBp={activeBp} mode={mode} editMode={editMode} onSwitchMode={switchMode} onGoToBreakpoint={goToBreakpoint} onPreviewState={setPreviewState} onEditInPreview={() => post({ type: "atelier:edit-text", id: selectedLoc.node.id })} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }} commit={doc.commit} onDeleted={() => select(selectedLoc.parent?.id ?? null)} /></div>
+          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} site={site} loc={selectedLoc} dataSource={dataSource} activeBp={activeBp} mode={mode} editMode={editMode} onSwitchMode={switchMode} onGoToBreakpoint={goToBreakpoint} onPreviewState={setPreviewState} onEditInPreview={() => post({ type: "atelier:edit-text", id: selectedLoc.node.id })} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }} onMakeComponent={makeComponent} onDetach={detachInstance} notify={notify} commit={doc.commit} onDeleted={() => select(selectedLoc.parent?.id ?? null)} /></div>
         ) : (
           <div className="p-3 flex flex-col gap-2">
             <PanelHeading className="px-0">Sélection</PanelHeading>

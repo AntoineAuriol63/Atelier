@@ -1,4 +1,5 @@
-import type { ComponentDef, Inline, Mark, Node, Page, Site, ViewConfig } from "@atelier/model";
+import type { ComponentDef, Inline, Mark, Node, Overrides, Page, Site, ViewConfig } from "@atelier/model";
+import { applyOverrides, variantClasses } from "@atelier/model";
 import { createElement, Fragment, type ReactNode } from "react";
 import { nodeClassName } from "./css";
 import { findComponent, findDatabase, localized, resolveBinding, resolveHref, type RenderContext } from "./context";
@@ -21,7 +22,7 @@ function tagOf(node: Node, allowed: Set<string>, fallback: string): string {
 }
 
 function attrs(node: Node, ctx: RenderContext, extra: Record<string, unknown> = {}) {
-  const a: Record<string, unknown> = { className: nodeClassName(node, undefined, ctx.classes), ...extra };
+  const a: Record<string, unknown> = { className: nodeClassName(node, ctx.extraClass?.[node.id], ctx.classes), ...extra };
   if (ctx.editor) a["data-node"] = node.id;
   if (node.props.anchor) a.id = String(node.props.anchor);
   return a;
@@ -169,24 +170,14 @@ export function RenderNode({ node, ctx }: { node: Node; ctx: RenderContext }): R
   }
 }
 
-type Overrides = NonNullable<{ overrides?: Record<string, { props?: Record<string, unknown>; style?: Node["style"]; hidden?: Record<string, boolean> }> }["overrides"]>;
-
-function applyOverrides(root: Node, overrides: Overrides | undefined): Node {
-  if (!overrides || Object.keys(overrides).length === 0) return root;
-  const rec = (n: Node): Node => {
-    const o = overrides[n.id];
-    const next: Node = o ? { ...n, props: { ...n.props, ...(o.props ?? {}) }, style: o.style ?? n.style, hidden: o.hidden ?? n.hidden } : n;
-    return n.children ? { ...next, children: n.children.map(rec) } : next;
-  };
-  return rec(root);
-}
-
 function renderInstance(node: Node, cmp: ComponentDef, ctx: RenderContext): ReactNode {
   const values = (node.props.values ?? {}) as Record<string, unknown>;
   const props: Record<string, unknown> = {};
   for (const p of cmp.props) props[p.name] = values[p.name] ?? p.default;
   const root = applyOverrides(cmp.root, node.props.overrides as Overrides | undefined);
-  const inner: RenderContext = { ...ctx, props, slots: node.props.slots as Record<string, Node[]> | undefined };
+  // Les classes de variante sur la racine portent les styles `variantStyles` (voir `variantCss`).
+  const vc = cmp.variants?.length ? variantClasses(cmp, node) : "";
+  const inner: RenderContext = { ...ctx, props, slots: node.props.slots as Record<string, Node[]> | undefined, extraClass: vc ? { ...(ctx.extraClass ?? {}), [root.id]: vc } : ctx.extraClass };
   // Le nœud racine du composant porte aussi la classe de l'instance pour permettre des styles locaux.
   const rootWithInstanceClass: Node = { ...root, style: { ...(root.style ?? {}), shared: [...(root.style?.shared ?? []), ...(node.style?.shared ?? [])] } };
   const el = createElement(RenderNode, { node: rootWithInstanceClass, ctx: inner });

@@ -1,5 +1,5 @@
-import type { Asset, Breakpoint, ClassMap, Node, SharedStyle, Site, StyleProps, StyleSet, StyleValue, Theme, ViewConfig } from "@atelier/model";
-import { walk } from "@atelier/model";
+import type { Asset, Breakpoint, ClassMap, ComponentDef, Node, SharedStyle, Site, StyleProps, StyleSet, StyleValue, Theme, ViewConfig } from "@atelier/model";
+import { parseVariantKey, variantClass, walk } from "@atelier/model";
 
 // ---------------------------------------------------------------- valeurs
 
@@ -237,7 +237,23 @@ export function siteCss(site: Site, opts: { pageId?: string; classes?: ClassMap 
       view?.empty?.forEach((e) => walk(e, (m) => { const c = nodeCss(m, site.settings.breakpoints, assets, opts.classes); if (c) out.push(c); }));
     });
   }
+  for (const c of site.components) { const v = variantCss(c, site.settings.breakpoints, assets, opts.classes); if (v) out.push(v); }
   return out.filter(Boolean).join("\n");
+}
+
+/** Styles des variantes d'un composant : `.racine.v-axe-valeur .nœud { … }` (la racine elle-même : `.racine.v-axe-valeur`). */
+export function variantCss(cmp: ComponentDef, breakpoints: Breakpoint[], assets?: Map<string, Asset>, classes?: ClassMap): string {
+  const out: string[] = [];
+  const sel = (id: string) => `.${classes?.node.get(id) ?? `n-${id}`}`;
+  for (const [key, byNode] of Object.entries(cmp.variantStyles ?? {})) {
+    const { axis, value } = parseVariantKey(key);
+    const rootSel = `${sel(cmp.root.id)}.${variantClass(axis, value)}`;
+    for (const [nodeId, set] of Object.entries(byNode)) {
+      const css = styleSetCss(nodeId === cmp.root.id ? rootSel : `${rootSel} ${sel(nodeId)}`, set, breakpoints, assets);
+      if (css) out.push(css);
+    }
+  }
+  return out.join("\n");
 }
 
 export function nodeClassName(node: Node, extra?: string, classes?: ClassMap): string {

@@ -3,11 +3,11 @@
 import { createElement, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Copy, Trash2, X } from "lucide-react";
 import type { CommitOptions, Inline, Node, NodeLocation, Op, Site, StyleValue, DataSource } from "@atelier/model";
-import { BASE, classMap, cloneWithNewIds, newId, resolveNodeStyle, resolveSharedStyleSet, stylePath } from "@atelier/model";
+import { BASE, classMap, cloneWithNewIds, newId, resolveNodeStyle, resolveSharedStyleSet, stylePath, variantKey } from "@atelier/model";
 import { Badge, Field, FieldGroup, Hint, IconButton, Section, TextArea, TextInput } from "@/ui";
 import { nodeIcon, nodeLabel, TYPE_LABEL } from "./node-icons";
 import { propLabel } from "@/lib/prop-labels";
-import { AppearancePanel, BindingPanel, CollectionPanel, EffectsPanel, FieldPanel, FormPanel, ImagePanel, LayoutPanel, LinkPanel, ResponsivePanel, SharedStylesPanel, SizePanel, SpacingPanel, STATE_LABEL, TagPanel, TypographyPanel, useStyle, type StyleTarget } from "./design";
+import { AppearancePanel, BindingPanel, CollectionPanel, ComponentPanel, EffectsPanel, FieldPanel, FormPanel, ImagePanel, InstancePanel, LayoutPanel, LinkPanel, MakeComponentRow, PropBindingPanel, ResponsivePanel, SharedStylesPanel, SizePanel, SpacingPanel, STATE_LABEL, TagPanel, TypographyPanel, useStyle, type StyleTarget } from "./design";
 import { PropRow, Segmented } from "@/ui/controls";
 import { sharedStyleUsages } from "@atelier/model";
 
@@ -49,6 +49,10 @@ type Props = {
   onPreviewState: (state: string | null) => void;
   onEditInPreview?: () => void;
   onEnterComponent?: (componentId: string) => void;
+  /** Faire de l'élément un composant du site (nom choisi), ou détacher une instance. */
+  onMakeComponent?: (name: string) => void;
+  onDetach?: () => void;
+  notify?: (text: string, tone?: "danger" | "success" | "info") => void;
   editMode?: "write" | "design";
   onSwitchMode?: (m: "write" | "design") => void;
   commit: (op: Op, opts?: CommitOptions) => void;
@@ -73,7 +77,7 @@ function plainText(content: unknown, locale: string): { text: string; rich: bool
   return { text: list.map((s) => (s.t === "text" ? s.v : s.t === "break" ? "\n" : "")).join(""), rich };
 }
 
-export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBreakpoint, onPreviewState, onEditInPreview, onEnterComponent, editMode = "design", onSwitchMode, commit, onDeleted }: Props) {
+export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBreakpoint, onPreviewState, onEditInPreview, onEnterComponent, onMakeComponent, onDetach, notify, editMode = "design", onSwitchMode, commit, onDeleted }: Props) {
   const node: Node = loc.node;
   const locale = site.settings.defaultLocale;
   const [state, setStateRaw] = useState<string | undefined>(undefined);
@@ -82,7 +86,12 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
   const [editingShared, setEditingShared] = useState<string | null>(null);
   const setState = (st: string | undefined) => { setStateRaw(st); onPreviewState(st ?? null); };
   const sharedTarget = editingShared && site.sharedStyles.some((x) => x.id === editingShared) ? editingShared : null;
-  const target: StyleTarget = sharedTarget ? { kind: "shared", id: sharedTarget } : { kind: "node", node };
+  // Dans un composant : variante en cours de réglage (clé `axe:valeur`), ou aucune (style normal).
+  const owner = loc.owner;
+  const component = "component" in owner ? site.components.find((c) => c.id === owner.component) : undefined;
+  const [variant, setVariant] = useState<string | undefined>(undefined);
+  const activeVariant = variant && component?.variants?.some((a) => a.values.some((v) => variantKey(a.name, v) === variant)) ? variant : undefined;
+  const target: StyleTarget = sharedTarget ? { kind: "shared", id: sharedTarget } : activeVariant && component ? { kind: "variant", node, component: component.id, key: activeVariant } : { kind: "node", node };
   const style = useStyle(site, target, activeBp, state, commit);
   const sharedDef = sharedTarget ? site.sharedStyles.find((x) => x.id === sharedTarget) : undefined;
   /** Propriétés modifiées par un état, tous points de rupture confondus, y compris via les styles partagés (badges et liste). */
@@ -116,7 +125,9 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
   const boundPath = node.type === "text" ? (node.bindings?.content?.path ?? ((node.props.content as Record<string, Inline[]> | undefined)?.[locale] ?? []).find((seg): seg is Extract<Inline, { t: "bind" }> => seg.t === "bind")?.binding.path) : undefined;
   const canText = node.type === "text" && !boundPath;
   const { text, rich } = canText ? plainText(node.props.content, locale) : { text: "", rich: false };
-  const localProps = activeBp === BASE ? node.style?.base ?? {} : node.style?.breakpoints?.[activeBp] ?? {};
+  // Propriétés posées sur la cible courante (nœud, style partagé ou variante) au point de rupture actif.
+  const localSet = target.kind === "node" ? node.style : target.kind === "shared" ? sharedDef?.style : component?.variantStyles?.[target.key]?.[node.id];
+  const localProps = activeBp === BASE ? localSet?.base ?? {} : localSet?.breakpoints?.[activeBp] ?? {};
   const [newProp, setNewProp] = useState("");
 
   return (
@@ -142,6 +153,13 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
         <span className="text-2xs uppercase tracking-wider text-dim">État</span>
         <Segmented className="flex-1" size="sm" value={state} options={["hover", "active", "focus"].map((st) => { const n = stateProps(st).length; return { value: st, label: n ? `${STATE_LABEL[st]} · ${n}` : STATE_LABEL[st]! }; })} onChange={(v) => setState(v)} />
       </div>
+      {component?.variants?.length ? (
+        <div className="flex items-center gap-2 px-3 h-9 border-b border-line">
+          <span className="text-2xs uppercase tracking-wider text-dim">Variante</span>
+          <Segmented className="flex-1" size="sm" value={activeVariant} options={component.variants.flatMap((a) => a.values.map((v) => ({ value: variantKey(a.name, v), label: component.variants!.length > 1 ? `${a.name} · ${v}` : v })))} onChange={setVariant} />
+        </div>
+      ) : null}
+      {activeVariant ? <div className="px-3 py-1 bg-warning-soft text-warning text-xs leading-snug border-b border-line">Vous réglez la variante <strong className="font-medium">{activeVariant.replace(":", " · ")}</strong> : le style normal reste hérité, seules les instances de cette variante changent.</div> : null}
       {state ? (
         <div className="flex flex-col gap-1 px-3 py-1.5 text-xs border-b border-line bg-surface/60">
           {stateEntries(state).length ? (
@@ -181,12 +199,23 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
           {exportClass ? <Field label="Classe CSS" hint="Dans le code exporté ; déduite du nom et de l'emplacement"><span className="font-mono text-xs text-muted truncate" title={`.${exportClass}`}>.{exportClass}</span></Field> : null}
           <TagPanel node={node} commit={commit} />
         </FieldGroup>
+        {loc.parent ? <MakeComponentRow node={node} isInstance={node.type === "instance"} onMake={onMakeComponent} onDetach={onDetach} /> : null}
       </Section> : null}
 
+      {!sharedDef && node.type === "instance" ? <InstancePanel site={site} node={node} commit={commit} onEnterComponent={onEnterComponent} /> : null}
+      {!sharedDef && component && node.id === component.root.id && editMode === "design" ? <ComponentPanel site={site} component={component} commit={commit} onDeleted={onDeleted} notify={notify} /> : null}
+      {!sharedDef && component && (node.type === "text" || node.type === "image" || node.type === "link") ? <PropBindingPanel site={site} node={node} component={component} commit={commit} /> : null}
+
       {!sharedDef && boundPath ? (
-        <Section title="Texte" hint="Ce texte est relié à une base de données.">
-          <Hint>Le contenu vient du champ <span className="font-mono">{boundPath}</span> de la base de données. Pour le changer, modifiez l&apos;entrée dans la base .</Hint>
-        </Section>
+        node.bindings?.content?.source === "prop" ? (
+          <Section title="Texte" hint="Ce texte est relié à une propriété du composant.">
+            <Hint>Le contenu vient de la propriété <span className="font-mono">{boundPath}</span> du composant : chaque instance donne sa valeur. Sans valeur, le texte ci-dessous reste affiché.</Hint>
+          </Section>
+        ) : (
+          <Section title="Texte" hint="Ce texte est relié à une base de données.">
+            <Hint>Le contenu vient du champ <span className="font-mono">{boundPath}</span> de la base de données. Pour le changer, modifiez l&apos;entrée dans la base.</Hint>
+          </Section>
+        )
       ) : null}
       {canText && !sharedDef ? (
         <Section title="Texte" hint="Double-cliquez le texte dans l'aperçu pour le modifier sur place, ou éditez-le ici. Entrée valide, Échap annule.">
@@ -246,11 +275,11 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
           {Object.entries(localProps).map(([prop, value]) => (
             <div key={prop} className="grid grid-cols-[88px_1fr_24px] items-center gap-1">
               <span className="font-mono text-xs text-muted truncate" title={prop}>{prop}</span>
-              <TextInput mono value={displayValue(value)} onValueChange={(v) => commit({ op: "node.set", id: node.id, path: stylePath(activeBp, prop), value: parseRaw(v) }, { coalesceKey: `style:${node.id}:${activeBp}:${prop}` })} />
+              <TextInput mono value={displayValue(value)} onValueChange={(v) => style.set(prop, parseRaw(v))} />
               <IconButton size="sm" label={`Retirer ${prop}`} icon={X} onClick={() => style.reset(prop)} />
             </div>
           ))}
-          <form className="grid grid-cols-[1fr_auto] gap-1" onSubmit={(e) => { e.preventDefault(); const p = newProp.trim(); if (!p) return; commit({ op: "node.set", id: node.id, path: stylePath(activeBp, p), value: "" }, { label: `Ajouter ${p}` }); setNewProp(""); }}>
+          <form className="grid grid-cols-[1fr_auto] gap-1" onSubmit={(e) => { e.preventDefault(); const p = newProp.trim(); if (!p) return; style.set(p, "", false); setNewProp(""); }}>
             <input value={newProp} onChange={(e) => setNewProp(e.target.value)} placeholder="Propriété CSS…" className="h-7 px-2 rounded-sm bg-transparent border border-dashed border-line-strong font-mono text-xs text-ink placeholder:text-dim focus:border-accent focus:outline-none" />
             <button type="submit" className="h-7 px-2 rounded-sm bg-surface border border-line-strong text-xs hover:bg-hover">Ajouter</button>
           </form>

@@ -109,7 +109,7 @@ En place : migration de schéma (`migrate.ts`, appelée aux trois lectures, vali
 ### C. Pour un vrai client (v1, dans cet ordre)
 
 10. Export du code. **Fait le 9 septembre 2026 (première forme, `docs/export.md`)** : classes déduites des noms des calques sans nommage obligatoire (`classMap`, règle « conteneur nommé / feuille par sorte / nom saisi prime »), archive statique complète (HTML par adresse, `styles.css`, médias renommés, données, README), bouton dans la fenêtre Publier, classe affichée dans l'inspecteur. Reste : générateur de projet Next.js (D15) sur la même base ; les quelques styles en ligne du moteur (ratio d'image, `display: contents`) restent acceptés dans l'export.
-11. Composants créés par l'utilisateur, variantes appliquées au rendu.
+11. Composants créés par l'utilisateur, variantes appliquées au rendu. **Fait le 9 septembre 2026** : « En faire un composant », détacher, propriétés exposées et reliées, axes de variantes avec styles par variante rendus par le moteur (`v-axe-valeur`), suppression. Reste : emplacements depuis l'éditeur, surcharges locales sans détacher, bibliothèque d'espace de travail (D50).
 12. Minimum professionnel : code head réel, 404 personnalisée, redirections, nom de site modifiable, destinataire par formulaire.
 13. Rôles et partage par site, publication du contenu seule ; aperçu et tableur navigables au clavier.
 14. Images hors du document ; opérations envoyées à l'aperçu plutôt que le document ; instantané par page et route publiée en cache CDN ; tableur paginé et relations en recherche ; éditeur chargé par page.

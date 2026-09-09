@@ -112,6 +112,20 @@ describe("classes lisibles (export)", () => {
   });
 });
 
+describe("variantes de composant", () => {
+  const cmp = { id: "cmp_v", name: "Bouton", scope: "site" as const, props: [], variants: [{ name: "style", values: ["primaire", "secondaire"], default: "primaire" }], root: { id: "vb", type: "box" as const, props: { tag: "div" }, children: [{ id: "vt", type: "text" as const, props: { tag: "span", content: { fr: [{ t: "text" as const, v: "ok" }] } } }] }, variantStyles: { "style:secondaire": { vb: { base: { background: "blue" } }, vt: { base: { color: "white" } } } } };
+  const site = { ...sampleSite, components: [...sampleSite.components, cmp], pages: [{ ...sampleSite.pages[0]!, root: { id: "vr", type: "box" as const, props: { tag: "div" }, children: [{ id: "vi1", type: "instance" as const, props: { component: "cmp_v" } }, { id: "vi2", type: "instance" as const, props: { component: "cmp_v", variant: { style: "secondaire" } } }] } }] };
+  it("pose la classe de variante sur la racine de l'instance et émet le CSS ciblé", () => {
+    const ctx: RenderContext = { ...ctxFor("/"), site, page: site.pages[0]! };
+    const html = renderToStaticMarkup(createElement(RenderPage, { ctx }));
+    expect(html).toContain('class="n-vb v-style-primaire"');
+    expect(html).toContain('class="n-vb v-style-secondaire"');
+    const css = siteCss(site);
+    expect(css).toContain(".n-vb.v-style-secondaire{background:blue}");
+    expect(css).toContain(".n-vb.v-style-secondaire .n-vt{color:white}");
+  });
+});
+
 describe("séparateur", () => {
   const bps = sampleSite.settings.breakpoints;
   it("est vertical dans une rangée et redevient horizontal quand la rangée s'empile", () => {

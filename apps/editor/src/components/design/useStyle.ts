@@ -14,11 +14,11 @@ function throttle(key: string, run: () => void): boolean {
 
 import { useMemo } from "react";
 import type { CommitOptions, Node, Op, ResolvedStyle, ResolvedValue, Site, StyleSource, StyleValue } from "@atelier/model";
-import { BASE, resolveNodeStyle, resolveSharedStyle, sharedStylePath, stylePath } from "@atelier/model";
+import { BASE, resolveNodeStyle, resolveSharedStyle, resolveVariantStyle, sharedStylePath, stylePath, variantStylePath } from "@atelier/model";
 import { sourceLabel } from "@/ui/controls";
 
-/** Ce que les panneaux modifient : un nœud, ou un style partagé édité seul. */
-export type StyleTarget = { kind: "node"; node: Node } | { kind: "shared"; id: string };
+/** Ce que les panneaux modifient : un nœud, un style partagé édité seul, ou un nœud de composant sous une variante. */
+export type StyleTarget = { kind: "node"; node: Node } | { kind: "shared"; id: string } | { kind: "variant"; node: Node; component: string; key: string };
 
 export type StyleApi = {
   resolved: ResolvedStyle;
@@ -43,15 +43,18 @@ export function useStyle(site: Site, target: StyleTarget, bp: string, state: str
   return useMemo(() => {
     const bpName = (id: string) => (id === BASE ? "Base" : site.settings.breakpoints.find((b) => b.id === id)?.name ?? id);
     const styleName = (id: string) => site.sharedStyles.find((s) => s.id === id)?.name ?? id;
-    const resolved = target.kind === "node" ? resolveNodeStyle(site, target.node, bp, state) : resolveSharedStyle(site, target.id, bp, state);
+    const resolved = target.kind === "node" ? resolveNodeStyle(site, target.node, bp, state)
+      : target.kind === "shared" ? resolveSharedStyle(site, target.id, bp, state)
+      : resolveVariantStyle(site, target.node, site.components.find((c) => c.id === target.component)?.variantStyles?.[target.key]?.[target.node.id], bp, state);
     const where = `${bpName(bp)}${state ? ` · ${STATE_LABEL[state] ?? state}` : ""}`;
     const set = (prop: string, v: StyleValue | undefined, coalesce = true, coalesceWindowMs: number | undefined = isDraggingValue() ? 120_000 : undefined) => {
-      const key = target.kind === "node" ? target.node.id : `shared:${target.id}`;
+      const key = target.kind === "node" ? target.node.id : target.kind === "shared" ? `shared:${target.id}` : `variant:${target.component}:${target.key}:${target.node.id}`;
       // Pendant un glissement, une valeur toutes les 50 ms suffit à l'œil ; la dernière part toujours.
       if (isDraggingValue()) { const k = `${key}:${bp}:${state ?? ""}:${prop}`; if (throttle(k, () => set(prop, v, coalesce, coalesceWindowMs))) return; }
       const opts: CommitOptions = { coalesceKey: coalesce ? `style:${key}:${bp}:${state ?? ""}:${prop}` : undefined, label: `${prop} (${where})`, coalesceWindowMs };
       if (target.kind === "node") commit({ op: "node.set", id: target.node.id, path: stylePath(bp, prop, state), value: v }, opts);
-      else { const path = sharedStylePath(site, target.id, bp, prop, state); if (path) commit({ op: "site.set", path, value: v }, opts); }
+      else if (target.kind === "shared") { const path = sharedStylePath(site, target.id, bp, prop, state); if (path) commit({ op: "site.set", path, value: v }, opts); }
+      else { const path = variantStylePath(site, target.component, target.key, target.node.id, bp, prop, state); if (path) commit({ op: "site.set", path, value: v }, opts); }
     };
     return {
       resolved, bp, state, target, bpName,

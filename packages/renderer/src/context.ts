@@ -26,6 +26,8 @@ export type RenderContext = {
   basePath?: string;
   /** Classes lisibles (export) à la place des classes techniques `n-<id>` / `s-<id>`. */
   classes?: ClassMap;
+  /** Classes supplémentaires par nœud (variantes d'une instance sur la racine du composant). */
+  extraClass?: Record<string, string>;
 };
 
 export function localized<T>(value: unknown, ctx: RenderContext): T | undefined {

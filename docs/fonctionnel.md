@@ -2,7 +2,7 @@
 
 Ce que l'outil fait aujourd'hui, et comment. Tenu à jour à chaque évolution (règle dans `CLAUDE.md`). Les décisions de fond sont dans `docs/decisions.md`, le contrat de données dans `docs/document-model.md`, le plan dans `docs/roadmap.md`. Ici : l'état réel.
 
-*Dernière mise à jour : 9 septembre 2026 (temps A et B, export du code de la revue globale).*
+*Dernière mise à jour : 9 septembre 2026 (temps A et B, export du code, composants de la revue globale).*
 
 ## Partie 1 · Fonctionnel
 
@@ -42,6 +42,10 @@ Deux modes, qui sont des préréglages du même éditeur et non des outils sépa
 - Largeur d'aperçu libre avec poignée, préréglages Bureau / Tablette / Mobile, réduction à l'échelle.
 - Propriétés par type : image, lien ou bouton, balise, vue de base de données, formulaire, champ, données (liaisons).
 
+### 1.4 bis Composants
+
+Tout élément d'une page (sauf la racine) peut devenir un composant du site : « En faire un composant… » dans la section Élément de l'inspecteur, ou la commande de la palette. L'élément est remplacé par une instance ; le composant apparaît dans Ajouter → Composants pour en poser d'autres. Une instance montre le composant ; « Modifier le composant » ouvre son arbre dans les calques (toutes les instances changent) ; cliquer un élément d'une instance dans l'aperçu ouvre aussi le composant ; sélectionner un élément de page le referme. « Détacher du composant » remplace l'instance par une copie indépendante (valeurs des propriétés, emplacements et styles de la variante choisie incorporés). Sur la racine du composant, la section Composant règle : nom, description, propriétés exposées (texte, texte long, nombre, oui/non, image, adresse, choix, couleur ; libellé, type, valeur par défaut, choix), axes de variantes (nom, valeurs, valeur par défaut), suppression si aucune instance. Un texte, une image ou un lien du composant se relie à une propriété (section « Propriété du composant ») ; chaque instance donne alors sa valeur dans la section Composant de l'inspecteur, où elle choisit aussi sa variante par axe. Avec des axes déclarés, l'inspecteur montre une barre « Variante » : les styles réglés sous une variante ne valent que pour les instances qui l'ont choisie, le style normal restant hérité. Pas encore : composants d'espace de travail (D50), emplacements (`slot`) créés depuis l'éditeur, surcharges locales d'une instance sans détacher.
+
 ### 1.5 Thème
 
 Jetons (couleurs par mode clair/sombre, espacements, largeurs, rayons, ombres, tailles et interlignes, polices Google), défauts par balise, points de rupture, grille. Les tailles de titre sont fluides (`clamp`).
@@ -70,7 +74,7 @@ Fenêtre Publier : état en ligne, écart avec la version de travail, note, hist
 
 ### 1.10 Pas encore là (voir la feuille de route)
 
-Rôles et partage par site, domaine personnalisé, export en projet Next.js (l'archive statique existe), code head fonctionnel, composants créés par l'utilisateur, publication du contenu seule, 404 personnalisée et redirections, interactions déclaratives, bases externes, texte riche dans les champs, sélection multiple, pagination des vues, calendrier et carte, animations d'interaction, langues multiples, membres.
+Rôles et partage par site, domaine personnalisé, export en projet Next.js (l'archive statique existe), code head fonctionnel, emplacements et surcharges locales des composants, publication du contenu seule, 404 personnalisée et redirections, interactions déclaratives, bases externes, texte riche dans les champs, sélection multiple, pagination des vues, calendrier et carte, animations d'interaction, langues multiples, membres.
 
 ## Partie 2 · Technique
 
@@ -97,6 +101,8 @@ Monorepo npm workspaces.
 - `EditorShell` : coquille (client seulement), modes, sélection, insertion, déplacement, raccourcis, palette ⌘K, panneaux, dialogues (bibliothèque, tableur, publication).
 - `LivePreview` (dans l'iframe) : rendu du site + couche d'édition (sélection, survol, glisser, édition riche par `contentEditable` sérialisée en `Inline[]` par `components/preview/serialize.ts`, testé, barres, menu « / », lien saisi dans la barre). Protocole `postMessage` typé dans `lib/preview-protocol.ts`, origine vérifiée des deux côtés : parent → iframe `atelier:site` (site, conteneurs, liens atomiques, textes, mode, blocs, entrées), `atelier:mode`, `atelier:editmode`, `atelier:highlight`, `atelier:state`, `atelier:grid`, `atelier:zoom`, `atelier:edit-text` ; iframe → parent `atelier:ready`, `select`, `move`, `drop-block`, `key`, `text`, `split`, `merge-prev`, `slash`, `style-in-context`, `set-style`, `set-tag`, `remove`, `pick-image`.
 - Inspecteur : `NodeInspector` + panneaux `components/design/*` sur `useStyle` (lecture par `resolveNodeStyle`, écriture sur le point de rupture actif). Système de design de l'éditeur dans `src/ui` (jetons dans `globals.css`).
+
+Composants : `packages/model/src/components.ts` (`planMakeComponent`, `planDetach`, `planDeleteComponent`, `componentUsages`, `applyOverrides`, `instanceVariant`, `variantClasses`, `variantKey`/`parseVariantKey`, `variantStylePath`, `resolveVariantStyle`), moteur `variantCss` dans `css.ts` et `RenderContext.extraClass` (classes de variante sur la racine de l'instance), panneaux `components/design/ComponentPanels.tsx` (`MakeComponentRow`, `InstancePanel`, `ComponentPanel`, `PropBindingPanel`), cible de style `variant` dans `useStyle`. Tests : `packages/model/test/components.test.ts`, moteur « variantes de composant ».
 
 ### 2.4 Rendu publié et référencement
 

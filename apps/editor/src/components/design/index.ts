@@ -9,3 +9,4 @@ export * from "./EffectsPanel";
 export * from "./TypePanels";
 export * from "./SharedStylesPanel";
 export * from "./BindingPanel";
+export * from "./ComponentPanels";
