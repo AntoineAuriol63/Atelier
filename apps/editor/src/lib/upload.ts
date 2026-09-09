@@ -3,6 +3,7 @@
 import type { Asset } from "@atelier/model";
 
 const HEIC = (f: File) => /image\/hei[cf]/i.test(f.type) || /\.hei[cf]$/i.test(f.name);
+const SVG = (f: File) => f.type === "image/svg+xml" || /\.svg$/i.test(f.name);
 const MAX_BYTES = 4_000_000;   // au-delà, on réduit avant l'envoi (limite des fonctions Vercel : 4,5 Mo par requête)
 const MAX_SIDE = 3200;
 
@@ -33,19 +34,25 @@ export async function shrinkIfHeavy(file: File): Promise<File> {
   try { const bmp = await createImageBitmap(file); return await toJpeg(bmp, file.name); } catch { return file; }
 }
 
-export function isImageFile(f: File) { return f.type.startsWith("image/") || HEIC(f); }
+/** Les SVG sont refusés (ils peuvent porter du script) ; tout le reste part au serveur, qui juge sur le contenu. */
+export function isImageFile(f: File) { return (f.type.startsWith("image/") || HEIC(f)) && !SVG(f); }
 
 /** Envoie des images au site et rend les `Asset` créés (à ajouter au document par l'appelant). */
 export async function uploadImages(siteId: string, files: File[], onProgress?: (done: number, total: number) => void): Promise<Asset[]> {
-  const prepared: File[] = [];
-  for (const [i, f] of files.entries()) { prepared.push(await shrinkIfHeavy(await prepareImage(f))); onProgress?.(i, files.length); }
-  const fd = new FormData();
-  prepared.forEach((f) => fd.append("file", f, f.name));
-  const res = await fetch(`/api/sites/${siteId}/assets`, { method: "POST", body: fd });
-  const body = (await res.json().catch(() => ({}))) as { assets?: Asset[]; error?: string };
-  if (!res.ok || !body.assets) throw new Error(body.error ?? `Échec de l'import (${res.status})`);
+  // Un fichier par requête : chaque envoi reste sous les limites de la plateforme, et une erreur ne fait pas tout échouer.
+  const out: Asset[] = [];
+  for (const [i, f] of files.entries()) {
+    onProgress?.(i, files.length);
+    const prepared = await shrinkIfHeavy(await prepareImage(f));
+    const fd = new FormData();
+    fd.append("file", prepared, prepared.name);
+    const res = await fetch(`/api/sites/${siteId}/assets`, { method: "POST", body: fd });
+    const body = (await res.json().catch(() => ({}))) as { assets?: Asset[]; error?: string };
+    if (!res.ok || !body.assets) throw new Error(body.error ?? `Échec de l'import de « ${f.name} » (${res.status})`);
+    out.push(...body.assets);
+  }
   onProgress?.(files.length, files.length);
-  return body.assets;
+  return out;
 }
 
 /** Nom affiché d'une ressource. */

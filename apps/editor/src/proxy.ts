@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { productionMisconfiguration } from "@/lib/env";
 
 /** Ce qui reste public : les sites publiés, les envois de formulaires, les fichiers servis, la connexion. */
 const PUBLIC = [/^\/s\//, /^\/api\/forms\//, /^\/api\/sites\/[^/]+\/assets\//, /^\/connexion/, /^\/auth\//, /^\/favicon/];
@@ -11,6 +12,8 @@ const allowed = () => (process.env.ATELIER_ALLOWED_EMAILS ?? "").split(",").map(
  * 2. Le reste (éditeur, aperçu, API) demande un compte connecté quand Supabase Auth est configuré.
  */
 export async function proxy(req: NextRequest) {
+  const problem = productionMisconfiguration();
+  if (problem) return new NextResponse(`Atelier refuse de servir : ${problem}. Voir docs/mise-en-ligne.md.`, { status: 500, headers: { "content-type": "text/plain; charset=utf-8" } });
   const root = process.env.ATELIER_SITES_DOMAIN ?? "localhost:3000";
   const host = (req.headers.get("host") ?? "").toLowerCase();
   const path = req.nextUrl.pathname;
@@ -24,7 +27,7 @@ export async function proxy(req: NextRequest) {
     return NextResponse.next();
   }
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL, key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (process.env.ATELIER_AUTH === "off" || !url || !key || PUBLIC.some((re) => re.test(path))) return NextResponse.next();
+  if ((process.env.ATELIER_AUTH === "off" && process.env.NODE_ENV !== "production") || !url || !key || PUBLIC.some((re) => re.test(path))) return NextResponse.next();
   let res = NextResponse.next({ request: req });
   const supabase = createServerClient(url, key, {
     cookies: {

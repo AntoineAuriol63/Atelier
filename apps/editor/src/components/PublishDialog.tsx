@@ -12,7 +12,7 @@ type State = { publishedVersion: number | null; publishedAt: string | null; publ
 const when = (iso: string) => new Date(iso).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 /** Publier, voir l'historique, revenir en arrière, régler l'adresse et le référencement du site (D34, D36, D38). */
-export function PublishDialog({ site, version, dirty, commit, onClose, notify }: { site: Site; version: number; dirty: boolean; commit: Commit; onClose: () => void; notify: (text: string, tone?: "danger" | "success" | "info") => void }) {
+export function PublishDialog({ site, version, dirty, broken, commit, onClose, notify }: { site: Site; version: number; dirty: boolean; /** L'enregistrement est bloqué (conflit) : il faut recharger avant de publier. */ broken?: boolean; commit: Commit; onClose: () => void; notify: (text: string, tone?: "danger" | "success" | "info") => void }) {
   const locale = site.settings.defaultLocale;
   const [state, setState] = useState<State | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -55,12 +55,12 @@ export function PublishDialog({ site, version, dirty, commit, onClose, notify }:
           <div className="flex items-center gap-2 flex-wrap">
             {state?.publishedVersion === null ? <Badge tone="warning">Jamais publié</Badge> : state ? <Badge tone={upToDate ? "success" : "accent"}>{upToDate ? "En ligne, à jour" : `En ligne : version ${state.publishedVersion}${behind ? ` · ${behind} changement${behind > 1 ? "s" : ""} depuis` : ""}`}</Badge> : <Badge>Lecture…</Badge>}
             {state?.publishedAt ? <span className="text-xs text-muted">publié le {when(state.publishedAt)}</span> : null}
-            {dirty ? <span className="text-xs text-warning">Enregistrement en cours…</span> : null}
+            {broken ? <span className="text-xs text-danger">Enregistrement bloqué : rechargez la page avant de publier.</span> : dirty ? <span className="text-xs text-warning">Enregistrement en cours…</span> : null}
           </div>
           {state?.url ? <a href={state.url} target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-sm text-accent hover:underline"><ExternalLink size={13} />{state.url}</a> : null}
           <div className="flex gap-1">
             <TextInput className="flex-1" value={label} placeholder="Note pour l'historique (facultatif) : « Nouvelle galerie mariages »" onValueChange={setLabel} />
-            <Button variant="primary" icon={UploadCloud} disabled={!!busy || dirty || !state} onClick={publish}>{busy ?? "Publier maintenant"}</Button>
+            <Button variant="primary" icon={UploadCloud} disabled={!!busy || dirty || !!broken || !state} onClick={publish}>{busy ?? "Publier maintenant"}</Button>
           </div>
           <Hint>La publication fige le site et ses entrées tels qu&apos;ils sont maintenant. Continuer à travailler ne change rien en ligne tant que vous ne republiez pas.</Hint>
         </section>

@@ -1,4 +1,6 @@
 import { cookies } from "next/headers";
+import { safePath } from "@/lib/safe-path";
+import { isProduction } from "@/lib/env";
 import { serverSupabase, authEnabled, emailAllowed } from "@/lib/auth";
 
 /** Envoie le lien de connexion par email (Supabase Auth, lien magique), après vérification des adresses autorisées. */
@@ -10,7 +12,7 @@ export async function POST(req: Request) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return Response.json({ error: "Adresse email invalide" }, { status: 400 });
   if (!emailAllowed(email)) return Response.json({ error: "Cette adresse n'est pas autorisée sur cet Atelier." }, { status: 403 });
   const origin = new URL(req.url).origin;
-  const suite = typeof body.suite === "string" && body.suite.startsWith("/") ? body.suite : "/";
+  const suite = safePath(typeof body.suite === "string" ? body.suite : "/");
   const supabase = await serverSupabase();
   // L'adresse de retour reste exactement celle déclarée dans Supabase ; la page à rouvrir voyage dans un cookie court.
   const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: `${origin}/auth/callback` } });
@@ -20,6 +22,6 @@ export async function POST(req: Request) {
       : /smtp|mail/i.test(error.message) ? `Envoi de l'email refusé par le service : ${error.message}` : error.message;
     return Response.json({ error: msg }, { status: /rate limit/i.test(error.message) ? 429 : 500 });
   }
-  (await cookies()).set("atelier_suite", suite, { path: "/", maxAge: 900, httpOnly: true, sameSite: "lax" });
+  (await cookies()).set("atelier_suite", suite, { path: "/", maxAge: 900, httpOnly: true, sameSite: "lax", secure: isProduction() });
   return Response.json({ ok: true });
 }

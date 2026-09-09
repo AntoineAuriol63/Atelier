@@ -1,6 +1,7 @@
 import { assetMap, matchPath, memoryData, pageTitle, type RenderContext } from "@atelier/renderer";
 import { notFound } from "next/navigation";
 import { loadSite } from "@/lib/site";
+import { canAccess, getSessionUser } from "@/lib/auth";
 import { LivePreview } from "@/components/LivePreview";
 
 type Props = {
@@ -11,7 +12,7 @@ type Props = {
 export async function generateMetadata({ params }: Props) {
   const { siteId, path } = await params;
   const loaded = await loadSite(siteId);
-  if (!loaded) return { title: "Site introuvable" };
+  if (!loaded || !canAccess(loaded.owner, await getSessionUser())) return { title: "Site introuvable" };
   const { site, entries } = loaded;
   const data = memoryData(entries);
   const m = matchPath(site, data, "/" + (path ?? []).join("/"));
@@ -24,7 +25,7 @@ export default async function PreviewPage({ params, searchParams }: Props) {
   const { siteId, path } = await params;
   const sp = await searchParams;
   const loaded = await loadSite(siteId);
-  if (!loaded) notFound();
+  if (!loaded || !canAccess(loaded.owner, await getSessionUser())) notFound();
   const { site, entries } = loaded;
   const urlPath = "/" + (path ?? []).join("/");
   const editor = sp.editor === "1";

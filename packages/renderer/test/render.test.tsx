@@ -113,6 +113,13 @@ describe("séparateur", () => {
 
 describe("css", () => {
   const css = siteCss(sampleSite);
+  it("limité à une page : ses nœuds et les composants, pas les autres pages", () => {
+    const home = siteCss(sampleSite, { pageId: "p_home" });
+    expect(home).toContain(".n-hero{");
+    expect(home).toContain(".n-hdr{");
+    expect(home).not.toContain(".n-prj_main{");
+    expect(home.length).toBeLessThan(css.length);
+  });
   it("émet les jetons du thème et le mode sombre", () => {
     expect(css).toContain("--color-accent:#8A5A2B");
     expect(css).toContain('[data-mode="dark"]{');

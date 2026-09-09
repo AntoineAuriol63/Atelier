@@ -96,3 +96,24 @@ create unique index if not exists sites_subdomain_idx on sites (subdomain) where
 -- Comptes (D50, première version) : propriétaire d'un site (email du compte Supabase Auth). Sans propriétaire, le site est visible de tous les comptes.
 alter table sites add column if not exists owner text;
 create index if not exists sites_owner_idx on sites (owner);
+
+-- Limite de débit partagée entre instances (formulaires publics) : une ligne par clé, remise à zéro à chaque fenêtre.
+create table if not exists rate_limits (
+  key          text primary key,
+  hits         integer not null default 0,
+  window_start timestamptz not null default now()
+);
+alter table rate_limits enable row level security;
+create or replace function rate_limit_hit(p_key text, p_window_seconds integer, p_max integer) returns boolean language plpgsql as $$
+declare
+  v_hits integer;
+begin
+  insert into rate_limits (key, hits, window_start) values (p_key, 1, now())
+  on conflict (key) do update
+    set hits = case when rate_limits.window_start < now() - make_interval(secs => p_window_seconds) then 1 else rate_limits.hits + 1 end,
+        window_start = case when rate_limits.window_start < now() - make_interval(secs => p_window_seconds) then now() else rate_limits.window_start end
+  returning hits into v_hits;
+  -- Nettoyage opportuniste des vieilles clés.
+  delete from rate_limits where window_start < now() - interval '1 day';
+  return v_hits <= p_max;
+end $$;

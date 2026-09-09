@@ -8,7 +8,7 @@ Ce document explique la vraie mise en ligne : l'éditeur hébergé, les sites pu
 | --- | --- | --- |
 | Supabase | document, journal, entrées, instantanés publiés, fichiers | déjà créé (`docs/supabase.md`) |
 | Vercel | héberge l'application (éditeur + rendu des sites publiés + API) | **(Antoine)** à créer, offre Pro conseillée pour les domaines wildcard |
-| Nom de domaine d'Atelier | `nom.atelier.site` → à décider et acheter `[?]` | **(Antoine)** |
+| Nom de domaine d'Atelier | **deux domaines enregistrables distincts** : l'éditeur (par exemple `atelier.studio`) et les sites publiés (`*.atelier.site`). Un site publié peut contenir du code libre (head, embed) : il ne doit jamais partager l'origine ni les cookies de l'éditeur | **(Antoine)** |
 | Resend | notification des formulaires | **(Antoine)** gratuit jusqu'à 3 000 emails par mois ; un domaine d'envoi vérifié pour sortir de l'expéditeur d'essai |
 
 ## 2. Déployer l'application sur Vercel
@@ -28,7 +28,11 @@ Ce document explique la vraie mise en ligne : l'éditeur hébergé, les sites pu
 3. `src/proxy.ts` réécrit `<sous-domaine>.atelier.site/…` vers `/s/<sous-domaine>/…` ; `ATELIER_SITES_DOMAIN` doit valoir exactement `atelier.site`.
 4. Chaque site choisit son sous-domaine dans la fenêtre Publier ; il est enregistré à la publication.
 
-Sans domaine acheté, tout fonctionne déjà sur `/s/<sous-domaine>/` du domaine Vercel : c'est l'adresse à donner pour tester.
+Sans domaine de sites, il n'y a pas de site public en production : le repli `/s/<sous-domaine>/` est réservé au développement (`ATELIER_ALLOW_PATH_FALLBACK=1` le force pour un essai, jamais avec des sites de clients). L'application refuse de démarrer en production si une variable Supabase, la connexion ou la liste des adresses manque, ou si `ATELIER_AUTH=off` / `ATELIER_STORE=file` traînent.
+
+## 3 bis. Propriétaires des sites
+
+Un site n'est accessible qu'à son propriétaire. Les sites créés avant les comptes n'en ont pas : `node --env-file=apps/editor/.env.local scripts/assign-owner.mjs votre@adresse` les attribue en une fois.
 
 ## 4. Vérifier après déploiement
 

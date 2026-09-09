@@ -45,6 +45,12 @@ function serialize(root: HTMLElement): Inline[] {
   return out.length ? out : [{ t: "text", v: "" }];
 }
 
+/** Feuille de la page seule, recalculée uniquement quand le site ou la page change. */
+function PageCss({ site, pageId }: { site: Site; pageId: string }) {
+  const css = useMemo(() => siteCss(site, { pageId }), [site, pageId]);
+  return <style dangerouslySetInnerHTML={{ __html: css }} />;
+}
+
 function isEmptyText(el: HTMLElement): boolean {
   return (el.innerText ?? "").replace(/​/g, "").trim() === "";
 }
@@ -59,6 +65,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
   const [entriesState, setEntriesState] = useState(entries);
   const [modeState, setModeState] = useState(mode ?? initialSite.theme.defaultMode);
   const data = useMemo(() => memoryData(entriesState), [entriesState]);
+  const assets = useMemo(() => assetMap(site), [site]);
   const selectedId = useRef<string | null>(null);
 
   // Après chaque rendu du site, on remet le surlignage sur l'élément sélectionné (il a pu être recréé).
@@ -96,7 +103,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       if (prev) { prev.style.outline = ""; prev.removeAttribute("data-selected"); }
       selectedId.current = el ? idOf(el) : null;
       if (el) { outline(el, "selected"); el.setAttribute("data-selected", ""); }
-      if (notify) parent.postMessage({ type: "atelier:select", id: selectedId.current }, "*");
+      if (notify) parent.postMessage({ type: "atelier:select", id: selectedId.current }, window.location.origin);
     };
 
     // ---------------------------------------------------------------- calques d'interface (dans l'aperçu)
@@ -187,7 +194,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
         sel.title = "Type de bloc";
         TEXT_TYPES.forEach(([v, l]) => { const o = document.createElement("option"); o.value = v; o.textContent = l; if (v === tag) o.selected = true; sel.appendChild(o); });
         sel.addEventListener("mousedown", (e) => e.stopPropagation());
-        sel.addEventListener("change", () => parent.postMessage({ type: "atelier:set-tag", id, tag: sel.value }, "*"));
+        sel.addEventListener("change", () => parent.postMessage({ type: "atelier:set-tag", id, tag: sel.value }, window.location.origin));
         blockBar.appendChild(sel);
         const align = getComputedStyle(el).textAlign;
         // Icônes d'alignement (mêmes tracés que Lucide align-left / align-center / align-right).
@@ -197,16 +204,16 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
           right: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="12" x2="9" y2="12"/><line x1="21" y1="18" x2="7" y2="18"/></svg>`,
         };
         ([["left", "Aligner à gauche"], ["center", "Centrer"], ["right", "Aligner à droite"]] as const).forEach(([v, t]) => {
-          const x = b("", t, () => parent.postMessage({ type: "atelier:set-style", id, prop: "textAlign", value: (v === "left" && align !== "left") || v !== "left" ? v : undefined }, "*"), (align === v || (v === "left" && align === "start")) ? "on" : "");
+          const x = b("", t, () => parent.postMessage({ type: "atelier:set-style", id, prop: "textAlign", value: (v === "left" && align !== "left") || v !== "left" ? v : undefined }, window.location.origin), (align === v || (v === "left" && align === "start")) ? "on" : "");
           x.innerHTML = ICON[v];
           x.style.display = "inline-flex"; x.style.alignItems = "center"; x.style.justifyContent = "center";
         });
       }
-      b("Style", "Régler le style en détail (mode Design)", () => parent.postMessage({ type: "atelier:style-in-context", id }, "*"));
+      b("Style", "Régler le style en détail (mode Design)", () => parent.postMessage({ type: "atelier:style-in-context", id }, window.location.origin));
       const plusBtn = b("", "Insérer un bloc après (menu /)", () => openSlash(el, true));
       plusBtn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
       plusBtn.style.display = "inline-flex"; plusBtn.style.alignItems = "center"; plusBtn.style.justifyContent = "center";
-      const trash = b("", "Supprimer le bloc", () => parent.postMessage({ type: "atelier:remove", id }, "*"));
+      const trash = b("", "Supprimer le bloc", () => parent.postMessage({ type: "atelier:remove", id }, window.location.origin));
       trash.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`;
       trash.style.display = "inline-flex"; trash.style.alignItems = "center"; trash.style.justifyContent = "center";
       barEl = el;
@@ -308,7 +315,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       const replace = !slash.after && textNodes.has(idOf(el)) && isEmptyText(el);
       closeSlash();
       if (editing === el) endEdit(!replace);
-      parent.postMessage({ type: "atelier:slash", id: idOf(el), preset: b.id, replace }, "*");
+      parent.postMessage({ type: "atelier:slash", id: idOf(el), preset: b.id, replace }, window.location.origin);
     };
 
     // ---------------------------------------------------------------- édition du texte
@@ -341,7 +348,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       // Le DOM édité par le navigateur n'est pas celui que React connaît : on le remet tel quel, React remontera le texte avec le nouveau contenu.
       el.innerHTML = el.getAttribute("data-original-html") ?? el.innerHTML;
       el.removeAttribute("data-original-html");
-      if (content) parent.postMessage({ type: "atelier:text", id: idOf(el), content }, "*");
+      if (content) parent.postMessage({ type: "atelier:text", id: idOf(el), content }, window.location.origin);
     };
     /** Coupe le bloc au curseur : le contenu après le curseur part dans un nouveau bloc. */
     const splitAtCaret = (el: HTMLElement) => {
@@ -357,7 +364,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       editing = null; el.contentEditable = "false"; selBar.style.display = "none";
       el.innerHTML = el.getAttribute("data-original-html") ?? el.innerHTML;
       el.removeAttribute("data-original-html");
-      parent.postMessage({ type: "atelier:split", id, before: beforeContent, after: afterContent }, "*");
+      parent.postMessage({ type: "atelier:split", id, before: beforeContent, after: afterContent }, window.location.origin);
     };
     const caretAtStart = (el: HTMLElement) => { const sel = window.getSelection(); if (!sel || sel.rangeCount === 0 || !sel.isCollapsed) return false; const r = document.createRange(); r.selectNodeContents(el); r.setEnd(sel.getRangeAt(0).startContainer, sel.getRangeAt(0).startOffset); return r.toString().length === 0; };
 
@@ -427,7 +434,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     const isBlockDrag = (e: DragEvent) => !!e.dataTransfer && Array.from(e.dataTransfer.types).includes("text/atelier-block");
     const onDragOver = (e: DragEvent) => { if (!isBlockDrag(e)) return; e.preventDefault(); e.dataTransfer!.dropEffect = "copy"; const t = targetAt(e.clientX, e.clientY); if (!t) { hideIndicator(); return; } showIndicator(t.el, t.position, t.axis); };
     const onDragLeave = (e: DragEvent) => { if (!e.relatedTarget) hideIndicator(); };
-    const onDrop = (e: DragEvent) => { if (!isBlockDrag(e)) return; e.preventDefault(); hideIndicator(); const preset = e.dataTransfer!.getData("text/atelier-block"); const t = targetAt(e.clientX, e.clientY); if (preset && t) parent.postMessage({ type: "atelier:drop-block", preset, target: t.id, position: t.position }, "*"); };
+    const onDrop = (e: DragEvent) => { if (!isBlockDrag(e)) return; e.preventDefault(); hideIndicator(); const preset = e.dataTransfer!.getData("text/atelier-block"); const t = targetAt(e.clientX, e.clientY); if (preset && t) parent.postMessage({ type: "atelier:drop-block", preset, target: t.id, position: t.position }, window.location.origin); };
 
     // ---------------------------------------------------------------- souris
     const onMouseDown = (e: MouseEvent) => {
@@ -491,7 +498,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
         document.body.style.userSelect = "";
         document.body.classList.remove("atelier-dragging");
         hideIndicator();
-        if (target) parent.postMessage({ type: "atelier:move", id: idOf(press.el), target: target.id, position: target.position }, "*");
+        if (target) parent.postMessage({ type: "atelier:move", id: idOf(press.el), target: target.id, position: target.position }, window.location.origin);
         target = null;
         dragging = false;
         suppressClick = true;
@@ -507,7 +514,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       if (!el) return;
       select(el, true);
       // Une image vide s'ouvre sur la bibliothèque : on choisit ou on importe sans passer par le panneau.
-      if (el.getAttribute("data-empty") === "image") parent.postMessage({ type: "atelier:pick-image", id: idOf(el) }, "*");
+      if (el.getAttribute("data-empty") === "image") parent.postMessage({ type: "atelier:pick-image", id: idOf(el) }, window.location.origin);
     };
     const onDblClick = (e: MouseEvent) => {
       if ((e.target as Element).closest?.("[data-atelier-ui]")) return;
@@ -541,7 +548,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
         // Annuler pendant la frappe : d'abord la frappe (navigateur), puis, s'il n'y a plus rien, l'opération précédente d'Atelier.
         if (meta && e.key.toLowerCase() === "z" && !e.shiftKey) {
           let native = false; try { native = document.queryCommandEnabled("undo"); } catch { native = false; }
-          if (!native) { e.preventDefault(); endEdit(true); parent.postMessage({ type: "atelier:key", key: "z", metaKey: e.metaKey, ctrlKey: e.ctrlKey, shiftKey: false, altKey: false }, "*"); }
+          if (!native) { e.preventDefault(); endEdit(true); parent.postMessage({ type: "atelier:key", key: "z", metaKey: e.metaKey, ctrlKey: e.ctrlKey, shiftKey: false, altKey: false }, window.location.origin); }
           return;
         }
         if (meta && e.key.toLowerCase() === "b") { e.preventDefault(); document.execCommand("bold"); renderSelBar(); return; }
@@ -550,12 +557,12 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
         if (meta && e.key.toLowerCase() === "k") { e.preventDefault(); makeLink(); return; }
         if (e.key === "/" && editMode === "write" && !meta) { e.preventDefault(); openSlash(editing, false); return; }
         if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (editMode === "write") splitAtCaret(editing); else endEdit(true); return; }
-        if (e.key === "Backspace" && editMode === "write" && isEmptyText(editing) && caretAtStart(editing)) { e.preventDefault(); const el = editing; editing = null; el.contentEditable = "false"; el.innerHTML = el.getAttribute("data-original-html") ?? el.innerHTML; el.removeAttribute("data-original-html"); parent.postMessage({ type: "atelier:merge-prev", id: idOf(el) }, "*"); return; }
+        if (e.key === "Backspace" && editMode === "write" && isEmptyText(editing) && caretAtStart(editing)) { e.preventDefault(); const el = editing; editing = null; el.contentEditable = "false"; el.innerHTML = el.getAttribute("data-original-html") ?? el.innerHTML; el.removeAttribute("data-original-html"); parent.postMessage({ type: "atelier:merge-prev", id: idOf(el) }, window.location.origin); return; }
         return;
       }
       if (FORWARDED.has(e.key) || (meta && ["z", "d", "c", "x", "v", "k"].includes(e.key.toLowerCase())) || (e.ctrlKey && e.key.toLowerCase() === "g")) {
         e.preventDefault();
-        parent.postMessage({ type: "atelier:key", key: e.key, metaKey: e.metaKey, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, altKey: e.altKey }, "*");
+        parent.postMessage({ type: "atelier:key", key: e.key, metaKey: e.metaKey, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, altKey: e.altKey }, window.location.origin);
       }
     };
     const onFocusOut = (e: FocusEvent) => { if (editing && e.target === editing && !(e.relatedTarget as Element | null)?.closest?.("[data-atelier-ui]")) window.setTimeout(() => { if (editing === e.target) endEdit(true); }, 0); };
@@ -563,16 +570,18 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
 
     // ---------------------------------------------------------------- messages de l'éditeur
     const onMessage = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;
       const m = e.data as { type?: string; id?: string | null; mode?: string; site?: Site; containers?: string[]; textNodes?: string[]; editMode?: EditMode; blocks?: BlockPresetInfo[]; caret?: "start" | "end" | "all"; state?: string | null };
       if (m?.type === "atelier:site" && m.site) {
         setSite(m.site);
-        if (Array.isArray((m as { entries?: Entry[] }).entries)) setEntriesState((m as { entries: Entry[] }).entries);
+
         if (m.containers) containers = new Set(m.containers);
         if ((m as { links?: string[] }).links) links = new Set((m as { links?: string[] }).links);
         if (m.textNodes) textNodes = new Set(m.textNodes);
         if (m.blocks) blocks = m.blocks;
         if (m.editMode) editMode = m.editMode;
       }
+      if (m?.type === "atelier:entries" && Array.isArray((m as { entries?: Entry[] }).entries)) setEntriesState((m as { entries: Entry[] }).entries);
       if (m?.type === "atelier:editmode" && m.editMode) { editMode = m.editMode; if (editing) endEdit(true); hideBlockBar(); clear(hovered); hovered = null; }
       if (m?.type === "atelier:zoom") { const z = Number((m as { scale?: number }).scale); uiScale = z > 0 && z < 1 ? Math.min(1 / z, 2.2) : 1; applyUiScale(); }
       if (m?.type === "atelier:mode" && m.mode) setModeState(m.mode);
@@ -610,7 +619,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     document.addEventListener("mouseout", onOut);
     document.documentElement.addEventListener("mouseleave", onLeaveDoc);
     window.addEventListener("message", onMessage);
-    parent.postMessage({ type: "atelier:ready" }, "*");
+    parent.postMessage({ type: "atelier:ready" }, window.location.origin);
     return () => {
       document.removeEventListener("dblclick", onDblClick, true);
       document.removeEventListener("keydown", onKeyDown, true);
@@ -640,12 +649,12 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
   const templatePage = templateOnly ? site.pages.find((p) => p.id === templateOnly) : undefined;
   const match = templatePage ? { page: templatePage, entry: undefined, params: {} } : matchPath(site, data, path);
   if (!match) return <p style={{ padding: 24, fontFamily: "system-ui", color: "#777" }}>{editor ? "Chargement de la page…" : `Page introuvable : ${path}`}</p>;
-  const ctx: RenderContext = { site, page: match.page, entry: match.entry, params: match.params, locale: site.settings.defaultLocale, data, assets: assetMap(site), basePath: `/preview/${site.id}`, editor };
+  const ctx: RenderContext = { site, page: match.page, entry: match.entry, params: match.params, locale: site.settings.defaultLocale, data, assets, basePath: `/preview/${site.id}`, editor };
   const fonts = fontsHref(site.theme);
   return (
     <>
       {fonts ? <link rel="stylesheet" href={fonts} /> : null}
-      <style dangerouslySetInnerHTML={{ __html: siteCss(site) }} />
+      <PageCss site={site} pageId={match.page.id} />
       {editor ? <style dangerouslySetInnerHTML={{ __html: EDITOR_CSS }} /> : null}
       <RenderPage ctx={ctx} mode={modeState} />
     </>

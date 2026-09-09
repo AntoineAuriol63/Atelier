@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { serverSupabase, emailAllowed } from "@/lib/auth";
+import { safePath } from "@/lib/safe-path";
 
 /** Retour du lien magique : échange le code contre une session (cookies), puis renvoie vers l'éditeur. */
 export async function GET(req: Request) {
@@ -19,5 +20,5 @@ export async function GET(req: Request) {
   jar.delete("atelier_suite");
   const email = result.data.user?.email ?? "";
   if (!emailAllowed(email)) { await supabase.auth.signOut(); return fail("non-autorise"); }
-  return NextResponse.redirect(new URL(suite.startsWith("/") ? suite : "/", url.origin));
+  return NextResponse.redirect(new URL(safePath(suite), url.origin));
 }

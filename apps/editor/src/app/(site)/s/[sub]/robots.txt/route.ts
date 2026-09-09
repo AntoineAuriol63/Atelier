@@ -1,7 +1,8 @@
-import { getPublished, getSiteIdBySub, publicUrl } from "@/lib/published";
+import { getPublished, getSiteIdBySub, publicUrl, canServeHere } from "@/lib/published";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ sub: string }> }) {
   const { sub } = await params;
+  if (!(await canServeHere())) return new Response("Introuvable", { status: 404 });
   const id = await getSiteIdBySub(sub);
   const pub = id ? await getPublished(id) : null;
   const body = pub ? `User-agent: *\nAllow: /\nDisallow: /api/\nSitemap: ${publicUrl(pub.site)}/sitemap.xml\n` : "User-agent: *\nDisallow: /\n";

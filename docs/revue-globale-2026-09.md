@@ -87,7 +87,9 @@ Fait mais à ne pas étendre avant l'export et les rôles : le tableur (déjà u
 
 Le principe : réparer ce qui perd des données ou expose des données avant la mise en ligne ; poser les points de passage qui évitent la dette (migration, protocole, tests des dépôts) ; ne rien ajouter qui ne serve « designer-first, code-natif, sans verrou ».
 
-### A. Avant toute mise en ligne (une semaine)
+### A. Avant toute mise en ligne — fait le 9 septembre 2026
+
+Tout ce qui suit est en place et vérifié (voir le journal de `docs/roadmap.md`). Deux écarts assumés : les messages d'erreur d'API restent explicites (outil privé, lisibilité avant discrétion), et la réponse de `/auth/otp` dit encore si une adresse est refusée.
 
 1. Pagination de `entries()` et `changes()` ; `compact_changes` et purge des instantanés à la publication ; contrôle de taille des corps.
 2. Sécurité bloquante : domaine distinct pour les sites publiés (repli `/s/…` en développement seulement), refus de démarrer sans variables, liste d'adresses obligatoire, propriétaire attribué à tous les sites, garde sur `/preview`, validation du sous-domaine, chemin de fichiers, redirections, en-têtes de sécurité et origine `postMessage`.

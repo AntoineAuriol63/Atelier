@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createElement } from "react";
 import { RenderPage, assetMap, fontsHref, matchPath, memoryData, pageTitle, siteCss, localized, type RenderContext } from "@atelier/renderer";
-import { basePathFor, getPublished, getSiteIdBySub, publicUrl } from "@/lib/published";
+import { basePathFor, canServeHere, getPublished, getSiteIdBySub, publicUrl } from "@/lib/published";
 
 type Props = { params: Promise<{ sub: string; path?: string[] }> };
 
 async function resolve(sub: string, path?: string[]) {
+  if (!(await canServeHere())) return null;
   const id = await getSiteIdBySub(sub);
   if (!id) return null;
   const pub = await getPublished(id);
@@ -58,7 +59,7 @@ export default async function PublishedPage({ params }: Props) {
       <meta name="color-scheme" content={site.theme.modes.some((m) => m.id === "dark") ? "light dark" : "light"} />
       {fonts ? <><link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" /><link rel="stylesheet" href={fonts} precedence="fonts" /></> : null}
       {/* React 19 remonte la feuille dans le head : il lui faut une priorité et une clé stable par version publiée. */}
-      <style precedence="site" href={`site-${site.id}-v${r.pub.version}`} dangerouslySetInnerHTML={{ __html: siteCss(site) }} />
+      <style precedence="site" href={`site-${site.id}-v${r.pub.version}`} dangerouslySetInnerHTML={{ __html: siteCss(site, { pageId: r.ctx.page.id }) }} />
       {site.settings.head ? createElement("div", { hidden: true, dangerouslySetInnerHTML: { __html: site.settings.head } }) : null}
       <RenderPage ctx={r.ctx} mode={mode} />
       {site.settings.bodyEnd ? createElement("div", { dangerouslySetInnerHTML: { __html: site.settings.bodyEnd } }) : null}

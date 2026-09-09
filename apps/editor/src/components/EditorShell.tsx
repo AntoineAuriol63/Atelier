@@ -145,7 +145,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
   }, [index]);
 
   void previewKey;
-  const post = useCallback((msg: unknown) => frame.current?.contentWindow?.postMessage(msg, "*"), []);
+  const post = useCallback((msg: unknown) => frame.current?.contentWindow?.postMessage(msg, window.location.origin), []);
 
   const notify = useCallback((text: string, tone: "danger" | "success" | "info" = "danger") => {
     setNotice({ text, tone });
@@ -347,6 +347,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
   // --- messages de l'aperçu
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;
       const m = e.data as { type?: string; id?: string; target?: string; position?: DropPosition };
       if (m?.type === "atelier:select" && m.id) {
         select(m.id);
@@ -375,7 +376,17 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
     return () => window.removeEventListener("message", onMsg);
   }, [moveNode, select, dropBlock, setNodeContent, splitNode, mergePrev, slashInsert, switchMode, doc, index, site, locale, page.id, notify]);
 
-  useEffect(() => { if (frameReady) post({ type: "atelier:site", site, containers: [...index.values()].filter((l) => ["box", "list", "listItem", "link", "form", "item", "slot"].includes(l.node.type)).map((l) => l.node.id), links: [...index.values()].filter((l) => l.node.type === "link" || (editMode === "write" && l.node.type === "collection")).map((l) => l.node.id), textNodes: textNodeIds, editMode, blocks: blockInfos, entries: ents.entries }); }, [site, index, textNodeIds, frameReady, post, editMode, blockInfos, ents.entries]);
+  useEffect(() => { if (frameReady) post({ type: "atelier:site", site, containers: [...index.values()].filter((l) => ["box", "list", "listItem", "link", "form", "item", "slot"].includes(l.node.type)).map((l) => l.node.id), links: [...index.values()].filter((l) => l.node.type === "link" || (editMode === "write" && l.node.type === "collection")).map((l) => l.node.id), textNodes: textNodeIds, editMode, blocks: blockInfos }); }, [site, index, textNodeIds, frameReady, post, editMode, blockInfos]);
+  // Les entrées voyagent à part, et seulement celles des bases que la page utilise (vues et modèle) : le message ne pèse plus le site entier.
+  const pageDatabases = useMemo(() => {
+    const ids = new Set<string>();
+    const visit = (n: Node) => { if (n.type === "collection" && typeof n.props.database === "string") ids.add(n.props.database); n.children?.forEach(visit); };
+    visit(page.root); site.components.forEach((c) => visit(c.root));
+    const t = templateOf(site, page.id); if (t) ids.add(t.database.id);
+    return ids;
+  }, [site, page]);
+  const pageEntries = useMemo(() => ents.entries.filter((e) => pageDatabases.has(e.database)), [ents.entries, pageDatabases]);
+  useEffect(() => { if (frameReady) post({ type: "atelier:entries", entries: pageEntries }); }, [pageEntries, frameReady, post]);
   useEffect(() => { if (frameReady) post({ type: "atelier:editmode", editMode }); }, [editMode, frameReady, post]);
   useEffect(() => { if (frameReady) post({ type: "atelier:mode", mode }); }, [mode, frameReady, post]);
   useEffect(() => { if (frameReady) post({ type: "atelier:highlight", id: selected }); }, [selected, frameReady, post]);
@@ -435,7 +446,8 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
       }
     };
     const onWindowKey = (e: KeyboardEvent) => onKey(e);
-    const onMsg = (e: MessageEvent) => { const m = e.data as { type?: string; key?: string; metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; altKey?: boolean }; if (m?.type === "atelier:key" && m.key) onKey({ key: m.key, metaKey: !!m.metaKey, ctrlKey: !!m.ctrlKey, shiftKey: !!m.shiftKey, altKey: !!m.altKey, preventDefault() {}, fromPreview: true }); };
+    const onMsg = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return; const m = e.data as { type?: string; key?: string; metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; altKey?: boolean }; if (m?.type === "atelier:key" && m.key) onKey({ key: m.key, metaKey: !!m.metaKey, ctrlKey: !!m.ctrlKey, shiftKey: !!m.shiftKey, altKey: !!m.altKey, preventDefault() {}, fromPreview: true }); };
     window.addEventListener("keydown", onWindowKey);
     window.addEventListener("message", onMsg);
     return () => { window.removeEventListener("keydown", onWindowKey); window.removeEventListener("message", onMsg); };
@@ -596,6 +608,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
           <div role="status" className={`fixed top-14 left-1/2 -translate-x-1/2 z-[60] max-w-[560px] flex items-center gap-2 rounded-md border px-3.5 py-2.5 text-sm font-medium shadow-2xl animate-[atelier-toast_.25s_ease-out] ${notice?.tone === "success" ? "bg-success text-white border-success" : notice?.tone === "info" ? "bg-accent text-accent-ink border-accent" : "bg-danger text-white border-danger"}`}>
             {notice?.tone === "success" ? <CheckCircle2 size={16} aria-hidden /> : notice?.tone === "info" ? <Info size={16} aria-hidden /> : <AlertTriangle size={16} aria-hidden />}
             <span>{notice?.text ?? doc.error}</span>
+            {!notice && doc.blocked ? <button type="button" onClick={() => window.location.reload()} className="ml-2 h-7 px-2.5 rounded-sm bg-white/15 hover:bg-white/25 text-sm font-medium">Recharger</button> : null}
           </div>
         ) : null}
         <div className="relative flex flex-col gap-1.5" style={{ width: width ? `${Math.min(width, measured || width)}px` : "100%", maxWidth: "100%" }}>
@@ -623,7 +636,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
       {paletteOpen ? <CommandPalette open onClose={() => setPaletteOpen(false)} commands={commands} /> : null}
       {dbOpen && site.databases.some((d) => d.id === dbOpen) ? <DatabaseTable site={site} db={site.databases.find((d) => d.id === dbOpen)!} entries={ents.entries} save={ents.save} saveMany={ents.saveMany} remove={ents.remove} commit={doc.commit} onClose={() => setDbOpen(null)} saving={ents.saving} onDeleteDatabase={() => deleteDatabase(dbOpen)} notify={notify} /> : null}
       {dbOpen && formForOpen ? <DatabaseTable site={site} db={formDatabase(site, formForOpen)} entries={ents.entries} save={ents.save} remove={ents.remove} commit={doc.commit} onClose={() => setDbOpen(null)} saving={ents.saving} readOnly /> : null}
-      {publishOpen ? <PublishDialog site={site} version={doc.version} dirty={doc.status !== "saved"} commit={doc.commit} onClose={() => setPublishOpen(false)} notify={notify} /> : null}
+      {publishOpen ? <PublishDialog site={site} version={doc.version} dirty={doc.status !== "saved" && !doc.blocked} broken={doc.blocked} commit={doc.commit} onClose={() => setPublishOpen(false)} notify={notify} /> : null}
 
     </div>
     </MediaLibraryProvider>

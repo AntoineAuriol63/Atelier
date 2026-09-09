@@ -8,15 +8,22 @@ export interface AssetStorage {
   put(siteId: string, key: string, bytes: Buffer, mime: string): Promise<string>;
 }
 
-const SAFE = /^[\w./-]+$/;
+const SITE_ID = /^[A-Za-z0-9_-]{1,64}$/;
+const KEY = /^[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_.-]+)*$/;
 function check(siteId: string, key: string) {
-  if (!SAFE.test(siteId) || !SAFE.test(key) || key.includes("..")) throw new Error("Chemin de fichier invalide");
+  if (!SITE_ID.test(siteId) || !KEY.test(key) || key.split("/").some((seg) => seg === "." || seg === "..")) throw new Error("Chemin de fichier invalide");
 }
 
 /** Développement : `<dir>/assets/<site>/<clé>`, servi par `GET /api/sites/:id/assets/<clé>`. */
 export class FileAssetStorage implements AssetStorage {
   constructor(private dir: string) {}
-  filePath(siteId: string, key: string) { check(siteId, key); return path.join(this.dir, "assets", siteId, key); }
+  filePath(siteId: string, key: string) {
+    check(siteId, key);
+    const base = path.resolve(this.dir, "assets");
+    const full = path.resolve(base, siteId, key);
+    if (!full.startsWith(base + path.sep)) throw new Error("Chemin de fichier invalide");
+    return full;
+  }
   async put(siteId: string, key: string, bytes: Buffer): Promise<string> {
     const f = this.filePath(siteId, key);
     await mkdir(path.dirname(f), { recursive: true });

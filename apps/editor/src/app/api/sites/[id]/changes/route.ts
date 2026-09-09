@@ -1,3 +1,4 @@
+import { LIMITS, tooLarge } from "@/lib/limits";
 import { guardSite } from "@/lib/site-access";
 import { schema, type Op } from "@atelier/model";
 import { getStore } from "@/lib/store";
@@ -16,6 +17,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   const denied = await guardSite(id);
   if (denied) return denied;
+  const big = tooLarge(req, LIMITS.changesBytes, "Cette modification");
+  if (big) return big;
   let body: { ops?: unknown; baseVersion?: unknown; label?: unknown };
   try { body = await req.json(); } catch { return Response.json({ error: "Corps JSON invalide" }, { status: 400 }); }
   if (!Array.isArray(body.ops) || body.ops.length === 0) return Response.json({ error: "ops manquantes" }, { status: 400 });

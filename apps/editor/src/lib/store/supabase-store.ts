@@ -1,6 +1,9 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { applyOps, type Change, type Entry, type Site } from "@atelier/model";
 import type { ChangeInput, ChangeResult, PublicationMeta, Published, SiteStore, SiteSummary, StoredSite } from "./types";
+import { isProduction } from "@/lib/env";
+
+const SUBDOMAIN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
 /**
  * Dépôt Supabase (Postgres). Schéma : supabase/schema.sql.
@@ -14,7 +17,12 @@ export class SupabaseSiteStore implements SiteStore {
 
   /** La colonne `owner` (bloc « comptes » du schéma) peut manquer sur un projet créé avant : on s'en passe alors, sans propriétaire. */
   private ownerColumn: boolean | null = null;
-  private isUndefinedColumn(e: { code?: string; message: string } | null) { return !!e && (e.code === "42703" || /column .* does not exist/.test(e.message)); }
+  private isUndefinedColumn(e: { code?: string; message: string } | null) {
+    const missing = !!e && (e.code === "42703" || /column .* does not exist/.test(e.message));
+    // En production, se passer de la colonne des propriétaires reviendrait à ouvrir tous les sites : on refuse.
+    if (missing && isProduction()) throw new Error("La colonne sites.owner manque : exécutez le bloc « comptes » de supabase/schema.sql");
+    return missing;
+  }
 
   async get(id: string): Promise<StoredSite | null> {
     if (this.ownerColumn !== false) {
@@ -40,7 +48,7 @@ export class SupabaseSiteStore implements SiteStore {
   async listSites(owner?: string): Promise<SiteSummary[]> {
     const cols = (withOwner: boolean) => `id, name, version, updated_at, published_version, subdomain${withOwner ? ", owner" : ""}`;
     let q = this.client.from("sites").select(cols(this.ownerColumn !== false)).order("updated_at", { ascending: false });
-    if (owner && this.ownerColumn !== false) q = q.or(`owner.eq.${owner},owner.is.null`);
+    if (owner && this.ownerColumn !== false) q = q.eq("owner", owner);
     let { data, error } = await q;
     if (error && this.isUndefinedColumn(error) && this.ownerColumn !== false) { this.ownerColumn = false; ({ data, error } = await this.client.from("sites").select(cols(false)).order("updated_at", { ascending: false })); }
     if (error) this.missingColumn(error);
@@ -71,16 +79,34 @@ export class SupabaseSiteStore implements SiteStore {
     return { ok: true, version: res.version, ops: r.ops };
   }
 
+  /** PostgREST tronque à 1 000 lignes sans erreur : toute lecture de liste se fait par tranches jusqu'à épuisement. */
+  private async paged<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<T[]> {
+    const size = 1000;
+    const out: T[] = [];
+    for (let from = 0; ; from += size) {
+      const { data, error } = await page(from, from + size - 1);
+      if (error) throw new Error(error.message);
+      out.push(...(data ?? []));
+      if (!data || data.length < size) return out;
+    }
+  }
+
+  async owner(id: string): Promise<{ owner: string | null } | undefined> {
+    if (this.ownerColumn === false) { const r = await this.client.from("sites").select("id").eq("id", id).maybeSingle(); if (r.error) throw new Error(r.error.message); return r.data ? { owner: null } : undefined; }
+    const r = await this.client.from("sites").select("owner").eq("id", id).maybeSingle();
+    if (r.error) { if (this.isUndefinedColumn(r.error)) { this.ownerColumn = false; return this.owner(id); } throw new Error(r.error.message); }
+    this.ownerColumn = true;
+    return r.data ? { owner: (r.data.owner as string | null) ?? null } : undefined;
+  }
+
   async changes(id: string, sinceVersion: number): Promise<Change[]> {
-    const { data, error } = await this.client.from("changes").select("version, ops, author, label, created_at").eq("site_id", id).gt("version", sinceVersion).order("version");
-    if (error) throw error;
-    return (data ?? []).map((c) => ({ id: `${id}:${c.version}`, version: c.version, ops: c.ops, author: c.author, label: c.label ?? undefined, at: c.created_at }));
+    const rows = await this.paged<{ version: number; ops: Change["ops"]; author: string; label: string | null; created_at: string }>((from, to) => this.client.from("changes").select("version, ops, author, label, created_at").eq("site_id", id).gt("version", sinceVersion).order("version").range(from, to));
+    return rows.map((c) => ({ id: `${id}:${c.version}`, version: c.version, ops: c.ops, author: c.author, label: c.label ?? undefined, at: c.created_at }));
   }
 
   async entries(id: string): Promise<Entry[]> {
-    const { data, error } = await this.client.from("entries").select("id, database_id, status, values, created_at, updated_at").eq("site_id", id);
-    if (error) throw error;
-    return (data ?? []).map((e) => ({ id: e.id, database: e.database_id, status: e.status, values: e.values, createdAt: e.created_at, updatedAt: e.updated_at }));
+    const rows = await this.paged<{ id: string; database_id: string; status: Entry["status"]; values: Entry["values"]; created_at: string; updated_at: string }>((from, to) => this.client.from("entries").select("id, database_id, status, values, created_at, updated_at").eq("site_id", id).order("created_at").order("id").range(from, to));
+    return rows.map((e) => ({ id: e.id, database: e.database_id, status: e.status, values: e.values, createdAt: e.created_at, updatedAt: e.updated_at }));
   }
 
   async setEntries(id: string, entries: Entry[]): Promise<void> {
@@ -110,6 +136,11 @@ export class SupabaseSiteStore implements SiteStore {
     const sub = current.site.settings.subdomain ?? id.replace(/[^a-z0-9-]/gi, "-").toLowerCase();
     const up = await this.client.from("sites").update({ published_version: current.version, subdomain: sub }).eq("id", id);
     if (up.error) this.missingColumn(up.error);
+    // L'instantané rend le compactage du journal sûr ; et on ne garde que les vingt dernières publications.
+    await this.client.rpc("compact_changes", { p_site_id: id, p_keep: 500 });
+    const old = await this.client.from("snapshots").select("version").eq("site_id", id).eq("kind", "publish").order("version", { ascending: false }).range(20, 20 + 999);
+    const stale = (old.data ?? []).map((r) => r.version as number).filter((v) => v !== current.version);
+    if (stale.length) await this.client.from("snapshots").delete().eq("site_id", id).in("version", stale);
     return { version: current.version, label, createdAt };
   }
   async publications(id: string): Promise<PublicationMeta[]> {
@@ -136,11 +167,19 @@ export class SupabaseSiteStore implements SiteStore {
     if (up.error) this.missingColumn(up.error);
     return { version, label: (data.label as string | null) ?? undefined, createdAt: data.created_at as string };
   }
+  async rateLimit(key: string, windowSeconds: number, max: number): Promise<boolean> {
+    const { data, error } = await this.client.rpc("rate_limit_hit", { p_key: key, p_window_seconds: windowSeconds, p_max: max });
+    if (error) { if (/rate_limit_hit|does not exist/.test(error.message)) throw new Error("Fonction rate_limit_hit absente : exécutez le bloc « limite de débit » de supabase/schema.sql"); throw new Error(error.message); }
+    return data !== false;
+  }
   async findBySubdomain(sub: string): Promise<string | null> {
-    // Un sous-domaine dérivé de l'identifiant (`site_marie` → `site-marie`) répond aussi.
-    const guess = sub.replace(/-/g, "_");
-    const { data, error } = await this.client.from("sites").select("id").or(`subdomain.eq.${sub},id.eq.${sub},id.ilike.${guess}`).limit(1).maybeSingle();
-    if (error) this.missingColumn(error);
-    return (data?.id as string | undefined) ?? null;
+    // Le sous-domaine vient de l'hôte de la requête : validé, puis comparé par égalité, jamais interpolé dans un filtre.
+    if (!SUBDOMAIN.test(sub)) return null;
+    const bySub = await this.client.from("sites").select("id").eq("subdomain", sub).limit(1).maybeSingle();
+    if (bySub.error) this.missingColumn(bySub.error);
+    if (bySub.data?.id) return bySub.data.id as string;
+    const byId = await this.client.from("sites").select("id").eq("id", sub).limit(1).maybeSingle();
+    if (byId.error) throw new Error(byId.error.message);
+    return (byId.data?.id as string | undefined) ?? null;
   }
 }

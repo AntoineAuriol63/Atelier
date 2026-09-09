@@ -1,9 +1,10 @@
 import { memoryData, entryUrl } from "@atelier/renderer";
-import { getPublished, getSiteIdBySub, publicUrl } from "@/lib/published";
+import { getPublished, getSiteIdBySub, publicUrl, canServeHere } from "@/lib/published";
 
 /** Plan du site (D38) : pages fixes indexables, plus une adresse par entrée publiée des modèles de page. */
 export async function GET(_req: Request, { params }: { params: Promise<{ sub: string }> }) {
   const { sub } = await params;
+  if (!(await canServeHere())) return new Response("Introuvable", { status: 404 });
   const id = await getSiteIdBySub(sub);
   const pub = id ? await getPublished(id) : null;
   if (!pub) return new Response("Introuvable", { status: 404 });

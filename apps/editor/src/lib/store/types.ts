@@ -19,6 +19,8 @@ export type ChangeResult =
  */
 export interface SiteStore {
   get(id: string): Promise<StoredSite | null>;
+  /** Propriétaire d'un site sans charger son document ; `undefined` si le site n'existe pas. */
+  owner(id: string): Promise<{ owner: string | null } | undefined>;
   create(site: Site, owner?: string): Promise<StoredSite>;
   /** Sites visibles par un propriétaire (les sites sans propriétaire sont visibles de tous), ou tous si `owner` absent. */
   listSites(owner?: string): Promise<SiteSummary[]>;
@@ -37,6 +39,8 @@ export interface SiteStore {
   published(id: string): Promise<Published | null>;
   /** Désigne un instantané existant comme version publiée (retour arrière). */
   restore(id: string, version: number): Promise<PublicationMeta>;
+  /** Compte un événement pour une clé et dit s'il reste sous le plafond dans la fenêtre (partagé entre instances). */
+  rateLimit(key: string, windowSeconds: number, max: number): Promise<boolean>;
   /** Identifiant du site qui répond à ce sous-domaine (ou identifiant nu), `null` sinon. */
   findBySubdomain(sub: string): Promise<string | null>;
 }

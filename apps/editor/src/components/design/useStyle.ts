@@ -2,6 +2,16 @@
 
 import { isDraggingValue } from "@/ui/controls/useDragValue";
 
+const THROTTLE_MS = 50;
+const pendingByKey = new Map<string, { timer: number; last: () => void } | null>();
+/** Vrai si l'appel a été différé (un autre est parti il y a moins de 50 ms) ; le dernier appel différé est rejoué à la fin de la fenêtre. */
+function throttle(key: string, run: () => void): boolean {
+  const cur = pendingByKey.get(key);
+  if (cur) { cur.last = run; return true; }
+  pendingByKey.set(key, { timer: window.setTimeout(() => { const p = pendingByKey.get(key); pendingByKey.set(key, null); pendingByKey.delete(key); p?.last?.(); }, THROTTLE_MS), last: undefined as unknown as () => void });
+  return false;
+}
+
 import { useMemo } from "react";
 import type { CommitOptions, Node, Op, ResolvedStyle, ResolvedValue, Site, StyleSource, StyleValue } from "@atelier/model";
 import { BASE, resolveNodeStyle, resolveSharedStyle, sharedStylePath, stylePath } from "@atelier/model";
@@ -37,6 +47,8 @@ export function useStyle(site: Site, target: StyleTarget, bp: string, state: str
     const where = `${bpName(bp)}${state ? ` · ${STATE_LABEL[state] ?? state}` : ""}`;
     const set = (prop: string, v: StyleValue | undefined, coalesce = true, coalesceWindowMs: number | undefined = isDraggingValue() ? 120_000 : undefined) => {
       const key = target.kind === "node" ? target.node.id : `shared:${target.id}`;
+      // Pendant un glissement, une valeur toutes les 50 ms suffit à l'œil ; la dernière part toujours.
+      if (isDraggingValue()) { const k = `${key}:${bp}:${state ?? ""}:${prop}`; if (throttle(k, () => set(prop, v, coalesce, coalesceWindowMs))) return; }
       const opts: CommitOptions = { coalesceKey: coalesce ? `style:${key}:${bp}:${state ?? ""}:${prop}` : undefined, label: `${prop} (${where})`, coalesceWindowMs };
       if (target.kind === "node") commit({ op: "node.set", id: target.node.id, path: stylePath(bp, prop, state), value: v }, opts);
       else { const path = sharedStylePath(site, target.id, bp, prop, state); if (path) commit({ op: "site.set", path, value: v }, opts); }

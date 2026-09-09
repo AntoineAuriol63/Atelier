@@ -24,6 +24,8 @@ export function useDocument(initialSite: Site, initialVersion: number) {
   const inflight = useRef(false);
   const versionRef = useRef(initialVersion);
   const blocked = useRef(false);
+  const retries = useRef(0);
+  const [isBlocked, setIsBlocked] = useState(false);
 
   async function flush(): Promise<void> {
     if (inflight.current || blocked.current || pending.current.length === 0) return;
@@ -36,29 +38,37 @@ export function useDocument(initialSite: Site, initialVersion: number) {
         body: JSON.stringify({ ops, baseVersion: versionRef.current }),
       });
       if (res.status === 409) {
-        blocked.current = true;
+        blocked.current = true; setIsBlocked(true);
         setStatus("conflict");
         setError("Le site a été modifié ailleurs. Rechargez la page pour continuer.");
         return;
       }
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string; issues?: string[] };
-        blocked.current = true;
+        blocked.current = true; setIsBlocked(true);
         setStatus("error");
         setError(`${body.error ?? `Erreur ${res.status}`}${body.issues?.length ? ` (${body.issues.join(" ; ")})` : ""}. Vos dernières modifications ne sont pas enregistrées : rechargez la page.`);
         return;
       }
       const body = (await res.json()) as { version: number };
       versionRef.current = body.version;
+      retries.current = 0;
       setVersion(body.version);
       setError(undefined);
       setStatus(pending.current.length ? "saving" : "saved");
-    } catch (e) {
+    } catch {
+      // Incident réseau : rien n'est perdu. Le lot repart en tête de file et on réessaie avec un délai croissant.
+      pending.current = [...ops, ...pending.current];
+      retries.current += 1;
+      const delay = Math.min(30_000, 2_000 * 2 ** (retries.current - 1));
       setStatus("error");
-      setError(e instanceof Error ? e.message : "Erreur réseau");
+      setError(`Connexion perdue : vos modifications sont gardées, nouvel essai dans ${Math.round(delay / 1000)} s.`);
+      inflight.current = false;
+      window.setTimeout(() => void flush(), delay);
+      return;
     } finally {
       inflight.current = false;
-      if (pending.current.length) void flush();
+      if (pending.current.length && !blocked.current) void flush();
     }
   }
 
@@ -94,5 +104,5 @@ export function useDocument(initialSite: Site, initialVersion: number) {
     if (r) apply({ site: r.site, history: r.history }, r.applied);
   }
 
-  return { site: doc.site, history: doc.history, version, status, error, commit, undo, redo, canUndo: canUndo(doc.history), canRedo: canRedo(doc.history) };
+  return { site: doc.site, history: doc.history, version, status, error, blocked: isBlocked, commit, undo, redo, canUndo: canUndo(doc.history), canRedo: canRedo(doc.history) };
 }

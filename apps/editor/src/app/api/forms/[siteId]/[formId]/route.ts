@@ -1,18 +1,11 @@
 import { newId, type Entry, type Node } from "@atelier/model";
-import { getStore, loadSite } from "@/lib/store";
+import { getStore } from "@/lib/store";
+import { LIMITS, tooLarge } from "@/lib/limits";
 import { findForms, formDatabaseId } from "@/lib/forms";
 import { sendMail } from "@/lib/mail";
+import { safePath } from "@/lib/safe-path";
 
 const MAX_LEN = 5000;
-// Garde-fou minimal par adresse : dix envois par minute et par formulaire (mémoire du processus, suffisant en v0).
-const hits = new Map<string, number[]>();
-function rateLimited(key: string): boolean {
-  const now = Date.now();
-  const list = (hits.get(key) ?? []).filter((t) => now - t < 60_000);
-  list.push(now); hits.set(key, list);
-  return list.length > 10;
-}
-
 type FieldSpec = { name: string; type: string; required: boolean; label: string; options?: string[] };
 function fieldsOf(form: Node, locale: string): FieldSpec[] {
   const out: FieldSpec[] = [];
@@ -32,24 +25,31 @@ export async function POST(req: Request, { params }: { params: Promise<{ siteId:
     if (wantsJson || !redirectTo) return Response.json(body, { status });
     return new Response(null, { status: 303, headers: { location: redirectTo } });
   };
+  const big = tooLarge(req, LIMITS.formBytes, "Ce message");
+  if (big) return reply(413, { error: "Message trop long." });
   let data: Record<string, string>;
   try {
     const ct = req.headers.get("content-type") ?? "";
     if (ct.includes("application/json")) data = Object.fromEntries(Object.entries((await req.json()) as Record<string, unknown>).map(([k, v]) => [k, String(v ?? "")]));
     else { const fd = await req.formData(); data = {}; fd.forEach((v, k) => { data[k] = typeof v === "string" ? v : v.name; }); }
   } catch { return reply(400, { error: "Envoi illisible" }); }
-  const loaded = await loadSite(siteId);
+  // Le document seul : les entrées n'ont rien à faire ici.
+  const loaded = await getStore().get(siteId);
   if (!loaded) return reply(404, { error: "Site introuvable" });
   const { site } = loaded;
   const form = findForms(site).find((f) => f.formId === formId);
   if (!form) return reply(404, { error: "Formulaire introuvable" });
   const locale = site.settings.defaultLocale;
   const referer = req.headers.get("referer");
-  const back = (() => { try { const u = new URL(referer ?? "/", "http://x"); u.searchParams.set("envoye", formId); return referer ? u.pathname + u.search + `#f-${form.node.id}` : undefined; } catch { return undefined; } })();
+  // Retour sans script : uniquement vers la page d'origine si elle est sur la même origine que l'appel.
+  const back = (() => { try { if (!referer) return undefined; const u = new URL(referer); if (u.origin !== new URL(req.url).origin) return undefined; u.searchParams.set("envoye", formId); return safePath(u.pathname + u.search) + `#f-${form.node.id}`; } catch { return undefined; } })();
   // Piège à robots : on répond comme si tout allait bien, sans rien garder.
   if (data._hp) return reply(200, { ok: true }, back);
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
-  if (rateLimited(`${formId}:${ip}`)) return reply(429, { error: "Trop d'envois d'affilée, réessayez dans une minute." });
+  // Dix envois par minute et par adresse, comptés dans le dépôt (donc partagés entre instances). L'adresse vient de la plateforme.
+  const ip = req.headers.get("x-real-ip") ?? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
+  let allowed = true;
+  try { allowed = await getStore().rateLimit(`form:${siteId}:${formId}:${ip}`, 60, 10); } catch (e) { console.warn(`[formulaire] limite de débit indisponible : ${e instanceof Error ? e.message : e}`); }
+  if (!allowed) return reply(429, { error: "Trop d'envois d'affilée, réessayez dans une minute." });
   const values: Record<string, unknown> = {};
   for (const f of fieldsOf(form.node, locale)) {
     const raw = (data[f.name] ?? "").trim();
@@ -61,7 +61,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ siteId:
     if (f.type === "select" && raw && f.options && !f.options.includes(raw)) return reply(400, { error: `Choix inconnu pour « ${f.label} ».` });
     if (raw) values[f.name] = raw;
   }
-  values._page = data._page ?? "";
+  values._page = (data._page ?? "").slice(0, 300);
   const now = new Date().toISOString();
   const entry: Entry = { id: newId(), database: formDatabaseId(formId), status: "draft", values, createdAt: now, updatedAt: now };
   try { await getStore().upsertEntries(siteId, [entry]); } catch (e) { return reply(500, { error: e instanceof Error ? e.message : "Enregistrement impossible" }); }

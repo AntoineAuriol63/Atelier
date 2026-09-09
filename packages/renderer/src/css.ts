@@ -220,11 +220,13 @@ export function assetMap(site: Site): Map<string, Asset> {
   return new Map(site.assets.map((a) => [a.id, a]));
 }
 
-/** CSS complet d'un site : thème, styles partagés, tous les nœuds des pages et des composants. */
-export function siteCss(site: Site): string {
+/** CSS d'un site : thème, styles partagés, nœuds des pages (ou d'une seule page avec `pageId`) et des composants. */
+export function siteCss(site: Site, opts: { pageId?: string } = {}): string {
   const assets = assetMap(site);
   const out: string[] = [themeCss(site.theme), sharedStylesCss(site, assets)];
-  const roots = [...site.pages.map((p) => p.root), ...site.components.map((c) => c.root)];
+  // Une page ne reçoit que son CSS (et celui des composants) : le reste du site n'a rien à faire dans sa réponse.
+  const pages = opts.pageId ? site.pages.filter((p) => p.id === opts.pageId) : site.pages;
+  const roots = [...pages.map((p) => p.root), ...site.components.map((c) => c.root)];
   for (const root of roots) {
     walk(root, (n) => {
       const css = nodeCss(n, site.settings.breakpoints, assets);

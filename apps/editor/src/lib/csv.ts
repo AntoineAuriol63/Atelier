@@ -55,7 +55,8 @@ export function richToText(v: unknown, locale: string): string {
 
 /** Export CSV d'une base : une ligne par entrée, libellés des champs en tête, valeurs texte (les listes jointes par « ; »). */
 export function toCsv(db: Database, rows: Entry[], locale: string): string {
-  const cell = (v: unknown): string => { const t = v === undefined || v === null ? "" : Array.isArray(v) ? v.map((x) => (typeof x === "object" && x ? richToText([x], locale) : String(x))).join("; ") : typeof v === "object" ? richToText(v, locale) : String(v); return /[";\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+  // Une cellule qui commence par = + - @ serait lue comme une formule par un tableur : on la neutralise avec une apostrophe.
+  const cell = (v: unknown): string => { let t = v === undefined || v === null ? "" : Array.isArray(v) ? v.map((x) => (typeof x === "object" && x ? richToText([x], locale) : String(x))).join("; ") : typeof v === "object" ? richToText(v, locale) : String(v); if (/^[=+\-@\t\r]/.test(t)) t = "'" + t; return /[";\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
   const head = ["id", "statut", ...db.fields.map((f) => f.label[locale] ?? f.name), "créé le", "modifié le"];
   const lines = rows.map((e) => [e.id, e.status === "published" ? "publié" : "brouillon", ...db.fields.map((f) => cell(f.type === "createdAt" ? e.createdAt : f.type === "updatedAt" ? e.updatedAt : e.values[f.name])), e.createdAt, e.updatedAt].map(cell).join(";"));
   return "\ufeff" + [head.map(cell).join(";"), ...lines].join("\r\n");

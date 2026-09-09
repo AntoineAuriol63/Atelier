@@ -4,13 +4,14 @@ import type { SiteStore, StoredSite } from "./types";
 import { FileSiteStore } from "./file-store";
 import { SupabaseSiteStore } from "./supabase-store";
 import { FileAssetStorage, SupabaseAssetStorage, type AssetStorage } from "./assets";
+import { assertProduction } from "@/lib/env";
 
 export type { SiteStore, StoredSite, SiteSummary, ChangeInput, ChangeResult, PublicationMeta, Published } from "./types";
 export type { AssetStorage } from "./assets";
 export { FileAssetStorage } from "./assets";
 
 /** À incrémenter quand l'interface `SiteStore` change. */
-const STORE_VERSION = 7;
+const STORE_VERSION = 8;
 
 declare global {
   var __atelierStore: { key: string; store: SiteStore } | undefined;
@@ -24,6 +25,7 @@ declare global {
 const forcedFile = () => process.env.ATELIER_STORE === "file";
 
 export function getStore(): SiteStore {
+  assertProduction();
   const url = forcedFile() ? undefined : process.env.SUPABASE_URL, key = forcedFile() ? undefined : process.env.SUPABASE_SERVICE_ROLE_KEY;
   const dir = process.env.ATELIER_DATA_DIR ?? path.resolve(process.cwd(), "../../.atelier-data");
   // La version fait partie de la clé : en développement, un dépôt gardé en mémoire par un ancien module ne survit pas à un changement de son interface.

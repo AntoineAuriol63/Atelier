@@ -1,3 +1,4 @@
+import { LIMITS, tooLarge } from "@/lib/limits";
 import { guardSite } from "@/lib/site-access";
 import { schema, type Entry } from "@atelier/model";
 import { getStore } from "@/lib/store";
@@ -14,9 +15,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   const { id } = await params;
   const denied = await guardSite(id);
   if (denied) return denied;
+  const big = tooLarge(req, LIMITS.entriesBytes, "Cet envoi d'entrées");
+  if (big) return big;
   let body: { entries?: unknown };
   try { body = await req.json(); } catch { return Response.json({ error: "Corps JSON invalide" }, { status: 400 }); }
   if (!Array.isArray(body.entries) || body.entries.length === 0) return Response.json({ error: "entries manquantes" }, { status: 400 });
+  if (body.entries.length > LIMITS.entriesCount) return Response.json({ error: `${LIMITS.entriesCount} entrées au plus par envoi (${body.entries.length} reçues) : découpez l'import.` }, { status: 413 });
   const entries: Entry[] = [];
   for (const [i, raw] of body.entries.entries()) {
     const r = schema.entry.safeParse(raw);

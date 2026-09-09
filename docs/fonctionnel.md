@@ -2,7 +2,7 @@
 
 Ce que l'outil fait aujourd'hui, et comment. Tenu à jour à chaque évolution (règle dans `CLAUDE.md`). Les décisions de fond sont dans `docs/decisions.md`, le contrat de données dans `docs/document-model.md`, le plan dans `docs/roadmap.md`. Ici : l'état réel.
 
-*Dernière mise à jour : 8 septembre 2026 (comptes et tableau de bord ; revue globale : `docs/revue-globale-2026-09.md`).*
+*Dernière mise à jour : 9 septembre 2026 (temps A de la revue globale).*
 
 ## Partie 1 · Fonctionnel
 
@@ -78,11 +78,11 @@ Monorepo npm workspaces.
 
 - `packages/model` — types, schéma de validation (zod), opérations inversibles (`node.insert/remove/move/set/replace`, `site.set`, `batch`), historique avec fusion, arbre et index, planification des déplacements et dépôts (`planMove`, `planDrop`, `planInsert`, `planExitBox`, `canInsertUnder`), résolution de style avec sources, grille de mise en page, sources de données (`templateOf`, `dataSourceFor`, `entryPath`), site d'exemple. Sans React. Tests vitest.
 - `packages/renderer` — CSS d'un site (jetons par mode, défauts de thème dans `:where()`, styles partagés, nœuds, points de rupture, états, vues de collection, séparateurs, base `hr` et champs) et rendu React (`RenderPage`, `RenderNode`, liaisons, vues, formulaires avec script, `srcset`). Le même moteur sert l'éditeur, l'aperçu et le site publié. Tests vitest.
-- `apps/editor` — Next.js (App Router, Tailwind v4, lucide-react, IBM Plex) : le tableau de bord (`/`), l'éditeur (`/sites/<id>`), l'aperçu vivant (`/preview/<id>/…?editor=1`), les sites publiés (`/s/<sous-domaine>/…`, réécriture par `src/proxy.ts`), la connexion (`/connexion`, `/auth/*`), l'API. `src/proxy.ts` exige une session sur tout sauf le public (sites publiés, formulaires, fichiers, connexion) ; `lib/auth.ts` et `lib/site-access.ts` vérifient le propriétaire dans les routes.
+- `apps/editor` — Next.js (App Router, Tailwind v4, lucide-react, IBM Plex) : le tableau de bord (`/`), l'éditeur (`/sites/<id>`), l'aperçu vivant (`/preview/<id>/…?editor=1`), les sites publiés (`/s/<sous-domaine>/…`, réécriture par `src/proxy.ts`), la connexion (`/connexion`, `/auth/*`), l'API. `src/proxy.ts` exige une session sur tout sauf le public (sites publiés, formulaires, fichiers, connexion) ; `lib/auth.ts` et `lib/site-access.ts` vérifient le propriétaire dans les routes (un site sans propriétaire n'est accessible à personne) ; `lib/env.ts` refuse de tourner en production mal configurée ; en-têtes de sécurité dans `next.config.ts` ; `postMessage` avec origine vérifiée. En production, un site publié n'est servi que derrière son sous-domaine, sur un domaine distinct de l'éditeur.
 
 ### 2.2 Données et dépôts
 
-- Document `Site` versionné : journal d'opérations, `commit_change` (Supabase) ou fichiers JSON (`.atelier-data/`), conflit 409 si la version de base a bougé (une seule fenêtre à la fois).
+- Document `Site` versionné : journal d'opérations, `commit_change` (Supabase) ou fichiers JSON (`.atelier-data/`), conflit 409 si la version de base a bougé (une seule fenêtre à la fois, bandeau avec bouton Recharger). Un incident réseau remet les opérations en file et réessaie ; rien n'est perdu. Lectures de listes par tranches de 1 000 ; journal compacté et instantanés purgés (vingt gardés) à la publication ; plafonds de corps dans `lib/limits.ts`.
 - Entrées hors document : `GET/PUT/DELETE /api/sites/:id/entries` (un `PUT` peut porter plusieurs entrées : import), envois de formulaires dans une base virtuelle `frm_<formId>` ; lecture et écriture CSV/JSON dans `lib/csv.ts`, correspondance dans `components/data/ImportDialog.tsx`, export par `GET /api/sites/:id/databases/:dbId/export`.
 - Fichiers : `AssetStorage` (Supabase Storage seau `assets`, ou `.atelier-data/assets`), `POST /api/sites/:id/assets` avec sharp ; usages calculés côté éditeur (`lib/asset-usage.ts`) ; bibliothèque fournie par `MediaLibraryProvider`, ouverte par `openMediaLibrary()` ou `useMediaLibrary()`.
 - Publication : `snapshots` (`kind = 'publish'`, document + entrées), `sites.published_version`, `sites.subdomain` ; `GET/POST /api/sites/:id/publish`, `POST …/publish/restore`.

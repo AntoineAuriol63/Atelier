@@ -105,15 +105,26 @@ export class FileSiteStore implements SiteStore {
       await this.write(id, { ...d, entries });
     });
   }
+  async owner(id: string): Promise<{ owner: string | null } | undefined> {
+    const d = await this.read(id);
+    return d ? { owner: d.owner ?? null } : undefined;
+  }
+  /** Lecture, calcul et écriture sous le même verrou : deux envois simultanés ne s'écrasent pas. */
   async upsertEntries(id: string, entries: Entry[]): Promise<void> {
-    const cur = await this.entries(id);
-    const byId = new Map(cur.map((e) => [e.id, e]));
-    for (const e of entries) byId.set(e.id, e);
-    await this.setEntries(id, [...byId.values()]);
+    await this.serialize(id, async () => {
+      const d = await this.read(id);
+      if (!d) throw new Error(`Site introuvable : ${id}`);
+      const byId = new Map(d.entries.map((e) => [e.id, e]));
+      for (const e of entries) byId.set(e.id, e);
+      await this.write(id, { ...d, entries: [...byId.values()] });
+    });
   }
   async deleteEntries(id: string, ids: string[]): Promise<void> {
-    const cur = await this.entries(id);
-    await this.setEntries(id, cur.filter((e) => !ids.includes(e.id)));
+    await this.serialize(id, async () => {
+      const d = await this.read(id);
+      if (!d) return;
+      await this.write(id, { ...d, entries: d.entries.filter((e) => !ids.includes(e.id)) });
+    });
   }
 
   async publish(id: string, label?: string): Promise<PublicationMeta> {
@@ -144,12 +155,22 @@ export class FileSiteStore implements SiteStore {
       return { version: p.version, label: p.label, createdAt: p.createdAt };
     });
   }
+  private hits = new Map<string, number[]>();
+  /** Mémoire du processus : suffisant pour un seul serveur de développement ; nettoyée à chaque appel. */
+  async rateLimit(key: string, windowSeconds: number, max: number): Promise<boolean> {
+    const now = Date.now();
+    const list = (this.hits.get(key) ?? []).filter((t) => now - t < windowSeconds * 1000);
+    list.push(now); this.hits.set(key, list);
+    for (const [k, v] of this.hits) if (!v.some((t) => now - t < windowSeconds * 1000)) this.hits.delete(k);
+    return list.length <= max;
+  }
   async findBySubdomain(sub: string): Promise<string | null> {
     const dir = path.join(this.dir, "sites");
     if (!existsSync(dir)) return null;
     for (const f of await readdir(dir)) {
       if (!f.endsWith(".json")) continue;
       const id = f.slice(0, -5);
+      if (!/^[a-z0-9-]{1,63}$/.test(sub)) return null;
       if (id === sub || id.toLowerCase().replace(/[^a-z0-9-]/g, "-") === sub) return id;
       try { const d = JSON.parse(await readFile(path.join(dir, f), "utf8")) as FileDoc; if (d.site?.settings?.subdomain === sub) return id; } catch { /* fichier temporaire ou partiel */ }
     }

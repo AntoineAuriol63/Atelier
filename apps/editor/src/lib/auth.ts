@@ -1,15 +1,18 @@
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
+import { assertProduction, isProduction } from "@/lib/env";
 
 export type SessionUser = { email: string };
 
 /** La connexion est active dès que l'URL et la clé publique Supabase sont connues du navigateur. Sans elles (mode fichier, essais) : accès libre. */
-export const authEnabled = () => process.env.ATELIER_AUTH !== "off" && !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+export const authEnabled = () => { assertProduction(); return process.env.ATELIER_AUTH !== "off" && !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY; };
 
 /** Adresses autorisées à se connecter (`ATELIER_ALLOWED_EMAILS`, séparées par des virgules) ; vide = toutes. */
 export function emailAllowed(email: string): boolean {
   const list = (process.env.ATELIER_ALLOWED_EMAILS ?? "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
-  return list.length === 0 || list.includes(email.toLowerCase());
+  // Liste vide : tout le monde en développement, personne en production.
+  if (list.length === 0) return !isProduction();
+  return list.includes(email.toLowerCase());
 }
 
 /** Client Supabase côté serveur, lié aux cookies de la requête (composants serveur, routes). */
@@ -31,9 +34,9 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   return email && emailAllowed(email) ? { email } : null;
 }
 
-/** Un site est accessible à son propriétaire, et à tous quand il n'en a pas (sites d'avant les comptes). */
+/** Un site n'est accessible qu'à son propriétaire. Un site sans propriétaire (créé avant les comptes) n'est accessible à personne tant qu'on ne lui en a pas donné un (`scripts/assign-owner.mjs`). */
 export function canAccess(owner: string | null | undefined, user: SessionUser | null): boolean {
   if (!authEnabled()) return true;
   if (!user) return false;
-  return !owner || owner === user.email;
+  return !!owner && owner.toLowerCase() === user.email.toLowerCase();
 }
