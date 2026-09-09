@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { safePath } from "@/lib/safe-path";
 import { isProduction } from "@/lib/env";
-import { serverSupabase, authEnabled, emailAllowed } from "@/lib/auth";
+import { serverSupabase, authEnabled, canSignIn } from "@/lib/auth";
 
 /** Envoie le lien de connexion par email (Supabase Auth, lien magique), après vérification des adresses autorisées. */
 export async function POST(req: Request) {
@@ -10,7 +10,7 @@ export async function POST(req: Request) {
   try { body = await req.json(); } catch { return Response.json({ error: "Corps invalide" }, { status: 400 }); }
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return Response.json({ error: "Adresse email invalide" }, { status: 400 });
-  if (!emailAllowed(email)) return Response.json({ error: "Cette adresse n'est pas autorisée sur cet Atelier." }, { status: 403 });
+  if (!(await canSignIn(email))) return Response.json({ error: "Cette adresse n'est pas autorisée sur cet Atelier." }, { status: 403 });
   const origin = new URL(req.url).origin;
   const suite = safePath(typeof body.suite === "string" ? body.suite : "/");
   const supabase = await serverSupabase();

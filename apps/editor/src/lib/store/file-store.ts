@@ -2,10 +2,10 @@ import { mkdir, readFile, writeFile, appendFile, rename, readdir, rm } from "nod
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { applyOps, migrate, validateSite, type Change, type Entry, type Site } from "@atelier/model";
-import type { ChangeInput, ChangeResult, PublicationMeta, Published, SiteStore, SiteSummary, StoredSite } from "./types";
+import type { ChangeInput, ChangeResult, Member, PublicationMeta, Published, SiteStore, SiteSummary, StoredSite } from "./types";
 
 type Publication = PublicationMeta & { site: Site; entries: Entry[] };
-type FileDoc = { site: Site; version: number; entries: Entry[]; publications?: Publication[]; publishedVersion?: number; owner?: string | null; updatedAt?: string };
+type FileDoc = { site: Site; version: number; entries: Entry[]; publications?: Publication[]; publishedVersion?: number; owner?: string | null; members?: Member[]; updatedAt?: string };
 
 /**
  * Dépôt sur fichiers JSON : `<dir>/sites/<id>.json` (document courant) et `<dir>/sites/<id>.changes.jsonl` (journal).
@@ -52,7 +52,7 @@ export class FileSiteStore implements SiteStore {
     });
   }
 
-  async listSites(owner?: string): Promise<SiteSummary[]> {
+  async listSites(user?: string): Promise<SiteSummary[]> {
     const dir = path.join(this.dir, "sites");
     if (!existsSync(dir)) return [];
     const out: SiteSummary[] = [];
@@ -60,8 +60,10 @@ export class FileSiteStore implements SiteStore {
       if (!f.endsWith(".json")) continue;
       try {
         const d = JSON.parse(await readFile(path.join(dir, f), "utf8")) as FileDoc;
-        if (owner && d.owner && d.owner !== owner) continue;
-        out.push({ id: d.site.id, name: d.site.name, version: d.version, updatedAt: d.updatedAt ?? "", publishedVersion: d.publishedVersion ?? null, subdomain: d.site.settings.subdomain ?? null, owner: d.owner ?? null });
+        const member = user ? (d.members ?? []).find((m) => m.email.toLowerCase() === user.toLowerCase()) : undefined;
+        if (user && d.owner && d.owner !== user && !member) continue;
+        const role: SiteSummary["role"] = !user ? undefined : member ? member.role : "owner";
+        out.push({ id: d.site.id, name: d.site.name, version: d.version, updatedAt: d.updatedAt ?? "", publishedVersion: d.publishedVersion ?? null, subdomain: d.site.settings.subdomain ?? null, owner: d.owner ?? null, role });
       } catch { /* fichier temporaire */ }
     }
     return out.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -139,6 +141,35 @@ export class FileSiteStore implements SiteStore {
       await this.write(id, { ...d, publications, publishedVersion: d.version });
       return meta;
     });
+  }
+  async publishEntries(id: string): Promise<PublicationMeta> {
+    return this.serialize(id, async () => {
+      const d = await this.read(id);
+      if (!d) throw new Error(`Site introuvable : ${id}`);
+      const p = d.publications?.find((x) => x.version === d.publishedVersion);
+      if (!p) throw new Error("Publiez d'abord le site une première fois.");
+      await this.write(id, { ...d, publications: d.publications!.map((x) => (x.version === p.version ? { ...x, entries: d.entries } : x)) });
+      return { version: p.version, label: p.label, createdAt: p.createdAt };
+    });
+  }
+  async members(id: string): Promise<Member[]> { return (await this.read(id))?.members ?? []; }
+  async setMember(id: string, member: Member): Promise<void> {
+    await this.serialize(id, async () => {
+      const d = await this.read(id);
+      if (!d) throw new Error(`Site introuvable : ${id}`);
+      const email = member.email.toLowerCase();
+      await this.write(id, { ...d, members: [...(d.members ?? []).filter((m) => m.email.toLowerCase() !== email), { email, role: member.role }] });
+    });
+  }
+  async removeMember(id: string, email: string): Promise<void> {
+    await this.serialize(id, async () => {
+      const d = await this.read(id);
+      if (!d) return;
+      await this.write(id, { ...d, members: (d.members ?? []).filter((m) => m.email.toLowerCase() !== email.toLowerCase()) });
+    });
+  }
+  async isMember(email: string): Promise<boolean> {
+    return (await this.listSites()).length > 0 && (await Promise.all((await this.listSites()).map((s) => this.members(s.id)))).some((ms) => ms.some((m) => m.email.toLowerCase() === email.toLowerCase()));
   }
   async publications(id: string): Promise<PublicationMeta[]> {
     const d = await this.read(id);

@@ -8,7 +8,7 @@ import { Badge, Button, ConfirmProvider, Hint, IconButton, TextInput, askConfirm
 import { Segmented } from "@/ui/controls";
 import { PRODUCT_NAME } from "@/lib/product";
 
-export type DashboardSite = { id: string; name: string; version: number; updatedAt: string; publishedVersion: number | null; subdomain: string | null; owner: string | null; url: string | null };
+export type DashboardSite = { id: string; name: string; version: number; updatedAt: string; publishedVersion: number | null; subdomain: string | null; owner: string | null; url: string | null; role?: "owner" | "editor" | "writer" };
 const when = (iso: string) => (iso ? new Date(iso).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
 
 /** Les sites d'un compte : ouvrir, créer (vierge ou exemple), supprimer, voir en ligne. */
@@ -72,7 +72,7 @@ export function Dashboard({ sites, user }: { sites: DashboardSite[]; user: strin
             <li key={s.id} className="group rounded-md border border-line bg-panel p-4 flex flex-col gap-2 hover:border-line-strong">
               <div className="flex items-start gap-2">
                 <Link href={`/sites/${s.id}`} className="flex-1 min-w-0 text-base font-medium text-ink hover:text-accent truncate">{s.name}</Link>
-                <IconButton label="Supprimer le site" icon={Trash2} tone="danger" size="sm" className="opacity-60 group-hover:opacity-100 focus-visible:opacity-100" onClick={() => remove(s)} />
+                {s.role && s.role !== "owner" ? <Badge tone="accent" title={s.role === "writer" ? "Partagé avec vous : vous écrivez le contenu" : "Partagé avec vous : vous pouvez tout modifier sauf le partage"}>{s.role === "writer" ? "rédacteur" : "éditeur"}</Badge> : <IconButton label="Supprimer le site" icon={Trash2} tone="danger" size="sm" className="opacity-60 group-hover:opacity-100 focus-visible:opacity-100" onClick={() => remove(s)} />}
               </div>
               <div className="flex items-center gap-2 text-xs text-muted">
                 {s.publishedVersion !== null ? <Badge tone="success">en ligne{s.publishedVersion !== s.version ? ` · v${s.publishedVersion}` : ""}</Badge> : <Badge>non publié</Badge>}

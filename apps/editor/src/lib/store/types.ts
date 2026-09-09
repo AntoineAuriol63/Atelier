@@ -1,7 +1,9 @@
 import type { Change, Entry, Op, Site } from "@atelier/model";
 
 export type StoredSite = { site: Site; version: number; owner?: string | null };
-export type SiteSummary = { id: string; name: string; version: number; updatedAt: string; publishedVersion: number | null; subdomain: string | null; owner: string | null };
+export type SiteSummary = { id: string; name: string; version: number; updatedAt: string; publishedVersion: number | null; subdomain: string | null; owner: string | null; /** Rôle du compte demandé sur ce site (`listSites(user)`), absent sans compte. */ role?: "owner" | "editor" | "writer" };
+/** Personne invitée sur un site (D51) : éditeur (tout sauf partage et suppression) ou rédacteur (contenu seulement). */
+export type Member = { email: string; role: "editor" | "writer" };
 
 export type PublicationMeta = { version: number; label?: string; createdAt: string };
 /** Ce que sert le site publié : l'instantané désigné, jamais le document de travail. */
@@ -22,8 +24,13 @@ export interface SiteStore {
   /** Propriétaire d'un site sans charger son document ; `undefined` si le site n'existe pas. */
   owner(id: string): Promise<{ owner: string | null } | undefined>;
   create(site: Site, owner?: string): Promise<StoredSite>;
-  /** Sites visibles par un propriétaire (les sites sans propriétaire sont visibles de tous), ou tous si `owner` absent. */
-  listSites(owner?: string): Promise<SiteSummary[]>;
+  /** Sites d'un compte : les siens et ceux où il est invité (les sites sans propriétaire sont visibles de tous), ou tous si `user` absent. */
+  listSites(user?: string): Promise<SiteSummary[]>;
+  members(id: string): Promise<Member[]>;
+  setMember(id: string, member: Member): Promise<void>;
+  removeMember(id: string, email: string): Promise<void>;
+  /** Vrai si cette adresse est invitée sur au moins un site (elle peut alors se connecter sans figurer dans la liste d'Atelier). */
+  isMember(email: string): Promise<boolean>;
   delete(id: string): Promise<void>;
   /** Applique les opérations si `baseVersion` est la version courante ; sinon conflit. */
   appendChange(id: string, change: ChangeInput): Promise<ChangeResult>;
@@ -34,6 +41,8 @@ export interface SiteStore {
   deleteEntries(id: string, ids: string[]): Promise<void>;
   /** Fige le document courant et ses entrées en un instantané, qui devient la version publiée (D36). */
   publish(id: string, label?: string): Promise<PublicationMeta>;
+  /** Publication du contenu seul : remplace les entrées de la version publiée par les entrées courantes, sans toucher au document en ligne. */
+  publishEntries(id: string): Promise<PublicationMeta>;
   publications(id: string): Promise<PublicationMeta[]>;
   published(id: string): Promise<Published | null>;
   /** Désigne un instantané existant comme version publiée (retour arrière). */

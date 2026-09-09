@@ -32,6 +32,8 @@ for (const table of ["sites", "changes", "entries", "snapshots"]) {
   check("colonne des comptes (sites.owner)", !owner.error, owner.error ? owner.error.message + " → exécuter le bloc « comptes » de supabase/schema.sql" : "");
   const rl = await sb.rpc("rate_limit_hit", { p_key: "check", p_window_seconds: 60, p_max: 1000 });
   check("limite de débit (rate_limits, rate_limit_hit)", !rl.error, rl.error ? rl.error.message + " → exécuter le bloc « limite de débit » de supabase/schema.sql" : "");
+  const members = await sb.from("site_members").select("site_id").limit(1);
+  check("partage (site_members)", !members.error, members.error ? members.error.message + " → exécuter le bloc « partage » de supabase/schema.sql" : "");
   const bucket = await sb.storage.getBucket("assets");
   check("seau de fichiers « assets »", !bucket.error, bucket.error ? "créé automatiquement au premier import" : "");
   if (bucket.error) ok = true && ok;

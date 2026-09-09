@@ -61,6 +61,29 @@ function contract(name: string, make: () => Promise<{ store: SiteStore; cleanup:
       expect(await store.findBySubdomain(id.replace(/_/g, "-"))).toBe(id);
       expect(await store.findBySubdomain("n'importe,quoi")).toBeNull();
     });
+    it("publie les contenus seuls sous la version en ligne", async () => {
+      const before = await store.published(id);
+      await store.upsertEntries(id, [{ id: "e_9", database: "db_x", status: "published", values: { title: "T9" }, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]);
+      const meta = await store.publishEntries(id);
+      expect(meta.version).toBe(before!.version);
+      const after = await store.published(id);
+      expect(after!.version).toBe(before!.version);
+      expect(after!.site.name).toBe(before!.site.name);
+      expect(after!.entries.some((e) => e.id === "e_9")).toBe(true);
+    });
+    it("partage un site : membres, rôle, liste par compte, connexion des invités", async () => {
+      await store.setMember(id, { email: "Invite@Exemple.fr", role: "writer" });
+      expect(await store.members(id)).toEqual([{ email: "invite@exemple.fr", role: "writer" }]);
+      await store.setMember(id, { email: "invite@exemple.fr", role: "editor" });
+      expect((await store.members(id))[0]?.role).toBe("editor");
+      expect((await store.listSites("invite@exemple.fr")).find((s) => s.id === id)?.role).toBe("editor");
+      expect((await store.listSites("proprio@exemple.fr")).find((s) => s.id === id)?.role).toBe("owner");
+      expect(await store.isMember("invite@exemple.fr")).toBe(true);
+      expect(await store.isMember("inconnu@exemple.fr")).toBe(false);
+      await store.removeMember(id, "invite@exemple.fr");
+      expect(await store.members(id)).toEqual([]);
+      expect((await store.listSites("invite@exemple.fr")).some((s) => s.id === id)).toBe(false);
+    });
     it("compte une limite de débit", async () => {
       const key = `test:${id}`;
       let ok = 0; for (let i = 0; i < 4; i++) if (await store.rateLimit(key, 60, 3)) ok++;

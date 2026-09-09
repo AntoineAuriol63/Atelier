@@ -55,7 +55,7 @@ export function templatePage(site: Site, db: Database): Page {
   return { ...page, kind: "template", path: `/${db.slug}/{${db.slugField ?? "slug"}}` };
 }
 
-export function PagesPanel({ site, pageId, onOpen, commit }: { site: Site; pageId: string; onOpen: (id: string) => void; commit: Commit }) {
+export function PagesPanel({ site, pageId, onOpen, commit, readOnly = false }: { site: Site; pageId: string; onOpen: (id: string) => void; commit: Commit; /** Rédacteur : navigation seulement, pas de création ni de réglages. */ readOnly?: boolean }) {
   const locale = site.settings.defaultLocale;
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
@@ -130,11 +130,11 @@ export function PagesPanel({ site, pageId, onOpen, commit }: { site: Site; pageI
                   {p.path === NOT_FOUND_PATH ? <Badge tone="warning" title="Servie quand une adresse n'existe pas (erreur 404) ; non indexée">404</Badge> : null}
                   <span className="ml-auto font-mono text-2xs text-dim truncate max-w-[40%]">{tpl ? tpl.slugPattern.replace(/\{\w+\}/g, "…") : p.kind === "template" ? "sans base" : p.path}</span>
                 </button>
-                <div className={cx("flex items-center", open ? "" : "opacity-0 group-hover:opacity-100 focus-within:opacity-100")}>
+                {readOnly ? null : <div className={cx("flex items-center", open ? "" : "opacity-0 group-hover:opacity-100 focus-within:opacity-100")}>
                   <IconButton size="sm" label="Réglages de la page" icon={Settings2} active={open} onClick={() => setSettingsFor(open ? null : p.id)} />
                   <IconButton size="sm" label="Dupliquer la page" icon={Copy} onClick={() => duplicate(p)} />
                   <IconButton size="sm" label={site.pages.length <= 1 ? "Impossible de supprimer la dernière page" : "Supprimer la page"} icon={Trash2} tone="danger" disabled={site.pages.length <= 1} onClick={() => void remove(p)} />
-                </div>
+                </div>}
               </div>
               {open ? (
                 <div className="px-3 py-2 bg-surface/60 border-y border-line">
@@ -168,7 +168,7 @@ export function PagesPanel({ site, pageId, onOpen, commit }: { site: Site; pageI
             <TextInput className="flex-1" value={name} placeholder="Nom de la page" onValueChange={setName} autoFocus onKeyDown={(e) => { if (e.key === "Escape") setCreating(false); }} />
             <Button type="submit" variant="primary" disabled={!name.trim()}>Créer</Button>
           </form>
-        ) : (
+        ) : readOnly ? <Hint>En tant que rédacteur, vous modifiez le contenu des pages ; leur création et leurs réglages sont réservés aux éditeurs.</Hint> : (
           <Button className="w-full" icon={Plus} onClick={() => setCreating(true)}>Nouvelle page</Button>
         )}
         {creating ? <Hint>L&apos;adresse est déduite du nom ({name.trim() ? "/" + slugify(name) : "/…"}). L&apos;en-tête et le pied de page du site sont ajoutés automatiquement.</Hint> : null}

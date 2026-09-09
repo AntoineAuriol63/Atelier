@@ -6,12 +6,12 @@ import { SupabaseSiteStore } from "./supabase-store";
 import { FileAssetStorage, SupabaseAssetStorage, type AssetStorage } from "./assets";
 import { assertProduction } from "@/lib/env";
 
-export type { SiteStore, StoredSite, SiteSummary, ChangeInput, ChangeResult, PublicationMeta, Published } from "./types";
+export type { SiteStore, StoredSite, SiteSummary, Member, ChangeInput, ChangeResult, PublicationMeta, Published } from "./types";
 export type { AssetStorage } from "./assets";
 export { FileAssetStorage } from "./assets";
 
 /** À incrémenter quand l'interface `SiteStore` change. */
-const STORE_VERSION = 9;
+const STORE_VERSION = 10;
 
 declare global {
   var __atelierStore: { key: string; store: SiteStore } | undefined;

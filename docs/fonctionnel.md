@@ -2,13 +2,13 @@
 
 Ce que l'outil fait aujourd'hui, et comment. Tenu à jour à chaque évolution (règle dans `CLAUDE.md`). Les décisions de fond sont dans `docs/decisions.md`, le contrat de données dans `docs/document-model.md`, le plan dans `docs/roadmap.md`. Ici : l'état réel.
 
-*Dernière mise à jour : 9 septembre 2026 (temps A et B, export du code, composants, minimum professionnel de la revue globale).*
+*Dernière mise à jour : 9 septembre 2026 (temps A et B, export du code, composants, minimum professionnel, rôles et partage de la revue globale).*
 
 ## Partie 1 · Fonctionnel
 
 ### 1.0 Compte et tableau de bord
 
-Connexion par lien magique (Supabase Auth), adresses autorisées par variable d'environnement, sans connexion configurée l'accès est libre (développement). Tableau de bord : les sites du compte, état de publication, changements à publier, adresse en ligne, création (site vierge ou exemple photographe), suppression, déconnexion. Chaque site s'ouvre dans l'éditeur à `/sites/<id>`.
+Connexion par lien magique (Supabase Auth), adresses autorisées par variable d'environnement, sans connexion configurée l'accès est libre (développement). Partage par site (fenêtre Publier → Partage, propriétaire seulement) : inviter une adresse comme **rédacteur** (mode Écriture seulement : textes, images, blocs, entrées des bases, publication des contenus ; ni design, ni pages, ni réglages, ni thème, refusés côté serveur selon la frontière Écriture/Design) ou **éditeur** (tout sauf partager et supprimer le site). Une adresse invitée peut se connecter sans figurer dans la liste d'Atelier. Le tableau de bord marque les sites partagés avec le rôle. Tableau de bord : les sites du compte, état de publication, changements à publier, adresse en ligne, création (site vierge ou exemple photographe), suppression, déconnexion. Chaque site s'ouvre dans l'éditeur à `/sites/<id>`.
 
 ### 1.1 L'éditeur en un coup d'œil
 
@@ -53,7 +53,7 @@ Jetons (couleurs par mode clair/sombre, espacements, largeurs, rayons, ombres, t
 ### 1.6 Données (bases)
 
 - Onglet Données : bases avec nombre d'entrées et de brouillons, création (avec page par entrée), messages reçus des formulaires.
-- Vue tableur : entrées en lignes, champs en colonnes, cellule par type (texte, texte long en paragraphes, nombre, date, oui/non, choix, choix multiples, image, galerie, lien, couleur, relation simple ou multiple ; le type « fichier » est déclaré mais n'a pas encore de cellule), publié / brouillon, adresse qui suit le titre, suppression, export CSV (servi par le serveur en pièce jointe, avec message de confirmation, et copie dans le presse-papier en secours), import CSV ou JSON avec correspondance des colonnes et conversion par type, suppression de la base avec ses pages par entrée.
+- Vue tableur : entrées en lignes, champs en colonnes, cellule par type (texte, texte long en paragraphes, nombre, date, oui/non, choix, choix multiples, image, galerie, lien, couleur, relation simple ou multiple ; le type « fichier » est déclaré mais n'a pas encore de cellule), publié / brouillon, adresse qui suit le titre, suppression, export CSV (servi par le serveur en pièce jointe, avec message de confirmation, et copie dans le presse-papier en secours), import CSV ou JSON avec correspondance des colonnes et conversion par type, suppression de la base avec ses pages par entrée. Navigation au clavier entre cellules : flèches (gauche et droite en bord de saisie), Entrée valide et descend, Échap annule.
 - Champs : ajouter, renommer, typer, obligatoire, options, relation, réordonner, supprimer.
 - Vues de base de données dans les pages : base, filtre (conditions « et »), tris, limite, texte si vide ; en Design : disposition (grille, liste, défilement) et colonnes par point de rupture.
 - Liaisons : un texte, une image ou un lien placé dans une vue ou une page par entrée affiche un champ (section Données de l'inspecteur).
@@ -70,11 +70,13 @@ Bloc Formulaire (nom, email, message, bouton), champs réglables (libellé, clé
 
 Fenêtre Publier : état en ligne, écart avec la version de travail, note, historique, remettre en ligne une version, sous-domaine, référencement du site (suffixe des titres, description, image sociale, favicon). Le site publié est servi depuis l'instantané publié, jamais depuis le travail en cours. Référencement automatique, plan du site, robots. Nom du site modifiable. Page introuvable : « Créer la page introuvable » pose une page fixe à `/404` (titre, explication, lien vers l'accueil, non indexée) servie en 404 pour toute adresse inconnue. Redirections : liste `de → vers`, définitive (301) ou temporaire (302), `/dossier/*` et `*` pour le reste, validées à la saisie. Code personnalisé : deux zones, dans `<head>` et en fin de `<body>`, insérées telles quelles sur le site publié et dans l'export, jamais dans l'éditeur. Le site publié est un document HTML complet sans JavaScript d'Atelier (hors script des formulaires). Détail : `docs/publication.md`, mise en ligne : `docs/mise-en-ligne.md`.
 
+**Publier les contenus seulement** : met en ligne les entrées des bases sous la version publiée, sans toucher au site en ligne (seul bouton d'un rédacteur).
+
 **Exporter le code** (même fenêtre) : « Télécharger le site (.zip) » rend une archive statique complète, depuis la version publiée (sinon la version de travail) : une page HTML par adresse (pages fixes et une par entrée des modèles), `styles.css` aux classes lisibles déduites des noms des calques (`heros`, `heros-title`, `heros-text-2`, `bouton`), médias nommés d'après la bibliothèque avec leurs déclinaisons, données par base en JSON, document source, redirections, README. À déposer à la racine d'un hébergement statique. L'inspecteur affiche la classe CSS que portera chaque élément ; renommer un calque la renomme. Détail : `docs/export.md`.
 
 ### 1.10 Pas encore là (voir la feuille de route)
 
-Rôles et partage par site, domaine personnalisé, export en projet Next.js (l'archive statique existe), emplacements et surcharges locales des composants, publication du contenu seule, interactions déclaratives, bases externes, texte riche dans les champs, sélection multiple, pagination des vues, calendrier et carte, animations d'interaction, langues multiples, membres.
+Domaine personnalisé, export en projet Next.js (l'archive statique existe), emplacements et surcharges locales des composants, publication du contenu seule, interactions déclaratives, bases externes, texte riche dans les champs, sélection multiple, pagination des vues, calendrier et carte, animations d'interaction, langues multiples, membres.
 
 ## Partie 2 · Technique
 
@@ -103,6 +105,8 @@ Monorepo npm workspaces.
 - Inspecteur : `NodeInspector` + panneaux `components/design/*` sur `useStyle` (lecture par `resolveNodeStyle`, écriture sur le point de rupture actif). Système de design de l'éditeur dans `src/ui` (jetons dans `globals.css`).
 
 Composants : `packages/model/src/components.ts` (`planMakeComponent`, `planDetach`, `planDeleteComponent`, `componentUsages`, `applyOverrides`, `instanceVariant`, `variantClasses`, `variantKey`/`parseVariantKey`, `variantStylePath`, `resolveVariantStyle`), moteur `variantCss` dans `css.ts` et `RenderContext.extraClass` (classes de variante sur la racine de l'instance), panneaux `components/design/ComponentPanels.tsx` (`MakeComponentRow`, `InstancePanel`, `ComponentPanel`, `PropBindingPanel`), cible de style `variant` dans `useStyle`. Tests : `packages/model/test/components.test.ts`, moteur « variantes de composant ».
+
+Rôles : `packages/model/src/roles.ts` (`Role`, `atLeast`, `opAllowedForWriter`), `lib/site-access.ts` (`siteRole`, `guardSite(id, min)`, `guardRole`), dépôts (`members`, `setMember`, `removeMember`, `isMember`, `listSites(user)` avec `role`, `publishEntries`), table `site_members`, route `/api/sites/:id/members` (GET, PUT, DELETE, propriétaire), `canSignIn` (liste ou invité). Niveaux : lecture, entrées, fichiers, changements et contenus seuls pour le rédacteur (les opérations d'un rédacteur sont filtrées par `opAllowedForWriter`) ; publication, retour arrière, export pour l'éditeur ; suppression et partage pour le propriétaire. L'éditeur reçoit `role` (`EditorShellClient`) : rédacteur forcé en Écriture, onglet Design désactivé, panneau Pages en lecture, fenêtre Publier réduite.
 
 ### 2.4 Rendu publié et référencement
 

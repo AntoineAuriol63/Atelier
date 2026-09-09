@@ -30,9 +30,9 @@ Ce document explique la vraie mise en ligne : l'éditeur hébergé, les sites pu
 
 Sans domaine de sites, il n'y a pas de site public en production : le repli `/s/<sous-domaine>/` est réservé au développement (`ATELIER_ALLOW_PATH_FALLBACK=1` le force pour un essai, jamais avec des sites de clients). L'application refuse de démarrer en production si une variable Supabase, la connexion ou la liste des adresses manque, ou si `ATELIER_AUTH=off` / `ATELIER_STORE=file` traînent.
 
-## 3 bis. Propriétaires des sites
+## 3 bis. Propriétaires des sites et partage
 
-Un site n'est accessible qu'à son propriétaire. Les sites créés avant les comptes n'en ont pas : `node --env-file=apps/editor/.env.local scripts/assign-owner.mjs votre@adresse` les attribue en une fois.
+Un site n'est accessible qu'à son propriétaire et aux personnes qu'il invite. Les sites créés avant les comptes n'ont pas de propriétaire : `node --env-file=apps/editor/.env.local scripts/assign-owner.mjs votre@adresse` les attribue en une fois. Le bloc « partage » de `supabase/schema.sql` (table `site_members`) est nécessaire en production. Les personnes invitées se connectent avec leur adresse sans être dans `ATELIER_ALLOWED_EMAILS`, qui reste la liste de ceux qui peuvent créer des sites.
 
 ## 4. Vérifier après déploiement
 
@@ -43,5 +43,4 @@ Un site n'est accessible qu'à son propriétaire. Les sites créés avant les co
 
 ## 5. Ce qui manque encore pour un client
 
-- Des rôles et un partage par site (v1, D50–D51) : aujourd'hui, un compte voit ses propres sites, et la liste des adresses autorisées est une variable d'environnement.
-- Le domaine personnalisé d'un client (`v1`), l'export du code (D15), les sauvegardes planifiées.
+- Le domaine personnalisé d'un client (v1), l'export en projet Next.js (l'archive statique existe, D15), les sauvegardes planifiées.

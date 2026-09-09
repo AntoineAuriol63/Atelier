@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { assertProduction, isProduction } from "@/lib/env";
+import { getStore } from "@/lib/store";
 
 export type SessionUser = { email: string };
 
@@ -26,12 +27,18 @@ export async function serverSupabase() {
   });
 }
 
+/** Une adresse peut se connecter si elle est dans la liste d'Atelier, ou invitée sur au moins un site (D51). */
+export async function canSignIn(email: string): Promise<boolean> {
+  if (emailAllowed(email)) return true;
+  try { return await getStore().isMember(email); } catch { return false; }
+}
+
 /** L'utilisateur connecté, ou `null`. Sans connexion active : un utilisateur local anonyme. */
 export async function getSessionUser(): Promise<SessionUser | null> {
   if (!authEnabled()) return { email: "local" };
   const { data } = await (await serverSupabase()).auth.getUser();
   const email = data.user?.email;
-  return email && emailAllowed(email) ? { email } : null;
+  return email && (await canSignIn(email)) ? { email } : null;
 }
 
 /** Un site n'est accessible qu'à son propriétaire. Un site sans propriétaire (créé avant les comptes) n'est accessible à personne tant qu'on ne lui en a pas donné un (`scripts/assign-owner.mjs`). */

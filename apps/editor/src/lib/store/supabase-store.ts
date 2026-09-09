@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { applyOps, migrate, validateSite, type Change, type Entry, type Site } from "@atelier/model";
-import type { ChangeInput, ChangeResult, PublicationMeta, Published, SiteStore, SiteSummary, StoredSite } from "./types";
+import type { ChangeInput, ChangeResult, Member, PublicationMeta, Published, SiteStore, SiteSummary, StoredSite } from "./types";
 import { isProduction } from "@/lib/env";
 
 const SUBDOMAIN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
@@ -45,15 +45,52 @@ export class SupabaseSiteStore implements SiteStore {
     return { site, version: 0, owner: this.ownerColumn === false ? null : owner ?? null };
   }
 
-  async listSites(owner?: string): Promise<SiteSummary[]> {
+  async listSites(user?: string): Promise<SiteSummary[]> {
     const cols = (withOwner: boolean) => `id, name, version, updated_at, published_version, subdomain${withOwner ? ", owner" : ""}`;
+    // Sites où le compte est invité (table du bloc « partage »), pour les lister avec les siens.
+    const memberships = user ? await this.membershipsOf(user) : new Map<string, Member["role"]>();
     let q = this.client.from("sites").select(cols(this.ownerColumn !== false)).order("updated_at", { ascending: false });
-    if (owner && this.ownerColumn !== false) q = q.eq("owner", owner);
+    if (user && this.ownerColumn !== false) q = memberships.size ? q.or(`owner.eq.${user},id.in.(${[...memberships.keys()].join(",")})`) : q.eq("owner", user);
     let { data, error } = await q;
     if (error && this.isUndefinedColumn(error) && this.ownerColumn !== false) { this.ownerColumn = false; ({ data, error } = await this.client.from("sites").select(cols(false)).order("updated_at", { ascending: false })); }
     if (error) this.missingColumn(error);
-    return ((data ?? []) as unknown as Record<string, unknown>[]).map((r) => ({ id: r.id as string, name: r.name as string, version: r.version as number, updatedAt: r.updated_at as string, publishedVersion: (r.published_version as number | null) ?? null, subdomain: (r.subdomain as string | null) ?? null, owner: (r.owner as string | null) ?? null }));
+    return ((data ?? []) as unknown as Record<string, unknown>[]).map((r) => {
+      const id = r.id as string;
+      const role: SiteSummary["role"] = !user ? undefined : memberships.get(id) ?? "owner";
+      return { id, name: r.name as string, version: r.version as number, updatedAt: r.updated_at as string, publishedVersion: (r.published_version as number | null) ?? null, subdomain: (r.subdomain as string | null) ?? null, owner: (r.owner as string | null) ?? null, role };
+    });
   }
+
+  /** La table `site_members` (bloc « partage ») peut manquer : sans elle, personne n'est invité. En production, on exige le bloc. */
+  private membersTable: boolean | null = null;
+  private isUndefinedTable(e: { code?: string; message: string } | null) {
+    const missing = !!e && (e.code === "42P01" || /relation .* does not exist/.test(e.message));
+    if (missing && isProduction()) throw new Error("La table site_members manque : exécutez le bloc « partage » de supabase/schema.sql");
+    return missing;
+  }
+  private async membershipsOf(email: string): Promise<Map<string, Member["role"]>> {
+    if (this.membersTable === false) return new Map();
+    const r = await this.client.from("site_members").select("site_id, role").eq("email", email.toLowerCase());
+    if (r.error) { if (this.isUndefinedTable(r.error)) { this.membersTable = false; return new Map(); } throw new Error(r.error.message); }
+    this.membersTable = true;
+    return new Map((r.data ?? []).map((m) => [m.site_id as string, m.role as Member["role"]]));
+  }
+  async members(id: string): Promise<Member[]> {
+    if (this.membersTable === false) return [];
+    const r = await this.client.from("site_members").select("email, role").eq("site_id", id).order("email");
+    if (r.error) { if (this.isUndefinedTable(r.error)) { this.membersTable = false; return []; } throw new Error(r.error.message); }
+    this.membersTable = true;
+    return (r.data ?? []).map((m) => ({ email: m.email as string, role: m.role as Member["role"] }));
+  }
+  async setMember(id: string, member: Member): Promise<void> {
+    const r = await this.client.from("site_members").upsert({ site_id: id, email: member.email.toLowerCase(), role: member.role }, { onConflict: "site_id,email" });
+    if (r.error) throw new Error(this.isUndefinedTable(r.error) ? "Le partage demande le bloc « partage » de supabase/schema.sql" : r.error.message);
+  }
+  async removeMember(id: string, email: string): Promise<void> {
+    const r = await this.client.from("site_members").delete().eq("site_id", id).eq("email", email.toLowerCase());
+    if (r.error && !this.isUndefinedTable(r.error)) throw new Error(r.error.message);
+  }
+  async isMember(email: string): Promise<boolean> { return (await this.membershipsOf(email)).size > 0; }
 
   async delete(id: string): Promise<void> {
     const { error } = await this.client.from("sites").delete().eq("id", id);
@@ -144,6 +181,15 @@ export class SupabaseSiteStore implements SiteStore {
     const stale = (old.data ?? []).map((r) => r.version as number).filter((v) => v !== current.version);
     if (stale.length) await this.client.from("snapshots").delete().eq("site_id", id).in("version", stale);
     return { version: current.version, label, createdAt };
+  }
+  async publishEntries(id: string): Promise<PublicationMeta> {
+    const pub = await this.published(id);
+    if (!pub) throw new Error("Publiez d'abord le site une première fois.");
+    const entries = await this.entries(id);
+    const up = await this.client.from("snapshots").update({ document: { site: pub.site, entries } }).eq("site_id", id).eq("version", pub.version);
+    if (up.error) throw new Error(up.error.message);
+    const meta = (await this.publications(id)).find((p) => p.version === pub.version);
+    return meta ?? { version: pub.version, createdAt: pub.publishedAt };
   }
   async publications(id: string): Promise<PublicationMeta[]> {
     const { data, error } = await this.client.from("snapshots").select("version, label, created_at").eq("site_id", id).eq("kind", "publish").order("version", { ascending: false });

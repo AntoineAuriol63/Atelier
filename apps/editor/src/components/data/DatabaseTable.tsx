@@ -42,6 +42,31 @@ function Draft({ value, onCommit, type = "text", placeholder, mono }: { value: s
   return <input type={type} value={draft} placeholder={placeholder} onChange={(e) => setDraft(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setDraft(value); (e.target as HTMLInputElement).blur(); } }} className={`w-full h-7 px-1.5 bg-transparent text-sm text-ink rounded-xs border border-transparent hover:border-line focus:border-accent focus:bg-surface outline-none ${mono ? "font-mono text-xs" : ""}`} />;
 }
 
+const FOCUSABLE = "input:not([type=hidden]), select, textarea, button, [tabindex]";
+/** Navigation au clavier entre cellules : flèches (gauche/droite seulement en bord de saisie), Entrée valide et descend, comme dans un tableur. */
+function tableKeys(e: React.KeyboardEvent<HTMLTableElement>) {
+  const target = e.target as HTMLElement;
+  const td = target.closest("td");
+  if (!td || e.metaKey || e.ctrlKey || e.altKey) return;
+  const tr = td.parentElement as HTMLTableRowElement;
+  const col = td.cellIndex;
+  const isText = target instanceof HTMLInputElement && (target.type === "text" || target.type === "email" || target.type === "url" || target.type === "number" || target.type === "date") || target instanceof HTMLTextAreaElement;
+  const atStart = isText && (target as HTMLInputElement).selectionStart === 0 && (target as HTMLInputElement).selectionEnd === 0;
+  const atEnd = isText && (target as HTMLInputElement).selectionStart === (target as HTMLInputElement).value.length;
+  const focusCell = (row: HTMLTableRowElement | null, c: number) => {
+    const el = row?.cells[c]?.querySelector<HTMLElement>(FOCUSABLE);
+    if (!el) return false;
+    e.preventDefault(); el.focus();
+    if (el instanceof HTMLInputElement && el.type === "text") el.select();
+    return true;
+  };
+  const row = (d: number) => tr.parentElement?.children[tr.sectionRowIndex + d] as HTMLTableRowElement | undefined ?? null;
+  if (e.key === "ArrowDown" || (e.key === "Enter" && isText)) { if (isText && e.key === "Enter") target.blur(); focusCell(row(1), col); }
+  else if (e.key === "ArrowUp") focusCell(row(-1), col);
+  else if (e.key === "ArrowRight" && (!isText || atEnd)) { let c = col + 1; while (c < tr.cells.length && !focusCell(tr, c)) c++; }
+  else if (e.key === "ArrowLeft" && (!isText || atStart)) { let c = col - 1; while (c >= 0 && !focusCell(tr, c)) c--; }
+}
+
 function Cell({ site, db, field, entry, allEntries, onChange, onPickMedia }: { site: Site; db: Database; field: Field; entry: Entry; allEntries: Entry[]; onChange: (v: unknown) => void; onPickMedia: (mode: "image" | "gallery") => void }) {
   const locale = site.settings.defaultLocale;
   const v = entry.values[field.name];
@@ -236,7 +261,7 @@ export function DatabaseTable({ site, db, entries, save, saveMany, remove, commi
     <Dialog open onClose={onClose} title={`${db.name[locale] ?? db.slug} · ${rows.length} entrée${rows.length > 1 ? "s" : ""}`} width={1240} actions={<div className="flex items-center gap-1">{saving ? <span className="text-2xs text-dim mr-2">Enregistrement…</span> : null}<Button size="sm" variant={justExported ? "primary" : "default"} icon={justExported ? Check : Download} onClick={() => void exportCsv()} disabled={!rows.length} title="Télécharger toutes les entrées en CSV (tableur)">{justExported ? "Téléchargé" : "CSV"}</Button><Button size="sm" variant="ghost" icon={Copy} onClick={copyCsv} disabled={!rows.length} title="Copier le CSV dans le presse-papier (à coller dans un tableur)">Copier</Button>{readOnly || !saveMany ? null : <><input ref={importInput} type="file" accept=".csv,.json,text/csv,application/json" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void onImportFile(f); }} /><Button size="sm" icon={Upload} onClick={() => importInput.current?.click()} title="Importer un CSV (tableur) ou un JSON : les colonnes deviennent des champs">Importer…</Button></>}{readOnly ? null : <><Button size="sm" icon={Plus} onClick={addField}>Champ</Button><Button size="sm" variant="primary" icon={Plus} onClick={addEntry}>Nouvelle entrée</Button></>}</div>}>
       {editing ? <FieldEditor site={site} db={db} field={editing} isNew={editing.name.startsWith("champ")} onChange={(f) => updateField(editing.name, f)} onMove={(d) => moveField(editing.name, d)} onRemove={() => removeField(editing.name)} onClose={() => setFieldEdit(null)} /> : null}
       <div className="overflow-auto">
-        <table className="border-collapse text-sm min-w-full">
+        <table className="border-collapse text-sm min-w-full" onKeyDown={tableKeys}>
           <thead className="sticky top-0 z-10 bg-panel">
             <tr>
               <th className="w-8 border-b border-r border-line" title="Publié / brouillon" />

@@ -6,7 +6,7 @@ import { findForms, formDatabase, formDatabaseId } from "@/lib/forms";
 /** Export CSV d'une base (ou des messages d'un formulaire, `frm_<formId>`), en pièce jointe. */
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string; dbId: string }> }) {
   const { id, dbId } = await params;
-  const denied = await guardSite(id);
+  const denied = await guardSite(id, "editor");
   if (denied) return denied;
   const store = getStore();
   const stored = await store.get(id);

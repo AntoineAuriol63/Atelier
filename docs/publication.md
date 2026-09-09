@@ -4,6 +4,10 @@
 
 « Publier » fige le document courant **et ses entrées** en un instantané (`snapshots`, `kind = 'publish'`), qui devient la version publiée du site (`sites.published_version`). Le site public est toujours servi depuis cet instantané : continuer à travailler dans l'éditeur ne change rien en ligne tant qu'on ne republie pas (D36). Le retour arrière désigne un instantané précédent comme version publiée, sans rien recalculer.
 
+## Publier les contenus seulement
+
+« Publier les contenus seulement » (`POST /api/sites/:id/publish { contentOnly: true }`, `publishEntries` du dépôt) remplace les entrées de la version publiée par les entrées courantes, sans toucher au document en ligne ni créer de version : les projets, articles ou messages passent en ligne pendant qu'un travail de design reste en cours. Accessible aux rédacteurs, qui n'ont que ce bouton. Il faut avoir publié le site une première fois.
+
 ## Adresses
 
 Un site répond sur `<sous-domaine>.<ATELIER_SITES_DOMAIN>` (réécriture par `src/proxy.ts` vers `/s/<sous-domaine>/…`), et en repli sur `/s/<sous-domaine>/…` sur le domaine nu. Le sous-domaine vient de `settings.subdomain` (réglable dans la fenêtre Publier), sinon de l'identifiant du site. En développement, `marie.localhost:3000` fonctionne dans Chrome sans configuration.

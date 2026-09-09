@@ -1,13 +1,13 @@
 import { getSessionUser } from "@/lib/auth";
 import { LIMITS, tooLarge } from "@/lib/limits";
-import { guardSite } from "@/lib/site-access";
-import { schema, type Op } from "@atelier/model";
+import { guardRole, guardSite } from "@/lib/site-access";
+import { opAllowedForWriter, schema, type Op } from "@atelier/model";
 import { getStore } from "@/lib/store";
 
 /** Journal des changements d'un site. GET ?since=<version> ; POST { ops, baseVersion, label? }. */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const denied = await guardSite(id);
+  const denied = await guardSite(id, "writer");
   if (denied) return denied;
   const since = Number(new URL(req.url).searchParams.get("since") ?? "0");
   const changes = await getStore().changes(id, Number.isFinite(since) ? since : 0);
@@ -16,7 +16,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const denied = await guardSite(id);
+  const { denied, role } = await guardRole(id, "writer");
   if (denied) return denied;
   const big = tooLarge(req, LIMITS.changesBytes, "Cette modification");
   if (big) return big;
@@ -30,6 +30,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!r.success) return Response.json({ error: `Opération ${i} invalide`, issues: r.error.issues.map((x) => `${x.path.join(".")}: ${x.message}`) }, { status: 400 });
     ops.push(r.data as Op);
   }
+  // Un rédacteur écrit le contenu ; l'apparence et le site restent aux éditeurs (frontière Écriture/Design).
+  if (role === "writer" && !ops.every(opAllowedForWriter)) return Response.json({ error: "En tant que rédacteur, vous pouvez modifier les contenus, pas la mise en forme ni les réglages du site." }, { status: 403 });
   try {
     const author = (await getSessionUser())?.email ?? "local";
     const result = await getStore().appendChange(id, { ops, baseVersion: body.baseVersion, author, label: typeof body.label === "string" ? body.label : undefined });

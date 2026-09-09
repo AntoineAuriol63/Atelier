@@ -16,7 +16,7 @@ function baseName(name: string) { return name.replace(/\.[^.]+$/, "").replace(/[
 /** Import d'images : `POST` multipart, champ `file` (plusieurs possibles). Rend les `Asset` à ajouter au document. */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: siteId } = await params;
-  const denied = await guardSite(siteId);
+  const denied = await guardSite(siteId, "writer");
   if (denied) return denied;
   let form: FormData;
   try { form = await req.formData(); } catch { return Response.json({ error: "Envoi invalide" }, { status: 400 }); }

@@ -117,3 +117,13 @@ begin
   delete from rate_limits where window_start < now() - interval '1 day';
   return v_hits <= p_max;
 end $$;
+
+-- Partage par site (D51) : personnes invitées, éditeur (tout sauf partage et suppression) ou rédacteur (contenu seulement).
+create table if not exists site_members (
+  site_id text not null references sites(id) on delete cascade,
+  email   text not null,
+  role    text not null check (role in ('editor', 'writer')),
+  primary key (site_id, email)
+);
+create index if not exists site_members_email_idx on site_members (email);
+alter table site_members enable row level security;

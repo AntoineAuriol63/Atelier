@@ -1,10 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, Download, ExternalLink, History, Plus, UploadCloud, X } from "lucide-react";
-import type { CommitOptions, Op, Redirect, Site } from "@atelier/model";
-import { NOT_FOUND_PATH, validRedirect } from "@atelier/model";
-import { Badge, Button, Dialog, Field, FieldGroup, Hint, IconButton, TextArea, TextInput, Toggle, askConfirm } from "@/ui";
+import { Check, Download, ExternalLink, FileText, History, Plus, UploadCloud, Users, X } from "lucide-react";
+import type { CommitOptions, Op, Redirect, Role, Site } from "@atelier/model";
+import { NOT_FOUND_PATH, ROLE_LABEL, validRedirect } from "@atelier/model";
+import { Badge, Button, Dialog, Field, FieldGroup, Hint, IconButton, Select, TextArea, TextInput, Toggle, askConfirm } from "@/ui";
 import { notFoundPage } from "@/components/PagesPanel";
 import { AssetPicker } from "@/components/design/AppearancePanel";
 
@@ -14,12 +14,17 @@ type State = { publishedVersion: number | null; publishedAt: string | null; publ
 const when = (iso: string) => new Date(iso).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
 /** Publier, voir l'historique, revenir en arrière, régler l'adresse et le référencement du site (D34, D36, D38). */
-export function PublishDialog({ site, version, dirty, broken, commit, onClose, notify }: { site: Site; version: number; dirty: boolean; /** L'enregistrement est bloqué (conflit) : il faut recharger avant de publier. */ broken?: boolean; commit: Commit; onClose: () => void; notify: (text: string, tone?: "danger" | "success" | "info") => void }) {
+type Member = { email: string; role: "editor" | "writer" };
+
+export function PublishDialog({ site, role = "owner", version, dirty, broken, commit, onClose, notify }: { site: Site; /** Rôle du compte : un rédacteur ne publie que les contenus, seul le propriétaire partage. */ role?: Role; version: number; dirty: boolean; /** L'enregistrement est bloqué (conflit) : il faut recharger avant de publier. */ broken?: boolean; commit: Commit; onClose: () => void; notify: (text: string, tone?: "danger" | "success" | "info") => void }) {
+  const writer = role === "writer";
   const locale = site.settings.defaultLocale;
   const [state, setState] = useState<State | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [label, setLabel] = useState("");
   const [exported, setExported] = useState(false);
+  const [members, setMembers] = useState<Member[] | null>(null);
+  const [invite, setInvite] = useState<Member>({ email: "", role: "writer" });
   const [newRedirect, setNewRedirect] = useState<Redirect>({ from: "", to: "", permanent: true });
   const redirectError = newRedirect.from || newRedirect.to ? validRedirect(newRedirect) : undefined;
   const notFound = site.pages.find((p) => p.kind === "static" && p.path === NOT_FOUND_PATH);
@@ -32,6 +37,29 @@ export function PublishDialog({ site, version, dirty, broken, commit, onClose, n
     setState(body);
   }, [site.id, notify]);
   useEffect(() => { const t = window.setTimeout(() => { void load(); }, 0); return () => window.clearTimeout(t); }, [load]);
+  useEffect(() => {
+    if (role !== "owner") return;
+    const t = window.setTimeout(() => { void fetch(`/api/sites/${site.id}/members`).then(async (r) => { if (r.ok) setMembers(((await r.json()) as { members: Member[] }).members); }); }, 0);
+    return () => window.clearTimeout(t);
+  }, [role, site.id]);
+  const shareRequest = async (method: "PUT" | "DELETE", body: Member | { email: string }, ok: string) => {
+    setBusy("Partage…");
+    try {
+      const res = await fetch(`/api/sites/${site.id}/members`, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const data = (await res.json()) as { members?: Member[]; error?: string };
+      if (!res.ok) throw new Error(data.error ?? "Partage impossible");
+      setMembers(data.members ?? []); notify(ok, "success");
+    } catch (e) { notify(e instanceof Error ? e.message : "Partage impossible"); } finally { setBusy(null); }
+  };
+  const publishContent = async () => {
+    setBusy("Publication des contenus…");
+    try {
+      const res = await fetch(`/api/sites/${site.id}/publish`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ contentOnly: true }) });
+      const body = (await res.json()) as { version?: number; error?: string };
+      if (!res.ok) throw new Error(body.error ?? "Publication impossible");
+      notify(`Contenus publiés (sous la version ${body.version}).`, "success"); await load();
+    } catch (e) { notify(e instanceof Error ? e.message : "Publication impossible"); } finally { setBusy(null); }
+  };
 
   const publish = async () => {
     setBusy("Publication…");
@@ -80,13 +108,20 @@ export function PublishDialog({ site, version, dirty, broken, commit, onClose, n
             {broken ? <span className="text-xs text-danger">Enregistrement bloqué : rechargez la page avant de publier.</span> : dirty ? <span className="text-xs text-warning">Enregistrement en cours…</span> : null}
           </div>
           {state?.url ? <a href={state.url} target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-sm text-accent hover:underline"><ExternalLink size={13} />{state.url}</a> : null}
-          <div className="flex gap-1">
-            <TextInput className="flex-1" value={label} placeholder="Note pour l'historique (facultatif) : « Nouvelle galerie mariages »" onValueChange={setLabel} />
-            <Button variant="primary" icon={UploadCloud} disabled={!!busy || dirty || !!broken || !state} onClick={publish}>{busy ?? "Publier maintenant"}</Button>
+          {writer ? null : (
+            <div className="flex gap-1">
+              <TextInput className="flex-1" value={label} placeholder="Note pour l'historique (facultatif) : « Nouvelle galerie mariages »" onValueChange={setLabel} />
+              <Button variant="primary" icon={UploadCloud} disabled={!!busy || dirty || !!broken || !state} onClick={publish}>{busy ?? "Publier maintenant"}</Button>
+            </div>
+          )}
+          {writer ? null : <Hint>La publication fige le site et ses entrées tels qu&apos;ils sont maintenant. Continuer à travailler ne change rien en ligne tant que vous ne republiez pas.</Hint>}
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button variant={writer ? "primary" : "default"} icon={FileText} disabled={!!busy || dirty || !!broken || !state || state.publishedVersion === null} onClick={() => void publishContent()} title={state?.publishedVersion === null ? "Publiez d'abord le site une première fois" : "Mettre en ligne les entrées des bases (projets, articles, messages) sans toucher au site publié"}>Publier les contenus seulement</Button>
+            <span className="text-xs text-muted">Les entrées des bases passent en ligne, le site publié reste tel quel : les changements de design en cours n&apos;y vont pas.</span>
           </div>
-          <Hint>La publication fige le site et ses entrées tels qu&apos;ils sont maintenant. Continuer à travailler ne change rien en ligne tant que vous ne republiez pas.</Hint>
         </section>
 
+        {writer ? null : <>
         <section className="flex flex-col gap-2 border-t border-line pt-3">
           <h3 className="text-2xs uppercase tracking-[0.12em] text-dim">Site, adresse et référencement</h3>
           <FieldGroup>
@@ -148,6 +183,30 @@ export function PublishDialog({ site, version, dirty, broken, commit, onClose, n
           </div>
           <Hint>HTML complet page par page, feuille de style aux classes lisibles (les noms des calques), médias et données. À déposer tel quel sur n&apos;importe quel hébergement statique : le site vous appartient, sans Atelier.</Hint>
         </section>
+        </>}
+
+        {role === "owner" && members !== null ? (
+          <section className="flex flex-col gap-2 border-t border-line pt-3">
+            <h3 className="text-2xs uppercase tracking-[0.12em] text-dim flex items-center gap-1.5"><Users size={12} />Partage</h3>
+            {members.length ? (
+              <ul className="flex flex-col gap-1">
+                {members.map((m) => (
+                  <li key={m.email} className="grid grid-cols-[1fr_140px_24px] items-center gap-1 text-xs">
+                    <span className="truncate" title={m.email}>{m.email}</span>
+                    <Select value={m.role} options={[{ value: "editor", label: ROLE_LABEL.editor }, { value: "writer", label: ROLE_LABEL.writer }]} onValueChange={(r) => void shareRequest("PUT", { email: m.email, role: r as Member["role"] }, `${m.email} : ${ROLE_LABEL[r as Role].toLowerCase()}.`)} />
+                    <IconButton size="sm" label="Retirer l'accès" icon={X} onClick={() => void shareRequest("DELETE", { email: m.email }, `${m.email} n'a plus accès au site.`)} />
+                  </li>
+                ))}
+              </ul>
+            ) : <p className="text-sm text-dim">Personne d&apos;autre n&apos;a accès à ce site.</p>}
+            <form className="grid grid-cols-[1fr_140px_auto] gap-1 items-center" onSubmit={(e) => { e.preventDefault(); if (invite.email.trim()) { void shareRequest("PUT", { ...invite, email: invite.email.trim() }, `${invite.email.trim()} invité comme ${ROLE_LABEL[invite.role].toLowerCase()}.`); setInvite({ email: "", role: "writer" }); } }}>
+              <TextInput type="email" value={invite.email} placeholder="adresse@exemple.fr" onValueChange={(v) => setInvite((i) => ({ ...i, email: v }))} />
+              <Select value={invite.role} options={[{ value: "writer", label: ROLE_LABEL.writer }, { value: "editor", label: ROLE_LABEL.editor }]} onValueChange={(r) => setInvite((i) => ({ ...i, role: r as Member["role"] }))} />
+              <Button size="sm" icon={Plus} type="submit" disabled={!!busy || !invite.email.trim()}>Inviter</Button>
+            </form>
+            <Hint>Un <strong className="font-medium">rédacteur</strong> écrit le contenu (textes, images, entrées des bases) et publie les contenus ; un <strong className="font-medium">éditeur</strong> fait tout sauf partager ou supprimer le site. La personne invitée se connecte avec son adresse par lien magique.</Hint>
+          </section>
+        ) : null}
 
         <section className="flex flex-col gap-1 border-t border-line pt-3">
           <h3 className="text-2xs uppercase tracking-[0.12em] text-dim flex items-center gap-1.5"><History size={12} />Historique</h3>

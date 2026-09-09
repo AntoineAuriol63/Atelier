@@ -6,14 +6,14 @@ import { getStore } from "@/lib/store";
 /** Entrées des bases de données d'un site : `GET` liste, `PUT { entries }` ajoute ou remplace, `DELETE { ids }` supprime. */
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const denied = await guardSite(id);
+  const denied = await guardSite(id, "writer");
   if (denied) return denied;
   return Response.json({ entries: await getStore().entries(id) });
 }
 
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const denied = await guardSite(id);
+  const denied = await guardSite(id, "writer");
   if (denied) return denied;
   const big = tooLarge(req, LIMITS.entriesBytes, "Cet envoi d'entrées");
   if (big) return big;
@@ -33,7 +33,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const denied = await guardSite(id);
+  const denied = await guardSite(id, "writer");
   if (denied) return denied;
   let body: { ids?: unknown };
   try { body = await req.json(); } catch { return Response.json({ error: "Corps JSON invalide" }, { status: 400 }); }

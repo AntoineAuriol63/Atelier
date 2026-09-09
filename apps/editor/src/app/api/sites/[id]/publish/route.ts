@@ -2,10 +2,10 @@ import { guardSite } from "@/lib/site-access";
 import { getStore } from "@/lib/store";
 import { invalidatePublished, publicUrl } from "@/lib/published";
 
-/** `GET` : version publiée, historique, adresse. `POST { label? }` : publie le document courant et ses entrées (D36). */
+/** `GET` : version publiée, historique, adresse. `POST { label? }` : publie le document courant et ses entrées (D36) ; `POST { contentOnly: true }` : ne republie que les entrées, sous la version en ligne. */
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const denied = await guardSite(id);
+  const denied = await guardSite(id, "writer");
   if (denied) return denied;
   const store = getStore();
   try {
@@ -16,12 +16,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const denied = await guardSite(id);
-  if (denied) return denied;
-  let body: { label?: unknown } = {};
+  let body: { label?: unknown; contentOnly?: unknown } = {};
   try { body = await req.json(); } catch { /* sans corps : sans étiquette */ }
+  const contentOnly = body.contentOnly === true;
+  const denied = await guardSite(id, contentOnly ? "writer" : "editor");
+  if (denied) return denied;
   try {
-    const meta = await getStore().publish(id, typeof body.label === "string" && body.label.trim() ? body.label.trim() : undefined);
+    const meta = contentOnly ? await getStore().publishEntries(id) : await getStore().publish(id, typeof body.label === "string" && body.label.trim() ? body.label.trim() : undefined);
     invalidatePublished(id);
     const stored = await getStore().get(id);
     return Response.json({ ...meta, url: stored ? publicUrl(stored.site) : null });

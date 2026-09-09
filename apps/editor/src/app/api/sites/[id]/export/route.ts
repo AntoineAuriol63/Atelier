@@ -6,7 +6,7 @@ import { zip } from "@/lib/zip";
 /** Export du code (D15) : archive zip du site statique (HTML, CSS aux classes lisibles, médias, données), depuis la version publiée, sinon la version de travail. */
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const denied = await guardSite(id);
+  const denied = await guardSite(id, "editor");
   if (denied) return denied;
   const store = getStore();
   const pub = await store.published(id);

@@ -48,6 +48,10 @@ Le schéma a gagné deux colonnes sur `sites` (`published_version`, `subdomain`)
 
 Dès lors l'éditeur, l'aperçu et l'API demandent une session ; les sites publiés, les envois de formulaires et les fichiers restent publics. Chaque site créé appartient au compte qui l'a créé. Les sites d'avant (sans propriétaire) ne sont accessibles à personne tant qu'on ne leur en a pas donné un : `node --env-file=apps/editor/.env.local scripts/assign-owner.mjs votre@adresse`. Les emails de connexion partent avec le gabarit par défaut de Supabase (en anglais) et l'envoi intégré est limité à deux emails par heure sur le plan gratuit : « email rate limit exceeded » veut dire attendre une heure. Pour s'en affranchir, brancher Resend en SMTP dans Authentication → Emails → SMTP Settings (hôte `smtp.resend.com`, port 587 (STARTTLS ; 465 donne « Gateway Timeout »), utilisateur `resend`, mot de passe = clé API Resend, expéditeur `onboarding@resend.dev` tant qu'aucun domaine n'est vérifié, ce qui limite alors les envois à l'adresse du compte Resend), puis relever les limites dans Authentication → Rate Limits et traduire le gabarit « Magic Link » dans Email Templates.
 
+## Partage par site (D51)
+
+Exécuter le bloc « partage » de `supabase/schema.sql` (table `site_members` : site, adresse, rôle `editor` ou `writer`). Le propriétaire invite des adresses depuis la fenêtre Publier → Partage. Une adresse invitée peut se connecter même si elle n'est pas dans `ATELIER_ALLOWED_EMAILS` : la liste d'Atelier reste celle des personnes qui peuvent créer des sites. Sans la table, personne n'est invité ; en production son absence est une erreur.
+
 ## Blocs ajoutés après le premier schéma
 
-Sur un projet créé avant, relancer dans l'ordre les blocs « publication », « comptes » et « limite de débit » de `supabase/schema.sql`, puis `scripts/check-supabase.mjs` qui vérifie chacun.
+Sur un projet créé avant, relancer dans l'ordre les blocs « publication », « comptes », « limite de débit » et « partage » de `supabase/schema.sql`, puis `scripts/check-supabase.mjs` qui vérifie chacun.

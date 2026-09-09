@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { AlertTriangle, CheckCircle2, Command as CommandIcon, Database as DatabaseIcon, ExternalLink, Info, FileText, Grid3x3, Layers, Moon, Palette, Plus, Puzzle, Redo2, Sun, Undo2, UploadCloud } from "lucide-react";
-import type { DropPosition, Entry, Node, Page, Site, StyleValue } from "@atelier/model";
+import type { DropPosition, Entry, Node, Page, Site, StyleValue, Role } from "@atelier/model";
 import { BASE, breakpointForWidth, canInsertUnder, cloneWithNewIds, dataSourceFor, entryPath, fitHeadings as fitHeadingsInPage, indexSite, layoutGridAt, newId, planDetach, planDrop, planInsert, planMakeComponent, planMergePrev, planMove, planSlashInsert, planSplit, stylePath, templateOf, type ComponentPlan, type TextPlan } from "@atelier/model";
 import type { Op } from "@atelier/model";
 import { valueToCss } from "@atelier/renderer";
@@ -99,7 +99,8 @@ function isTyping(): boolean {
   return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
 }
 
-export function EditorShell({ initialSite, initialVersion, initialEntries }: { initialSite: Site; initialVersion: number; initialEntries: Entry[] }) {
+export function EditorShell({ initialSite, initialVersion, initialEntries, role = "owner" }: { initialSite: Site; initialVersion: number; initialEntries: Entry[]; /** Rôle du compte sur ce site : un rédacteur reste en Écriture et ne touche ni au design ni aux réglages. */ role?: Role }) {
+  const writer = role === "writer";
   const doc = useDocument(initialSite, initialVersion);
   const site = doc.site;
   // La page ouverte est mémorisée par site : au rechargement, on revient où l'on était.
@@ -118,8 +119,9 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
   const [drop, setDrop] = useState<DropState>(null);
   const [notice, setNotice] = useState<{ text: string; tone: "danger" | "success" | "info" } | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [editMode, setEditMode] = useState<EditMode>(() => { try { return (localStorage.getItem("atelier:editmode") as EditMode) || "write"; } catch { return "design"; } });
-  const switchMode = useCallback((m: EditMode) => { setEditMode(m); setLeftTab((t) => (m === "write" && (t === "layers" || t === "theme") ? "pages" : t)); try { localStorage.setItem("atelier:editmode", m); } catch {} }, []);
+  const [editMode, setEditMode] = useState<EditMode>(() => { if (role === "writer") return "write"; try { return (localStorage.getItem("atelier:editmode") as EditMode) || "write"; } catch { return "design"; } });
+  // Un rédacteur reste en Écriture (l'onglet Design est désactivé avec son explication).
+  const switchMode = useCallback((m: EditMode) => { if (writer && m !== "write") return; setEditMode(m); setLeftTab((t) => (m === "write" && (t === "layers" || t === "theme") ? "pages" : t)); try { localStorage.setItem("atelier:editmode", m); } catch {} }, [writer]);
   const [showGrid, setShowGrid] = useState<boolean>(() => { try { return localStorage.getItem("atelier:grid") === "1"; } catch { return false; } });
   const toggleGrid = useCallback(() => setShowGrid((g) => { try { localStorage.setItem("atelier:grid", g ? "0" : "1"); } catch {} return !g; }), []);
   const [previewState, setPreviewState] = useState<string | null>(null);
@@ -435,7 +437,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
       { id: "redo", group: "Édition", label: "Rétablir", keys: "⇧⌘Z", icon: Redo2, run: doc.redo },
       { id: "preview", group: "Affichage", label: "Ouvrir l'aperçu dans un nouvel onglet", icon: ExternalLink, run: () => window.open(previewPath, "_blank") },
       { id: "mode:write", group: "Affichage", label: "Mode Écriture", run: () => switchMode("write") },
-      { id: "mode:design", group: "Affichage", label: "Mode Design", run: () => switchMode("design") },
+      ...(writer ? [] : [{ id: "mode:design", group: "Affichage", label: "Mode Design", run: () => switchMode("design") }]),
       { id: "grid", group: "Affichage", label: showGrid ? "Masquer la grille de mise en page" : "Afficher la grille de mise en page", keys: "⌃G", icon: Grid3x3, run: toggleGrid },
       ...site.theme.modes.map((m) => ({ id: `mode:${m.id}`, group: "Affichage", label: `Aperçu en mode ${m.name.toLowerCase()}`, icon: m.id === "dark" ? Moon : Sun, run: () => setMode(m.id) })),
       ...PRESETS.map((p) => ({ id: `width:${p.id}`, group: "Affichage", label: `Largeur ${p.label.toLowerCase()}`, run: () => { setPreset(p.id); setCustomWidth(null); } })),
@@ -458,7 +460,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
     const visit = (n: Node) => { const label = nodeLabel(n); if (!seen.has(n.id)) { seen.add(n.id); nodes.push({ id: `sel:${n.id}`, group: "Sélectionner un calque", label, icon: nodeIcon(n), keywords: n.type, run: () => select(n.id) }); } n.children?.forEach(visit); };
     visit(page.root);
     return [...cmds, ...nodes.slice(0, 80)];
-  }, [doc, site, locale, page.root, previewPath, selected, index, select, addBlock, showGrid, toggleGrid, switchMode, setPageId, makeComponent, detachInstance]);
+  }, [doc, site, locale, page.root, previewPath, selected, index, select, addBlock, showGrid, toggleGrid, switchMode, setPageId, makeComponent, detachInstance, writer]);
   const setOpen = useCallback((id: string, open: boolean) => setOpenMap((m) => ({ ...m, [id]: open })), []);
   const rename = useCallback((id: string, name: string | null | undefined) => {
     setEditing(null);
@@ -484,7 +486,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
             {templateEntries.length ? <Select className="max-w-[220px]" value={previewEntry?.id ?? ""} options={templateEntries.map((e) => ({ value: e.id, label: String(e.values[template.database.titleField] ?? "") || "Sans titre" }))} onValueChange={(id) => { setPreviewEntryByPage((m) => ({ ...m, [page.id]: id })); select(null); setFrameReady(false); }} /> : <Badge tone="warning" title="Sans entrée publiée, la page s'affiche avec ses textes de repli">Aucune entrée publiée dans {template.database.name[locale] ?? template.database.slug}</Badge>}
           </div>
         ) : null}
-        <div className="ml-4"><Tabs variant="pill" tabs={MODES.map((m) => ({ ...m, disabled: m.id === "code" }))} value={editMode} onChange={(m) => switchMode(m as EditMode)} /></div>
+        <div className="ml-4"><Tabs variant="pill" tabs={MODES.map((m) => ({ ...m, disabled: m.id === "code" || (writer && m.id !== "write"), hint: writer && m.id === "design" ? "Réservé aux éditeurs du site" : m.hint }))} value={editMode} onChange={(m) => switchMode(m as EditMode)} /></div>
 
         <div className="ml-auto flex items-center gap-2">
           <Tabs variant="pill" tabs={PRESETS.map((x) => ({ id: x.id, label: x.label }))} value={customWidth === null ? preset : ""} onChange={(id) => { setPreset(id); setCustomWidth(null); }} />
@@ -506,7 +508,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
           <IconButton label="Images du site" icon={ImagesIcon} onClick={() => openMediaLibrary()} />
           <IconButton label={`Palette de commandes (${mod()}K)`} icon={CommandIcon} onClick={() => setPaletteOpen(true)} />
           <Button variant="ghost" icon={ExternalLink} onClick={() => window.open(previewPath, "_blank")}>Aperçu</Button>
-          <Button variant="primary" icon={UploadCloud} onClick={() => setPublishOpen(true)} title="Publier le site, voir l'historique, revenir en arrière">Publier</Button>
+          <Button variant="primary" icon={UploadCloud} onClick={() => setPublishOpen(true)} title={writer ? "Publier les contenus (entrées des bases)" : "Publier le site, voir l'historique, revenir en arrière"}>{writer ? "Publier les contenus" : "Publier"}</Button>
         </div>
       </header>
 
@@ -514,7 +516,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
         <Tabs tabs={editMode === "write" ? [{ id: "pages", label: "Pages", icon: FileText }, { id: "add", label: "Ajouter", icon: Plus }, { id: "data", label: "Données", icon: DatabaseIcon }] : [{ id: "pages", label: "Pages", icon: FileText }, { id: "layers", label: "Calques", icon: Layers }, { id: "add", label: "Ajouter", icon: Plus }, { id: "data", label: "Données", icon: DatabaseIcon }, { id: "theme", label: "Thème", icon: Palette }]} value={leftTab} onChange={setLeftTab} className="px-1 shrink-0" />
         <div className="flex-1 overflow-auto py-1" onDragOver={(e) => { if (dragId.current || dragBlock.current) e.preventDefault(); }} onDrop={(e) => { e.preventDefault(); setDrop(null); }}>
           {leftTab === "pages" ? (
-            <PagesPanel site={site} pageId={pageId} commit={doc.commit} onOpen={(id) => { setPageId(id); select(null); setFrameReady(false); }} />
+            <PagesPanel site={site} pageId={pageId} commit={doc.commit} readOnly={writer} onOpen={(id) => { setPageId(id); select(null); setFrameReady(false); }} />
           ) : leftTab === "layers" ? (
             <div role="tree" onDragEnd={() => { dragId.current = null; setDrop(null); }}>
               {editingComponent ? (
@@ -577,7 +579,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
       {paletteOpen ? <CommandPalette open onClose={() => setPaletteOpen(false)} commands={commands} /> : null}
       {dbOpen && site.databases.some((d) => d.id === dbOpen) ? <DatabaseTable site={site} db={site.databases.find((d) => d.id === dbOpen)!} entries={ents.entries} save={ents.save} saveMany={ents.saveMany} remove={ents.remove} commit={doc.commit} onClose={() => setDbOpen(null)} saving={ents.saving} onDeleteDatabase={() => void deleteDatabase(dbOpen)} notify={notify} /> : null}
       {dbOpen && formForOpen ? <DatabaseTable site={site} db={formDatabase(site, formForOpen)} entries={ents.entries} save={ents.save} remove={ents.remove} commit={doc.commit} onClose={() => setDbOpen(null)} saving={ents.saving} readOnly /> : null}
-      {publishOpen ? <PublishDialog site={site} version={doc.version} dirty={doc.status !== "saved" && !doc.blocked} broken={doc.blocked} commit={doc.commit} onClose={() => setPublishOpen(false)} notify={notify} /> : null}
+      {publishOpen ? <PublishDialog site={site} role={role} version={doc.version} dirty={doc.status !== "saved" && !doc.blocked} broken={doc.blocked} commit={doc.commit} onClose={() => setPublishOpen(false)} notify={notify} /> : null}
 
     </div>
     </MediaLibraryProvider></ConfirmProvider>

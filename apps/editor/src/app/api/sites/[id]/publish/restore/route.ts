@@ -5,7 +5,7 @@ import { invalidatePublished } from "@/lib/published";
 /** `POST { version }` : remet en ligne un instantané publié précédemment (retour arrière, D36). */
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const denied = await guardSite(id);
+  const denied = await guardSite(id, "editor");
   if (denied) return denied;
   let body: { version?: unknown };
   try { body = await req.json(); } catch { return Response.json({ error: "Corps JSON invalide" }, { status: 400 }); }
