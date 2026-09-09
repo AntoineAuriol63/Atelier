@@ -21,7 +21,7 @@ function tagOf(node: Node, allowed: Set<string>, fallback: string): string {
 }
 
 function attrs(node: Node, ctx: RenderContext, extra: Record<string, unknown> = {}) {
-  const a: Record<string, unknown> = { className: nodeClassName(node), ...extra };
+  const a: Record<string, unknown> = { className: nodeClassName(node, undefined, ctx.classes), ...extra };
   if (ctx.editor) a["data-node"] = node.id;
   if (node.props.anchor) a.id = String(node.props.anchor);
   return a;

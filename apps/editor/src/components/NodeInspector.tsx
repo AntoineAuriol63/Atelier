@@ -1,9 +1,9 @@
 "use client";
 
-import { createElement, useState } from "react";
+import { createElement, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Copy, Trash2, X } from "lucide-react";
 import type { CommitOptions, Inline, Node, NodeLocation, Op, Site, StyleValue, DataSource } from "@atelier/model";
-import { BASE, cloneWithNewIds, newId, resolveNodeStyle, resolveSharedStyleSet, stylePath } from "@atelier/model";
+import { BASE, classMap, cloneWithNewIds, newId, resolveNodeStyle, resolveSharedStyleSet, stylePath } from "@atelier/model";
 import { Badge, Field, FieldGroup, Hint, IconButton, Section, TextArea, TextInput } from "@/ui";
 import { nodeIcon, nodeLabel, TYPE_LABEL } from "./node-icons";
 import { propLabel } from "@/lib/prop-labels";
@@ -77,6 +77,8 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
   const node: Node = loc.node;
   const locale = site.settings.defaultLocale;
   const [state, setStateRaw] = useState<string | undefined>(undefined);
+  // Classe du code exporté, déduite des noms des calques (même règle que l'export).
+  const exportClass = useMemo(() => classMap(site).node.get(node.id), [site, node.id]);
   const [editingShared, setEditingShared] = useState<string | null>(null);
   const setState = (st: string | undefined) => { setStateRaw(st); onPreviewState(st ?? null); };
   const sharedTarget = editingShared && site.sharedStyles.some((x) => x.id === editingShared) ? editingShared : null;
@@ -176,6 +178,7 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
           <Field label="Nom" hint="Nom affiché dans les calques">
             <TextInput value={node.name ?? ""} placeholder={nodeLabel(node)} onValueChange={(v) => commit({ op: "node.set", id: node.id, path: "name", value: v || undefined }, { coalesceKey: `name:${node.id}`, label: "Renommer" })} />
           </Field>
+          {exportClass ? <Field label="Classe CSS" hint="Dans le code exporté ; déduite du nom et de l'emplacement"><span className="font-mono text-xs text-muted truncate" title={`.${exportClass}`}>.{exportClass}</span></Field> : null}
           <TagPanel node={node} commit={commit} />
         </FieldGroup>
       </Section> : null}

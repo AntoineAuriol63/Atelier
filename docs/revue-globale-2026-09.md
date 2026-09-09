@@ -108,7 +108,7 @@ En place : migration de schéma (`migrate.ts`, appelée aux trois lectures, vali
 
 ### C. Pour un vrai client (v1, dans cet ordre)
 
-10. Export du code : classes dérivées de `name`, `name` obligatoire avec défaut, styles en ligne sortis du moteur, archive des médias, générateur Next.js.
+10. Export du code. **Fait le 9 septembre 2026 (première forme, `docs/export.md`)** : classes déduites des noms des calques sans nommage obligatoire (`classMap`, règle « conteneur nommé / feuille par sorte / nom saisi prime »), archive statique complète (HTML par adresse, `styles.css`, médias renommés, données, README), bouton dans la fenêtre Publier, classe affichée dans l'inspecteur. Reste : générateur de projet Next.js (D15) sur la même base ; les quelques styles en ligne du moteur (ratio d'image, `display: contents`) restent acceptés dans l'export.
 11. Composants créés par l'utilisateur, variantes appliquées au rendu.
 12. Minimum professionnel : code head réel, 404 personnalisée, redirections, nom de site modifiable, destinataire par formulaire.
 13. Rôles et partage par site, publication du contenu seule ; aperçu et tableur navigables au clavier.

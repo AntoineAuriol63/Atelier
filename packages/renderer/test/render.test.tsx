@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
-import { sampleSite, sampleEntries } from "@atelier/model";
+import { sampleSite, sampleEntries, classMap } from "@atelier/model";
 import { RenderPage, siteCss, styleSetCss, collectionViewCss, memoryData, matchPath, assetMap, pageTitle, type RenderContext } from "../src";
 
 const data = memoryData(sampleEntries);
@@ -94,6 +94,21 @@ describe("image", () => {
     const html = renderToStaticMarkup(createElement(RenderPage, { ctx }));
     expect(html).toContain('srcSet="/w480.webp 480w, /w960.webp 960w, https://picsum.photos/id/1027/1200/1500 1200w"');
     expect(html).toContain('sizes="(max-width: 1152px) 100vw, 1152px"');
+  });
+});
+
+describe("classes lisibles (export)", () => {
+  it("rend et style avec les noms déduits quand une carte de classes est fournie", () => {
+    const classes = classMap(sampleSite);
+    const ctx: RenderContext = { ...ctxFor("/"), classes };
+    const html = renderToStaticMarkup(createElement(RenderPage, { ctx }));
+    expect(html).toContain('class="section heros"');
+    expect(html).toContain('class="texte-title"');
+    expect(html).not.toContain("n-hero");
+    const css = siteCss(sampleSite, { classes });
+    expect(css).toContain(".heros{");
+    expect(css).toContain(".bouton{");
+    expect(css).not.toContain(".n-hero{");
   });
 });
 

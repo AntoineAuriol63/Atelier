@@ -1,4 +1,4 @@
-import type { Asset, Binding, ComponentDef, Database, Entry, Field, LinkTarget, Locale, Node, Page, Site, ViewConfig } from "@atelier/model";
+import type { Asset, Binding, ComponentDef, Database, Entry, Field, LinkTarget, Locale, Node, Page, Site, ViewConfig, ClassMap } from "@atelier/model";
 import { getPath } from "@atelier/model";
 
 /** Fournit les entrées d'une base pour une vue. Synchrone en v0 (données préchargées). */
@@ -24,6 +24,8 @@ export type RenderContext = {
   assets: Map<string, Asset>;
   /** Préfixe des URLs (ex. "/preview") */
   basePath?: string;
+  /** Classes lisibles (export) à la place des classes techniques `n-<id>` / `s-<id>`. */
+  classes?: ClassMap;
 };
 
 export function localized<T>(value: unknown, ctx: RenderContext): T | undefined {

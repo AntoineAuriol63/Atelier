@@ -2,7 +2,7 @@
 
 Ce que l'outil fait aujourd'hui, et comment. Tenu à jour à chaque évolution (règle dans `CLAUDE.md`). Les décisions de fond sont dans `docs/decisions.md`, le contrat de données dans `docs/document-model.md`, le plan dans `docs/roadmap.md`. Ici : l'état réel.
 
-*Dernière mise à jour : 9 septembre 2026 (temps A et B de la revue globale).*
+*Dernière mise à jour : 9 septembre 2026 (temps A et B, export du code de la revue globale).*
 
 ## Partie 1 · Fonctionnel
 
@@ -66,9 +66,11 @@ Bloc Formulaire (nom, email, message, bouton), champs réglables (libellé, clé
 
 Fenêtre Publier : état en ligne, écart avec la version de travail, note, historique, remettre en ligne une version, sous-domaine, référencement du site (suffixe des titres, description, image sociale, favicon). Le site publié est servi depuis l'instantané publié, jamais depuis le travail en cours. Référencement automatique, plan du site, robots. Le code head et fin de body (D40) n'est pas encore fonctionnel : pas d'interface, et l'injection actuelle n'exécute pas les scripts. Détail : `docs/publication.md`, mise en ligne : `docs/mise-en-ligne.md`.
 
+**Exporter le code** (même fenêtre) : « Télécharger le site (.zip) » rend une archive statique complète, depuis la version publiée (sinon la version de travail) : une page HTML par adresse (pages fixes et une par entrée des modèles), `styles.css` aux classes lisibles déduites des noms des calques (`heros`, `heros-title`, `heros-text-2`, `bouton`), médias nommés d'après la bibliothèque avec leurs déclinaisons, données par base en JSON, document source, redirections, README. À déposer à la racine d'un hébergement statique. L'inspecteur affiche la classe CSS que portera chaque élément ; renommer un calque la renomme. Détail : `docs/export.md`.
+
 ### 1.10 Pas encore là (voir la feuille de route)
 
-Rôles et partage par site, domaine personnalisé, export du code, code head fonctionnel, composants créés par l'utilisateur, publication du contenu seule, 404 personnalisée et redirections, interactions déclaratives, bases externes, texte riche dans les champs, sélection multiple, pagination des vues, calendrier et carte, animations d'interaction, langues multiples, membres.
+Rôles et partage par site, domaine personnalisé, export en projet Next.js (l'archive statique existe), code head fonctionnel, composants créés par l'utilisateur, publication du contenu seule, 404 personnalisée et redirections, interactions déclaratives, bases externes, texte riche dans les champs, sélection multiple, pagination des vues, calendrier et carte, animations d'interaction, langues multiples, membres.
 
 ## Partie 2 · Technique
 
@@ -99,6 +101,8 @@ Monorepo npm workspaces.
 ### 2.4 Rendu publié et référencement
 
 `app/(site)/s/[sub]/[[...path]]` : instantané publié mis en cache (`unstable_cache`, étiquette `site:<id>`, invalidée avec `expire: 0`), `generateMetadata` (titre, description, canonique, Open Graph, Twitter, robots, favicon), `sitemap.xml` et `robots.txt` par site, code head et fin de body injectés.
+
+Export : `GET /api/sites/:id/export` → `lib/export-site.ts` (`buildExport` : médias regroupés et renommés, `classMap` du modèle, une page par adresse rendue par `renderToStaticMarkup` de `react-dom/server.edge`, feuille complète, données, README) et `lib/zip.ts` (archive sans compression, CRC-32, sans dépendance). Nommage partagé : `packages/model/src/naming.ts` (`classMap`, `kindOf`, `slugify`), consommé par le moteur via `RenderContext.classes` / `siteCss(site, { classes })` et par l'inspecteur (« Classe CSS »). Tests : `packages/model/test/naming.test.ts`, `packages/renderer/test/render.test.tsx` (classes lisibles), `apps/editor/test/export.test.ts` (CRC, archive lue par `unzip`, export du site d'exemple).
 
 ### 2.5 Variables d'environnement
 

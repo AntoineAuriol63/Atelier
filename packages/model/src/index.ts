@@ -9,6 +9,7 @@ export * from "./style";
 export * from "./data";
 export * from "./migrate";
 export * from "./text";
+export * from "./naming";
 export * as schema from "./schema";
 export { validateSite } from "./schema";
 export { sampleSite, sampleEntries } from "./sample";

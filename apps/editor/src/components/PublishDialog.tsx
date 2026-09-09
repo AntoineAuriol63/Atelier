@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ExternalLink, History, UploadCloud } from "lucide-react";
+import { Check, Download, ExternalLink, History, UploadCloud } from "lucide-react";
 import type { CommitOptions, Op, Site } from "@atelier/model";
 import { Badge, Button, Dialog, Field, FieldGroup, Hint, TextInput, askConfirm } from "@/ui";
 import { AssetPicker } from "@/components/design/AppearancePanel";
@@ -17,6 +17,7 @@ export function PublishDialog({ site, version, dirty, broken, commit, onClose, n
   const [state, setState] = useState<State | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [label, setLabel] = useState("");
+  const [exported, setExported] = useState(false);
   const load = useCallback(async () => {
     const res = await fetch(`/api/sites/${site.id}/publish`);
     const body = (await res.json()) as State & { error?: string };
@@ -43,6 +44,20 @@ export function PublishDialog({ site, version, dirty, broken, commit, onClose, n
       if (!res.ok) throw new Error(body.error ?? "Retour arrière impossible");
       notify(`Version ${v} remise en ligne.`, "success"); await load();
     } catch (e) { notify(e instanceof Error ? e.message : "Retour arrière impossible"); } finally { setBusy(null); }
+  };
+  const exportCode = async () => {
+    setBusy("Préparation de l'archive…");
+    try {
+      const res = await fetch(`/api/sites/${site.id}/export`);
+      if (!res.ok) { const body = (await res.json().catch(() => ({}))) as { error?: string }; throw new Error(body.error ?? "Export impossible"); }
+      const blob = await res.blob();
+      const name = /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1] ?? `${site.id}.zip`;
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+      window.setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+      const pages = res.headers.get("x-atelier-pages"), assets = res.headers.get("x-atelier-assets");
+      setExported(true); window.setTimeout(() => setExported(false), 4000);
+      notify(`Archive téléchargée : ${pages ?? "?"} page${Number(pages) > 1 ? "s" : ""}, ${assets ?? "?"} média${Number(assets) > 1 ? "s" : ""}.`, "success");
+    } catch (e) { notify(e instanceof Error ? e.message : "Export impossible"); } finally { setBusy(null); }
   };
   const setSetting = (path: string, value: unknown, lbl: string, coalesce = true) => commit({ op: "site.set", path, value }, { label: lbl, coalesceKey: coalesce ? path : undefined });
   const behind = state?.publishedVersion !== null && state?.publishedVersion !== undefined ? version - state.publishedVersion : null;
@@ -74,6 +89,15 @@ export function PublishDialog({ site, version, dirty, broken, commit, onClose, n
             <Field label="Image sociale" hint="Image de partage par défaut (Open Graph)" inline={false}><AssetPicker site={site} value={site.settings.seo.image} onChange={(id) => setSetting("settings.seo.image", id ?? undefined, "Image sociale", false)} /></Field>
             <Field label="Favicon" inline={false}><AssetPicker site={site} value={site.settings.seo.favicon} onChange={(id) => setSetting("settings.seo.favicon", id ?? undefined, "Favicon", false)} /></Field>
           </FieldGroup>
+        </section>
+
+        <section className="flex flex-col gap-2 border-t border-line pt-3">
+          <h3 className="text-2xs uppercase tracking-[0.12em] text-dim">Exporter le code</h3>
+          <div className="flex items-center gap-2">
+            <Button variant={exported ? "primary" : "default"} icon={exported ? Check : Download} disabled={!!busy || !state} onClick={() => void exportCode()}>{exported ? "Téléchargé" : "Télécharger le site (.zip)"}</Button>
+            <span className="text-xs text-muted">{state?.publishedVersion !== null && state?.publishedVersion !== undefined ? `Depuis la version publiée ${state.publishedVersion}` : "Depuis la version de travail (site jamais publié)"}</span>
+          </div>
+          <Hint>HTML complet page par page, feuille de style aux classes lisibles (les noms des calques), médias et données. À déposer tel quel sur n&apos;importe quel hébergement statique : le site vous appartient, sans Atelier.</Hint>
         </section>
 
         <section className="flex flex-col gap-1 border-t border-line pt-3">

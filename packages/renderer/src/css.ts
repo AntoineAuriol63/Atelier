@@ -1,4 +1,4 @@
-import type { Asset, Breakpoint, Node, SharedStyle, Site, StyleProps, StyleSet, StyleValue, Theme, ViewConfig } from "@atelier/model";
+import type { Asset, Breakpoint, ClassMap, Node, SharedStyle, Site, StyleProps, StyleSet, StyleValue, Theme, ViewConfig } from "@atelier/model";
 import { walk } from "@atelier/model";
 
 // ---------------------------------------------------------------- valeurs
@@ -176,14 +176,14 @@ function mergeStyle(parent: Omit<StyleSet, "shared"> | undefined, child: Omit<St
   };
 }
 
-export function sharedStylesCss(site: Site, assets?: Map<string, Asset>): string {
+export function sharedStylesCss(site: Site, assets?: Map<string, Asset>, classes?: ClassMap): string {
   const byId = new Map(site.sharedStyles.map((s) => [s.id, s]));
   const resolve = (s: SharedStyle, depth = 0): Omit<StyleSet, "shared"> => {
     if (!s.extends || depth > 5) return s.style;
     const parent = byId.get(s.extends);
     return parent ? mergeStyle(resolve(parent, depth + 1), s.style) : s.style;
   };
-  return site.sharedStyles.map((s) => styleSetCss(`.s-${s.id}`, resolve(s), site.settings.breakpoints, assets)).filter(Boolean).join("\n");
+  return site.sharedStyles.map((s) => styleSetCss(`.${classes?.shared.get(s.id) ?? `s-${s.id}`}`, resolve(s), site.settings.breakpoints, assets)).filter(Boolean).join("\n");
 }
 
 /**
@@ -208,12 +208,13 @@ export function collectionViewCss(selector: string, view: ViewConfig | undefined
   return out.join("\n");
 }
 
-export function nodeCss(node: Node, breakpoints: Breakpoint[], assets?: Map<string, Asset>): string {
+export function nodeCss(node: Node, breakpoints: Breakpoint[], assets?: Map<string, Asset>, classes?: ClassMap): string {
   const { shared: _shared, ...rest } = node.style ?? {};
   void _shared;
-  const own = styleSetCss(`.n-${node.id}`, node.style ? rest : undefined, breakpoints, assets, node.hidden);
+  const sel = `.${classes?.node.get(node.id) ?? `n-${node.id}`}`;
+  const own = styleSetCss(sel, node.style ? rest : undefined, breakpoints, assets, node.hidden);
   if (node.type !== "collection") return own;
-  return [collectionViewCss(`.n-${node.id}`, node.props.view as ViewConfig | undefined, breakpoints), own].filter(Boolean).join("\n");
+  return [collectionViewCss(sel, node.props.view as ViewConfig | undefined, breakpoints), own].filter(Boolean).join("\n");
 }
 
 export function assetMap(site: Site): Map<string, Asset> {
@@ -221,25 +222,25 @@ export function assetMap(site: Site): Map<string, Asset> {
 }
 
 /** CSS d'un site : thème, styles partagés, nœuds des pages (ou d'une seule page avec `pageId`) et des composants. */
-export function siteCss(site: Site, opts: { pageId?: string } = {}): string {
+export function siteCss(site: Site, opts: { pageId?: string; classes?: ClassMap } = {}): string {
   const assets = assetMap(site);
-  const out: string[] = [themeCss(site.theme), sharedStylesCss(site, assets)];
+  const out: string[] = [themeCss(site.theme), sharedStylesCss(site, assets, opts.classes)];
   // Une page ne reçoit que son CSS (et celui des composants) : le reste du site n'a rien à faire dans sa réponse.
   const pages = opts.pageId ? site.pages.filter((p) => p.id === opts.pageId) : site.pages;
   const roots = [...pages.map((p) => p.root), ...site.components.map((c) => c.root)];
   for (const root of roots) {
     walk(root, (n) => {
-      const css = nodeCss(n, site.settings.breakpoints, assets);
+      const css = nodeCss(n, site.settings.breakpoints, assets, opts.classes);
       if (css) out.push(css);
       // Contenu vide d'une collection
       const view = n.type === "collection" ? (n.props as { view?: { empty?: Node[] } }).view : undefined;
-      view?.empty?.forEach((e) => walk(e, (m) => { const c = nodeCss(m, site.settings.breakpoints, assets); if (c) out.push(c); }));
+      view?.empty?.forEach((e) => walk(e, (m) => { const c = nodeCss(m, site.settings.breakpoints, assets, opts.classes); if (c) out.push(c); }));
     });
   }
   return out.filter(Boolean).join("\n");
 }
 
-export function nodeClassName(node: Node, extra?: string): string {
-  const shared = (node.style?.shared ?? []).map((id) => `s-${id}`);
-  return [...shared, `n-${node.id}`, extra].filter(Boolean).join(" ");
+export function nodeClassName(node: Node, extra?: string, classes?: ClassMap): string {
+  const shared = (node.style?.shared ?? []).map((id) => classes?.shared.get(id) ?? `s-${id}`);
+  return [...shared, classes?.node.get(node.id) ?? `n-${node.id}`, extra].filter(Boolean).join(" ");
 }
