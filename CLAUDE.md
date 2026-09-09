@@ -15,6 +15,7 @@ Créateur de sites web designer-first, code-natif, sans verrou. Voir `docs/decis
 ## Règles
 
 - `docs/roadmap.md` est la feuille de route vivante : la lire au début d'une session, la mettre à jour à la fin (états des tâches, journal).
+- `docs/revue-globale-2026-09.md` est le plan d'actions issu de la revue du 8 septembre : le consulter avant d'ajouter une fonctionnalité, cocher ce qui est fait.
 - `docs/fonctionnel.md` est l'état réel de l'outil, fonctionnel et technique : le mettre à jour à chaque évolution livrée (nouvelle capacité, nouvelle route, nouvelle variable, changement de comportement), dans la même session que le code. `docs/mise-en-ligne.md` décrit la mise en ligne réelle ; le tenir à jour à chaque changement d'infrastructure.
 
 - Le modèle de document (`docs/document-model.md`) est le contrat : toute modification passe par ce document d'abord, puis par `packages/model/src/types.ts` et `schema.ts`, avec un test.

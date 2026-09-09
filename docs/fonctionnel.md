@@ -2,7 +2,7 @@
 
 Ce que l'outil fait aujourd'hui, et comment. Tenu à jour à chaque évolution (règle dans `CLAUDE.md`). Les décisions de fond sont dans `docs/decisions.md`, le contrat de données dans `docs/document-model.md`, le plan dans `docs/roadmap.md`. Ici : l'état réel.
 
-*Dernière mise à jour : 9 septembre 2026 (comptes et tableau de bord).*
+*Dernière mise à jour : 8 septembre 2026 (comptes et tableau de bord ; revue globale : `docs/revue-globale-2026-09.md`).*
 
 ## Partie 1 · Fonctionnel
 
@@ -21,7 +21,7 @@ Deux modes, qui sont des préréglages du même éditeur et non des outils sépa
 
 ### 1.2 Pages
 
-- Créer, renommer, dupliquer, supprimer, réordonner ; adresse, titre SEO, description, image sociale, indexation.
+- Créer, renommer, dupliquer, supprimer (pas encore de réordonnancement) ; adresse, titre SEO, description, image sociale, indexation.
 - **Pages fixes** et **pages par entrée** (modèles) : une page par entrée d'une base, groupées à part dans Pages, créées avec la base, supprimées avec elle. Rôle et motif d'adresse dans les réglages de la page. Barre du haut : badge « page par entrée » et choix de l'entrée à prévisualiser.
 - La page ouverte est mémorisée au rechargement.
 
@@ -49,7 +49,7 @@ Jetons (couleurs par mode clair/sombre, espacements, largeurs, rayons, ombres, t
 ### 1.6 Données (bases)
 
 - Onglet Données : bases avec nombre d'entrées et de brouillons, création (avec page par entrée), messages reçus des formulaires.
-- Vue tableur : entrées en lignes, champs en colonnes, cellule par type (texte, texte long en paragraphes, nombre, date, oui/non, choix, choix multiples, image, galerie, lien, couleur, relation simple ou multiple), publié / brouillon, adresse qui suit le titre, suppression, export CSV (servi par le serveur en pièce jointe, avec message de confirmation, et copie dans le presse-papier en secours), import CSV ou JSON avec correspondance des colonnes et conversion par type, suppression de la base avec ses pages par entrée.
+- Vue tableur : entrées en lignes, champs en colonnes, cellule par type (texte, texte long en paragraphes, nombre, date, oui/non, choix, choix multiples, image, galerie, lien, couleur, relation simple ou multiple ; le type « fichier » est déclaré mais n'a pas encore de cellule), publié / brouillon, adresse qui suit le titre, suppression, export CSV (servi par le serveur en pièce jointe, avec message de confirmation, et copie dans le presse-papier en secours), import CSV ou JSON avec correspondance des colonnes et conversion par type, suppression de la base avec ses pages par entrée.
 - Champs : ajouter, renommer, typer, obligatoire, options, relation, réordonner, supprimer.
 - Vues de base de données dans les pages : base, filtre (conditions « et »), tris, limite, texte si vide ; en Design : disposition (grille, liste, défilement) et colonnes par point de rupture.
 - Liaisons : un texte, une image ou un lien placé dans une vue ou une page par entrée affiche un champ (section Données de l'inspecteur).
@@ -64,11 +64,11 @@ Bloc Formulaire (nom, email, message, bouton), champs réglables (libellé, clé
 
 ### 1.9 Publication
 
-Fenêtre Publier : état en ligne, écart avec la version de travail, note, historique, remettre en ligne une version, sous-domaine, référencement du site (suffixe des titres, description, image sociale, favicon). Le site publié est servi depuis l'instantané publié, jamais depuis le travail en cours. Référencement automatique, plan du site, robots. Détail : `docs/publication.md`, mise en ligne : `docs/mise-en-ligne.md`.
+Fenêtre Publier : état en ligne, écart avec la version de travail, note, historique, remettre en ligne une version, sous-domaine, référencement du site (suffixe des titres, description, image sociale, favicon). Le site publié est servi depuis l'instantané publié, jamais depuis le travail en cours. Référencement automatique, plan du site, robots. Le code head et fin de body (D40) n'est pas encore fonctionnel : pas d'interface, et l'injection actuelle n'exécute pas les scripts. Détail : `docs/publication.md`, mise en ligne : `docs/mise-en-ligne.md`.
 
 ### 1.10 Pas encore là (voir la feuille de route)
 
-Rôles et partage par site, domaine personnalisé, export du code, bases externes, texte riche dans les champs, sélection multiple, pagination des vues, calendrier et carte, animations d'interaction, langues multiples, membres.
+Rôles et partage par site, domaine personnalisé, export du code, code head fonctionnel, composants créés par l'utilisateur, publication du contenu seule, 404 personnalisée et redirections, interactions déclaratives, bases externes, texte riche dans les champs, sélection multiple, pagination des vues, calendrier et carte, animations d'interaction, langues multiples, membres.
 
 ## Partie 2 · Technique
 
@@ -106,4 +106,4 @@ Monorepo npm workspaces.
 
 ### 2.6 Commandes et vérifications
 
-`npm run dev`, `npm test` (modèle 54, rendu 17 au 9 sept.), `npm run typecheck`, `node --env-file=apps/editor/.env.local scripts/check-supabase.mjs`. Débogage : `window.__atelierDoc`, panneau du navigateur masqué = minuteries ralenties.
+`npm run dev`, `npm test` (modèle 55, rendu 18 au 8 sept.), `npm run typecheck`, `node --env-file=apps/editor/.env.local scripts/check-supabase.mjs`. Débogage : `window.__atelierDoc`, panneau du navigateur masqué = minuteries ralenties.
