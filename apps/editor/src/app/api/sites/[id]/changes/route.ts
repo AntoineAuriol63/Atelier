@@ -1,3 +1,4 @@
+import { getSessionUser } from "@/lib/auth";
 import { LIMITS, tooLarge } from "@/lib/limits";
 import { guardSite } from "@/lib/site-access";
 import { schema, type Op } from "@atelier/model";
@@ -30,8 +31,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     ops.push(r.data as Op);
   }
   try {
-    // Pas d'authentification en v0 : un seul auteur.
-    const result = await getStore().appendChange(id, { ops, baseVersion: body.baseVersion, author: "local", label: typeof body.label === "string" ? body.label : undefined });
+    const author = (await getSessionUser())?.email ?? "local";
+    const result = await getStore().appendChange(id, { ops, baseVersion: body.baseVersion, author, label: typeof body.label === "string" ? body.label : undefined });
     if (!result.ok) return Response.json({ error: "Conflit de version", version: result.version }, { status: 409 });
     return Response.json({ version: result.version });
   } catch (e) {

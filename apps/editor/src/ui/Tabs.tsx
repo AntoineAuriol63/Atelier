@@ -22,7 +22,7 @@ export function Tabs({ tabs, value, onChange, variant = "underline", className }
             title={t.hint}
             onClick={() => onChange(t.id)}
             className={cx(
-              "inline-flex items-center gap-1.5 whitespace-nowrap select-none disabled:opacity-40 disabled:pointer-events-none",
+              "inline-flex items-center gap-1.5 whitespace-nowrap select-none disabled:opacity-40 disabled:cursor-not-allowed",
               variant === "pill"
                 ? cx("h-6 px-2.5 rounded-xs text-xs", active ? "bg-raised text-ink shadow-sm" : "text-muted hover:text-ink")
                 : cx("h-8 px-2 text-xs -mb-px border-b-2 min-w-0", active ? "border-accent text-ink" : "border-transparent text-muted hover:text-ink"),

@@ -6,6 +6,7 @@ import type { CommitOptions, Inline, Node, NodeLocation, Op, Site, StyleValue, D
 import { BASE, cloneWithNewIds, newId, resolveNodeStyle, resolveSharedStyleSet, stylePath } from "@atelier/model";
 import { Badge, Field, FieldGroup, Hint, IconButton, Section, TextArea, TextInput } from "@/ui";
 import { nodeIcon, nodeLabel, TYPE_LABEL } from "./node-icons";
+import { propLabel } from "@/lib/prop-labels";
 import { AppearancePanel, BindingPanel, CollectionPanel, EffectsPanel, FieldPanel, FormPanel, ImagePanel, LayoutPanel, LinkPanel, ResponsivePanel, SharedStylesPanel, SizePanel, SpacingPanel, STATE_LABEL, TagPanel, TypographyPanel, useStyle, type StyleTarget } from "./design";
 import { PropRow, Segmented } from "@/ui/controls";
 import { sharedStyleUsages } from "@atelier/model";
@@ -145,9 +146,9 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
             <div className="flex flex-wrap items-center gap-1">
               <span className="text-muted mr-1">Au {STATE_LABEL[state]?.toLowerCase()}, change :</span>
               {stateEntries(state).map((e) => (
-                <button key={e.prop} type="button" onClick={() => revealProp(e.prop)} title={e.via ? `Via le style partagé « ${e.via} ». Cliquer pour voir le réglage.` : "Cliquer pour voir le réglage"} className={`h-5 px-1.5 rounded-xs font-mono text-2xs border ${e.via ? "border-violet-400/50 text-violet-300" : "border-accent/50 text-accent"} hover:bg-hover`}>{e.prop}{e.via ? " ◆" : ""}</button>
+                <button key={e.prop} type="button" onClick={() => revealProp(e.prop)} title={`${e.prop}${e.via ? ` · via le style partagé « ${e.via} »` : ""}. Cliquer pour voir le réglage.`} className={`h-5 px-1.5 rounded-xs text-2xs border ${e.via ? "border-violet-400/50 text-violet-300" : "border-accent/50 text-accent"} hover:bg-hover`}>{propLabel(e.prop)}{e.via ? " ◆" : ""}</button>
               ))}
-              {stateProps(state).some((p) => !stateEntries(state).find((e) => e.prop === p)?.via) ? <button type="button" onClick={() => clearState(state)} className="ml-auto h-5 px-1.5 rounded-xs text-danger hover:bg-danger-soft whitespace-nowrap">Retirer les miens</button> : null}
+              {stateProps(state).some((p) => !stateEntries(state).find((e) => e.prop === p)?.via) ? <button type="button" onClick={() => clearState(state)} className="ml-auto h-5 px-1.5 rounded-xs text-danger hover:bg-danger-soft whitespace-nowrap">Retirer mes réglages d&apos;état</button> : null}
             </div>
           ) : <span className="text-dim">Rien ne change encore au {STATE_LABEL[state]?.toLowerCase()} : ce que vous réglez maintenant ne s&apos;appliquera qu&apos;à cet état.</span>}
           <div className="flex items-center gap-2">
@@ -170,18 +171,18 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
       ) : null}
       </div>
 
-      <Section title="Élément" defaultOpen={false} hint="Le nom sert à vous repérer dans les calques. La balise HTML dit au navigateur et aux moteurs de recherche ce qu'est l'élément (titre, paragraphe, section…) ; elle ne change pas son style.">
+      {editMode === "design" ? <Section title="Élément" defaultOpen={false} hint="Le nom sert à vous repérer dans les calques. La balise HTML dit au navigateur et aux moteurs de recherche ce qu'est l'élément (titre, paragraphe, section…) ; elle ne change pas son style.">
         <FieldGroup>
           <Field label="Nom" hint="Nom affiché dans les calques">
             <TextInput value={node.name ?? ""} placeholder={nodeLabel(node)} onValueChange={(v) => commit({ op: "node.set", id: node.id, path: "name", value: v || undefined }, { coalesceKey: `name:${node.id}`, label: "Renommer" })} />
           </Field>
           <TagPanel node={node} commit={commit} />
         </FieldGroup>
-      </Section>
+      </Section> : null}
 
       {!sharedDef && boundPath ? (
         <Section title="Texte" hint="Ce texte est relié à une base de données.">
-          <Hint>Le contenu vient du champ <span className="font-mono">{boundPath}</span> de la base de données. Pour le changer, modifiez l&apos;entrée dans la base (jalon M5 : édition des bases dans l&apos;éditeur).</Hint>
+          <Hint>Le contenu vient du champ <span className="font-mono">{boundPath}</span> de la base de données. Pour le changer, modifiez l&apos;entrée dans la base .</Hint>
         </Section>
       ) : null}
       {canText && !sharedDef ? (
@@ -195,11 +196,11 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
         </Section>
       ) : null}
 
-      {!sharedDef && node.type === "image" ? <ImagePanel site={site} node={node} commit={commit} /> : null}
+      {!sharedDef && node.type === "image" ? <ImagePanel site={site} node={node} commit={commit} editMode={editMode} /> : null}
       {!sharedDef && node.type === "link" ? <LinkPanel site={site} node={node} commit={commit} /> : null}
       {!sharedDef && node.type === "collection" ? <CollectionPanel site={site} node={node} commit={commit} editMode={editMode} /> : null}
       {!sharedDef && node.type === "form" ? <FormPanel site={site} node={node} commit={commit} /> : null}
-      {!sharedDef && node.type === "field" ? <FieldPanel site={site} node={node} commit={commit} /> : null}
+      {!sharedDef && node.type === "field" ? <FieldPanel site={site} node={node} commit={commit} editMode={editMode} /> : null}
 
       {!sharedDef && (node.type === "text" || node.type === "image" || node.type === "link") ? (dataSource ? <BindingPanel site={site} node={node} source={dataSource} commit={commit} /> : (
         <Section title="Données" defaultOpen={false} hint="Afficher ici un champ d'une base de données.">

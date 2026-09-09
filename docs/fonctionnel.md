@@ -2,7 +2,7 @@
 
 Ce que l'outil fait aujourd'hui, et comment. Tenu à jour à chaque évolution (règle dans `CLAUDE.md`). Les décisions de fond sont dans `docs/decisions.md`, le contrat de données dans `docs/document-model.md`, le plan dans `docs/roadmap.md`. Ici : l'état réel.
 
-*Dernière mise à jour : 9 septembre 2026 (temps A de la revue globale).*
+*Dernière mise à jour : 9 septembre 2026 (temps A et B de la revue globale).*
 
 ## Partie 1 · Fonctionnel
 
@@ -76,7 +76,7 @@ Rôles et partage par site, domaine personnalisé, export du code, code head fon
 
 Monorepo npm workspaces.
 
-- `packages/model` — types, schéma de validation (zod), opérations inversibles (`node.insert/remove/move/set/replace`, `site.set`, `batch`), historique avec fusion, arbre et index, planification des déplacements et dépôts (`planMove`, `planDrop`, `planInsert`, `planExitBox`, `canInsertUnder`), résolution de style avec sources, grille de mise en page, sources de données (`templateOf`, `dataSourceFor`, `entryPath`), site d'exemple. Sans React. Tests vitest.
+- `packages/model` — types et schéma de validation (zod) accordés par un test de types, migration de schéma (`migrate.ts`), opérations inversibles (`node.insert/remove/move/set/replace`, `site.set`, `batch`), historique avec fusion, arbre et index, planification des déplacements et dépôts (`planMove`, `planDrop`, `planInsert`, `planExitBox`, `canInsertUnder`), gestes d'écriture (`planSplit`, `planMergePrev`, `planSlashInsert`, `fitHeadings`), résolution de style avec sources, grille de mise en page, sources de données (`templateOf`, `dataSourceFor`, `entryPath`), site d'exemple. Sans React. Tests vitest.
 - `packages/renderer` — CSS d'un site (jetons par mode, défauts de thème dans `:where()`, styles partagés, nœuds, points de rupture, états, vues de collection, séparateurs, base `hr` et champs) et rendu React (`RenderPage`, `RenderNode`, liaisons, vues, formulaires avec script, `srcset`). Le même moteur sert l'éditeur, l'aperçu et le site publié. Tests vitest.
 - `apps/editor` — Next.js (App Router, Tailwind v4, lucide-react, IBM Plex) : le tableau de bord (`/`), l'éditeur (`/sites/<id>`), l'aperçu vivant (`/preview/<id>/…?editor=1`), les sites publiés (`/s/<sous-domaine>/…`, réécriture par `src/proxy.ts`), la connexion (`/connexion`, `/auth/*`), l'API. `src/proxy.ts` exige une session sur tout sauf le public (sites publiés, formulaires, fichiers, connexion) ; `lib/auth.ts` et `lib/site-access.ts` vérifient le propriétaire dans les routes (un site sans propriétaire n'est accessible à personne) ; `lib/env.ts` refuse de tourner en production mal configurée ; en-têtes de sécurité dans `next.config.ts` ; `postMessage` avec origine vérifiée. En production, un site publié n'est servi que derrière son sous-domaine, sur un domaine distinct de l'éditeur.
 
@@ -93,7 +93,7 @@ Monorepo npm workspaces.
 
 - `useDocument` : état optimiste, envoi séquentiel, annuler / rétablir (historique pur du modèle). `useEntries` : entrées optimistes sans annulation.
 - `EditorShell` : coquille (client seulement), modes, sélection, insertion, déplacement, raccourcis, palette ⌘K, panneaux, dialogues (bibliothèque, tableur, publication).
-- `LivePreview` (dans l'iframe) : rendu du site + couche d'édition (sélection, survol, glisser, édition riche par `contentEditable` sérialisée en `Inline[]`, barres, menu « / »). Protocole `postMessage` : parent → iframe `atelier:site` (site, conteneurs, liens atomiques, textes, mode, blocs, entrées), `atelier:mode`, `atelier:editmode`, `atelier:highlight`, `atelier:state`, `atelier:grid`, `atelier:zoom`, `atelier:edit-text` ; iframe → parent `atelier:ready`, `select`, `move`, `drop-block`, `key`, `text`, `split`, `merge-prev`, `slash`, `style-in-context`, `set-style`, `set-tag`, `remove`, `pick-image`.
+- `LivePreview` (dans l'iframe) : rendu du site + couche d'édition (sélection, survol, glisser, édition riche par `contentEditable` sérialisée en `Inline[]` par `components/preview/serialize.ts`, testé, barres, menu « / », lien saisi dans la barre). Protocole `postMessage` typé dans `lib/preview-protocol.ts`, origine vérifiée des deux côtés : parent → iframe `atelier:site` (site, conteneurs, liens atomiques, textes, mode, blocs, entrées), `atelier:mode`, `atelier:editmode`, `atelier:highlight`, `atelier:state`, `atelier:grid`, `atelier:zoom`, `atelier:edit-text` ; iframe → parent `atelier:ready`, `select`, `move`, `drop-block`, `key`, `text`, `split`, `merge-prev`, `slash`, `style-in-context`, `set-style`, `set-tag`, `remove`, `pick-image`.
 - Inspecteur : `NodeInspector` + panneaux `components/design/*` sur `useStyle` (lecture par `resolveNodeStyle`, écriture sur le point de rupture actif). Système de design de l'éditeur dans `src/ui` (jetons dans `globals.css`).
 
 ### 2.4 Rendu publié et référencement
@@ -106,4 +106,4 @@ Monorepo npm workspaces.
 
 ### 2.6 Commandes et vérifications
 
-`npm run dev`, `npm test` (modèle 55, rendu 18 au 8 sept.), `npm run typecheck`, `node --env-file=apps/editor/.env.local scripts/check-supabase.mjs`. Débogage : `window.__atelierDoc`, panneau du navigateur masqué = minuteries ralenties.
+`npm run dev`, `npm test` (modèle 67, rendu 19, éditeur 12 dont le contrat des dépôts, au 9 sept.) ; intégration continue GitHub sur `main` et les demandes de fusion, `npm run typecheck`, `node --env-file=apps/editor/.env.local scripts/check-supabase.mjs`. Débogage : `window.__atelierDoc`, panneau du navigateur masqué = minuteries ralenties.

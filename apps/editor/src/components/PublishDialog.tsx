@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ExternalLink, History, UploadCloud } from "lucide-react";
 import type { CommitOptions, Op, Site } from "@atelier/model";
-import { Badge, Button, Dialog, Field, FieldGroup, Hint, TextInput } from "@/ui";
+import { Badge, Button, Dialog, Field, FieldGroup, Hint, TextInput, askConfirm } from "@/ui";
 import { AssetPicker } from "@/components/design/AppearancePanel";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
@@ -35,7 +35,7 @@ export function PublishDialog({ site, version, dirty, broken, commit, onClose, n
     } catch (e) { notify(e instanceof Error ? e.message : "Publication impossible"); } finally { setBusy(null); }
   };
   const restore = async (v: number) => {
-    if (!window.confirm(`Remettre en ligne la version ${v} ? Le site public affichera cet état, l'éditeur ne change pas.`)) return;
+    if (!(await askConfirm({ title: `Remettre en ligne la version ${v} ?`, message: "Le site public affichera cet état. L'éditeur ne change pas : vous continuez sur la version de travail.", action: "Remettre en ligne" }))) return;
     setBusy("Retour arrière…");
     try {
       const res = await fetch(`/api/sites/${site.id}/publish/restore`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ version: v }) });

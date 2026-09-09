@@ -1,5 +1,5 @@
 import type { Id, Node, Op, RootOwner, Site } from "./types";
-import { indexSite, canHaveChildren } from "./tree";
+import { indexSite, canHaveChildren, collectIds } from "./tree";
 import { getPath, setPath } from "./path";
 
 export class OpError extends Error {
@@ -91,7 +91,9 @@ export function applyOp(site: Site, op: Op): { site: Site; op: Op } {
       const parentLoc = locate(site, op.parent, op);
       if (!canHaveChildren(parentLoc.node)) throw new OpError(`Le nœud ${op.parent} (${parentLoc.node.type}) n'accepte pas d'enfants`, op);
       const idx = indexSite(site);
-      if (idx.has(op.node.id)) throw new OpError(`Identifiant déjà présent : ${op.node.id}`, op);
+      // Tout le sous-arbre inséré doit porter des identifiants neufs : un doublon caché corromprait l'index en silence.
+      const dup = collectIds(op.node).find((id) => idx.has(id));
+      if (dup) throw new OpError(`Identifiant déjà présent : ${dup}`, op);
       const next = withRoot(site, parentLoc.owner, (root) => replaceInRoot(root, op.parent, (p) => insertChild(p, op.index, op.node))!);
       return { site: next, op };
     }
@@ -118,13 +120,11 @@ export function applyOp(site: Site, op: Op): { site: Site; op: Op } {
         throw new OpError(`Déplacement entre deux racines différentes non pris en charge`, op);
       }
       const prev = { parent: loc.parent.id, index: loc.index };
-      const sameParent = prev.parent === op.to.parent;
       const next = withRoot(site, loc.owner, (root) => {
         const removed = replaceInRoot(root, prev.parent, (p) => removeChild(p, op.id))!;
         return replaceInRoot(removed, op.to.parent, (p) => insertChild(p, op.to.index, loc.node))!;
       });
-      void sameParent;
-      return { site: next, op: { ...op, prev } };
+        return { site: next, op: { ...op, prev } };
     }
 
     case "node.set": {
@@ -142,6 +142,10 @@ export function applyOp(site: Site, op: Op): { site: Site; op: Op } {
     case "node.replace": {
       const loc = locate(site, op.id, op);
       if (op.node.id !== op.id) throw new OpError(`node.replace doit conserver l'identifiant ${op.id}`, op);
+      const outside = indexSite(site);
+      collectIds(loc.node).forEach((id) => outside.delete(id));
+      const dup = collectIds(op.node).find((id) => outside.has(id));
+      if (dup) throw new OpError(`Identifiant déjà présent ailleurs : ${dup}`, op);
       const next = withRoot(site, loc.owner, (root) => replaceInRoot(root, op.id, () => op.node)!);
       return { site: next, op: { ...op, prev: loc.node } };
     }

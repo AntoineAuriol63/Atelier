@@ -4,7 +4,8 @@ import { useState } from "react";
 import { Copy, Database as DatabaseIcon, FileText, Plus, Settings2, Trash2 } from "lucide-react";
 import type { CommitOptions, Database, Node, Op, Page, Site } from "@atelier/model";
 import { cloneWithNewIds, newId, templateOf } from "@atelier/model";
-import { Button, Field, FieldGroup, Hint, IconButton, Select, TextInput } from "@/ui";
+import { Button, Field, FieldGroup, Hint, IconButton, Select, TextInput, askConfirm } from "@/ui";
+import { mod } from "@/lib/keys";
 import { Segmented } from "@/ui/controls";
 import { AssetPicker } from "@/components/design/AppearancePanel";
 import { cx } from "@/ui/cx";
@@ -84,10 +85,13 @@ export function PagesPanel({ site, pageId, onOpen, commit }: { site: Site; pageI
     setPages([...site.pages, { ...copy, path }], "Dupliquer la page");
     onOpen(copy.id);
   };
-  const remove = (p: Page) => {
+  const remove = async (p: Page) => {
     if (site.pages.length <= 1) return;
     const tpl = templateOf(site, p.id);
-    if (!window.confirm(tpl ? `Supprimer la page par entrée de « ${tpl.database.name[locale] ?? tpl.database.slug} » ? Les entrées n'auront plus de page (la base reste). ⌘Z l'annule.` : `Supprimer la page « ${p.name[locale] ?? p.path} » ? Cette action s'annule avec ⌘Z.`)) return;
+    const ok = await askConfirm(tpl
+      ? { title: `Supprimer la page par entrée de « ${tpl.database.name[locale] ?? tpl.database.slug} » ?`, consequences: ["Les entrées n'auront plus de page ; la base reste.", `${mod()}Z l'annule.`], action: "Supprimer la page", danger: true }
+      : { title: `Supprimer la page « ${p.name[locale] ?? p.path} » ?`, message: `Cette action s'annule avec ${mod()}Z.`, action: "Supprimer la page", danger: true });
+    if (!ok) return;
     const rest = site.pages.filter((x) => x.id !== p.id);
     if (tpl) { commit({ op: "batch", label: "Supprimer la page par entrée", ops: [{ op: "site.set", path: "pages", value: rest }, { op: "site.set", path: "databases", value: site.databases.map((d) => (d.id !== tpl.database.id ? d : { ...d, pageTemplates: (d.pageTemplates ?? []).filter((t) => t.page !== p.id).length ? (d.pageTemplates ?? []).filter((t) => t.page !== p.id) : undefined })) }] }); }
     else setPages(rest, "Supprimer la page");
@@ -115,7 +119,7 @@ export function PagesPanel({ site, pageId, onOpen, commit }: { site: Site; pageI
                 <div className={cx("flex items-center", open ? "" : "opacity-0 group-hover:opacity-100 focus-within:opacity-100")}>
                   <IconButton size="sm" label="Réglages de la page" icon={Settings2} active={open} onClick={() => setSettingsFor(open ? null : p.id)} />
                   <IconButton size="sm" label="Dupliquer la page" icon={Copy} onClick={() => duplicate(p)} />
-                  <IconButton size="sm" label={site.pages.length <= 1 ? "Impossible de supprimer la dernière page" : "Supprimer la page"} icon={Trash2} tone="danger" disabled={site.pages.length <= 1} onClick={() => remove(p)} />
+                  <IconButton size="sm" label={site.pages.length <= 1 ? "Impossible de supprimer la dernière page" : "Supprimer la page"} icon={Trash2} tone="danger" disabled={site.pages.length <= 1} onClick={() => void remove(p)} />
                 </div>
               </div>
               {open ? (

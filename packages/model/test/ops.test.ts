@@ -111,3 +111,14 @@ describe("opérations", () => {
     expect(() => applyOp(site, { op: "node.insert", parent: "hero_txt", index: 0, node: { ...newNode, id: "hero_p" } })).toThrow(/déjà présent/);
   });
 });
+
+describe("unicité des identifiants", () => {
+  it("refuse une insertion dont un descendant porte un identifiant déjà présent", () => {
+    const node = { id: "nouveau_1", type: "box" as const, props: {}, children: [{ id: "hero_h1", type: "text" as const, props: { tag: "p", content: { fr: [{ t: "text" as const, v: "x" }] } } }] };
+    expect(() => applyOp(sampleSite, { op: "node.insert", parent: "hero_txt", index: 0, node })).toThrow(/hero_h1/);
+  });
+  it("accepte un remplacement qui réutilise les identifiants du sous-arbre remplacé", () => {
+    const loc = findNode(sampleSite, "hero_txt")!.node;
+    expect(() => applyOp(sampleSite, { op: "node.replace", id: "hero_txt", node: { ...loc, name: "Texte 2" } })).not.toThrow();
+  });
+});

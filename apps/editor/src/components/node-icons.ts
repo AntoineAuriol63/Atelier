@@ -8,7 +8,7 @@ export const TYPE_ICON: Record<NodeType, LucideIcon> = {
 
 export const TYPE_LABEL: Record<NodeType, string> = {
   box: "Boîte", text: "Texte", list: "Liste", listItem: "Élément de liste", image: "Image", video: "Vidéo", link: "Lien", icon: "Icône", divider: "Séparateur",
-  embed: "Intégration", form: "Formulaire", field: "Champ", collection: "Collection", item: "Élément répété", instance: "Composant", slot: "Emplacement", code: "Composant code",
+  embed: "Intégration", form: "Formulaire", field: "Champ", collection: "Vue", item: "Carte", instance: "Composant", slot: "Emplacement", code: "Composant code",
 };
 
 export function nodeIcon(n: Node): LucideIcon {

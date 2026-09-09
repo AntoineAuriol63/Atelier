@@ -1,5 +1,7 @@
 "use client";
 
+import { propLabel } from "@/lib/prop-labels";
+
 import { useState } from "react";
 import { ChevronRight } from "lucide-react";
 import type { Node, Site, StyleValue } from "@atelier/model";
@@ -19,7 +21,7 @@ export function ResponsivePanel({ site, node, activeBp, onGoTo, onReveal }: { si
   const rows = [{ id: BASE, name: "Base", label: "au-delà de " + Math.max(...site.settings.breakpoints.map((b) => b.maxWidth)) + " px" }, ...[...site.settings.breakpoints].sort((a, b) => b.maxWidth - a.maxWidth).map((b) => ({ id: b.id, name: b.name, label: `jusqu'à ${b.maxWidth} px` }))];
   const valueAt = (bp: string, prop: string) => (bp === BASE ? node.style?.base?.[prop] : node.style?.breakpoints?.[bp]?.[prop]);
   return (
-    <Section title="Responsive" defaultOpen={false} hint="Ce qui est réglé sur cet élément pour chaque taille d'écran. Un réglage posé sur une taille vaut aussi pour les tailles plus petites, sauf si elles le redéfinissent.">
+    <Section title="Tailles d'écran" defaultOpen={false} hint="Ce qui est réglé sur cet élément pour chaque taille d'écran. Un réglage posé sur une taille vaut aussi pour les tailles plus petites, sauf si elles le redéfinissent.">
       <ul className="flex flex-col gap-0.5">
         {rows.map((r) => {
           const props = overrides[r.id] ?? [];
@@ -43,7 +45,7 @@ export function ResponsivePanel({ site, node, activeBp, onGoTo, onReveal }: { si
                   {props.map((p) => (
                     <li key={p}>
                       <button type="button" onClick={() => onReveal(r.id, p)} className="w-full flex items-center gap-2 h-6 px-1.5 rounded-xs text-2xs hover:bg-hover text-left" title="Aller à ce réglage">
-                        <span className="font-mono text-muted flex-1 truncate">{p}</span>
+                        <span className="text-muted flex-1 truncate" title={p}>{propLabel(p)}</span>
                         <span className="font-mono text-ink truncate max-w-[45%]">{show(valueAt(r.id, p))}</span>
                       </button>
                     </li>

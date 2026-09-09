@@ -18,7 +18,7 @@ export async function POST(req: Request) {
       // L'exemple prend un nouvel identifiant ; ses identifiants internes restent stables (ils ne se croisent pas entre sites).
       const site = { ...structuredClone(sampleSite), id, name, settings: { ...structuredClone(sampleSite.settings), subdomain: undefined } };
       await store.create(site, owner);
-      await store.setEntries(id, sampleEntries);
+      await store.upsertEntries(id, sampleEntries);
     } else {
       await store.create(blankSite(id, name), owner);
     }

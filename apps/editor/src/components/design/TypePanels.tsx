@@ -3,7 +3,7 @@
 import type { CommitOptions, FilterExpr, LinkTarget, Node, Op, Site, ViewConfig } from "@atelier/model";
 import { newId } from "@atelier/model";
 import { Plus, X } from "lucide-react";
-import { Button, Field, FieldGroup, Hint, IconButton, NumberInput, Section, Select, TextInput } from "@/ui";
+import { Button, Field, FieldGroup, Hint, IconButton, NumberInput, Section, Select, TextInput, Toggle } from "@/ui";
 import { Segmented } from "@/ui/controls";
 import { AssetPicker } from "./AppearancePanel";
 import { useImageImport, useMediaLibrary } from "@/components/MediaLibrary";
@@ -24,7 +24,7 @@ export function TagPanel({ node, commit }: { node: Node; commit: Commit }) {
   );
 }
 
-export function ImagePanel({ site, node, commit }: { site: Site; node: Node; commit: Commit }) {
+export function ImagePanel({ site, node, commit, editMode = "design" }: { site: Site; node: Node; commit: Commit; editMode?: "write" | "design" }) {
   const locale = site.settings.defaultLocale;
   const library = useMediaLibrary();
   const { importFiles, busy, error } = useImageImport(site, commit);
@@ -50,12 +50,12 @@ export function ImagePanel({ site, node, commit }: { site: Site; node: Node; com
         <Field label="Ajustement">
           <Segmented value={String(node.props.fit ?? "")} options={[{ value: "cover", label: "Couvrir" }, { value: "contain", label: "Contenir" }, { value: "fill", label: "Étirer" }]} onChange={(v) => commit({ op: "node.set", id: node.id, path: "props.fit", value: v }, { label: "Ajustement" })} />
         </Field>
-        <Field label="Ratio" hint="Largeur / hauteur, par exemple 4 / 5">
+        {editMode === "design" ? <><Field label="Ratio" hint="Largeur / hauteur, par exemple 4 / 5">
           <TextInput mono value={String(node.props.ratio ?? "")} placeholder="auto" onValueChange={(v) => commit({ op: "node.set", id: node.id, path: "props.ratio", value: v || undefined }, { coalesceKey: `ratio:${node.id}`, label: "Ratio" })} />
         </Field>
         <Field label="Priorité" hint="Charger en premier (image visible dès l'arrivée)">
-          <Segmented value={node.props.priority ? "1" : undefined} options={[{ value: "1", label: "Chargement prioritaire" }]} onChange={(v) => commit({ op: "node.set", id: node.id, path: "props.priority", value: v ? true : undefined }, { label: "Priorité" })} />
-        </Field>
+          <Toggle checked={!!node.props.priority} label="Chargement prioritaire" onChange={(v) => commit({ op: "node.set", id: node.id, path: "props.priority", value: v ? true : undefined }, { label: "Priorité" })} />
+        </Field></> : null}
       </FieldGroup>
     </Section>
   );
@@ -219,7 +219,7 @@ export function FormPanel({ site, node, commit }: { site: Site; node: Node; comm
 }
 
 /** Réglages d'un champ de formulaire : libellé, clé, sorte, obligatoire, aide, options. */
-export function FieldPanel({ site, node, commit }: { site: Site; node: Node; commit: Commit }) {
+export function FieldPanel({ site, node, commit, editMode = "design" }: { site: Site; node: Node; commit: Commit; editMode?: "write" | "design" }) {
   const locale = site.settings.defaultLocale;
   const set = (path: string, value: unknown, label: string, coalesce?: boolean) => commit({ op: "node.set", id: node.id, path, value }, { label, coalesceKey: coalesce ? `${path}:${node.id}` : undefined });
   const kind = String(node.props.fieldType ?? "text");
@@ -228,10 +228,10 @@ export function FieldPanel({ site, node, commit }: { site: Site; node: Node; com
     <Section title="Champ">
       <FieldGroup>
         <Field label="Libellé"><TextInput value={(node.props.label as Record<string, string> | undefined)?.[locale] ?? ""} onValueChange={(v) => set(`props.label.${locale}`, v || undefined, "Libellé du champ", true)} /></Field>
-        <Field label="Clé" hint="Nom technique de la valeur reçue (name, email, message…)"><TextInput mono value={String(node.props.name ?? "")} onValueChange={(v) => set("props.name", v.replace(/[^a-zA-Z0-9_-]/g, "") || undefined, "Clé du champ", true)} /></Field>
+        {editMode === "design" ? <Field label="Clé" hint="Nom technique de la valeur reçue (name, email, message…)"><TextInput mono value={String(node.props.name ?? "")} onValueChange={(v) => set("props.name", v.replace(/[^a-zA-Z0-9_-]/g, "") || undefined, "Clé du champ", true)} /></Field> : null}
         <Field label="Sorte"><Select value={kind} options={FIELD_KINDS} onValueChange={(v) => set("props.fieldType", v, "Sorte du champ")} /></Field>
         <Field label="Aide" hint="Texte dans le champ vide"><TextInput value={(node.props.placeholder as Record<string, string> | undefined)?.[locale] ?? ""} onValueChange={(v) => set(`props.placeholder.${locale}`, v || undefined, "Aide du champ", true)} /></Field>
-        <Field label="Obligatoire"><Segmented value={node.props.required ? "1" : undefined} options={[{ value: "1", label: "Obligatoire" }]} onChange={(v) => set("props.required", v ? true : undefined, "Champ obligatoire")} /></Field>
+        <Field label="Obligatoire"><Toggle checked={!!node.props.required} label="Obligatoire" onChange={(v) => set("props.required", v ? true : undefined, "Champ obligatoire")} /></Field>
         {kind === "select" ? <Field label="Choix" hint="Séparés par des virgules"><TextInput value={options} onValueChange={(v) => set("props.options", v.split(",").map((x) => x.trim()).filter(Boolean).map((l) => ({ value: l.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || l, label: { [locale]: l } })), "Choix du champ", true)} /></Field> : null}
       </FieldGroup>
     </Section>

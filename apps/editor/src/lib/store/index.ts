@@ -11,7 +11,7 @@ export type { AssetStorage } from "./assets";
 export { FileAssetStorage } from "./assets";
 
 /** À incrémenter quand l'interface `SiteStore` change. */
-const STORE_VERSION = 8;
+const STORE_VERSION = 9;
 
 declare global {
   var __atelierStore: { key: string; store: SiteStore } | undefined;
@@ -60,5 +60,5 @@ export async function loadSite(id: string): Promise<(StoredSite & { entries: Awa
 export async function ensureSampleSite(owner?: string): Promise<void> {
   const store = getStore();
   if ((await store.listSites(owner)).length) return;
-  try { await store.create(sampleSite, owner); await store.setEntries(sampleSite.id, sampleEntries); } catch { /* créé entre-temps */ }
+  try { await store.create(sampleSite, owner); await store.upsertEntries(sampleSite.id, sampleEntries); } catch { /* créé entre-temps */ }
 }

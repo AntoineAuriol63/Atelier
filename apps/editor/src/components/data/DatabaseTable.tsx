@@ -5,8 +5,7 @@ import { useMemo, useRef, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, Copy, Download, Plus, Trash2, Upload, X } from "lucide-react";
 import type { CommitOptions, Database, Entry, Field, FieldType, Node, Op, Site } from "@atelier/model";
 import { newId } from "@atelier/model";
-import { Button, Dialog, Hint, IconButton, Select, TextArea, TextInput } from "@/ui";
-import { Segmented } from "@/ui/controls";
+import { Button, Dialog, Hint, IconButton, Select, TextArea, TextInput, Toggle, askConfirm } from "@/ui";
 import { MediaLibrary } from "@/components/MediaLibrary";
 import { assetLabel } from "@/lib/upload";
 import { slugify } from "@/components/PagesPanel";
@@ -133,13 +132,13 @@ function FieldEditor({ site, db, field, onChange, onMove, onRemove, onClose, isN
       <div className="flex items-center gap-2">
         <span className="text-xs text-muted w-16 shrink-0">Type</span>
         <Select className="w-[180px]" value={field.type} options={READONLY.includes(field.type) ? [{ value: field.type, label: typeLabel(field.type) }] : FIELD_TYPES} onValueChange={(t) => onChange({ ...field, type: t as FieldType, options: t === "select" || t === "multiSelect" ? field.options ?? [] : undefined, relation: t === "relation" ? field.relation ?? { database: site.databases.find((d) => d.id !== db.id)?.id ?? db.id, multiple: false } : undefined })} />
-        <Segmented value={field.required ? "1" : undefined} options={[{ value: "1", label: "Obligatoire" }]} onChange={(v) => onChange({ ...field, required: v ? true : undefined })} />
+        <Toggle checked={!!field.required} label="Obligatoire" onChange={(v) => onChange({ ...field, required: v || undefined })} />
       </div>
       {field.type === "select" || field.type === "multiSelect" ? (
         <div className="flex items-center gap-2"><span className="text-xs text-muted w-16 shrink-0">Options</span><TextInput className="flex-1" value={optionsText} onValueChange={setOptions} placeholder="Portrait, Mariage, Paysage (séparées par des virgules)" /></div>
       ) : null}
       {field.type === "relation" ? (
-        <div className="flex items-center gap-2"><span className="text-xs text-muted w-16 shrink-0">Vers</span><Select className="w-[180px]" value={field.relation?.database ?? ""} options={others} onValueChange={(d) => onChange({ ...field, relation: { ...(field.relation ?? { multiple: false }), database: d } })} /><Segmented value={field.relation?.multiple ? "1" : undefined} options={[{ value: "1", label: "Plusieurs" }]} onChange={(v) => onChange({ ...field, relation: { database: field.relation?.database ?? db.id, multiple: !!v } })} /></div>
+        <div className="flex items-center gap-2"><span className="text-xs text-muted w-16 shrink-0">Vers</span><Select className="w-[180px]" value={field.relation?.database ?? ""} options={others} onValueChange={(d) => onChange({ ...field, relation: { ...(field.relation ?? { multiple: false }), database: d } })} /><Toggle checked={!!field.relation?.multiple} label="Plusieurs" onChange={(v) => onChange({ ...field, relation: { database: field.relation?.database ?? db.id, multiple: v } })} /></div>
       ) : null}
       <div className="flex items-center gap-1">
         <Button size="sm" icon={ChevronLeft} onClick={() => onMove(-1)} title="Déplacer la colonne vers la gauche">Gauche</Button>
@@ -218,18 +217,23 @@ export function DatabaseTable({ site, db, entries, save, saveMany, remove, commi
   };
   // L'export est servi par le serveur (pièce jointe) : plus fiable qu'un fichier fabriqué dans la page, et copiable en secours.
   const [justExported, setJustExported] = useState(false);
-  const exportCsv = () => {
-    setJustExported(true); window.setTimeout(() => setJustExported(false), 3000);
-    const a = document.createElement("a");
-    a.href = `/api/sites/${site.id}/databases/${db.id}/export`; a.download = `${db.slug}.csv`;
-    document.body.appendChild(a); a.click(); a.remove();
-    notify?.(`Téléchargement de ${db.slug}.csv (${rows.length} entrée${rows.length > 1 ? "s" : ""}) : regardez vos téléchargements.`, "success");
+  const exportCsv = async () => {
+    // On ne dit « téléchargé » qu'une fois le fichier vraiment reçu.
+    try {
+      const res = await fetch(`/api/sites/${site.id}/databases/${db.id}/export`);
+      if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error ?? `Export impossible (${res.status})`);
+      const blob = await res.blob();
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = `${db.slug}.csv`;
+      document.body.appendChild(a); a.click(); a.remove(); window.setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      setJustExported(true); window.setTimeout(() => setJustExported(false), 3000);
+      notify?.(`${db.slug}.csv téléchargé (${rows.length} entrée${rows.length > 1 ? "s" : ""}) : regardez vos téléchargements.`, "success");
+    } catch (e) { notify?.(e instanceof Error ? e.message : "Export impossible"); }
   };
   const copyCsv = async () => { try { await navigator.clipboard.writeText(toCsv(db, rows, locale)); notify?.("CSV copié : collez-le dans un tableur.", "success"); } catch { notify?.("Copie impossible dans ce navigateur."); } };
   const editing = fieldEdit && !readOnly ? db.fields.find((f) => f.name === fieldEdit) : undefined;
   const title = (e: Entry) => String(e.values[db.titleField] ?? "") || "Sans titre";
   return (
-    <Dialog open onClose={onClose} title={`${db.name[locale] ?? db.slug} · ${rows.length} entrée${rows.length > 1 ? "s" : ""}`} width={1240} actions={<div className="flex items-center gap-1">{saving ? <span className="text-2xs text-dim mr-2">Enregistrement…</span> : null}<Button size="sm" variant={justExported ? "primary" : "default"} icon={justExported ? Check : Download} onClick={exportCsv} disabled={!rows.length} title="Télécharger toutes les entrées en CSV (tableur)">{justExported ? "Téléchargé" : "CSV"}</Button><Button size="sm" variant="ghost" icon={Copy} onClick={copyCsv} disabled={!rows.length} title="Copier le CSV dans le presse-papier (à coller dans un tableur)">Copier</Button>{readOnly || !saveMany ? null : <><input ref={importInput} type="file" accept=".csv,.json,text/csv,application/json" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void onImportFile(f); }} /><Button size="sm" icon={Upload} onClick={() => importInput.current?.click()} title="Importer un CSV (tableur) ou un JSON : les colonnes deviennent des champs">Importer…</Button></>}{readOnly ? null : <><Button size="sm" icon={Plus} onClick={addField}>Champ</Button><Button size="sm" variant="primary" icon={Plus} onClick={addEntry}>Nouvelle entrée</Button></>}</div>}>
+    <Dialog open onClose={onClose} title={`${db.name[locale] ?? db.slug} · ${rows.length} entrée${rows.length > 1 ? "s" : ""}`} width={1240} actions={<div className="flex items-center gap-1">{saving ? <span className="text-2xs text-dim mr-2">Enregistrement…</span> : null}<Button size="sm" variant={justExported ? "primary" : "default"} icon={justExported ? Check : Download} onClick={() => void exportCsv()} disabled={!rows.length} title="Télécharger toutes les entrées en CSV (tableur)">{justExported ? "Téléchargé" : "CSV"}</Button><Button size="sm" variant="ghost" icon={Copy} onClick={copyCsv} disabled={!rows.length} title="Copier le CSV dans le presse-papier (à coller dans un tableur)">Copier</Button>{readOnly || !saveMany ? null : <><input ref={importInput} type="file" accept=".csv,.json,text/csv,application/json" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void onImportFile(f); }} /><Button size="sm" icon={Upload} onClick={() => importInput.current?.click()} title="Importer un CSV (tableur) ou un JSON : les colonnes deviennent des champs">Importer…</Button></>}{readOnly ? null : <><Button size="sm" icon={Plus} onClick={addField}>Champ</Button><Button size="sm" variant="primary" icon={Plus} onClick={addEntry}>Nouvelle entrée</Button></>}</div>}>
       {editing ? <FieldEditor site={site} db={db} field={editing} isNew={editing.name.startsWith("champ")} onChange={(f) => updateField(editing.name, f)} onMove={(d) => moveField(editing.name, d)} onRemove={() => removeField(editing.name)} onClose={() => setFieldEdit(null)} /> : null}
       <div className="overflow-auto">
         <table className="border-collapse text-sm min-w-full">
@@ -262,7 +266,7 @@ export function DatabaseTable({ site, db, entries, save, saveMany, remove, commi
                   </td>
                 ))}
                 <td className="border-b border-line align-middle">
-                  <IconButton size="sm" tone="danger" label={`Supprimer « ${title(e)} »`} icon={Trash2} className="opacity-0 group-hover:opacity-100" onClick={() => { if (window.confirm(`Supprimer « ${title(e)} » ? Cette entrée ne se récupère pas.`)) remove(e.id); }} />
+                  <IconButton size="sm" tone="danger" label={`Supprimer « ${title(e)} »`} icon={Trash2} className="opacity-60 group-hover:opacity-100 focus-visible:opacity-100" onClick={() => { void askConfirm({ title: `Supprimer « ${title(e)} » ?`, message: "Cette entrée ne se récupère pas.", action: "Supprimer l'entrée", danger: true }).then((ok) => { if (ok) remove(e.id); }); }} />
                 </td>
               </tr>
             ))}

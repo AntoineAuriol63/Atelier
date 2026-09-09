@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { applyOps, type Change, type Entry, type Site } from "@atelier/model";
+import { applyOps, migrate, validateSite, type Change, type Entry, type Site } from "@atelier/model";
 import type { ChangeInput, ChangeResult, PublicationMeta, Published, SiteStore, SiteSummary, StoredSite } from "./types";
 import { isProduction } from "@/lib/env";
 
@@ -27,13 +27,13 @@ export class SupabaseSiteStore implements SiteStore {
   async get(id: string): Promise<StoredSite | null> {
     if (this.ownerColumn !== false) {
       const r = await this.client.from("sites").select("document, version, owner").eq("id", id).maybeSingle();
-      if (!r.error) { this.ownerColumn = true; return r.data ? { site: r.data.document as Site, version: r.data.version as number, owner: (r.data.owner as string | null) ?? null } : null; }
+      if (!r.error) { this.ownerColumn = true; return r.data ? { site: migrate(r.data.document), version: r.data.version as number, owner: (r.data.owner as string | null) ?? null } : null; }
       if (!this.isUndefinedColumn(r.error)) throw r.error;
       this.ownerColumn = false;
     }
     const { data, error } = await this.client.from("sites").select("document, version").eq("id", id).maybeSingle();
     if (error) throw error;
-    return data ? { site: data.document as Site, version: data.version as number, owner: null } : null;
+    return data ? { site: migrate(data.document), version: data.version as number, owner: null } : null;
   }
 
   async create(site: Site, owner?: string): Promise<StoredSite> {
@@ -109,12 +109,11 @@ export class SupabaseSiteStore implements SiteStore {
     return rows.map((e) => ({ id: e.id, database: e.database_id, status: e.status, values: e.values, createdAt: e.created_at, updatedAt: e.updated_at }));
   }
 
-  async setEntries(id: string, entries: Entry[]): Promise<void> {
+  async upsertEntries(id: string, entries: Entry[]): Promise<void> {
     const rows = entries.map((e) => ({ id: e.id, site_id: id, database_id: e.database, status: e.status, values: e.values, created_at: e.createdAt, updated_at: e.updatedAt }));
     const { error } = await this.client.from("entries").upsert(rows);
     if (error) throw error;
   }
-  async upsertEntries(id: string, entries: Entry[]): Promise<void> { await this.setEntries(id, entries); }
   async deleteEntries(id: string, ids: string[]): Promise<void> {
     if (!ids.length) return;
     const { error } = await this.client.from("entries").delete().eq("site_id", id).in("id", ids);
@@ -128,6 +127,9 @@ export class SupabaseSiteStore implements SiteStore {
   async publish(id: string, label?: string): Promise<PublicationMeta> {
     const current = await this.get(id);
     if (!current) throw new Error(`Site introuvable : ${id}`);
+    // On ne met jamais en ligne un document invalide : mieux vaut refuser que servir une page qui casse.
+    const valid = validateSite(current.site);
+    if (!valid.ok) throw new Error(`Document invalide, publication refusée : ${valid.errors.slice(0, 3).join(" ; ")}`);
     const entries = await this.entries(id);
     const createdAt = new Date().toISOString();
     const snap = await this.client.from("snapshots").upsert({ site_id: id, version: current.version, document: { site: current.site, entries }, kind: "publish", label: label ?? null, created_at: createdAt }, { onConflict: "site_id,version" });
@@ -156,8 +158,8 @@ export class SupabaseSiteStore implements SiteStore {
     const { data, error } = await this.client.from("snapshots").select("document, created_at").eq("site_id", id).eq("version", version).maybeSingle();
     if (error) throw new Error(error.message);
     if (!data) return null;
-    const doc = data.document as { site: Site; entries?: Entry[] };
-    return { site: doc.site, entries: doc.entries ?? [], version, publishedAt: data.created_at as string };
+    const doc = data.document as { site: unknown; entries?: Entry[] };
+    return { site: migrate(doc.site), entries: doc.entries ?? [], version, publishedAt: data.created_at as string };
   }
   async restore(id: string, version: number): Promise<PublicationMeta> {
     const { data, error } = await this.client.from("snapshots").select("version, label, created_at").eq("site_id", id).eq("version", version).eq("kind", "publish").maybeSingle();

@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { Images, Plus, Upload, X } from "lucide-react";
 import { assetLabel } from "@/lib/upload";
+import { useMediaLibrary } from "@/components/MediaLibrary";
 import type { Asset, Gradient, Site, StyleValue } from "@atelier/model";
 import { Button, Hint, NumberInput, Section, Select, TextInput } from "@/ui";
 import { ColorInput, PropRow, Segmented, UnitInput } from "@/ui/controls";
@@ -43,7 +44,12 @@ function GradientEditor({ site, value, onChange, mode }: { site: Site; value: Gr
 
 export function AssetPicker({ site, value, onChange, kind = "image", onImport, busy, onOpenLibrary }: { site: Site; value: string | null | undefined; onChange: (id: string | null) => void; kind?: Asset["kind"]; onImport?: (files: File[]) => void; busy?: string | null; onOpenLibrary?: () => void }) {
   const locale = site.settings.defaultLocale;
-  const assets = site.assets.filter((a) => a.kind === kind);
+  const library = useMediaLibrary();
+  const openLibrary = onOpenLibrary ?? (library ? () => library.open({ value: value ?? null, onPick: onChange }) : undefined);
+  // Les huit plus récentes (et celle choisie) : pour le reste, la bibliothèque.
+  const all = site.assets.filter((a) => a.kind === kind);
+  const recent = [...all].sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? "")).slice(0, 8);
+  const assets = value && !recent.some((a) => a.id === value) ? [...recent, ...all.filter((a) => a.id === value)] : recent;
   const input = useRef<HTMLInputElement>(null);
   return (
     <div className="flex flex-col gap-1.5">
@@ -69,7 +75,7 @@ export function AssetPicker({ site, value, onChange, kind = "image", onImport, b
       </div>
       {onImport ? <input ref={input} type="file" accept="image/*,.heic,.heif" multiple hidden onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ""; if (files.length) onImport(files); }} /> : null}
       {busy ? <span className="text-2xs text-muted">{busy}</span> : null}
-      {onOpenLibrary ? <Button size="sm" variant="ghost" icon={Images} onClick={onOpenLibrary}>Toutes les images…</Button> : null}
+      {openLibrary ? <Button size="sm" variant="ghost" icon={Images} onClick={openLibrary}>{all.length > assets.length ? `Toutes les images (${all.length})…` : "Bibliothèque d'images…"}</Button> : null}
     </div>
   );
 }

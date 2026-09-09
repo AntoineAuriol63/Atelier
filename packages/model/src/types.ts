@@ -188,14 +188,9 @@ export type PageState = { [name: string]: { type: "boolean" | "number" | "text";
 
 // ---------------------------------------------------------------- Nœuds
 
-export type NodeType =
-  | "box" | "text" | "list" | "listItem" | "image" | "video" | "link" | "icon" | "divider"
-  | "embed" | "form" | "field" | "collection" | "item" | "instance" | "slot" | "code";
 
-export const NODE_TYPES: readonly NodeType[] = [
-  "box", "text", "list", "listItem", "image", "video", "link", "icon", "divider",
-  "embed", "form", "field", "collection", "item", "instance", "slot", "code",
-];
+export const NODE_TYPES = ["box", "text", "list", "listItem", "image", "video", "link", "icon", "divider", "embed", "form", "field", "collection", "item", "instance", "slot", "code"] as const;
+export type NodeType = (typeof NODE_TYPES)[number];
 
 /** Types de nœuds qui acceptent des enfants. */
 export const CONTAINER_TYPES: ReadonlySet<NodeType> = new Set<NodeType>([

@@ -5,7 +5,7 @@ import { Plus, Trash2 } from "lucide-react";
 import type { CommitOptions, Op, Site, StyleValue, Theme } from "@atelier/model";
 import { defaultLayoutGrid, walk } from "@atelier/model";
 import { UnitInput } from "@/ui/controls";
-import { Button, Hint, IconButton, NumberInput, PanelHeading, Section, TextInput } from "@/ui";
+import { Button, Hint, IconButton, NumberInput, PanelHeading, Section, TextInput, askConfirm } from "@/ui";
 import { ColorInput } from "@/ui/controls";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
@@ -46,7 +46,7 @@ function TokenList({ site, group, commit }: { site: Site; group: keyof Theme["to
           ) : (
             <TextInput mono className="min-w-0" value={typeof v === "string" ? v : Object.values(v)[0] ?? ""} onValueChange={(t) => set(n, t, `Valeur ${n}`)} />
           )}
-          <IconButton size="sm" label={`Supprimer ${n}`} icon={Trash2} tone="danger" onClick={() => { if (window.confirm(`Supprimer la valeur ${group}.${n} ? Les éléments qui l'utilisent perdront cette valeur.`)) set(n, undefined, `Supprimer ${n}`, false); }} />
+          <IconButton size="sm" label={`Supprimer ${n}`} icon={Trash2} tone="danger" onClick={() => { void askConfirm({ title: `Supprimer la valeur ${group}.${n} ? Les éléments qui l'utilisent perdront cette valeur.`, action: "Supprimer", danger: true }).then((ok) => { if (ok) set(n, undefined, `Supprimer ${n}`, false);  }); }} />
         </div>
       ))}
       {adding ? (
@@ -107,7 +107,7 @@ function FontsSection({ site, commit }: { site: Site; commit: Commit }) {
           ))}
         </div>
       </form>
-      <Hint>Pour utiliser une police dans un texte : Typographie → Police. Une police téléchargée depuis votre ordinateur (fichier .woff2) sera possible avec l&apos;import de fichiers, jalon M5.</Hint>
+      <Hint>Pour utiliser une police dans un texte : Typographie → Police. Une police téléchargée depuis votre ordinateur (fichier .woff2) sera possible avec l&apos;import de fichiers.</Hint>
     </Section>
   );
 }
@@ -158,7 +158,7 @@ export function ThemePanel({ site, commit }: { site: Site; commit: Commit }) {
           {g.hint ? <Hint>{g.hint}</Hint> : null}
         </Section>
       ))}
-      <Section title="Points de rupture" defaultOpen={false}>
+      <Section title="Tailles d'écran" defaultOpen={false}>
         <div className="grid grid-cols-[1fr_84px_24px] gap-1 text-2xs text-dim uppercase tracking-wider"><span>Nom</span><span>Jusqu&apos;à</span><span /></div>
         {bps.map((b) => {
           const uses = breakpointInUse(site, b.id);

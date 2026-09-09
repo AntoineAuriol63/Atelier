@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ExternalLink, LogOut, Plus, Trash2 } from "lucide-react";
-import { Badge, Button, Hint, IconButton, TextInput } from "@/ui";
+import { Badge, Button, ConfirmProvider, Hint, IconButton, TextInput, askConfirm } from "@/ui";
 import { Segmented } from "@/ui/controls";
 import { PRODUCT_NAME } from "@/lib/product";
 
@@ -31,7 +31,7 @@ export function Dashboard({ sites, user }: { sites: DashboardSite[]; user: strin
     } catch (e) { setError(e instanceof Error ? e.message : "Création impossible"); setBusy(null); }
   };
   const remove = async (s: DashboardSite) => {
-    if (!window.confirm(`Supprimer le site « ${s.name} » ? Son contenu, ses entrées et ses publications disparaissent. Cette action ne s'annule pas.`)) return;
+    if (!(await askConfirm({ title: `Supprimer le site « ${s.name} » ?`, consequences: ["Son contenu, ses entrées et ses publications disparaissent.", "Cette action ne s'annule pas."], action: "Supprimer le site", danger: true }))) return;
     setBusy("Suppression…");
     try {
       const res = await fetch(`/api/sites/${s.id}`, { method: "DELETE" });
@@ -40,7 +40,7 @@ export function Dashboard({ sites, user }: { sites: DashboardSite[]; user: strin
     } catch (e) { setError(e instanceof Error ? e.message : "Suppression impossible"); } finally { setBusy(null); }
   };
   return (
-    <div className="min-h-full bg-app text-ink">
+    <ConfirmProvider><div className="min-h-full bg-app text-ink">
       <header className="flex items-center gap-3 h-12 px-5 border-b border-line">
         <span className="font-semibold text-base tracking-tight">{PRODUCT_NAME}</span>
         <span className="text-sm text-dim">Vos sites</span>
@@ -72,7 +72,7 @@ export function Dashboard({ sites, user }: { sites: DashboardSite[]; user: strin
             <li key={s.id} className="group rounded-md border border-line bg-panel p-4 flex flex-col gap-2 hover:border-line-strong">
               <div className="flex items-start gap-2">
                 <Link href={`/sites/${s.id}`} className="flex-1 min-w-0 text-base font-medium text-ink hover:text-accent truncate">{s.name}</Link>
-                <IconButton label="Supprimer le site" icon={Trash2} tone="danger" size="sm" className="opacity-0 group-hover:opacity-100" onClick={() => remove(s)} />
+                <IconButton label="Supprimer le site" icon={Trash2} tone="danger" size="sm" className="opacity-60 group-hover:opacity-100 focus-visible:opacity-100" onClick={() => remove(s)} />
               </div>
               <div className="flex items-center gap-2 text-xs text-muted">
                 {s.publishedVersion !== null ? <Badge tone="success">en ligne{s.publishedVersion !== s.version ? ` · v${s.publishedVersion}` : ""}</Badge> : <Badge>non publié</Badge>}
@@ -89,6 +89,6 @@ export function Dashboard({ sites, user }: { sites: DashboardSite[]; user: strin
         </ul>
         {!sites.length ? <Hint>Créez votre premier site avec « Nouveau site ».</Hint> : null}
       </main>
-    </div>
+    </div></ConfirmProvider>
   );
 }

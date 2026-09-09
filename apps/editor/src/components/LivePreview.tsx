@@ -1,49 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Entry, Inline, LinkTarget, Mark, Site } from "@atelier/model";
+import type { Entry, Site } from "@atelier/model";
+import { serialize, isEmptyText } from "./preview/serialize";
+import { isAtelierMessage, type BlockPresetInfo, type FromPreview, type ToPreview } from "@/lib/preview-protocol";
 import { RenderPage, assetMap, fontsHref, matchPath, memoryData, siteCss, type RenderContext } from "@atelier/renderer";
 
 type Props = { initialSite: Site; entries: Entry[]; path: string; mode?: string; editor: boolean };
 
-type BlockPresetInfo = { id: string; label: string; group: string; keywords?: string };
 type EditMode = "write" | "design";
 
-const ACCENT = "#1F5F8B";
-
-/** Sérialise le DOM d'un texte édité en contenu en ligne (marques et liens). */
-function serialize(root: HTMLElement): Inline[] {
-  // Chaque niveau (racine, intérieur d'un lien) a sa propre liste : un texte de lien ne doit pas fusionner avec le texte qui précède le lien.
-  const push = (out: Inline[], seg: Inline) => {
-    const last = out[out.length - 1];
-    if (seg.t === "text" && last && last.t === "text" && JSON.stringify(last.marks ?? []) === JSON.stringify(seg.marks ?? [])) { last.v += seg.v; return; }
-    out.push(seg);
-  };
-  const walk = (out: Inline[], node: Node, marks: Mark[], first: { v: boolean }) => {
-    if (node.nodeType === Node.TEXT_NODE) { const v = node.textContent ?? ""; if (v) push(out, { t: "text", v, marks: marks.length ? [...marks] : undefined }); return; }
-    if (node.nodeType !== Node.ELEMENT_NODE) return;
-    const el = node as HTMLElement;
-    const tag = el.tagName;
-    if (tag === "BR") { push(out, { t: "break" }); return; }
-    if (tag === "A") {
-      const raw = el.getAttribute("data-link");
-      let href: LinkTarget = { kind: "url", url: el.getAttribute("href") ?? "#" };
-      try { if (raw) href = JSON.parse(raw) as LinkTarget; } catch { /* lien saisi à la main */ }
-      const children: Inline[] = [];
-      el.childNodes.forEach((c) => walk(children, c, marks, first));
-      if (children.length) out.push({ t: "link", href, newTab: el.getAttribute("target") === "_blank" || undefined, children });
-      return;
-    }
-    const mark = tag === "B" || tag === "STRONG" ? "bold" : tag === "I" || tag === "EM" ? "italic" : tag === "U" ? "underline" : tag === "S" || tag === "STRIKE" || tag === "DEL" ? "strike" : tag === "CODE" ? "code" : null;
-    if ((tag === "DIV" || tag === "P") && !first.v) push(out, { t: "break" });
-    first.v = false;
-    const next: Mark[] = mark && !marks.includes(mark) ? [...marks, mark] : marks;
-    el.childNodes.forEach((c) => walk(out, c, next, first));
-  };
-  const out: Inline[] = [];
-  root.childNodes.forEach((c) => walk(out, c, [], { v: true }));
-  return out.length ? out : [{ t: "text", v: "" }];
-}
+const ACCENT = "var(--color-accent, #6aa6ff)";
 
 /** Feuille de la page seule, recalculée uniquement quand le site ou la page change. */
 function PageCss({ site, pageId }: { site: Site; pageId: string }) {
@@ -51,9 +18,6 @@ function PageCss({ site, pageId }: { site: Site; pageId: string }) {
   return <style dangerouslySetInnerHTML={{ __html: css }} />;
 }
 
-function isEmptyText(el: HTMLElement): boolean {
-  return (el.innerText ?? "").replace(/​/g, "").trim() === "";
-}
 
 /**
  * Aperçu vivant : rendu côté serveur au premier chargement, puis mis à jour par l'éditeur
@@ -79,6 +43,8 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
   useEffect(() => {
     if (!editor) return;
     let hovered: HTMLElement | null = null;
+    const send = (msg: FromPreview) => parent.postMessage(msg, window.location.origin);
+    let pages: { path: string; name: string }[] = [];
     let containers = new Set<string>();
     let links = new Set<string>();       // blocs atomiques pour le dépôt : liens et boutons (contenu en ligne seulement) et, en mode Écriture, les vues de base de données (leur carte est un modèle répété)
     let textNodes = new Set<string>();
@@ -103,26 +69,31 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       if (prev) { prev.style.outline = ""; prev.removeAttribute("data-selected"); }
       selectedId.current = el ? idOf(el) : null;
       if (el) { outline(el, "selected"); el.setAttribute("data-selected", ""); }
-      if (notify) parent.postMessage({ type: "atelier:select", id: selectedId.current }, window.location.origin);
+      if (notify) send({ type: "atelier:select", id: selectedId.current });
     };
 
     // ---------------------------------------------------------------- calques d'interface (dans l'aperçu)
     const layer = (css: string) => { const d = document.createElement("div"); d.setAttribute("data-atelier-ui", ""); d.style.cssText = css; document.body.appendChild(d); return d; };
-    const UI = "font:13px/1.4 system-ui,sans-serif;color:#e8e8ec;pointer-events:auto;z-index:2147483647;position:absolute;box-sizing:border-box;transform-origin:top left";
+    // Les couleurs de l'interface viennent de l'éditeur (même origine) : un seul système de design, pas de copie.
+    try {
+      const pcs = getComputedStyle(parent.document.documentElement);
+      for (const v of ["--color-panel", "--color-surface", "--color-raised", "--color-hover", "--color-line", "--color-line-strong", "--color-ink", "--color-muted", "--color-dim", "--color-accent", "--color-accent-soft", "--color-accent-ink", "--color-danger"]) { const val = pcs.getPropertyValue(v); if (val) document.documentElement.style.setProperty(v, val); }
+    } catch { /* aperçu ouvert hors de l'éditeur */ }
+    const UI = "font:13px/1.4 system-ui,sans-serif;color:var(--color-ink,#e8e8ec);pointer-events:auto;z-index:2147483647;position:absolute;box-sizing:border-box;transform-origin:top left";
     // L'aperçu est souvent réduit à l'échelle : l'interface dans l'aperçu compense pour garder sa vraie taille à l'écran.
     let uiScale = 1;
     const applyUiScale = () => { [blockBar, selBar, slashMenu, grip].forEach((l) => { l.style.transform = `scale(${uiScale})`; }); };
-    const indicator = layer("position:absolute;pointer-events:none;z-index:2147483647;display:none;background:#1F5F8B;border-radius:2px;box-shadow:0 0 0 1px #fff");
+    const indicator = layer("position:absolute;pointer-events:none;z-index:2147483647;display:none;background:var(--color-accent,#6aa6ff);border-radius:2px;box-shadow:0 0 0 1px #fff");
     const gridLayer = layer("position:absolute;left:0;top:0;right:0;pointer-events:none;z-index:2147483646;display:none");
     gridLayer.setAttribute("data-atelier-grid", "");
-    const blockBar = layer(`${UI};display:none;background:#1a1b1f;border:1px solid #3a3b42;border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.4);padding:2px;gap:2px;align-items:center`);
-    const selBar = layer(`${UI};display:none;background:#1a1b1f;border:1px solid #3a3b42;border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.4);padding:2px;gap:2px;align-items:center`);
-    const slashMenu = layer(`${UI};display:none;background:#1a1b1f;border:1px solid #3a3b42;border-radius:6px;box-shadow:0 12px 32px rgba(0,0,0,.5);min-width:240px;max-height:280px;overflow:auto;padding:4px`);
+    const blockBar = layer(`${UI};display:none;background:var(--color-panel,#1a1b1f);border:1px solid var(--color-line-strong,#3a3b42);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.4);padding:2px;gap:2px;align-items:center`);
+    const selBar = layer(`${UI};display:none;background:var(--color-panel,#1a1b1f);border:1px solid var(--color-line-strong,#3a3b42);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.4);padding:2px;gap:2px;align-items:center`);
+    const slashMenu = layer(`${UI};display:none;background:var(--color-panel,#1a1b1f);border:1px solid var(--color-line-strong,#3a3b42);border-radius:6px;box-shadow:0 12px 32px rgba(0,0,0,.5);min-width:240px;max-height:280px;overflow:auto;padding:4px`);
     // Poignée à gauche du bloc, comme dans Notion : « + » pour insérer, « ⋮⋮ » pour glisser.
     const grip = layer(`${UI};display:none;flex-direction:column;gap:1px;background:transparent`);
-    const BTN = "background:none;border:0;color:#c9cad0;font:inherit;font-weight:600;height:28px;min-width:28px;padding:0 8px;border-radius:5px;cursor:pointer";
+    const BTN = "background:none;border:0;color:var(--color-muted,#c9cad0);font:inherit;font-weight:600;height:28px;min-width:28px;padding:0 8px;border-radius:5px;cursor:pointer";
     const style = document.createElement("style");
-    style.textContent = `[data-atelier-ui] button:hover{background:#2a2b30;color:#fff}[data-atelier-ui] select{background:#232428;color:#e8e8ec;border:1px solid #3a3b42;border-radius:5px;height:28px;font:inherit;padding:0 6px}[data-atelier-ui] .on{background:rgba(106,166,255,.18);color:#6aa6ff}[data-atelier-ui] .item{display:flex;gap:8px;align-items:center;height:32px;padding:0 10px;border-radius:5px;cursor:pointer;white-space:nowrap}[data-atelier-ui] .item.cur{background:rgba(106,166,255,.18)}[data-atelier-ui] .grp{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#6c6d76;padding:8px 10px 2px}`;
+    style.textContent = `[data-atelier-ui] button:hover{background:var(--color-hover,#2a2b30);color:var(--color-ink,#fff)}[data-atelier-ui] select,[data-atelier-ui] input{background:var(--color-surface,#232428);color:var(--color-ink,#e8e8ec);border:1px solid var(--color-line-strong,#3a3b42);border-radius:5px;height:28px;font:inherit;padding:0 6px}[data-atelier-ui] input:focus{outline:none;border-color:var(--color-accent,#6aa6ff)}[data-atelier-ui] .on{background:var(--color-accent-soft,rgba(106,166,255,.18));color:var(--color-accent,#6aa6ff)}[data-atelier-ui] .item{display:flex;gap:8px;align-items:center;height:32px;padding:0 10px;border-radius:5px;cursor:pointer;white-space:nowrap}[data-atelier-ui] .item.cur{background:var(--color-accent-soft,rgba(106,166,255,.18))}[data-atelier-ui] .grp{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-dim,#8b8c95);padding:8px 10px 2px}`;
     document.head.appendChild(style);
 
     const sizeGrid = () => { gridLayer.style.height = `${Math.max(document.documentElement.scrollHeight, document.body.scrollHeight)}px`; };
@@ -194,7 +165,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
         sel.title = "Type de bloc";
         TEXT_TYPES.forEach(([v, l]) => { const o = document.createElement("option"); o.value = v; o.textContent = l; if (v === tag) o.selected = true; sel.appendChild(o); });
         sel.addEventListener("mousedown", (e) => e.stopPropagation());
-        sel.addEventListener("change", () => parent.postMessage({ type: "atelier:set-tag", id, tag: sel.value }, window.location.origin));
+        sel.addEventListener("change", () => send({ type: "atelier:set-tag", id, tag: sel.value }));
         blockBar.appendChild(sel);
         const align = getComputedStyle(el).textAlign;
         // Icônes d'alignement (mêmes tracés que Lucide align-left / align-center / align-right).
@@ -204,23 +175,23 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
           right: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="21" y1="6" x2="3" y2="6"/><line x1="21" y1="12" x2="9" y2="12"/><line x1="21" y1="18" x2="7" y2="18"/></svg>`,
         };
         ([["left", "Aligner à gauche"], ["center", "Centrer"], ["right", "Aligner à droite"]] as const).forEach(([v, t]) => {
-          const x = b("", t, () => parent.postMessage({ type: "atelier:set-style", id, prop: "textAlign", value: (v === "left" && align !== "left") || v !== "left" ? v : undefined }, window.location.origin), (align === v || (v === "left" && align === "start")) ? "on" : "");
+          const x = b("", t, () => send({ type: "atelier:set-style", id, prop: "textAlign", value: (v === "left" && align !== "left") || v !== "left" ? v : undefined }), (align === v || (v === "left" && align === "start")) ? "on" : "");
           x.innerHTML = ICON[v];
           x.style.display = "inline-flex"; x.style.alignItems = "center"; x.style.justifyContent = "center";
         });
       }
-      b("Style", "Régler le style en détail (mode Design)", () => parent.postMessage({ type: "atelier:style-in-context", id }, window.location.origin));
+      b("Style", "Régler le style en détail (mode Design)", () => send({ type: "atelier:style-in-context", id }));
       const plusBtn = b("", "Insérer un bloc après (menu /)", () => openSlash(el, true));
       plusBtn.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
       plusBtn.style.display = "inline-flex"; plusBtn.style.alignItems = "center"; plusBtn.style.justifyContent = "center";
-      const trash = b("", "Supprimer le bloc", () => parent.postMessage({ type: "atelier:remove", id }, window.location.origin));
+      const trash = b("", "Supprimer le bloc", () => send({ type: "atelier:remove", id }));
       trash.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`;
       trash.style.display = "inline-flex"; trash.style.alignItems = "center"; trash.style.justifyContent = "center";
       barEl = el;
       placeBar(blockBar, el);
       // poignée gauche
       grip.innerHTML = "";
-      const g = (label: string, title: string, cursor: string) => { const x = document.createElement("button"); x.textContent = label; x.title = title; x.style.cssText = BTN + `;height:20px;min-width:20px;padding:0;font-size:13px;background:#1a1b1f;border:1px solid #3a3b42;color:#9c9da6;cursor:${cursor}`; x.addEventListener("mousedown", (e) => e.preventDefault()); grip.appendChild(x); return x; };
+      const g = (label: string, title: string, cursor: string) => { const x = document.createElement("button"); x.textContent = label; x.title = title; x.style.cssText = BTN + `;height:20px;min-width:20px;padding:0;font-size:13px;background:var(--color-panel,#1a1b1f);border:1px solid var(--color-line-strong,#3a3b42);color:#9c9da6;cursor:${cursor}`; x.addEventListener("mousedown", (e) => e.preventDefault()); grip.appendChild(x); return x; };
       const plus = g("+", "Insérer un bloc après (ou tapez / dans un texte)", "pointer");
       plus.style.height = "24px"; plus.style.minWidth = "24px";
       plus.addEventListener("click", (e) => { e.stopPropagation(); openSlash(el, true); });
@@ -244,6 +215,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
 
     // ---------------------------------------------------------------- barre de sélection (texte riche)
     const renderSelBar = () => {
+      if (linkRange) return;
       const sel = window.getSelection();
       if (!editing || !sel || sel.isCollapsed || sel.rangeCount === 0) { selBar.style.display = "none"; return; }
       const range = sel.getRangeAt(0);
@@ -254,24 +226,44 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       b("I", "Italique (⌘I)", "italic", ";font-style:italic");
       b("U", "Souligné (⌘U)", "underline", ";text-decoration:underline");
       b("S", "Barré", "strikeThrough", ";text-decoration:line-through");
-      const link = document.createElement("button"); link.textContent = "🔗"; link.title = "Lien (⌘K) : adresse, ou /page du site"; link.style.cssText = BTN; link.addEventListener("mousedown", (e) => e.preventDefault()); link.addEventListener("click", (e) => { e.stopPropagation(); makeLink(); }); selBar.appendChild(link);
+      const link = document.createElement("button"); link.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`; link.style.display = "inline-flex"; link.style.alignItems = "center"; link.title = "Lien (⌘K) : adresse, ou /page du site"; link.style.cssText = BTN; link.addEventListener("mousedown", (e) => e.preventDefault()); link.addEventListener("click", (e) => { e.stopPropagation(); makeLink(); }); selBar.appendChild(link);
       const r = range.getBoundingClientRect();
       selBar.style.display = "flex";
       const w = selBar.offsetWidth * uiScale;
       selBar.style.left = `${Math.max(4, r.left + r.width / 2 - w / 2) + window.scrollX}px`;
       selBar.style.top = `${Math.max(2, r.top - 38 * uiScale) + window.scrollY}px`;
     };
+    let linkRange: Range | null = null;
+    /** Le lien se saisit dans la barre de sélection : un champ, les pages du site en suggestion, Entrée pour poser, Échap pour laisser. */
     const makeLink = () => {
       const sel = window.getSelection();
-      if (!sel || sel.isCollapsed) return;
+      if (!sel || sel.isCollapsed || sel.rangeCount === 0) return;
+      linkRange = sel.getRangeAt(0).cloneRange();
       const current = (sel.anchorNode?.parentElement?.closest("a") as HTMLAnchorElement | null)?.getAttribute("href") ?? "";
-      const url = window.prompt("Adresse du lien (https://…, ou un chemin du site comme /contact). Vide pour retirer le lien.", current);
-      if (url === null) return;
-      if (!url.trim()) { document.execCommand("unlink"); return; }
-      document.execCommand("createLink", false, url.trim());
-      const a = sel.anchorNode?.parentElement?.closest("a");
-      if (a) a.setAttribute("data-link", JSON.stringify(url.startsWith("/") ? { kind: "url", url } : { kind: "url", url: url.trim() }));
-      renderSelBar();
+      selBar.innerHTML = "";
+      const input = document.createElement("input");
+      input.type = "text"; input.value = current; input.placeholder = "https://… ou /page-du-site"; input.style.cssText = "width:240px"; input.setAttribute("list", "atelier-pages");
+      const list = document.createElement("datalist"); list.id = "atelier-pages";
+      pages.forEach((p) => { const o = document.createElement("option"); o.value = p.path; o.label = p.name; list.appendChild(o); });
+      const apply = () => {
+        const url = input.value.trim();
+        const s2 = window.getSelection(); s2?.removeAllRanges(); if (linkRange) s2?.addRange(linkRange);
+        if (!url) document.execCommand("unlink");
+        else {
+          document.execCommand("createLink", false, url);
+          const a = window.getSelection()?.anchorNode?.parentElement?.closest("a");
+          if (a) a.setAttribute("data-link", JSON.stringify({ kind: "url", url }));
+        }
+        linkRange = null; renderSelBar();
+      };
+      const cancel = () => { const s2 = window.getSelection(); s2?.removeAllRanges(); if (linkRange) s2?.addRange(linkRange); linkRange = null; renderSelBar(); };
+      input.addEventListener("keydown", (e) => { e.stopPropagation(); if (e.key === "Enter") { e.preventDefault(); apply(); } if (e.key === "Escape") { e.preventDefault(); cancel(); } });
+      input.addEventListener("mousedown", (e) => e.stopPropagation());
+      const ok = document.createElement("button"); ok.textContent = current ? "Modifier" : "Poser le lien"; ok.style.cssText = BTN; ok.addEventListener("mousedown", (e) => e.preventDefault()); ok.addEventListener("click", (e) => { e.stopPropagation(); apply(); });
+      selBar.append(input, list, ok);
+      if (current) { const rm = document.createElement("button"); rm.textContent = "Retirer"; rm.style.cssText = BTN; rm.addEventListener("mousedown", (e) => e.preventDefault()); rm.addEventListener("click", (e) => { e.stopPropagation(); input.value = ""; apply(); }); selBar.appendChild(rm); }
+      selBar.style.display = "flex";
+      input.focus(); input.select();
     };
 
     // ---------------------------------------------------------------- menu « / »
@@ -315,7 +307,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       const replace = !slash.after && textNodes.has(idOf(el)) && isEmptyText(el);
       closeSlash();
       if (editing === el) endEdit(!replace);
-      parent.postMessage({ type: "atelier:slash", id: idOf(el), preset: b.id, replace }, window.location.origin);
+      send({ type: "atelier:slash", id: idOf(el), preset: b.id, replace });
     };
 
     // ---------------------------------------------------------------- édition du texte
@@ -348,7 +340,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       // Le DOM édité par le navigateur n'est pas celui que React connaît : on le remet tel quel, React remontera le texte avec le nouveau contenu.
       el.innerHTML = el.getAttribute("data-original-html") ?? el.innerHTML;
       el.removeAttribute("data-original-html");
-      if (content) parent.postMessage({ type: "atelier:text", id: idOf(el), content }, window.location.origin);
+      if (content) send({ type: "atelier:text", id: idOf(el), content });
     };
     /** Coupe le bloc au curseur : le contenu après le curseur part dans un nouveau bloc. */
     const splitAtCaret = (el: HTMLElement) => {
@@ -364,7 +356,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       editing = null; el.contentEditable = "false"; selBar.style.display = "none";
       el.innerHTML = el.getAttribute("data-original-html") ?? el.innerHTML;
       el.removeAttribute("data-original-html");
-      parent.postMessage({ type: "atelier:split", id, before: beforeContent, after: afterContent }, window.location.origin);
+      send({ type: "atelier:split", id, before: beforeContent, after: afterContent });
     };
     const caretAtStart = (el: HTMLElement) => { const sel = window.getSelection(); if (!sel || sel.rangeCount === 0 || !sel.isCollapsed) return false; const r = document.createRange(); r.selectNodeContents(el); r.setEnd(sel.getRangeAt(0).startContainer, sel.getRangeAt(0).startOffset); return r.toString().length === 0; };
 
@@ -434,7 +426,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     const isBlockDrag = (e: DragEvent) => !!e.dataTransfer && Array.from(e.dataTransfer.types).includes("text/atelier-block");
     const onDragOver = (e: DragEvent) => { if (!isBlockDrag(e)) return; e.preventDefault(); e.dataTransfer!.dropEffect = "copy"; const t = targetAt(e.clientX, e.clientY); if (!t) { hideIndicator(); return; } showIndicator(t.el, t.position, t.axis); };
     const onDragLeave = (e: DragEvent) => { if (!e.relatedTarget) hideIndicator(); };
-    const onDrop = (e: DragEvent) => { if (!isBlockDrag(e)) return; e.preventDefault(); hideIndicator(); const preset = e.dataTransfer!.getData("text/atelier-block"); const t = targetAt(e.clientX, e.clientY); if (preset && t) parent.postMessage({ type: "atelier:drop-block", preset, target: t.id, position: t.position }, window.location.origin); };
+    const onDrop = (e: DragEvent) => { if (!isBlockDrag(e)) return; e.preventDefault(); hideIndicator(); const preset = e.dataTransfer!.getData("text/atelier-block"); const t = targetAt(e.clientX, e.clientY); if (preset && t) send({ type: "atelier:drop-block", preset, target: t.id, position: t.position }); };
 
     // ---------------------------------------------------------------- souris
     const onMouseDown = (e: MouseEvent) => {
@@ -498,7 +490,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
         document.body.style.userSelect = "";
         document.body.classList.remove("atelier-dragging");
         hideIndicator();
-        if (target) parent.postMessage({ type: "atelier:move", id: idOf(press.el), target: target.id, position: target.position }, window.location.origin);
+        if (target) send({ type: "atelier:move", id: idOf(press.el), target: target.id, position: target.position });
         target = null;
         dragging = false;
         suppressClick = true;
@@ -514,7 +506,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       if (!el) return;
       select(el, true);
       // Une image vide s'ouvre sur la bibliothèque : on choisit ou on importe sans passer par le panneau.
-      if (el.getAttribute("data-empty") === "image") parent.postMessage({ type: "atelier:pick-image", id: idOf(el) }, window.location.origin);
+      if (el.getAttribute("data-empty") === "image") send({ type: "atelier:pick-image", id: idOf(el) });
     };
     const onDblClick = (e: MouseEvent) => {
       if ((e.target as Element).closest?.("[data-atelier-ui]")) return;
@@ -548,7 +540,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
         // Annuler pendant la frappe : d'abord la frappe (navigateur), puis, s'il n'y a plus rien, l'opération précédente d'Atelier.
         if (meta && e.key.toLowerCase() === "z" && !e.shiftKey) {
           let native = false; try { native = document.queryCommandEnabled("undo"); } catch { native = false; }
-          if (!native) { e.preventDefault(); endEdit(true); parent.postMessage({ type: "atelier:key", key: "z", metaKey: e.metaKey, ctrlKey: e.ctrlKey, shiftKey: false, altKey: false }, window.location.origin); }
+          if (!native) { e.preventDefault(); endEdit(true); send({ type: "atelier:key", key: "z", metaKey: e.metaKey, ctrlKey: e.ctrlKey, shiftKey: false, altKey: false }); }
           return;
         }
         if (meta && e.key.toLowerCase() === "b") { e.preventDefault(); document.execCommand("bold"); renderSelBar(); return; }
@@ -557,25 +549,26 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
         if (meta && e.key.toLowerCase() === "k") { e.preventDefault(); makeLink(); return; }
         if (e.key === "/" && editMode === "write" && !meta) { e.preventDefault(); openSlash(editing, false); return; }
         if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (editMode === "write") splitAtCaret(editing); else endEdit(true); return; }
-        if (e.key === "Backspace" && editMode === "write" && isEmptyText(editing) && caretAtStart(editing)) { e.preventDefault(); const el = editing; editing = null; el.contentEditable = "false"; el.innerHTML = el.getAttribute("data-original-html") ?? el.innerHTML; el.removeAttribute("data-original-html"); parent.postMessage({ type: "atelier:merge-prev", id: idOf(el) }, window.location.origin); return; }
+        if (e.key === "Backspace" && editMode === "write" && isEmptyText(editing) && caretAtStart(editing)) { e.preventDefault(); const el = editing; editing = null; el.contentEditable = "false"; el.innerHTML = el.getAttribute("data-original-html") ?? el.innerHTML; el.removeAttribute("data-original-html"); send({ type: "atelier:merge-prev", id: idOf(el) }); return; }
         return;
       }
       if (FORWARDED.has(e.key) || (meta && ["z", "d", "c", "x", "v", "k"].includes(e.key.toLowerCase())) || (e.ctrlKey && e.key.toLowerCase() === "g")) {
         e.preventDefault();
-        parent.postMessage({ type: "atelier:key", key: e.key, metaKey: e.metaKey, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, altKey: e.altKey }, window.location.origin);
+        send({ type: "atelier:key", key: e.key, metaKey: e.metaKey, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, altKey: e.altKey });
       }
     };
-    const onFocusOut = (e: FocusEvent) => { if (editing && e.target === editing && !(e.relatedTarget as Element | null)?.closest?.("[data-atelier-ui]")) window.setTimeout(() => { if (editing === e.target) endEdit(true); }, 0); };
+    const onFocusOut = (e: FocusEvent) => { if (linkRange) return; if (editing && e.target === editing && !(e.relatedTarget as Element | null)?.closest?.("[data-atelier-ui]")) window.setTimeout(() => { if (editing === e.target) endEdit(true); }, 0); };
     const onSelectionChange = () => { renderSelBar(); };
 
     // ---------------------------------------------------------------- messages de l'éditeur
     const onMessage = (e: MessageEvent) => {
-      if (e.origin !== window.location.origin) return;
-      const m = e.data as { type?: string; id?: string | null; mode?: string; site?: Site; containers?: string[]; textNodes?: string[]; editMode?: EditMode; blocks?: BlockPresetInfo[]; caret?: "start" | "end" | "all"; state?: string | null };
+      if (!isAtelierMessage(e)) return;
+      const m = e.data as ToPreview;
       if (m?.type === "atelier:site" && m.site) {
         setSite(m.site);
 
         if (m.containers) containers = new Set(m.containers);
+        if (m.pages) pages = m.pages;
         if ((m as { links?: string[] }).links) links = new Set((m as { links?: string[] }).links);
         if (m.textNodes) textNodes = new Set(m.textNodes);
         if (m.blocks) blocks = m.blocks;
@@ -619,7 +612,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     document.addEventListener("mouseout", onOut);
     document.documentElement.addEventListener("mouseleave", onLeaveDoc);
     window.addEventListener("message", onMessage);
-    parent.postMessage({ type: "atelier:ready" }, window.location.origin);
+    send({ type: "atelier:ready" });
     return () => {
       document.removeEventListener("dblclick", onDblClick, true);
       document.removeEventListener("keydown", onKeyDown, true);

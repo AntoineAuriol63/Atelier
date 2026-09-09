@@ -4,7 +4,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { Check, Images, RefreshCw, Trash2, Upload } from "lucide-react";
 import type { Asset, CommitOptions, Entry, Op, Site } from "@atelier/model";
 import { newId } from "@atelier/model";
-import { Button, Dialog, Hint, Select, TextInput } from "@/ui";
+import { Button, Dialog, Hint, Select, TextInput, askConfirm } from "@/ui";
+import { mod } from "@/lib/keys";
 import { assetLabel, isImageFile, uploadImages } from "@/lib/upload";
 import { assetUsages, type AssetUsage } from "@/lib/asset-usage";
 
@@ -86,6 +87,7 @@ export function MediaLibrary({ site, entries, open, onClose, value, onPick, comm
   const [onlyUnused, setOnlyUnused] = useState(false);
   const [current, setCurrent] = useState<string | null>(value ?? null);
   const [replaceBusy, setReplaceBusy] = useState(false);
+  const [replaceError, setReplaceError] = useState<string | null>(null);
   const replaceInput = useRef<HTMLInputElement>(null);
   const usages = useMemo(() => assetUsages(site, entries), [site, entries]);
   const images = useMemo(() => {
@@ -116,21 +118,21 @@ export function MediaLibrary({ site, entries, open, onClose, value, onPick, comm
   const replaceFile = async (a: Asset, files: File[]) => {
     const f = files.find(isImageFile);
     if (!f) return;
-    setReplaceBusy(true);
+    setReplaceBusy(true); setReplaceError(null);
     try {
       const [fresh] = await uploadImages(site.id, [f]);
       if (fresh) setAssets(site.assets.map((x) => (x.id === a.id ? { ...x, url: fresh.url, width: fresh.width, height: fresh.height, mime: fresh.mime, variants: fresh.variants, name: x.name ?? fresh.name } : x)), "Remplacer le fichier de l'image");
-    } finally { setReplaceBusy(false); }
+    } catch (e) { setReplaceError(e instanceof Error ? e.message : "Remplacement impossible"); } finally { setReplaceBusy(false); }
   };
-  const removeAsset = (a: Asset) => {
+  const removeAsset = async (a: Asset) => {
     if (usages.get(a.id)?.length) return;
-    if (!window.confirm(`Retirer « ${assetLabel(a, locale)} » de la bibliothèque ? Le fichier reste dans le stockage, l'entrée disparaît du site (⌘Z la ramène).`)) return;
+    if (!(await askConfirm({ title: `Retirer « ${assetLabel(a, locale)} » de la bibliothèque ?`, consequences: ["Le fichier reste dans le stockage.", `L'image disparaît du site ; ${mod()}Z la ramène.`], action: "Retirer", danger: true }))) return;
     setAssets(site.assets.filter((x) => x.id !== a.id), "Retirer une image");
     if (current === a.id) setCurrent(null);
   };
-  const removeUnused = () => {
+  const removeUnused = async () => {
     const ids = site.assets.filter((a) => a.kind === "image" && !(usages.get(a.id)?.length)).map((a) => a.id);
-    if (!ids.length || !window.confirm(`Retirer ${ids.length} image${ids.length > 1 ? "s" : ""} inutilisée${ids.length > 1 ? "s" : ""} de la bibliothèque ? (⌘Z les ramène)`)) return;
+    if (!ids.length || !(await askConfirm({ title: `Retirer ${ids.length} image${ids.length > 1 ? "s" : ""} inutilisée${ids.length > 1 ? "s" : ""} de la bibliothèque ?`, message: `Les fichiers restent dans le stockage ; ${mod()}Z les ramène.`, action: "Retirer", danger: true }))) return;
     setAssets(site.assets.filter((a) => !ids.includes(a.id)), "Retirer les images inutilisées");
     if (current && ids.includes(current)) setCurrent(null);
   };
@@ -143,7 +145,7 @@ export function MediaLibrary({ site, entries, open, onClose, value, onPick, comm
   };
 
   return (
-    <Dialog open={open} onClose={onClose} title={onPick ? "Choisir une image" : "Images du site"} width={980} actions={<div className="flex items-center gap-1">{unusedCount ? <Button size="sm" variant="ghost" icon={Trash2} onClick={removeUnused} title="Retirer de la bibliothèque toutes les images qui ne servent nulle part">{unusedCount} inutilisée{unusedCount > 1 ? "s" : ""}</Button> : null}<ImportButton onFiles={importHere} busy={busy} size="sm" /></div>}>
+    <Dialog open={open} onClose={onClose} title={onPick ? "Choisir une image" : "Images du site"} width={980} actions={<div className="flex items-center gap-1">{unusedCount ? <Button size="sm" variant="ghost" icon={Trash2} onClick={() => void removeUnused()} title="Retirer de la bibliothèque toutes les images qui ne servent nulle part">{unusedCount} inutilisée{unusedCount > 1 ? "s" : ""}</Button> : null}<ImportButton onFiles={importHere} busy={busy} size="sm" /></div>}>
       <div className="grid min-h-[420px]" style={{ gridTemplateColumns: "1fr 300px" }}>
         <div
           className={`p-3 flex flex-col gap-3 min-w-0 ${over ? "outline outline-2 outline-accent -outline-offset-4" : ""}`}
@@ -208,7 +210,8 @@ export function MediaLibrary({ site, entries, open, onClose, value, onPick, comm
                 {onPick ? <Button variant="primary" icon={Check} onClick={() => pick(selected.id)}>Utiliser cette image</Button> : null}
                 <input ref={replaceInput} type="file" accept={ACCEPT} hidden onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ""; if (files.length) void replaceFile(selected, files); }} />
                 <Button icon={RefreshCw} disabled={replaceBusy} onClick={() => replaceInput.current?.click()} title="Envoyer un autre fichier à la place : l'image change partout où elle sert">{replaceBusy ? "Remplacement…" : "Remplacer le fichier…"}</Button>
-                <Button variant="danger" icon={Trash2} disabled={!!selectedUsages.length} title={selectedUsages.length ? "Retirez d'abord l'image des endroits où elle sert" : "Retirer de la bibliothèque"} onClick={() => removeAsset(selected)}>Retirer</Button>
+                {replaceError ? <p className="text-sm text-danger">{replaceError}</p> : null}
+                <Button variant="danger" icon={Trash2} disabled={!!selectedUsages.length} title={selectedUsages.length ? "Retirez d'abord l'image des endroits où elle sert" : "Retirer de la bibliothèque"} onClick={() => void removeAsset(selected)}>Retirer</Button>
               </div>
             </>
           )}

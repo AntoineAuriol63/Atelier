@@ -2,16 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { AlertTriangle, CheckCircle2, Command as CommandIcon, Database as DatabaseIcon, ExternalLink, Info, FileText, Grid3x3, Layers, Moon, Palette, Plus, Redo2, Sun, Undo2, UploadCloud } from "lucide-react";
-import type { DropPosition, Entry, Node, Page, Site } from "@atelier/model";
-import { BASE, breakpointForWidth, canInsertUnder, planExitBox, cloneWithNewIds, dataSourceFor, entryPath, indexSite, layoutGridAt, newId, planDrop, planInsert, planMove, stylePath, templateOf } from "@atelier/model";
+import type { DropPosition, Entry, Node, Page, Site, StyleValue } from "@atelier/model";
+import { BASE, breakpointForWidth, canInsertUnder, cloneWithNewIds, dataSourceFor, entryPath, fitHeadings as fitHeadingsInPage, indexSite, layoutGridAt, newId, planDrop, planInsert, planMergePrev, planMove, planSlashInsert, planSplit, stylePath, templateOf, type TextPlan } from "@atelier/model";
 import type { Op } from "@atelier/model";
 import { valueToCss } from "@atelier/renderer";
 import type { Inline } from "@atelier/model";
 import { useDocument } from "@/lib/use-document";
 import Link from "next/link";
 import { PRODUCT_NAME } from "@/lib/product";
+import { mod } from "@/lib/keys";
 import type { BlockPreset } from "@/lib/blocks";
-import { Badge, Button, Hint, IconButton, NumberInput, Panel, PanelHeading, Separator, Tabs, TreeRow, type DropIndicator, Select } from "@/ui";
+import { Badge, Button, Hint, IconButton, NumberInput, Panel, PanelHeading, Separator, Tabs, TreeRow, type DropIndicator, Select, ConfirmProvider, askConfirm } from "@/ui";
 import { NodeInspector } from "./NodeInspector";
 import { AddPanel } from "./AddPanel";
 import { ThemePanel } from "./ThemePanel";
@@ -20,6 +21,7 @@ import { CommandPalette, type Command } from "./CommandPalette";
 import { allPresets } from "@/lib/blocks";
 import { ImagesIcon, MediaLibraryProvider, openMediaLibrary } from "@/components/MediaLibrary";
 import type { AssetUsage } from "@/lib/asset-usage";
+import { isAtelierMessage, type FromPreview, type ToPreview } from "@/lib/preview-protocol";
 import { PublishDialog } from "@/components/PublishDialog";
 import { DataPanel } from "@/components/data/DataPanel";
 import { DatabaseTable } from "@/components/data/DatabaseTable";
@@ -76,7 +78,7 @@ function Layer(p: {
         onRename={(name) => p.onRename(node.id, name)}
         draggable={depth > 0}
         drop={indicator}
-        trailing={node.type === "instance" && p.onEnterComponent ? <button type="button" onClick={(e) => { e.stopPropagation(); p.onEnterComponent!(String(node.props.component)); }} className="h-5 px-1.5 rounded-xs text-2xs text-accent hover:bg-accent-soft opacity-0 group-hover:opacity-100" title="Ouvrir le composant pour modifier son contenu">Ouvrir</button> : undefined}
+        trailing={node.type === "instance" && p.onEnterComponent ? <button type="button" onClick={(e) => { e.stopPropagation(); p.onEnterComponent!(String(node.props.component)); }} className="h-5 px-1.5 rounded-xs text-2xs text-accent hover:bg-accent-soft opacity-60 group-hover:opacity-100 focus-visible:opacity-100" title="Ouvrir le composant pour modifier son contenu">Ouvrir</button> : undefined}
         onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", node.id); p.onDragStart(node.id); }}
         onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = "move"; p.onDragOver(node.id, dropPositionFor(e, canInside)); }}
         onDragLeave={(e) => { e.stopPropagation(); }}
@@ -104,7 +106,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
   const pageKey = `atelier:page:${site.id}`;
   const [pageId, setPageIdState] = useState(() => { try { const saved = localStorage.getItem(pageKey); return site.pages.some((p) => p.id === saved) ? saved! : site.pages[0]!.id; } catch { return site.pages[0]!.id; } });
   const setPageId = useCallback((id: string) => { setPageIdState(id); try { localStorage.setItem(pageKey, id); } catch {} }, [pageKey]);
-  const [leftTab, setLeftTab] = useState("layers");
+  const [leftTab, setLeftTab] = useState(() => { try { return (localStorage.getItem("atelier:editmode") || "write") === "write" ? "pages" : "layers"; } catch { return "pages"; } });
   const [preset, setPreset] = useState<string>("base");
   const [customWidth, setCustomWidth] = useState<number | null>(null);
   const [measured, setMeasured] = useState<number>(0);
@@ -116,8 +118,8 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
   const [drop, setDrop] = useState<DropState>(null);
   const [notice, setNotice] = useState<{ text: string; tone: "danger" | "success" | "info" } | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [editMode, setEditMode] = useState<EditMode>(() => { try { return (localStorage.getItem("atelier:editmode") as EditMode) || "design"; } catch { return "design"; } });
-  const switchMode = useCallback((m: EditMode) => { setEditMode(m); try { localStorage.setItem("atelier:editmode", m); } catch {} }, []);
+  const [editMode, setEditMode] = useState<EditMode>(() => { try { return (localStorage.getItem("atelier:editmode") as EditMode) || "write"; } catch { return "design"; } });
+  const switchMode = useCallback((m: EditMode) => { setEditMode(m); setLeftTab((t) => (m === "write" && (t === "layers" || t === "theme") ? "pages" : t)); try { localStorage.setItem("atelier:editmode", m); } catch {} }, []);
   const [showGrid, setShowGrid] = useState<boolean>(() => { try { return localStorage.getItem("atelier:grid") === "1"; } catch { return false; } });
   const toggleGrid = useCallback(() => setShowGrid((g) => { try { localStorage.setItem("atelier:grid", g ? "0" : "1"); } catch {} return !g; }), []);
   const [previewState, setPreviewState] = useState<string | null>(null);
@@ -145,7 +147,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
   }, [index]);
 
   void previewKey;
-  const post = useCallback((msg: unknown) => frame.current?.contentWindow?.postMessage(msg, window.location.origin), []);
+  const post = useCallback((msg: ToPreview) => frame.current?.contentWindow?.postMessage(msg, window.location.origin), []);
 
   const notify = useCallback((text: string, tone: "danger" | "success" | "info" = "danger") => {
     setNotice({ text, tone });
@@ -167,7 +169,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
   const dataSource = useMemo(() => (selected ? dataSourceFor(site, index, page, selected) : undefined), [site, index, page, selected]);
 
   /** Supprimer une base : ses entrées partent (sans retour), ses pages modèles redeviennent fixes, ses vues restent à reconfigurer. */
-  const deleteDatabase = useCallback((dbId: string) => {
+  const deleteDatabase = useCallback(async (dbId: string) => {
     const db = site.databases.find((d) => d.id === dbId);
     if (!db) return;
     const name = db.name[locale] ?? db.slug;
@@ -180,7 +182,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
     if (entryIds.length) lines.push(`• ${entryIds.length} entrée${entryIds.length > 1 ? "s" : ""} supprimée${entryIds.length > 1 ? "s" : ""}, sans retour possible.`);
     if (views.length) lines.push(`• ${views.length} vue${views.length > 1 ? "s" : ""} de base de données à reconfigurer.`);
     if (templates.length) lines.push(`• ${templates.length} page${templates.length > 1 ? "s" : ""} par entrée supprimée${templates.length > 1 ? "s" : ""} (⌘Z les ramène).`);
-    if (!window.confirm(lines.join("\n"))) return;
+    if (!(await askConfirm({ title: lines[0]!, consequences: lines.slice(2).map((l) => l.replace(/^• /, "")), action: "Supprimer la base", danger: true }))) return;
     const ops: Op[] = [{ op: "site.set", path: "databases", value: site.databases.filter((d) => d.id !== dbId) }];
     const remaining = site.pages.filter((p) => !templates.includes(p.id));
     if (templates.length && remaining.length) ops.push({ op: "site.set", path: "pages", value: remaining });
@@ -208,13 +210,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
     select(id);
   }, [index, doc, notify, select]);
 
-  /** Un modèle qui apporte un h1 alors que la page en a déjà un : son titre devient h2 (une page, un seul h1). */
-  const fitHeadings = useCallback((node: Node): Node => {
-    const hasH1 = (n: Node): boolean => (n.type === "text" && n.props.tag === "h1") || (n.children ?? []).some(hasH1);
-    if (!hasH1(page.root) || !hasH1(node)) return node;
-    const demote = (n: Node): Node => ({ ...n, props: n.type === "text" && n.props.tag === "h1" ? { ...n.props, tag: "h2" } : n.props, children: n.children?.map(demote) });
-    return demote(node);
-  }, [page.root]);
+  const fitHeadings = useCallback((node: Node): Node => fitHeadingsInPage(page.root, node), [page.root]);
   const addBlock = useCallback((preset: BlockPreset) => {
     const node = fitHeadings(preset.make(site));
     const to = planInsert(index, page.root, selected);
@@ -246,91 +242,24 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
     doc.commit({ op: "node.set", id, path: `props.content.${locale}`, value: content }, { label: "Modifier le texte" });
   }, [index, doc, locale]);
   /** Entrée dans un texte : le bloc est coupé au curseur, la suite part dans un nouveau bloc du même type (un titre donne un paragraphe). */
-  const splitNode = useCallback((id: string, before: Inline[], after: Inline[]) => {
-    const loc = index.get(id);
-    if (!loc || !loc.parent || loc.node.type !== "text") return;
-    const isBlank = (c: Inline[]) => c.every((s) => s.t === "break" || (s.t === "text" && !s.v));
-    // Dans un lien ou un bouton, Entrée ne crée rien : on valide simplement le texte.
-    if (loc.parent.type === "link") { setNodeContent(id, [...before, ...after]); return; }
-    const tag = typeof loc.node.props.tag === "string" && loc.node.props.tag === "p" ? "p" : loc.parent.type === "listItem" ? String(loc.node.props.tag ?? "span") : "p";
-    // Curseur au début d'un texte non vide : un bloc vide apparaît au-dessus, le texte reste où il est (comme Notion).
-    if (isBlank(before) && !isBlank(after)) {
-      const empty: Node = { id: newId(), type: "text", props: { tag: "p", content: { [locale]: [{ t: "text", v: "" }] } } };
-      if (loc.parent.type === "listItem") { const li = index.get(loc.parent.id)!; doc.commit({ op: "node.insert", parent: li.parent!.id, index: li.index, node: { id: newId(), type: "listItem", props: {}, children: [empty] } }, { label: "Nouveau bloc" }); }
-      else doc.commit({ op: "node.insert", parent: loc.parent.id, index: loc.index, node: empty }, { label: "Nouveau bloc" });
-      window.setTimeout(() => post({ type: "atelier:edit-text", id, caret: "start" }), 30);
-      return;
-    }
-    // Entrée sur un élément de liste vide : on sort de la liste, un paragraphe apparaît juste après elle (comme Notion).
-    if (loc.parent.type === "listItem" && isBlank(before) && isBlank(after)) {
-      const li = index.get(loc.parent.id)!;
-      const list = index.get(li.parent!.id)!;
-      if (!list.parent) return;
-      const para: Node = { id: newId(), type: "text", props: { tag: "p", content: { [locale]: [{ t: "text", v: "" }] } } };
-      const ops: Op[] = [{ op: "node.remove", id: li.node.id }];
-      // Les éléments qui suivaient repartent dans une seconde liste, après le paragraphe.
-      const rest = (list.node.children ?? []).slice(li.index + 1);
-      rest.forEach((n) => ops.push({ op: "node.remove", id: n.id }));
-      ops.push({ op: "node.insert", parent: list.parent.id, index: list.index + 1, node: para });
-      if (rest.length) ops.push({ op: "node.insert", parent: list.parent.id, index: list.index + 2, node: { id: newId(), type: "list", props: { ...list.node.props }, style: list.node.style, children: rest } });
-      if (li.index === 0) ops.push({ op: "node.remove", id: list.node.id });
-      doc.commit({ op: "batch", ops, label: "Sortir de la liste" });
-      select(para.id);
-      window.setTimeout(() => post({ type: "atelier:edit-text", id: para.id, caret: "start" }), 30);
-      return;
-    }
-    // Entrée sur un paragraphe vide, dernier de sa boîte : on sort de la boîte, le paragraphe se retrouve juste après elle.
-    if (isBlank(before) && isBlank(after) && loc.parent.type === "box") {
-      const ex = planExitBox(index, id);
-      if (ex.ok && canInsertUnder(index, ex.to.parent, loc.node).ok) {
-        doc.commit({ op: "node.move", id, to: ex.to }, { label: "Sortir de la boîte" });
-        select(id);
-        window.setTimeout(() => post({ type: "atelier:edit-text", id, caret: "start" }), 30);
-        return;
-      }
-    }
-    const next: Node = { id: newId(), type: "text", props: { tag, content: { [locale]: after } } };
-    const ops: Op[] = [{ op: "node.set", id, path: `props.content.${locale}`, value: before }];
-    if (loc.parent.type === "listItem") {
-      // Dans une liste : nouvel élément de liste après celui-ci.
-      const li = index.get(loc.parent.id)!;
-      const item: Node = { id: newId(), type: "listItem", props: {}, children: [next] };
-      ops.push({ op: "node.insert", parent: li.parent!.id, index: li.index + 1, node: item });
-    } else ops.push({ op: "node.insert", parent: loc.parent.id, index: loc.index + 1, node: next });
-    doc.commit({ op: "batch", ops, label: "Nouveau bloc" });
-    select(next.id);
-    window.setTimeout(() => post({ type: "atelier:edit-text", id: next.id, caret: "start" }), 30);
-  }, [index, doc, locale, select, post, setNodeContent]);
+  /** Exécute un plan d'écriture du modèle : opérations, sélection, reprise de l'édition dans l'aperçu. */
+  const runPlan = useCallback((plan: TextPlan | null) => {
+    if (!plan) return;
+    doc.commit(plan.ops.length === 1 ? plan.ops[0]! : { op: "batch", ops: plan.ops, label: plan.label }, { label: plan.label });
+    if (plan.select !== undefined) select(plan.select);
+    if (plan.edit) { const edit = plan.edit; window.setTimeout(() => post({ type: "atelier:edit-text", id: edit.id, caret: edit.caret }), 30); }
+  }, [doc, select, post]);
+  const splitNode = useCallback((id: string, before: Inline[], after: Inline[]) => runPlan(planSplit(index, id, before, after, locale)), [index, locale, runPlan]);
   /** Retour arrière dans un bloc vide : on le retire et on reprend l'édition du texte précédent. */
-  const mergePrev = useCallback((id: string) => {
-    const loc = index.get(id);
-    if (!loc || !loc.parent) return;
-    const container = loc.parent.type === "listItem" ? index.get(loc.parent.id)! : loc;
-    const siblings = container.parent?.children ?? [];
-    const prev = siblings[container.index - 1];
-    const findLastText = (n: Node | undefined): Node | undefined => { if (!n) return undefined; if (n.type === "text") return n; for (let i = (n.children ?? []).length - 1; i >= 0; i--) { const t = findLastText(n.children![i]); if (t) return t; } return undefined; };
-    const prevText = findLastText(prev);
-    doc.commit({ op: "node.remove", id: container.node.id }, { label: "Supprimer le bloc vide" });
-    if (prevText) { select(prevText.id); window.setTimeout(() => post({ type: "atelier:edit-text", id: prevText.id, caret: "end" }), 30); }
-    else select(container.parent?.id ?? null);
-  }, [index, doc, select, post]);
+  const mergePrev = useCallback((id: string) => runPlan(planMergePrev(index, id)), [index, runPlan]);
   /** Menu « / » : insère le bloc après le texte courant, ou à sa place s'il est vide. */
   const slashInsert = useCallback((id: string, presetId: string, replace: boolean) => {
     const preset = presetById(presetId);
-    const loc = index.get(id);
-    if (!preset || !loc || !loc.parent) return;
-    const node = fitHeadings(preset.make(site));
-    const ok = canInsertUnder(index, loc.parent.id, node);
-    if (!ok.ok) { notify(ok.reason); return; }
-    const ops: Op[] = [];
-    if (replace) ops.push({ op: "node.remove", id });
-    ops.push({ op: "node.insert", parent: loc.parent.id, index: replace ? loc.index : loc.index + 1, node });
-    doc.commit({ op: "batch", ops, label: `Insérer ${preset.label}` });
-    select(node.id);
-    if (node.type === "text") window.setTimeout(() => post({ type: "atelier:edit-text", id: node.id, caret: "all" }), 30);
-  }, [presetById, index, site, doc, select, post, notify, fitHeadings]);
-  const dropBlockAfter = slashInsert;
-  void dropBlockAfter;
+    if (!preset) return;
+    const plan = planSlashInsert(site, index, id, fitHeadings(preset.make(site)), preset.label, replace);
+    if (plan && "error" in plan) { notify(plan.error); return; }
+    runPlan(plan);
+  }, [presetById, index, site, notify, fitHeadings, runPlan]);
 
   const textNodeIds = useMemo(() => [...index.values()].filter((l) => l.node.type === "text" && !l.node.bindings?.content && !((l.node.props.content as Record<string, Inline[]> | undefined)?.[locale] ?? []).some((seg) => seg.t === "bind")).map((l) => l.node.id), [index, locale]);
   const blockInfos = useMemo(() => allPresets(site).map((b) => ({ id: b.id, label: b.label, group: b.group, keywords: `${b.description} ${b.keywords ?? ""}` })), [site]);
@@ -347,9 +276,9 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
   // --- messages de l'aperçu
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
-      if (e.origin !== window.location.origin) return;
-      const m = e.data as { type?: string; id?: string; target?: string; position?: DropPosition };
-      if (m?.type === "atelier:select" && m.id) {
+      if (!isAtelierMessage(e)) return;
+      const m = e.data as FromPreview;
+      if (m.type === "atelier:select" && m.id) {
         select(m.id);
         const n = index.get(m.id)?.node;
         const boundPath = n && n.type === "text" ? (n.bindings?.content?.path ?? ((n.props.content as Record<string, Inline[]> | undefined)?.[locale] ?? []).find((seg): seg is Extract<Inline, { t: "bind" }> => seg.t === "bind")?.binding.path) : undefined;
@@ -358,25 +287,24 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
           notify(`Ce texte vient de la base de données${dbName ? ` « ${dbName} »` : ""} (champ ${boundPath}) : il se modifie dans la base, pas dans la page.`, "info");
         }
       }
-      if (m?.type === "atelier:ready") setFrameReady(true);
-      if (m?.type === "atelier:move" && m.id && m.target && m.position) moveNode(m.id, m.target, m.position);
-      const d = m as { type?: string; preset?: string; target?: string; position?: DropPosition; content?: Inline[]; before?: Inline[]; after?: Inline[]; id?: string; replace?: boolean; prop?: string; value?: unknown; tag?: string };
-      if (d?.type === "atelier:drop-block" && d.preset && d.target && d.position) dropBlock(d.preset, d.target, d.position);
-      if (d?.type === "atelier:text" && d.id && Array.isArray(d.content)) setNodeContent(d.id, d.content);
-      if (d?.type === "atelier:split" && d.id && d.before && d.after) splitNode(d.id, d.before, d.after);
-      if (d?.type === "atelier:merge-prev" && d.id) mergePrev(d.id);
-      if (d?.type === "atelier:slash" && d.id && d.preset) slashInsert(d.id, d.preset, !!d.replace);
-      if (d?.type === "atelier:style-in-context" && d.id) { switchMode("design"); select(d.id); }
-      if (d?.type === "atelier:set-style" && d.id && d.prop) doc.commit({ op: "node.set", id: d.id, path: stylePath(activeBpRef.current, d.prop), value: d.value }, { label: `${d.prop}` });
-      if (d?.type === "atelier:set-tag" && d.id && d.tag) doc.commit({ op: "node.set", id: d.id, path: "props.tag", value: d.tag }, { label: "Type de bloc" });
-      if (d?.type === "atelier:pick-image" && d.id) { const target = d.id; select(target); openMediaLibrary({ value: (index.get(target)?.node.props.asset as string | null) ?? null, onPick: (assetId) => doc.commit({ op: "node.set", id: target, path: "props.asset", value: assetId }, { label: "Changer l'image" }) }); }
-      if (d?.type === "atelier:remove" && d.id) { const loc = index.get(d.id); if (loc?.parent) { doc.commit({ op: "node.remove", id: d.id }, { label: "Supprimer" }); select(loc.parent.id); } }
+      if (m.type === "atelier:ready") setFrameReady(true);
+      if (m.type === "atelier:move") moveNode(m.id, m.target, m.position);
+      if (m.type === "atelier:drop-block") dropBlock(m.preset, m.target, m.position);
+      if (m.type === "atelier:text" && Array.isArray(m.content)) setNodeContent(m.id, m.content);
+      if (m.type === "atelier:split") splitNode(m.id, m.before, m.after);
+      if (m.type === "atelier:merge-prev") mergePrev(m.id);
+      if (m.type === "atelier:slash") slashInsert(m.id, m.preset, !!m.replace);
+      if (m.type === "atelier:style-in-context") { switchMode("design"); select(m.id); }
+      if (m.type === "atelier:set-style") doc.commit({ op: "node.set", id: m.id, path: stylePath(activeBpRef.current, m.prop), value: m.value as StyleValue | undefined }, { label: `${m.prop}` });
+      if (m.type === "atelier:set-tag") doc.commit({ op: "node.set", id: m.id, path: "props.tag", value: m.tag }, { label: "Type de bloc" });
+      if (m.type === "atelier:pick-image") { const target = m.id; select(target); openMediaLibrary({ value: (index.get(target)?.node.props.asset as string | null) ?? null, onPick: (assetId) => doc.commit({ op: "node.set", id: target, path: "props.asset", value: assetId }, { label: "Changer l'image" }) }); }
+      if (m.type === "atelier:remove") { const loc = index.get(m.id); if (loc?.parent) { doc.commit({ op: "node.remove", id: m.id }, { label: "Supprimer" }); select(loc.parent.id); } }
     };
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
   }, [moveNode, select, dropBlock, setNodeContent, splitNode, mergePrev, slashInsert, switchMode, doc, index, site, locale, page.id, notify]);
 
-  useEffect(() => { if (frameReady) post({ type: "atelier:site", site, containers: [...index.values()].filter((l) => ["box", "list", "listItem", "link", "form", "item", "slot"].includes(l.node.type)).map((l) => l.node.id), links: [...index.values()].filter((l) => l.node.type === "link" || (editMode === "write" && l.node.type === "collection")).map((l) => l.node.id), textNodes: textNodeIds, editMode, blocks: blockInfos }); }, [site, index, textNodeIds, frameReady, post, editMode, blockInfos]);
+  useEffect(() => { if (frameReady) post({ type: "atelier:site", site, containers: [...index.values()].filter((l) => ["box", "list", "listItem", "link", "form", "item", "slot"].includes(l.node.type)).map((l) => l.node.id), links: [...index.values()].filter((l) => l.node.type === "link" || (editMode === "write" && l.node.type === "collection")).map((l) => l.node.id), textNodes: textNodeIds, editMode, blocks: blockInfos, pages: site.pages.filter((p) => p.kind === "static").map((p) => ({ path: p.path, name: p.name[locale] ?? p.path })) }); }, [site, index, textNodeIds, frameReady, post, editMode, blockInfos, locale]);
   // Les entrées voyagent à part, et seulement celles des bases que la page utilise (vues et modèle) : le message ne pèse plus le site entier.
   const pageDatabases = useMemo(() => {
     const ids = new Set<string>();
@@ -446,8 +374,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
       }
     };
     const onWindowKey = (e: KeyboardEvent) => onKey(e);
-    const onMsg = (e: MessageEvent) => {
-      if (e.origin !== window.location.origin) return; const m = e.data as { type?: string; key?: string; metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; altKey?: boolean }; if (m?.type === "atelier:key" && m.key) onKey({ key: m.key, metaKey: !!m.metaKey, ctrlKey: !!m.ctrlKey, shiftKey: !!m.shiftKey, altKey: !!m.altKey, preventDefault() {}, fromPreview: true }); };
+    const onMsg = (e: MessageEvent) => { if (!isAtelierMessage(e)) return; const m = e.data as FromPreview; if (m.type === "atelier:key") onKey({ key: m.key, metaKey: m.metaKey, ctrlKey: m.ctrlKey, shiftKey: m.shiftKey, altKey: m.altKey, preventDefault() {}, fromPreview: true }); };
     window.addEventListener("keydown", onWindowKey);
     window.addEventListener("message", onMsg);
     return () => { window.removeEventListener("keydown", onWindowKey); window.removeEventListener("message", onMsg); };
@@ -474,7 +401,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
   useEffect(() => { if (frameReady) post({ type: "atelier:zoom", scale }); }, [scale, frameReady, post]);
   const activeBp = useMemo(() => breakpointForWidth(site.settings.breakpoints, effective), [site.settings.breakpoints, effective]);
   useEffect(() => { activeBpRef.current = activeBp; }, [activeBp]);
-  const breakpoint = activeBp === BASE ? "Base" : site.settings.breakpoints.find((b) => b.id === activeBp)?.name ?? activeBp;
+  const breakpoint = activeBp === BASE ? "Tous les écrans" : site.settings.breakpoints.find((b) => b.id === activeBp)?.name ?? activeBp;
   const goToBreakpoint = useCallback((bp: string) => {
     if (bp === BASE) { setPreset("base"); setCustomWidth(null); return; }
     const b = site.settings.breakpoints.find((x) => x.id === bp);
@@ -528,7 +455,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
   }, [index, doc]);
 
   return (
-    <MediaLibraryProvider site={site} entries={ents.entries} commit={doc.commit} saveEntry={ents.save} onGoTo={goToUsage}>
+    <ConfirmProvider><MediaLibraryProvider site={site} entries={ents.entries} commit={doc.commit} saveEntry={ents.save} onGoTo={goToUsage}>
     <div className="h-full grid grid-rows-[40px_1fr] grid-cols-[300px_1fr_340px]">
       <header className="col-span-3 flex items-center gap-2 px-3 border-b border-line bg-panel">
         <Link href="/" className="font-semibold text-base tracking-tight text-ink hover:text-accent" title="Retour à vos sites">{PRODUCT_NAME}</Link>
@@ -547,14 +474,14 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
 
         <div className="ml-auto flex items-center gap-2">
           <Tabs variant="pill" tabs={PRESETS.map((x) => ({ id: x.id, label: x.label }))} value={customWidth === null ? preset : ""} onChange={(id) => { setPreset(id); setCustomWidth(null); }} />
-          <NumberInput className="w-[92px]" unit="px" min={MIN_WIDTH} max={MAX_WIDTH} step={10} title="Largeur de l'aperçu (320 à 4000 px)" value={Math.round(effective) || ""} onValueChange={(v) => setCustomWidth(v === "" ? null : v)} />
-          <Badge tone="accent" title="Point de rupture actif : les réglages de style se posent dessus">{breakpoint}</Badge>
+          {editMode === "design" ? <><NumberInput className="w-[92px]" unit="px" min={MIN_WIDTH} max={MAX_WIDTH} step={10} title="Largeur de l'aperçu (320 à 4000 px)" value={Math.round(effective) || ""} onValueChange={(v) => setCustomWidth(v === "" ? null : v)} />
+          <Badge tone="accent" title="Taille d'écran active : les réglages de style se posent dessus">{breakpoint}</Badge></> : null}
           {scale < 1 ? <Badge title="Aperçu réduit pour tenir dans la zone">{Math.round(scale * 100)} %</Badge> : null}
           <IconButton label={showGrid ? "Masquer la grille de mise en page (⌃G)" : "Afficher la grille de mise en page (⌃G)"} icon={Grid3x3} active={showGrid} onClick={toggleGrid} />
           <Separator vertical />
           <div className="flex items-center gap-0.5">
-            <IconButton label="Annuler (⌘Z)" icon={Undo2} disabled={!doc.canUndo} onClick={doc.undo} />
-            <IconButton label="Rétablir (⇧⌘Z)" icon={Redo2} disabled={!doc.canRedo} onClick={doc.redo} />
+            <IconButton label={`Annuler (${mod()}Z)`} icon={Undo2} disabled={!doc.canUndo} onClick={doc.undo} />
+            <IconButton label={`Rétablir (⇧${mod()}Z)`} icon={Redo2} disabled={!doc.canRedo} onClick={doc.redo} />
           </div>
           <Badge tone={status.tone} title={doc.error ?? `Version ${doc.version}`}>{status.label} · v{doc.version}</Badge>
           <Separator vertical />
@@ -563,14 +490,14 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
           </div>
           <Separator vertical />
           <IconButton label="Images du site" icon={ImagesIcon} onClick={() => openMediaLibrary()} />
-          <IconButton label="Palette de commandes (⌘K)" icon={CommandIcon} onClick={() => setPaletteOpen(true)} />
+          <IconButton label={`Palette de commandes (${mod()}K)`} icon={CommandIcon} onClick={() => setPaletteOpen(true)} />
           <Button variant="ghost" icon={ExternalLink} onClick={() => window.open(previewPath, "_blank")}>Aperçu</Button>
           <Button variant="primary" icon={UploadCloud} onClick={() => setPublishOpen(true)} title="Publier le site, voir l'historique, revenir en arrière">Publier</Button>
         </div>
       </header>
 
       <Panel side="left">
-        <Tabs tabs={[{ id: "pages", label: "Pages", icon: FileText }, { id: "layers", label: "Calques", icon: Layers }, { id: "add", label: "Ajouter", icon: Plus }, { id: "data", label: "Données", icon: DatabaseIcon }, { id: "theme", label: "Thème", icon: Palette }]} value={leftTab} onChange={setLeftTab} className="px-1 shrink-0" />
+        <Tabs tabs={editMode === "write" ? [{ id: "pages", label: "Pages", icon: FileText }, { id: "add", label: "Ajouter", icon: Plus }, { id: "data", label: "Données", icon: DatabaseIcon }] : [{ id: "pages", label: "Pages", icon: FileText }, { id: "layers", label: "Calques", icon: Layers }, { id: "add", label: "Ajouter", icon: Plus }, { id: "data", label: "Données", icon: DatabaseIcon }, { id: "theme", label: "Thème", icon: Palette }]} value={leftTab} onChange={setLeftTab} className="px-1 shrink-0" />
         <div className="flex-1 overflow-auto py-1" onDragOver={(e) => { if (dragId.current || dragBlock.current) e.preventDefault(); }} onDrop={(e) => { e.preventDefault(); setDrop(null); }}>
           {leftTab === "pages" ? (
             <PagesPanel site={site} pageId={pageId} commit={doc.commit} onOpen={(id) => { setPageId(id); select(null); setFrameReady(false); }} />
@@ -605,7 +532,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
 
       <main ref={canvas} className="relative min-w-0 overflow-auto bg-app flex justify-center items-start p-2">
         {(doc.error || notice) ? (
-          <div role="status" className={`fixed top-14 left-1/2 -translate-x-1/2 z-[60] max-w-[560px] flex items-center gap-2 rounded-md border px-3.5 py-2.5 text-sm font-medium shadow-2xl animate-[atelier-toast_.25s_ease-out] ${notice?.tone === "success" ? "bg-success text-white border-success" : notice?.tone === "info" ? "bg-accent text-accent-ink border-accent" : "bg-danger text-white border-danger"}`}>
+          <div role="status" className={`fixed top-14 left-1/2 -translate-x-1/2 z-[60] max-w-[560px] flex items-center gap-2 rounded-md border px-3.5 py-2.5 text-sm font-medium shadow-2xl animate-[atelier-toast_.25s_ease-out] ${notice?.tone === "success" ? "bg-success text-[#12211a] border-success" : notice?.tone === "info" ? "bg-accent text-accent-ink border-accent" : "bg-danger text-[#2a1210] border-danger"}`}>
             {notice?.tone === "success" ? <CheckCircle2 size={16} aria-hidden /> : notice?.tone === "info" ? <Info size={16} aria-hidden /> : <AlertTriangle size={16} aria-hidden />}
             <span>{notice?.text ?? doc.error}</span>
             {!notice && doc.blocked ? <button type="button" onClick={() => window.location.reload()} className="ml-2 h-7 px-2.5 rounded-sm bg-white/15 hover:bg-white/25 text-sm font-medium">Recharger</button> : null}
@@ -629,16 +556,16 @@ export function EditorShell({ initialSite, initialVersion, initialEntries }: { i
         ) : (
           <div className="p-3 flex flex-col gap-2">
             <PanelHeading className="px-0">Sélection</PanelHeading>
-            <Hint>Cliquez un élément dans l&apos;aperçu ou dans les calques. Flèches pour naviguer, Entrée pour renommer, ⌘D pour dupliquer, Suppr pour supprimer, glisser pour déplacer.</Hint>
+            {editMode === "write" ? <Hint>Cliquez un texte pour écrire, tapez « / » pour ajouter un bloc, glissez la poignée ⋮⋮ pour déplacer. {mod()}Z annule.</Hint> : <Hint>Cliquez un élément dans l&apos;aperçu ou dans les calques. Flèches pour naviguer, Entrée pour renommer, {mod()}D pour dupliquer, Suppr pour supprimer, glisser pour déplacer.</Hint>}
           </div>
         )}
       </Panel>
       {paletteOpen ? <CommandPalette open onClose={() => setPaletteOpen(false)} commands={commands} /> : null}
-      {dbOpen && site.databases.some((d) => d.id === dbOpen) ? <DatabaseTable site={site} db={site.databases.find((d) => d.id === dbOpen)!} entries={ents.entries} save={ents.save} saveMany={ents.saveMany} remove={ents.remove} commit={doc.commit} onClose={() => setDbOpen(null)} saving={ents.saving} onDeleteDatabase={() => deleteDatabase(dbOpen)} notify={notify} /> : null}
+      {dbOpen && site.databases.some((d) => d.id === dbOpen) ? <DatabaseTable site={site} db={site.databases.find((d) => d.id === dbOpen)!} entries={ents.entries} save={ents.save} saveMany={ents.saveMany} remove={ents.remove} commit={doc.commit} onClose={() => setDbOpen(null)} saving={ents.saving} onDeleteDatabase={() => void deleteDatabase(dbOpen)} notify={notify} /> : null}
       {dbOpen && formForOpen ? <DatabaseTable site={site} db={formDatabase(site, formForOpen)} entries={ents.entries} save={ents.save} remove={ents.remove} commit={doc.commit} onClose={() => setDbOpen(null)} saving={ents.saving} readOnly /> : null}
       {publishOpen ? <PublishDialog site={site} version={doc.version} dirty={doc.status !== "saved" && !doc.blocked} broken={doc.blocked} commit={doc.commit} onClose={() => setPublishOpen(false)} notify={notify} /> : null}
 
     </div>
-    </MediaLibraryProvider>
+    </MediaLibraryProvider></ConfirmProvider>
   );
 }

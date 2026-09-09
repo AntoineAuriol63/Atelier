@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { NODE_TYPES } from "./types";
 import { ID_PATTERN } from "./ids";
+import type { StyleValue, Node, Inline, FilterExpr } from "./types";
 
 const id = z.string().regex(ID_PATTERN, "identifiant invalide");
 const locale = z.string().min(2);
@@ -23,7 +24,7 @@ export const linkTarget = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("anchor"), node: id }),
 ]);
 
-const styleValue: z.ZodType<unknown> = z.lazy(() =>
+const styleValue: z.ZodType<StyleValue> = z.lazy(() =>
   z.union([
     z.string(),
     z.number(),
@@ -81,11 +82,11 @@ export const interaction = z.object({
   source: sourceRef.optional(),
 });
 
-export const node: z.ZodType<unknown> = z.lazy(() =>
+export const node: z.ZodType<Node> = z.lazy(() =>
   z.object({
     id,
-    type: z.enum(NODE_TYPES as unknown as [string, ...string[]]),
-    name: z.string().nullish(),   // null accepté : un « retrait » transmis en JSON ne peut pas porter undefined
+    type: z.enum(NODE_TYPES),
+    name: z.string().nullish().transform((v) => v ?? undefined),   // null accepté : un « retrait » transmis en JSON ne peut pas porter undefined
     props: z.record(z.string(), z.unknown()),
     style: styleSet.optional(),
     children: z.array(node).optional(),
@@ -123,7 +124,7 @@ export const sharedStyle = z.object({
   name: z.string(),
   extends: id.optional(),
   style: styleSet.omit({ shared: true }),
-  appliesTo: z.array(z.enum(NODE_TYPES as unknown as [string, ...string[]])).optional(),
+  appliesTo: z.array(z.enum(NODE_TYPES)).optional(),
   source: sourceRef.optional(),
 });
 

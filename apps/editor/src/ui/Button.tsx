@@ -22,7 +22,7 @@ export function Button({ variant = "default", size = "md", icon: Icon, active, c
   return (
     <button
       type="button"
-      className={cx("inline-flex items-center justify-center rounded-sm whitespace-nowrap select-none transition-colors disabled:opacity-40 disabled:pointer-events-none", VARIANT[variant], SIZE[size], active && "bg-accent-soft text-ink border-transparent", className)}
+      className={cx("inline-flex items-center justify-center rounded-sm whitespace-nowrap select-none transition-colors disabled:opacity-40 disabled:cursor-not-allowed", VARIANT[variant], SIZE[size], active && "bg-accent-soft text-ink border-transparent", className)}
       {...rest}
     >
       {Icon ? <Icon size={size === "sm" ? 13 : 14} strokeWidth={1.75} aria-hidden /> : null}
@@ -40,7 +40,7 @@ export function IconButton({ label, icon: Icon, active, size = "md", tone = "def
       <button
         type="button"
         aria-label={label}
-        className={cx("inline-flex items-center justify-center rounded-sm transition-colors disabled:opacity-40 disabled:pointer-events-none", size === "sm" ? "h-6 w-6" : "h-7 w-7", active ? "bg-accent-soft text-ink" : tone === "danger" ? "text-muted hover:bg-danger-soft hover:text-danger" : "text-muted hover:bg-hover hover:text-ink", className)}
+        className={cx("inline-flex items-center justify-center rounded-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed", size === "sm" ? "h-6 w-6" : "h-7 w-7", active ? "bg-accent-soft text-ink" : tone === "danger" ? "text-muted hover:bg-danger-soft hover:text-danger" : "text-muted hover:bg-hover hover:text-ink", className)}
         {...rest}
       >
         <Icon size={size === "sm" ? 13 : 15} strokeWidth={1.75} aria-hidden />

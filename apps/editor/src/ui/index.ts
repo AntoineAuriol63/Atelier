@@ -7,3 +7,5 @@ export * from "./TreeRow";
 export * from "./Misc";
 export * from "./Tooltip";
 export * from "./Dialog";
+export * from "./Confirm";
+export * from "./Toggle";

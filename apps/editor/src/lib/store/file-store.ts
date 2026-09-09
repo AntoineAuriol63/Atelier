@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile, appendFile, rename, readdir, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { applyOps, type Change, type Entry, type Site } from "@atelier/model";
+import { applyOps, migrate, validateSite, type Change, type Entry, type Site } from "@atelier/model";
 import type { ChangeInput, ChangeResult, PublicationMeta, Published, SiteStore, SiteSummary, StoredSite } from "./types";
 
 type Publication = PublicationMeta & { site: Site; entries: Entry[] };
@@ -21,7 +21,8 @@ export class FileSiteStore implements SiteStore {
   private async read(id: string): Promise<FileDoc | null> {
     const f = this.file(id);
     if (!existsSync(f)) return null;
-    return JSON.parse(await readFile(f, "utf8")) as FileDoc;
+    const d = JSON.parse(await readFile(f, "utf8")) as FileDoc;
+    return { ...d, site: migrate(d.site) };
   }
 
   private async write(id: string, doc: FileDoc) {
@@ -98,7 +99,7 @@ export class FileSiteStore implements SiteStore {
     return (await this.read(id))?.entries ?? [];
   }
 
-  async setEntries(id: string, entries: Entry[]): Promise<void> {
+  private async setEntries(id: string, entries: Entry[]): Promise<void> {
     return this.serialize(id, async () => {
       const d = await this.read(id);
       if (!d) throw new Error(`Site introuvable : ${id}`);
@@ -131,6 +132,8 @@ export class FileSiteStore implements SiteStore {
     return this.serialize(id, async () => {
       const d = await this.read(id);
       if (!d) throw new Error(`Site introuvable : ${id}`);
+      const valid = validateSite(d.site);
+      if (!valid.ok) throw new Error(`Document invalide, publication refusée : ${valid.errors.slice(0, 3).join(" ; ")}`);
       const meta: PublicationMeta = { version: d.version, label, createdAt: new Date().toISOString() };
       const publications = [...(d.publications ?? []).filter((p) => p.version !== d.version), { ...meta, site: d.site, entries: d.entries }];
       await this.write(id, { ...d, publications, publishedVersion: d.version });
