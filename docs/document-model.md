@@ -84,7 +84,7 @@ type Node = {
 | `icon` | Icône vectorielle | non | `name` ou `svg` |
 | `divider` | Séparateur : trait horizontal dans une colonne, vertical dans une rangée (décidé par le conteneur, section 11) | non | — |
 | `embed` | HTML intégré (widget tiers) | non | `html: string` |
-| `form` | Formulaire (envois : `docs/formulaires.md`) | oui | `formId: Id`, `successMessage: Localized<string>`, `successAction` |
+| `form` | Formulaire (envois : `docs/formulaires.md`) | oui | `formId: Id`, `successMessage: Localized<string>`, `successAction`, `notifyTo` (destinataires, séparés par des virgules) |
 | `field` | Champ de formulaire | non | `fieldType`, `name`, `label`, `required`, `options` |
 | `collection` | Vue de base de données (section 7) | `item` | `database: Id`, `view: ViewConfig` |
 | `item` | Modèle de l'élément répété d'une `collection` | oui | — |
@@ -421,9 +421,11 @@ type Site = {
   databases: Database[];
   pages: Page[];
   assets: Asset[];
-  redirects: { from: string; to: string; permanent: boolean }[];
+  redirects: { from: string; to: string; permanent: boolean }[];   // `from` exact ou préfixe `/dossier/*`, `to` chemin ou adresse, `*` reprend le reste (D39)
 };
 ```
+
+Conventions du site publié : une page fixe à l'adresse `/404` est la page « introuvable » (servie avec le statut 404, non indexée, exportée aussi en `404.html`). `settings.head` et `settings.bodyEnd` sont insérés tels quels dans le document HTML (D40) ; un formulaire peut porter `props.notifyTo` (destinataires de la notification, à défaut `FORM_NOTIFY_TO`).
 
 Les `Asset` référencent un fichier stocké (`{ id, kind: "image" | "video" | "file", url, width, height, name?, alt?: Localized<string>, mime?, variants?, source? }`). `name` est le nom lisible (le nom du fichier à l'import, modifiable), `createdAt` la date d'ajout. `alt` est le texte alternatif porté par la ressource : un élément image sans `alt` propre l'utilise, un `alt` sur l'élément le surcharge. `variants` liste les déclinaisons optimisées produites à l'import (D37) : `{ width, height?, url, format }`, du plus petit au plus grand ; le rendu en fait un `srcset`, `url` reste l'original. Les fichiers eux-mêmes vivent dans le stockage (dossier `.atelier-data/assets` en développement, Supabase Storage sinon), jamais dans le document.
 

@@ -2,7 +2,7 @@
 
 Ce que l'outil fait aujourd'hui, et comment. Tenu à jour à chaque évolution (règle dans `CLAUDE.md`). Les décisions de fond sont dans `docs/decisions.md`, le contrat de données dans `docs/document-model.md`, le plan dans `docs/roadmap.md`. Ici : l'état réel.
 
-*Dernière mise à jour : 9 septembre 2026 (temps A et B, export du code, composants de la revue globale).*
+*Dernière mise à jour : 9 septembre 2026 (temps A et B, export du code, composants, minimum professionnel de la revue globale).*
 
 ## Partie 1 · Fonctionnel
 
@@ -64,17 +64,17 @@ Import depuis l'ordinateur (plusieurs fichiers, glisser-déposer, adresse web), 
 
 ### 1.8 Formulaires
 
-Bloc Formulaire (nom, email, message, bouton), champs réglables (libellé, clé, sorte, aide, obligatoire, choix), message de succès ; réception validée, piège à robots, limite d'envois, enregistrement dans « Messages reçus », notification par email (Resend). Détail : `docs/formulaires.md`.
+Bloc Formulaire (nom, email, message, bouton), champs réglables (libellé, clé, sorte, aide, obligatoire, choix), message de succès ; réception validée, piège à robots, limite d'envois, enregistrement dans « Messages reçus », notification par email (Resend). Détail : `docs/formulaires.md`. Destinataire propre à chaque formulaire (panneau Formulaire), à défaut celui d'Atelier.
 
 ### 1.9 Publication
 
-Fenêtre Publier : état en ligne, écart avec la version de travail, note, historique, remettre en ligne une version, sous-domaine, référencement du site (suffixe des titres, description, image sociale, favicon). Le site publié est servi depuis l'instantané publié, jamais depuis le travail en cours. Référencement automatique, plan du site, robots. Le code head et fin de body (D40) n'est pas encore fonctionnel : pas d'interface, et l'injection actuelle n'exécute pas les scripts. Détail : `docs/publication.md`, mise en ligne : `docs/mise-en-ligne.md`.
+Fenêtre Publier : état en ligne, écart avec la version de travail, note, historique, remettre en ligne une version, sous-domaine, référencement du site (suffixe des titres, description, image sociale, favicon). Le site publié est servi depuis l'instantané publié, jamais depuis le travail en cours. Référencement automatique, plan du site, robots. Nom du site modifiable. Page introuvable : « Créer la page introuvable » pose une page fixe à `/404` (titre, explication, lien vers l'accueil, non indexée) servie en 404 pour toute adresse inconnue. Redirections : liste `de → vers`, définitive (301) ou temporaire (302), `/dossier/*` et `*` pour le reste, validées à la saisie. Code personnalisé : deux zones, dans `<head>` et en fin de `<body>`, insérées telles quelles sur le site publié et dans l'export, jamais dans l'éditeur. Le site publié est un document HTML complet sans JavaScript d'Atelier (hors script des formulaires). Détail : `docs/publication.md`, mise en ligne : `docs/mise-en-ligne.md`.
 
 **Exporter le code** (même fenêtre) : « Télécharger le site (.zip) » rend une archive statique complète, depuis la version publiée (sinon la version de travail) : une page HTML par adresse (pages fixes et une par entrée des modèles), `styles.css` aux classes lisibles déduites des noms des calques (`heros`, `heros-title`, `heros-text-2`, `bouton`), médias nommés d'après la bibliothèque avec leurs déclinaisons, données par base en JSON, document source, redirections, README. À déposer à la racine d'un hébergement statique. L'inspecteur affiche la classe CSS que portera chaque élément ; renommer un calque la renomme. Détail : `docs/export.md`.
 
 ### 1.10 Pas encore là (voir la feuille de route)
 
-Rôles et partage par site, domaine personnalisé, export en projet Next.js (l'archive statique existe), code head fonctionnel, emplacements et surcharges locales des composants, publication du contenu seule, 404 personnalisée et redirections, interactions déclaratives, bases externes, texte riche dans les champs, sélection multiple, pagination des vues, calendrier et carte, animations d'interaction, langues multiples, membres.
+Rôles et partage par site, domaine personnalisé, export en projet Next.js (l'archive statique existe), emplacements et surcharges locales des composants, publication du contenu seule, interactions déclaratives, bases externes, texte riche dans les champs, sélection multiple, pagination des vues, calendrier et carte, animations d'interaction, langues multiples, membres.
 
 ## Partie 2 · Technique
 
@@ -106,7 +106,7 @@ Composants : `packages/model/src/components.ts` (`planMakeComponent`, `planDetac
 
 ### 2.4 Rendu publié et référencement
 
-`app/(site)/s/[sub]/[[...path]]` : instantané publié mis en cache (`unstable_cache`, étiquette `site:<id>`, invalidée avec `expire: 0`), `generateMetadata` (titre, description, canonique, Open Graph, Twitter, robots, favicon), `sitemap.xml` et `robots.txt` par site, code head et fin de body injectés.
+`app/(site)/s/[sub]/[[...path]]/route.ts` : gestionnaire de route, instantané publié mis en cache (`unstable_cache`, étiquette `site:<id>`, invalidée avec `expire: 0`), redirections (`matchRedirect`), page `/404` en 404, document HTML complet par `lib/html-document.ts` (`htmlDocument` : titre, description, robots, canonique, Open Graph avec image absolue, Twitter, favicon, polices, `color-scheme`, feuille en ligne, code head et fin de body tels quels), partagé avec l'export. `sitemap.xml` (sans `/404`) et `robots.txt` par site.
 
 Export : `GET /api/sites/:id/export` → `lib/export-site.ts` (`buildExport` : médias regroupés et renommés, `classMap` du modèle, une page par adresse rendue par `renderToStaticMarkup` de `react-dom/server.edge`, feuille complète, données, README) et `lib/zip.ts` (archive sans compression, CRC-32, sans dépendance). Nommage partagé : `packages/model/src/naming.ts` (`classMap`, `kindOf`, `slugify`), consommé par le moteur via `RenderContext.classes` / `siteCss(site, { classes })` et par l'inspecteur (« Classe CSS »). Tests : `packages/model/test/naming.test.ts`, `packages/renderer/test/render.test.tsx` (classes lisibles), `apps/editor/test/export.test.ts` (CRC, archive lue par `unzip`, export du site d'exemple).
 

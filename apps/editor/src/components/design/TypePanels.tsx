@@ -212,6 +212,7 @@ export function FormPanel({ site, node, commit }: { site: Site; node: Node; comm
     <Section title="Formulaire" hint="Les envois arrivent dans Données → Messages reçus, et par email si la notification est configurée.">
       <FieldGroup>
         <Field label="Après l'envoi" hint="Message affiché à la place des champs"><TextInput value={msg} placeholder="Merci, votre message est bien envoyé." onValueChange={(v) => commit({ op: "node.set", id: node.id, path: `props.successMessage.${locale}`, value: v || undefined }, { coalesceKey: `form-ok:${node.id}`, label: "Message de succès" })} /></Field>
+        <Field label="Destinataire" hint="Adresse(s) email qui reçoivent chaque envoi, séparées par des virgules. Vide : le destinataire par défaut d'Atelier."><TextInput mono value={String(node.props.notifyTo ?? "")} placeholder="contact@exemple.fr" onValueChange={(v) => commit({ op: "node.set", id: node.id, path: "props.notifyTo", value: v.trim() || undefined }, { coalesceKey: `form-to:${node.id}`, label: "Destinataire du formulaire" })} /></Field>
       </FieldGroup>
       <Hint>Ajoutez des champs avec « / » ou l&apos;onglet Ajouter, puis réglez chacun (libellé, sorte, obligatoire). Un bouton avec le type « envoi » déclenche l&apos;envoi.</Hint>
     </Section>

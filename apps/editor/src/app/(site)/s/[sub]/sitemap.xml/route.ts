@@ -1,3 +1,4 @@
+import { NOT_FOUND_PATH } from "@atelier/model";
 import { memoryData, entryUrl } from "@atelier/renderer";
 import { getPublished, getSiteIdBySub, publicUrl, canServeHere } from "@/lib/published";
 
@@ -10,7 +11,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ sub: st
   if (!pub) return new Response("Introuvable", { status: 404 });
   const base = publicUrl(pub.site);
   const urls: { loc: string; lastmod?: string }[] = [];
-  for (const p of pub.site.pages) if (p.kind === "static" && p.seo?.index !== false) urls.push({ loc: `${base}${p.path === "/" ? "" : p.path}`, lastmod: pub.publishedAt });
+  for (const p of pub.site.pages) if (p.kind === "static" && p.seo?.index !== false && p.path !== NOT_FOUND_PATH) urls.push({ loc: `${base}${p.path === "/" ? "" : p.path}`, lastmod: pub.publishedAt });
   const data = memoryData(pub.entries);
   for (const db of pub.site.databases) {
     if (!db.pageTemplates?.length) continue;

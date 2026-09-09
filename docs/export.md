@@ -6,7 +6,7 @@ Première forme de l'export (D15, revue de septembre 2026, point 10) : une archi
 
 `GET /api/sites/:id/export` (propriétaire seulement) rend `<sous-domaine>-<date>.zip` :
 
-- `index.html`, `<chemin>/index.html` : une page par adresse, pages fixes et une page par entrée de chaque modèle de page (adresse d'après `slugPattern`). Tête complète : titre, description, Open Graph, Twitter, robots, canonique, favicon, polices Google, `color-scheme`, code head du site ; fin de body du site. Rendu par `renderToStaticMarkup` avec le moteur partagé, sans attribut `data-node` ni script d'éditeur.
+- `index.html`, `<chemin>/index.html` : une page par adresse, pages fixes et une page par entrée de chaque modèle de page (adresse d'après `slugPattern`), plus `404.html` si le site a une page `/404`. Document construit par `lib/html-document.ts`, la même fonction que le site publié : titre, description, robots, canonique, Open Graph, Twitter, favicon, polices Google, `color-scheme`, code head du site ; fin de body du site. Rendu par `renderToStaticMarkup` avec le moteur partagé, sans attribut `data-node` ni script d'éditeur.
 - `styles.css` : `siteCss(site, { classes })`, toutes pages, classes lisibles.
 - `assets/` : originaux et déclinaisons, nommés d'après le nom du média dans la bibliothèque (`portrait.jpg`, `portrait-800.webp`). Extension d'après la signature du fichier, sinon le type déclaré, sinon l'adresse. Un média inaccessible garde son adresse d'origine et est listé dans le README.
 - `data/<slug>.json` : entrées par base. `atelier/site.json` et `atelier/entries.json` : le document et les entrées tels que stockés (adresses de médias d'origine), pour revenir dans Atelier.
@@ -30,6 +30,6 @@ L'éditeur et le site publié gardent les classes techniques `n-<id>` et `s-<id>
 
 - Les formulaires pointent vers `/api/forms/…` d'Atelier : hors Atelier, changer l'`action` (dit dans le README).
 - Liens absolus depuis la racine : l'archive se dépose à la racine d'un domaine, pas dans un sous-dossier, et ne se lit pas depuis le disque.
-- Pas de `404.html` ni de domaine dans les canoniques/Open Graph (viendra avec le minimum professionnel, point 12).
+- Pas de domaine dans les canoniques et Open Graph (l'archive peut être hébergée n'importe où) ; `404.html` est là si le site a sa page `/404`.
 - Pas encore de projet Next.js (D15) : l'archive statique est la base ; le générateur produira des composants par page à partir du même `classMap`.
 - L'archive est construite en mémoire (zip sans compression, `lib/zip.ts`) : un site de plusieurs centaines de médias lourds demandera un flux.

@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, Download, ExternalLink, History, UploadCloud } from "lucide-react";
-import type { CommitOptions, Op, Site } from "@atelier/model";
-import { Badge, Button, Dialog, Field, FieldGroup, Hint, TextInput, askConfirm } from "@/ui";
+import { Check, Download, ExternalLink, History, Plus, UploadCloud, X } from "lucide-react";
+import type { CommitOptions, Op, Redirect, Site } from "@atelier/model";
+import { NOT_FOUND_PATH, validRedirect } from "@atelier/model";
+import { Badge, Button, Dialog, Field, FieldGroup, Hint, IconButton, TextArea, TextInput, Toggle, askConfirm } from "@/ui";
+import { notFoundPage } from "@/components/PagesPanel";
 import { AssetPicker } from "@/components/design/AppearancePanel";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
@@ -18,6 +20,11 @@ export function PublishDialog({ site, version, dirty, broken, commit, onClose, n
   const [busy, setBusy] = useState<string | null>(null);
   const [label, setLabel] = useState("");
   const [exported, setExported] = useState(false);
+  const [newRedirect, setNewRedirect] = useState<Redirect>({ from: "", to: "", permanent: true });
+  const redirectError = newRedirect.from || newRedirect.to ? validRedirect(newRedirect) : undefined;
+  const notFound = site.pages.find((p) => p.kind === "static" && p.path === NOT_FOUND_PATH);
+  const setRedirects = (value: Redirect[], lbl: string) => commit({ op: "site.set", path: "redirects", value }, { label: lbl });
+  const addRedirect = () => { if (redirectError || !newRedirect.from || !newRedirect.to) return; setRedirects([...site.redirects, newRedirect], `Rediriger ${newRedirect.from}`); setNewRedirect({ from: "", to: "", permanent: true }); };
   const load = useCallback(async () => {
     const res = await fetch(`/api/sites/${site.id}/publish`);
     const body = (await res.json()) as State & { error?: string };
@@ -81,14 +88,56 @@ export function PublishDialog({ site, version, dirty, broken, commit, onClose, n
         </section>
 
         <section className="flex flex-col gap-2 border-t border-line pt-3">
-          <h3 className="text-2xs uppercase tracking-[0.12em] text-dim">Adresse et référencement du site</h3>
+          <h3 className="text-2xs uppercase tracking-[0.12em] text-dim">Site, adresse et référencement</h3>
           <FieldGroup>
+            <Field label="Nom du site" hint="Nom de l'organisation ou de la personne : Open Graph, notifications, tableau de bord"><TextInput value={site.name} onValueChange={(v) => setSetting("name", v || "Site", "Nom du site")} /></Field>
             <Field label="Sous-domaine" hint="Lettres, chiffres et tirets. L'adresse complète apparaît ci-dessus après publication."><TextInput mono value={site.settings.subdomain ?? ""} placeholder={site.id.replace(/[^a-z0-9-]/gi, "-").toLowerCase()} onValueChange={(v) => { const s = v.toLowerCase().replace(/[^a-z0-9-]/g, "").replace(/^-+/, ""); setSetting("settings.subdomain", s || undefined, "Sous-domaine"); }} /></Field>
             <Field label="Suffixe des titres" hint="Ajouté après le titre de chaque page, par exemple « · Marie Lambert »"><TextInput value={site.settings.seo.titleSuffix?.[locale] ?? ""} onValueChange={(v) => setSetting(`settings.seo.titleSuffix.${locale}`, v || undefined, "Suffixe des titres")} /></Field>
             <Field label="Description" hint="Utilisée par défaut pour les pages qui n'en ont pas"><TextInput value={site.settings.seo.description?.[locale] ?? ""} onValueChange={(v) => setSetting(`settings.seo.description.${locale}`, v || undefined, "Description du site")} /></Field>
             <Field label="Image sociale" hint="Image de partage par défaut (Open Graph)" inline={false}><AssetPicker site={site} value={site.settings.seo.image} onChange={(id) => setSetting("settings.seo.image", id ?? undefined, "Image sociale", false)} /></Field>
             <Field label="Favicon" inline={false}><AssetPicker site={site} value={site.settings.seo.favicon} onChange={(id) => setSetting("settings.seo.favicon", id ?? undefined, "Favicon", false)} /></Field>
           </FieldGroup>
+        </section>
+
+        <section className="flex flex-col gap-2 border-t border-line pt-3">
+          <h3 className="text-2xs uppercase tracking-[0.12em] text-dim">Page introuvable (404)</h3>
+          {notFound ? <p className="text-sm text-muted">La page <strong className="font-medium text-ink">{notFound.name[locale] ?? notFound.path}</strong> (<span className="font-mono text-xs">{NOT_FOUND_PATH}</span>) s&apos;affiche quand une adresse n&apos;existe pas. Modifiez-la comme une autre page ; elle n&apos;est pas indexée.</p> : (
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button size="sm" icon={Plus} onClick={() => commit({ op: "site.set", path: "pages", value: [...site.pages, notFoundPage(site)] }, { label: "Créer la page introuvable" })}>Créer la page introuvable</Button>
+              <span className="text-xs text-muted">Sans elle, une adresse inconnue reçoit une page grise minimale. Toute page fixe à l&apos;adresse <span className="font-mono">{NOT_FOUND_PATH}</span> joue ce rôle.</span>
+            </div>
+          )}
+        </section>
+
+        <section className="flex flex-col gap-2 border-t border-line pt-3">
+          <h3 className="text-2xs uppercase tracking-[0.12em] text-dim">Redirections</h3>
+          {site.redirects.length ? (
+            <ul className="flex flex-col gap-1">
+              {site.redirects.map((r, i) => (
+                <li key={`${r.from}→${r.to}`} className="grid grid-cols-[1fr_1fr_auto_24px] items-center gap-1 text-xs">
+                  <span className="font-mono truncate" title={r.from}>{r.from}</span>
+                  <span className="font-mono truncate text-muted" title={r.to}>→ {r.to}</span>
+                  <Toggle checked={r.permanent} label={r.permanent ? "définitive" : "temporaire"} title="Définitive (301) : les moteurs retiennent la nouvelle adresse. Temporaire (302) : ils gardent l'ancienne." onChange={(v) => setRedirects(site.redirects.map((x, k) => (k === i ? { ...x, permanent: v } : x)), "Type de redirection")} />
+                  <IconButton size="sm" label="Retirer la redirection" icon={X} onClick={() => setRedirects(site.redirects.filter((_, k) => k !== i), "Retirer la redirection")} />
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <form className="grid grid-cols-[1fr_1fr_auto] gap-1 items-center" onSubmit={(e) => { e.preventDefault(); addRedirect(); }}>
+            <TextInput mono value={newRedirect.from} placeholder="/ancienne-adresse ou /blog/*" onValueChange={(v) => setNewRedirect((r) => ({ ...r, from: v.trim() }))} />
+            <TextInput mono value={newRedirect.to} placeholder="/nouvelle-adresse, /actualites/* ou https://…" onValueChange={(v) => setNewRedirect((r) => ({ ...r, to: v.trim() }))} />
+            <Button size="sm" icon={Plus} type="submit" disabled={!!redirectError || !newRedirect.from || !newRedirect.to}>Ajouter</Button>
+          </form>
+          {redirectError ? <span className="text-xs text-danger">{redirectError}</span> : <Hint>Quand une adresse change, redirigez l&apos;ancienne : les visiteurs et les moteurs suivent. <span className="font-mono">{"/*"}</span> à la fin redirige tout un dossier, <span className="font-mono">{"*"}</span> dans la destination reprend le reste de l&apos;adresse. Appliqué à la prochaine publication.</Hint>}
+        </section>
+
+        <section className="flex flex-col gap-2 border-t border-line pt-3">
+          <h3 className="text-2xs uppercase tracking-[0.12em] text-dim">Code personnalisé</h3>
+          <FieldGroup>
+            <Field label="Dans <head>" hint="Balises meta, scripts d'analyse, polices tierces, vérification de domaine… inséré tel quel dans le head de chaque page publiée" inline={false}><TextArea className="font-mono text-xs min-h-[72px]" value={site.settings.head ?? ""} placeholder={'<script defer data-domain="exemple.fr" src="https://plausible.io/js/script.js"></script>'} onValueChange={(v) => setSetting("settings.head", v || undefined, "Code dans head")} spellCheck={false} /></Field>
+            <Field label="Fin de <body>" hint="Scripts à charger après la page (chat, widgets)" inline={false}><TextArea className="font-mono text-xs min-h-[56px]" value={site.settings.bodyEnd ?? ""} onValueChange={(v) => setSetting("settings.bodyEnd", v || undefined, "Code en fin de body")} spellCheck={false} /></Field>
+          </FieldGroup>
+          <Hint>Ce code n&apos;est actif que sur le site publié et dans l&apos;export, jamais dans l&apos;éditeur. Un script mal formé peut casser l&apos;affichage : vérifiez la page publiée après coup.</Hint>
         </section>
 
         <section className="flex flex-col gap-2 border-t border-line pt-3">

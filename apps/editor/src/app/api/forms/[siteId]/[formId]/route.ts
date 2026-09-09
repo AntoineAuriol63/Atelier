@@ -67,7 +67,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ siteId:
   try { await getStore().upsertEntries(siteId, [entry]); } catch (e) { return reply(500, { error: e instanceof Error ? e.message : "Enregistrement impossible" }); }
   const siteName = site.name ?? "Atelier";
   const lines = fieldsOf(form.node, locale).map((f) => `${f.label} : ${values[f.name] === undefined ? "—" : String(values[f.name])}`);
-  const mail = await sendMail({ subject: `[${siteName}] Nouveau message · ${form.node.name ?? form.where}`, text: [...lines, "", `Page : ${values._page || "?"}`, `Reçu le ${now}`].join("\n"), replyTo: typeof values.email === "string" ? values.email : undefined });
+  const mail = await sendMail({ subject: `[${siteName}] Nouveau message · ${form.node.name ?? form.where}`, text: [...lines, "", `Page : ${values._page || "?"}`, `Reçu le ${now}`].join("\n"), replyTo: typeof values.email === "string" ? values.email : undefined, to: typeof form.node.props.notifyTo === "string" ? form.node.props.notifyTo : undefined });
   if (!mail.sent && mail.error) console.warn(`[formulaire ${formId}] ${mail.error}`);
   return reply(200, { ok: true, message: (form.node.props.successMessage as Record<string, string> | undefined)?.[locale] ?? "Merci, votre message est bien envoyé.", notified: mail.sent }, back);
 }

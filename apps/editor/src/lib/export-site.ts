@@ -1,16 +1,13 @@
-import { createElement } from "react";
-// La variante « edge » évite l'alias react-server de Next, qui interdit `react-dom/server` dans une route.
-import { renderToStaticMarkup } from "react-dom/server.edge";
 import type { Asset, Entry, Site } from "@atelier/model";
-import { classMap, slugify, type ClassMap } from "@atelier/model";
-import { RenderPage, assetMap, entryUrl, fontsHref, localized, memoryData, pageTitle, siteCss, type RenderContext } from "@atelier/renderer";
+import { classMap, NOT_FOUND_PATH, slugify, type ClassMap } from "@atelier/model";
+import { assetMap, entryUrl, memoryData, siteCss, type RenderContext } from "@atelier/renderer";
+import { htmlDocument } from "@/lib/html-document";
 import { FileAssetStorage, getAssetStorage } from "@/lib/store";
 import type { ZipEntry } from "@/lib/zip";
 
 export type ExportSource = { site: Site; entries: Entry[]; version: number | null; publishedAt: string | null };
 export type ExportResult = { files: ZipEntry[]; pages: number; assets: number; external: string[] };
 
-const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
 const MIME_EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/avif": "avif", "image/gif": "gif", "image/svg+xml": "svg", "video/mp4": "mp4", "application/pdf": "pdf" };
 /** Extension d'un fichier : d'après son contenu (signature), sinon le type déclaré, sinon l'adresse. */
 function extOf(bytes: Uint8Array, url: string, mime?: string): string {
@@ -65,37 +62,6 @@ async function bundleAssets(site: Site): Promise<{ site: Site; files: ZipEntry[]
   return { site: { ...site, assets }, files, external };
 }
 
-function htmlDocument(ctx: RenderContext, urlPath: string, isEntry: boolean): string {
-  const { site, page } = ctx;
-  const title = pageTitle(ctx);
-  const description = localized<string>(page.seo?.description, ctx) ?? localized<string>(site.settings.seo.description, ctx);
-  const imageId = page.seo?.image ?? site.settings.seo.image;
-  const image = imageId ? ctx.assets.get(imageId) : undefined;
-  const faviconId = site.settings.seo.favicon;
-  const favicon = faviconId ? ctx.assets.get(faviconId) : undefined;
-  const fonts = fontsHref(site.theme);
-  const dark = site.theme.modes.some((m) => m.id === "dark");
-  const head = [
-    `<meta charset="utf-8">`, `<meta name="viewport" content="width=device-width, initial-scale=1">`, `<meta name="generator" content="Atelier">`,
-    `<title>${esc(title)}</title>`,
-    description ? `<meta name="description" content="${esc(description)}">` : "",
-    `<meta name="color-scheme" content="${dark ? "light dark" : "light"}">`,
-    page.seo?.index === false ? `<meta name="robots" content="noindex, follow">` : "",
-    page.seo?.canonical ? `<link rel="canonical" href="${esc(page.seo.canonical)}">` : "",
-    `<meta property="og:title" content="${esc(title)}">`, description ? `<meta property="og:description" content="${esc(description)}">` : "",
-    `<meta property="og:type" content="${isEntry ? "article" : "website"}">`, `<meta property="og:site_name" content="${esc(site.name)}">`,
-    image ? `<meta property="og:image" content="${esc(image.url)}">` : "",
-    `<meta name="twitter:card" content="${image ? "summary_large_image" : "summary"}">`,
-    favicon ? `<link rel="icon" href="${esc(favicon.url)}">` : "",
-    fonts ? `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="${esc(fonts)}">` : "",
-    `<link rel="stylesheet" href="/styles.css">`,
-    site.settings.head ?? "",
-  ].filter(Boolean).join("\n    ");
-  const body = renderToStaticMarkup(createElement(RenderPage, { ctx, mode: site.theme.defaultMode }));
-  void urlPath;
-  return `<!doctype html>\n<html lang="${esc(ctx.locale)}">\n  <head>\n    ${head}\n  </head>\n  <body>\n    ${body}\n    ${site.settings.bodyEnd ?? ""}\n  </body>\n</html>\n`;
-}
-
 const fileFor = (urlPath: string) => (urlPath === "/" ? "index.html" : `${urlPath.replace(/^\/|\/$/g, "")}/index.html`);
 
 /** Construit les fichiers de l'export statique : une page HTML par adresse, une feuille de style aux classes lisibles, les médias, les données. */
@@ -108,7 +74,12 @@ export async function buildExport(src: ExportSource): Promise<ExportResult> {
   const locale = site.settings.defaultLocale;
   const files: ZipEntry[] = [...bundled.files];
   let pages = 0;
-  const add = (ctx: RenderContext, urlPath: string, isEntry: boolean) => { files.push({ path: fileFor(urlPath), data: htmlDocument(ctx, urlPath, isEntry) }); pages++; };
+  const add = (ctx: RenderContext, urlPath: string, isEntry: boolean) => {
+    const html = htmlDocument(ctx, { path: urlPath, isEntry, css: { href: "/styles.css" }, noindex: urlPath === NOT_FOUND_PATH });
+    files.push({ path: fileFor(urlPath), data: html }); pages++;
+    // Page « introuvable » : aussi à la racine, où les hébergeurs statiques la cherchent.
+    if (urlPath === NOT_FOUND_PATH) files.push({ path: "404.html", data: html });
+  };
   for (const page of site.pages) if (page.kind === "static") add({ site, page, locale, data, params: {}, assets, basePath: "", classes }, page.path, false);
   for (const db of site.databases) {
     for (const tpl of db.pageTemplates ?? []) {
@@ -139,7 +110,7 @@ ${pages} page${pages > 1 ? "s" : ""} HTML, ${assetCount} fichier${assetCount > 1
 
 ## Contenu
 
-- \`index.html\`, \`<chemin>/index.html\` : une page par adresse du site, y compris une page par entrée des modèles de page. Le HTML est complet (titre, description, Open Graph, polices) et ne dépend d'aucun script.
+- \`index.html\`, \`<chemin>/index.html\` : une page par adresse du site, y compris une page par entrée des modèles de page. Le HTML est complet (titre, description, Open Graph, polices) et ne dépend d'aucun script.${site.pages.some((p) => p.path === NOT_FOUND_PATH) ? " `404.html` est la page « introuvable » (la plupart des hébergeurs la servent d'eux-mêmes)." : ""}
 - \`styles.css\` : toute la feuille de style. Les classes portent les noms des calques : un conteneur nommé « Héros » devient \`.heros\`, son titre \`.heros-title\`, son deuxième paragraphe \`.heros-text-2\`. Les styles partagés gardent leur nom (\`.bouton\`). Renommer un calque dans Atelier renomme la classe.
 - \`assets/\` : les médias et leurs déclinaisons (\`photo.jpg\`, \`photo-800.webp\`…), nommés d'après leur nom dans la bibliothèque.
 - \`data/<base>.json\` : les entrées de chaque base de données, telles que publiées.

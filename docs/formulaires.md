@@ -8,3 +8,7 @@ Un bloc « Formulaire » est un formulaire HTML ordinaire : ses champs (`field`)
 4. Une notification part par email si `RESEND_API_KEY` et `FORM_NOTIFY_TO` sont renseignés (`.env.example`). L'expéditeur par défaut est celui d'essai de Resend ; un domaine vérifié viendra avec la publication (M6). Sans configuration, rien n'est envoyé et l'envoi reste enregistré.
 
 Le message de succès et les champs se règlent dans l'inspecteur (sections « Formulaire » et « Champ »). Fichiers joints, choix du destinataire par formulaire et réponse automatique : plus tard (v1).
+
+## Destinataire par formulaire
+
+Le panneau Formulaire propose « Destinataire » (`props.notifyTo`, adresses séparées par des virgules). La notification part vers ces adresses, sinon vers `FORM_NOTIFY_TO`. L'expéditeur reste `MAIL_FROM` (domaine vérifié chez Resend pour la production).

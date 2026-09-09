@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { Copy, Database as DatabaseIcon, FileText, Plus, Settings2, Trash2 } from "lucide-react";
 import type { CommitOptions, Database, Node, Op, Page, Site } from "@atelier/model";
-import { cloneWithNewIds, newId, templateOf } from "@atelier/model";
-import { Button, Field, FieldGroup, Hint, IconButton, Select, TextInput, askConfirm } from "@/ui";
+import { cloneWithNewIds, newId, NOT_FOUND_PATH, templateOf } from "@atelier/model";
+import { Badge, Button, Field, FieldGroup, Hint, IconButton, Select, TextInput, askConfirm } from "@/ui";
 import { mod } from "@/lib/keys";
 import { Segmented } from "@/ui/controls";
 import { AssetPicker } from "@/components/design/AppearancePanel";
@@ -17,7 +17,7 @@ export function slugify(s: string): string {
 }
 
 /** Une page vierge : racine, en-tête et pied de page du site s'ils existent, un contenu principal avec un titre. */
-function blankPage(site: Site, name: string): Page {
+export function blankPage(site: Site, name: string): Page {
   const locale = site.settings.defaultLocale;
   const header = site.components.find((c) => /en-t[eê]te|header/i.test(c.name));
   const footer = site.components.find((c) => /pied|footer/i.test(c.name));
@@ -33,6 +33,19 @@ function blankPage(site: Site, name: string): Page {
 }
 
 /** La page par entrée d'une base : même squelette qu'une page vierge, avec le titre lié au champ titre. */
+/** Page « introuvable » conventionnelle (`/404`) : titre, explication, lien vers l'accueil ; non indexée. */
+export function notFoundPage(site: Site): Page {
+  const locale = site.settings.defaultLocale;
+  const page = blankPage(site, "Page introuvable");
+  const home = site.pages.find((p) => p.path === "/");
+  const main = page.root.children?.find((c) => c.props.tag === "main");
+  main?.children?.push(
+    { id: newId(), type: "text", props: { tag: "p", content: { [locale]: [{ t: "text", v: "Cette adresse ne correspond à aucune page. Elle a peut-être changé, ou le lien était erroné." }] } } },
+    { id: newId(), type: "link", name: "Retour à l'accueil", props: { tag: "a", href: home ? { kind: "page", page: home.id } : { kind: "url", url: "/" } }, style: { shared: site.sharedStyles.filter((s) => s.name === "Bouton").map((s) => s.id) }, children: [{ id: newId(), type: "text", props: { tag: "span", content: { [locale]: [{ t: "text", v: "Retour à l'accueil" }] } } }] },
+  );
+  return { ...page, path: NOT_FOUND_PATH, seo: { index: false } };
+}
+
 export function templatePage(site: Site, db: Database): Page {
   const locale = site.settings.defaultLocale;
   const page = blankPage(site, db.name[locale] ?? db.slug);
@@ -114,6 +127,7 @@ export function PagesPanel({ site, pageId, onOpen, commit }: { site: Site; pageI
                 <button type="button" onClick={() => onOpen(p.id)} className="flex-1 min-w-0 flex items-center gap-2 text-left h-full" title={tpl ? `Page par entrée de la base « ${tpl.database.name[locale] ?? tpl.database.slug} » · ${tpl.slugPattern}` : p.path}>
                   {p.kind === "template" ? <DatabaseIcon size={13} className={active ? "text-accent" : "text-muted"} aria-hidden /> : <FileText size={13} className={active ? "text-accent" : "text-muted"} aria-hidden />}
                   <span className="truncate">{p.name[locale] ?? p.path}</span>
+                  {p.path === NOT_FOUND_PATH ? <Badge tone="warning" title="Servie quand une adresse n'existe pas (erreur 404) ; non indexée">404</Badge> : null}
                   <span className="ml-auto font-mono text-2xs text-dim truncate max-w-[40%]">{tpl ? tpl.slugPattern.replace(/\{\w+\}/g, "…") : p.kind === "template" ? "sans base" : p.path}</span>
                 </button>
                 <div className={cx("flex items-center", open ? "" : "opacity-0 group-hover:opacity-100 focus-within:opacity-100")}>

@@ -11,6 +11,7 @@ export * from "./migrate";
 export * from "./text";
 export * from "./naming";
 export * from "./components";
+export * from "./redirects";
 export * as schema from "./schema";
 export { validateSite } from "./schema";
 export { sampleSite, sampleEntries } from "./sample";
