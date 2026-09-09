@@ -2,13 +2,13 @@
 
 Ce que l'outil fait aujourd'hui, et comment. Tenu à jour à chaque évolution (règle dans `CLAUDE.md`). Les décisions de fond sont dans `docs/decisions.md`, le contrat de données dans `docs/document-model.md`, le plan dans `docs/roadmap.md`. Ici : l'état réel.
 
-*Dernière mise à jour : 9 septembre 2026 (temps A et B, export du code, composants, minimum professionnel, rôles et partage de la revue globale).*
+*Dernière mise à jour : 9 septembre 2026 (temps A et B, export du code, composants, minimum professionnel, rôles et partage, interactions et deuxième site de la revue globale).*
 
 ## Partie 1 · Fonctionnel
 
 ### 1.0 Compte et tableau de bord
 
-Connexion par lien magique (Supabase Auth), adresses autorisées par variable d'environnement, sans connexion configurée l'accès est libre (développement). Partage par site (fenêtre Publier → Partage, propriétaire seulement) : inviter une adresse comme **rédacteur** (mode Écriture seulement : textes, images, blocs, entrées des bases, publication des contenus ; ni design, ni pages, ni réglages, ni thème, refusés côté serveur selon la frontière Écriture/Design) ou **éditeur** (tout sauf partager et supprimer le site). Une adresse invitée peut se connecter sans figurer dans la liste d'Atelier. Le tableau de bord marque les sites partagés avec le rôle. Tableau de bord : les sites du compte, état de publication, changements à publier, adresse en ligne, création (site vierge ou exemple photographe), suppression, déconnexion. Chaque site s'ouvre dans l'éditeur à `/sites/<id>`.
+Connexion par lien magique (Supabase Auth), adresses autorisées par variable d'environnement, sans connexion configurée l'accès est libre (développement). Partage par site (fenêtre Publier → Partage, propriétaire seulement) : inviter une adresse comme **rédacteur** (mode Écriture seulement : textes, images, blocs, entrées des bases, publication des contenus ; ni design, ni pages, ni réglages, ni thème, refusés côté serveur selon la frontière Écriture/Design) ou **éditeur** (tout sauf partager et supprimer le site). Une adresse invitée peut se connecter sans figurer dans la liste d'Atelier. Le tableau de bord marque les sites partagés avec le rôle. Tableau de bord : les sites du compte, état de publication, changements à publier, adresse en ligne, création (site vierge, exemple photographe ou exemple restaurant — carte et événements en bases, page par événement, réservation, composants à variantes, apparitions), (site vierge ou exemple photographe), suppression, déconnexion. Chaque site s'ouvre dans l'éditeur à `/sites/<id>`.
 
 ### 1.1 L'éditeur en un coup d'œil
 
@@ -46,6 +46,10 @@ Deux modes, qui sont des préréglages du même éditeur et non des outils sépa
 
 Tout élément d'une page (sauf la racine) peut devenir un composant du site : « En faire un composant… » dans la section Élément de l'inspecteur, ou la commande de la palette. L'élément est remplacé par une instance ; le composant apparaît dans Ajouter → Composants pour en poser d'autres. Une instance montre le composant ; « Modifier le composant » ouvre son arbre dans les calques (toutes les instances changent) ; cliquer un élément d'une instance dans l'aperçu ouvre aussi le composant ; sélectionner un élément de page le referme. « Détacher du composant » remplace l'instance par une copie indépendante (valeurs des propriétés, emplacements et styles de la variante choisie incorporés). Sur la racine du composant, la section Composant règle : nom, description, propriétés exposées (texte, texte long, nombre, oui/non, image, adresse, choix, couleur ; libellé, type, valeur par défaut, choix), axes de variantes (nom, valeurs, valeur par défaut), suppression si aucune instance. Un texte, une image ou un lien du composant se relie à une propriété (section « Propriété du composant ») ; chaque instance donne alors sa valeur dans la section Composant de l'inspecteur, où elle choisit aussi sa variante par axe. Avec des axes déclarés, l'inspecteur montre une barre « Variante » : les styles réglés sous une variante ne valent que pour les instances qui l'ont choisie, le style normal restant hérité. Pas encore : composants d'espace de travail (D50), emplacements (`slot`) créés depuis l'éditeur, surcharges locales d'une instance sans détacher.
 
+### 1.4 ter Interactions
+
+Section Interactions de l'inspecteur (mode Design) : **apparition** à l'entrée dans l'écran (fondu, fondu en montant ou descendant, glissé, zoom, netteté ; durée, délai pour décaler des voisins, courbe, rejouer à chaque passage), **masqué au chargement**, et interactions au clic ou au survol : afficher / masquer un élément nommé de la page, changer la variante d'une instance. L'éditeur montre l'état d'arrivée sans jouer les animations ; le site publié et l'export les jouent (respect de « réduire les animations »). Détail du modèle : `docs/document-model.md`, section 8.
+
 ### 1.5 Thème
 
 Jetons (couleurs par mode clair/sombre, espacements, largeurs, rayons, ombres, tailles et interlignes, polices Google), défauts par balise, points de rupture, grille. Les tailles de titre sont fluides (`clamp`).
@@ -76,7 +80,7 @@ Fenêtre Publier : état en ligne, écart avec la version de travail, note, hist
 
 ### 1.10 Pas encore là (voir la feuille de route)
 
-Domaine personnalisé, export en projet Next.js (l'archive statique existe), emplacements et surcharges locales des composants, publication du contenu seule, interactions déclaratives, bases externes, texte riche dans les champs, sélection multiple, pagination des vues, calendrier et carte, animations d'interaction, langues multiples, membres.
+Domaine personnalisé, export en projet Next.js (l'archive statique existe), emplacements et surcharges locales des composants, publication du contenu seule, interactions avancées (défilement, variables de page, fenêtres modales, scripts), bases externes, texte riche dans les champs, sélection multiple, pagination des vues, calendrier et carte, animations d'interaction, langues multiples, membres.
 
 ## Partie 2 · Technique
 
@@ -109,6 +113,8 @@ Composants : `packages/model/src/components.ts` (`planMakeComponent`, `planDetac
 Rôles : `packages/model/src/roles.ts` (`Role`, `atLeast`, `opAllowedForWriter`), `lib/site-access.ts` (`siteRole`, `guardSite(id, min)`, `guardRole`), dépôts (`members`, `setMember`, `removeMember`, `isMember`, `listSites(user)` avec `role`, `publishEntries`), table `site_members`, route `/api/sites/:id/members` (GET, PUT, DELETE, propriétaire), `canSignIn` (liste ou invité). Niveaux : lecture, entrées, fichiers, changements et contenus seuls pour le rédacteur (les opérations d'un rédacteur sont filtrées par `opAllowedForWriter`) ; publication, retour arrière, export pour l'éditeur ; suppression et partage pour le propriétaire. L'éditeur reçoit `role` (`EditorShellClient`) : rédacteur forcé en Écriture, onglet Design désactivé, panneau Pages en lecture, fenêtre Publier réduite.
 
 Aperçu vivant : les barres d'outils injectées dans l'iframe lisent les jetons de l'éditeur sous `--atelier-ui-*` (copiés depuis le document parent), jamais sous `--color-*`, qui appartient au thème du site.
+
+Interactions : `packages/model/src/interactions.ts` (apparitions, masqué au chargement, `toggleInteraction`, `variantInteraction`, `describeInteraction`), `packages/renderer/src/interactions.ts` (`interactionsAttr`, `INTERACTION_SCRIPT`), panneau `components/design/InteractionsPanel.tsx`. Deuxième site d'exemple : `packages/model/src/sample-restaurant.ts` (`restaurantSite`, `restaurantEntries`), gabarit « restaurant » de `POST /api/sites`.
 
 ### 2.4 Rendu publié et référencement
 

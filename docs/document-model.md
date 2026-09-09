@@ -355,6 +355,8 @@ type Target = { self: true } | { node: Id } | { component: Id } | { selector: st
 type Transition = { duration: number; delay?: number; easing: string; layout?: boolean };   // layout: animation de disposition (D33)
 ```
 
+Mise en œuvre (9 septembre 2026, première tranche) : le moteur émet sur chaque nœud qui en a un attribut `data-ix` (déclencheur, options, actions avec cibles résolues en sélecteurs) et un script (`INTERACTION_SCRIPT`) qui joue `inView` (IntersectionObserver, une fois ou à chaque passage avec `options.once: false`), `click`, `hover` (annulé à la sortie), `load` ; actions `setStyle` (transition CSS), `show` / `hide` / `toggle` (attribut `data-ix-hidden`), `setVariant` (classes `v-<axe>-<valeur>` sur la racine du composant), `navigate`, `scrollTo`. Non rendus pour l'instant : `scroll`, `change`, `setState`, `openModal`, `submit`, `script`. Conventions de l'éditeur (`packages/model/src/interactions.ts`) : une **apparition** est une interaction `inView` avec `options.reveal` (`fade`, `fade-up`, `fade-down`, `slide-left`, `slide-right`, `zoom`, `blur`), dont l'état de départ vit dans `style.base` du nœud ; un élément **masqué au chargement** porte `load` → `hide` sur lui-même. Dans l'éditeur (`.at-page[data-editor]`) et avec « réduire les animations », l'état d'arrivée est posé sans transition et les clics sont ignorés.
+
 Variables de page :
 
 ```ts

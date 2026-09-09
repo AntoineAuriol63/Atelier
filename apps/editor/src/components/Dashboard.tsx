@@ -16,7 +16,7 @@ export function Dashboard({ sites, user }: { sites: DashboardSite[]; user: strin
   const router = useRouter();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
-  const [template, setTemplate] = useState<"blank" | "sample">("blank");
+  const [template, setTemplate] = useState<"blank" | "sample" | "restaurant">("blank");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const create = async () => {
@@ -58,12 +58,12 @@ export function Dashboard({ sites, user }: { sites: DashboardSite[]; user: strin
             <TextInput autoFocus value={name} placeholder="Nom du site (Boulangerie Martin, Studio Rivière…)" onValueChange={setName} onKeyDown={(e) => { if (e.key === "Escape") setCreating(false); }} />
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs text-muted">Partir de</span>
-              <Segmented value={template} options={[{ value: "blank", label: "Site vierge" }, { value: "sample", label: "Exemple photographe" }]} onChange={(v) => { if (v) setTemplate(v as "blank" | "sample"); }} />
+              <Segmented value={template} options={[{ value: "blank", label: "Site vierge" }, { value: "sample", label: "Exemple photographe" }, { value: "restaurant", label: "Exemple restaurant" }]} onChange={(v) => { if (v) setTemplate(v as "blank" | "sample" | "restaurant"); }} />
               <span className="flex-1" />
               <Button variant="ghost" type="button" onClick={() => setCreating(false)}>Annuler</Button>
               <Button variant="primary" type="submit" disabled={!name.trim() || !!busy}>{busy ?? "Créer et ouvrir"}</Button>
             </div>
-            <Hint>Un site vierge a le thème de base, un en-tête, un pied de page et une page d&apos;accueil. L&apos;exemple photographe est complet : pages, base de projets, formulaire.</Hint>
+            <Hint>Un site vierge a le thème de base, un en-tête, un pied de page et une page d&apos;accueil. L&apos;exemple photographe est complet : pages, base de projets, formulaire. L&apos;exemple restaurant va plus loin : carte et événements en bases, page par événement, réservation, composants avec variantes, apparitions au défilement.</Hint>
           </form>
         ) : null}
         {error ? <p className="text-sm text-danger">{error}</p> : null}

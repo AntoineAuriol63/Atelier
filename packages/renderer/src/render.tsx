@@ -2,6 +2,7 @@ import type { ComponentDef, Inline, Mark, Node, Overrides, Page, Site, ViewConfi
 import { applyOverrides, variantClasses } from "@atelier/model";
 import { createElement, Fragment, type ReactNode } from "react";
 import { nodeClassName } from "./css";
+import { INTERACTION_SCRIPT, hasInteractions, interactionsAttr } from "./interactions";
 import { findComponent, findDatabase, localized, resolveBinding, resolveHref, type RenderContext } from "./context";
 
 const BOX_TAGS = new Set(["div", "section", "header", "footer", "nav", "article", "aside", "main", "figure", "figcaption", "span"]);
@@ -24,6 +25,8 @@ function tagOf(node: Node, allowed: Set<string>, fallback: string): string {
 function attrs(node: Node, ctx: RenderContext, extra: Record<string, unknown> = {}) {
   const a: Record<string, unknown> = { className: nodeClassName(node, ctx.extraClass?.[node.id], ctx.classes), ...extra };
   if (ctx.editor) a["data-node"] = node.id;
+  const ix = interactionsAttr(node, ctx);
+  if (ix) a["data-ix"] = ix;
   if (node.props.anchor) a.id = String(node.props.anchor);
   return a;
 }
@@ -194,9 +197,12 @@ function hasForm(n: Node): boolean { return n.type === "form" || (n.children ?? 
 export function RenderPage({ ctx, mode }: { ctx: RenderContext; mode?: string }): ReactNode {
   const page: Page = ctx.page;
   const withForm = hasForm(page.root) || ctx.site.components.some((c) => hasForm(c.root));
-  return createElement("div", { className: "at-page", "data-mode": mode ?? ctx.site.theme.defaultMode, lang: ctx.locale },
+  const withIx = hasInteractions(page.root) || ctx.site.components.some((c) => hasInteractions(c.root));
+  return createElement("div", { className: "at-page", "data-mode": mode ?? ctx.site.theme.defaultMode, lang: ctx.locale, "data-editor": ctx.editor ? "" : undefined },
     createElement(RenderNode, { node: page.root, ctx }),
     withForm && !ctx.editor ? createElement("script", { dangerouslySetInnerHTML: { __html: FORM_SCRIPT } }) : null,
+    // Le script des interactions tourne aussi dans l'éditeur : il y pose l'état d'arrivée des apparitions, sans quoi les éléments resteraient invisibles.
+    withIx ? createElement("script", { dangerouslySetInnerHTML: { __html: INTERACTION_SCRIPT } }) : null,
   );
 }
 

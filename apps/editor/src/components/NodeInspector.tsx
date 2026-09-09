@@ -7,7 +7,7 @@ import { BASE, classMap, cloneWithNewIds, newId, resolveNodeStyle, resolveShared
 import { Badge, Field, FieldGroup, Hint, IconButton, Section, TextArea, TextInput } from "@/ui";
 import { nodeIcon, nodeLabel, TYPE_LABEL } from "./node-icons";
 import { propLabel } from "@/lib/prop-labels";
-import { AppearancePanel, BindingPanel, CollectionPanel, ComponentPanel, EffectsPanel, FieldPanel, FormPanel, ImagePanel, InstancePanel, LayoutPanel, LinkPanel, MakeComponentRow, PropBindingPanel, ResponsivePanel, SharedStylesPanel, SizePanel, SpacingPanel, STATE_LABEL, TagPanel, TypographyPanel, useStyle, type StyleTarget } from "./design";
+import { AppearancePanel, BindingPanel, CollectionPanel, ComponentPanel, EffectsPanel, FieldPanel, FormPanel, ImagePanel, InstancePanel, InteractionsPanel, LayoutPanel, LinkPanel, MakeComponentRow, PropBindingPanel, ResponsivePanel, SharedStylesPanel, SizePanel, SpacingPanel, STATE_LABEL, TagPanel, TypographyPanel, useStyle, type StyleTarget } from "./design";
 import { PropRow, Segmented } from "@/ui/controls";
 import { sharedStyleUsages } from "@atelier/model";
 
@@ -89,6 +89,7 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
   // Dans un composant : variante en cours de réglage (clé `axe:valeur`), ou aucune (style normal).
   const owner = loc.owner;
   const component = "component" in owner ? site.components.find((c) => c.id === owner.component) : undefined;
+  const pageRoot: Node = component?.root ?? site.pages.find((p) => "page" in owner && p.id === owner.page)?.root ?? node;
   const [variant, setVariant] = useState<string | undefined>(undefined);
   const activeVariant = variant && component?.variants?.some((a) => a.values.some((v) => variantKey(a.name, v) === variant)) ? variant : undefined;
   const target: StyleTarget = sharedTarget ? { kind: "shared", id: sharedTarget } : activeVariant && component ? { kind: "variant", node, component: component.id, key: activeVariant } : { kind: "node", node };
@@ -262,6 +263,7 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
       <TypographyPanel site={site} style={style} mode={mode} />
       <AppearancePanel site={site} style={style} mode={mode} />
       <EffectsPanel site={site} style={style} />
+      {!sharedDef ? <InteractionsPanel site={site} node={node} pageRoot={pageRoot} commit={commit} /> : null}
 
         </>
       )}

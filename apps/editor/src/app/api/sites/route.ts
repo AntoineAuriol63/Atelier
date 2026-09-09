@@ -1,8 +1,8 @@
-import { blankSite, newId, sampleEntries, sampleSite } from "@atelier/model";
+import { blankSite, newId, restaurantEntries, restaurantSite, sampleEntries, sampleSite } from "@atelier/model";
 import { getStore } from "@/lib/store";
 import { authEnabled, getSessionUser } from "@/lib/auth";
 
-/** `POST { name, template: "blank" | "sample" }` crée un site pour le compte connecté. */
+/** `POST { name, template: "blank" | "sample" | "restaurant" }` crée un site pour le compte connecté. */
 export async function POST(req: Request) {
   const user = await getSessionUser();
   if (!user) return Response.json({ error: "Connexion requise" }, { status: 401 });
@@ -14,11 +14,12 @@ export async function POST(req: Request) {
   const store = getStore();
   const owner = authEnabled() ? user.email : undefined;
   try {
-    if (body.template === "sample") {
+    const example = body.template === "sample" ? { site: sampleSite, entries: sampleEntries } : body.template === "restaurant" ? { site: restaurantSite, entries: restaurantEntries } : null;
+    if (example) {
       // L'exemple prend un nouvel identifiant ; ses identifiants internes restent stables (ils ne se croisent pas entre sites).
-      const site = { ...structuredClone(sampleSite), id, name, settings: { ...structuredClone(sampleSite.settings), subdomain: undefined } };
+      const site = { ...structuredClone(example.site), id, name, settings: { ...structuredClone(example.site.settings), subdomain: undefined } };
       await store.create(site, owner);
-      await store.upsertEntries(id, sampleEntries);
+      await store.upsertEntries(id, structuredClone(example.entries));
     } else {
       await store.create(blankSite(id, name), owner);
     }

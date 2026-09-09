@@ -143,7 +143,7 @@ Le panneau de droite actuel est un échafaudage. Il est remplacé, pas amélior�
 ### Sortie de v0
 
 - [x] Le site de la photographe est en ligne, construit dans Atelier (9 sept. 2026 : `https://atelier-editor.vercel.app/s/site-marie`, publié depuis l'éditeur en ligne, formulaire de contact reçu ; reste les deux domaines, `docs/mise-en-ligne.md`)
-- [ ] Un deuxième site de nature différente est commencé pour vérifier qu'on n'est pas enfermé (D10)
+- [x] Un deuxième site de nature différente est commencé pour vérifier qu'on n'est pas enfermé (D10) : « Maison Aurèle », restaurant, 9 sept. 2026 (`packages/model/src/sample-restaurant.ts`)
 
 ---
 
@@ -186,6 +186,8 @@ Espaces membres (D49) · synchronisation Git des composants · contributions à 
 Cinq examens (architecture, charge, UI/UX, cohérence produit, sécurité) consolidés dans `docs/revue-globale-2026-09.md`, avec un plan en trois temps : A. avant toute mise en ligne (pagination des entrées qui perd des données au-delà de 1 000, sécurité de la mise en ligne, opérations jamais perdues, allègements de transport) ; B. points de passage anti-dette (migration de schéma, protocole d'aperçu typé, tests communs aux dépôts, intégration continue, régie UI) ; C. v1 fidèle au positionnement (export du code en premier, composants, minimum professionnel, rôles, images hors du document). Dette sans domicile récupérée : sélection multiple et texte riche dans les champs (ex « M4 bis »), destinataire par formulaire et domaine d'envoi.
 
 ## Journal
+
+- 9 sept. 2026 — **Deuxième site : Maison Aurèle, restaurant** (revue point 15, D10). Construit de zéro dans le modèle : thème sombre par défaut avec mode clair (Fraunces + Manrope), neuf styles partagés, cinq composants (en-tête à variante transparent/plein, pied de page, témoignage, chiffre clé, bandeau de réservation à variante de ton, avec propriétés reliées), deux bases (plats : catégorie, étiquettes, prix, photo ; événements : date, programme en texte long, prix, places, page par entrée), sept pages (accueil, carte par catégories avec ancres et titres collants, événements, page événement, réservation avec formulaire à sept champs, la maison avec équipe et questions dépliables, 404), deux redirections, dix-huit entrées. Pour « un maximum d'animation », première tranche des **interactions déclaratives** (D31) : apparitions au défilement (sept effets, durée, délai, courbe, rejouer), masqué au chargement, afficher/masquer et changer de variante au clic ou au survol, défiler vers une section ; moteur (`data-ix` + script, inactif dans l'éditeur sauf l'état d'arrivée), panneau Interactions, tests. Gabarit « Exemple restaurant » à la création d'un site.
 
 - 9 sept. 2026 — **Site de Marie en ligne.** Publié par Antoine depuis l'éditeur déployé ; formulaire de contact envoyé depuis le site public et reçu dans la base `frm_form_contact` (nom, email, message, page). Deux défauts repérés à cette occasion et corrigés (jetons de l'éditeur dans l'aperçu, base CSS des boutons). Lighthouse : à mesurer depuis Chrome (le quota de l'API PageSpeed était épuisé ce jour). Sortie de v0 : première case cochée, domaines à brancher, deuxième site à commencer (point 15).
 

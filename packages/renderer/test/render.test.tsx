@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
-import { sampleSite, sampleEntries, classMap } from "@atelier/model";
+import { sampleSite, sampleEntries, classMap, restaurantSite, restaurantEntries } from "@atelier/model";
 import { RenderPage, siteCss, styleSetCss, collectionViewCss, memoryData, matchPath, assetMap, pageTitle, type RenderContext } from "../src";
 
 const data = memoryData(sampleEntries);
@@ -131,6 +131,45 @@ describe("base CSS", () => {
     const css = siteCss(sampleSite);
     expect(css).toContain(":where(.at-page button){");
     expect(css).not.toMatch(/(^|\})\.at-page button\{/);
+  });
+});
+
+describe("interactions (D31)", () => {
+  it("émet data-ix avec les cibles résolues et le script, dans l'éditeur aussi", () => {
+    const site = { ...sampleSite, pages: [{ ...sampleSite.pages[0]!, root: { id: "ir", type: "box" as const, props: { tag: "div" }, children: [
+      { id: "ia", type: "text" as const, props: { tag: "p", content: { fr: [{ t: "text" as const, v: "Question" }] } }, interactions: [{ id: "ix1", trigger: { kind: "click" as const }, actions: [{ kind: "toggle" as const, target: { node: "ib" }, transition: { duration: 200, easing: "ease-out" } }] }] },
+      { id: "ib", type: "text" as const, props: { tag: "p", content: { fr: [{ t: "text" as const, v: "Réponse" }] } }, style: { base: { opacity: "0" } }, interactions: [{ id: "ix2", trigger: { kind: "inView" as const, options: { reveal: "fade", once: true } }, actions: [{ kind: "setStyle" as const, target: { self: true as const }, style: { opacity: "1" }, transition: { duration: 700, delay: 100, easing: "ease-out" } }] }] },
+    ] } }] };
+    const ctx: RenderContext = { ...ctxFor("/"), site, page: site.pages[0]! };
+    const html = renderToStaticMarkup(createElement(RenderPage, { ctx }));
+    expect(html).toContain('data-ix="[{&quot;t&quot;:&quot;click&quot;,&quot;a&quot;:[{&quot;k&quot;:&quot;toggle&quot;,&quot;s&quot;:&quot;.n-ib&quot;,&quot;tr&quot;:&quot;200ms ease-out 0ms&quot;}]}]"');
+    expect(html).toContain("&quot;css&quot;:&quot;opacity:1&quot;");
+    expect(html).toContain("IntersectionObserver");
+    const editor = renderToStaticMarkup(createElement(RenderPage, { ctx: { ...ctx, editor: true } }));
+    expect(editor).toContain('data-editor=""');
+    expect(editor).toContain("IntersectionObserver");
+  });
+});
+
+describe("site d'exemple : restaurant", () => {
+  it("rend chaque page, avec les entrées, les variantes et les interactions", () => {
+    const data = memoryData(restaurantEntries);
+    const assets = assetMap(restaurantSite);
+    const css = siteCss(restaurantSite);
+    expect(css).toContain(".n-rh_root.v-fond-plein{");
+    for (const page of restaurantSite.pages) {
+      const entry = page.kind === "template" ? restaurantEntries.find((e) => e.database === "rdb_events") : undefined;
+      const ctx: RenderContext = { site: restaurantSite, page, entry, params: entry ? { slug: String(entry.values.slug) } : {}, locale: "fr", data, assets };
+      const html = renderToStaticMarkup(createElement(RenderPage, { ctx }));
+      expect(html.length).toBeGreaterThan(1500);
+      expect(html).not.toContain("Composant introuvable");
+    }
+    const home = renderToStaticMarkup(createElement(RenderPage, { ctx: { site: restaurantSite, page: restaurantSite.pages[0]!, params: {}, locale: "fr", data, assets } }));
+    expect(home).toContain("Agneau des Combrailles");
+    expect(home).toContain("Brunch des producteurs");
+    expect(home).toContain('class="n-rh_root v-fond-transparent"');
+    expect(home).toContain("data-ix=");
+    expect(home).toContain("IntersectionObserver");
   });
 });
 
