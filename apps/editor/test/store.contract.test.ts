@@ -48,6 +48,8 @@ function contract(name: string, make: () => Promise<{ store: SiteStore; cleanup:
       expect((await store.entries(id)).map((e) => e.id).sort()).toEqual(["e_2", "e_3"]);
     });
     it("publie, liste, restaure, et retrouve par sous-domaine", async () => {
+      // Avant toute publication, le sous-domaine dérivé de l'identifiant répond déjà.
+      expect(await store.findBySubdomain(id.replace(/_/g, "-"))).toBe(id);
       const p = await store.publish(id, "première");
       expect(p.version).toBe(1);
       const pub = await store.published(id);

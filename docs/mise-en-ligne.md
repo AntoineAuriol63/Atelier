@@ -13,13 +13,16 @@ Ce document explique la vraie mise en ligne : l'éditeur hébergé, les sites pu
 
 ## 2. Déployer l'application sur Vercel
 
-1. **(Antoine)** Créer le projet Vercel depuis le dépôt GitHub, répertoire racine `apps/editor`, région Europe (Paris `cdg1` ou Francfort `fra1`), framework Next.js détecté.
+0. **(Antoine)** Le dépôt n'a pas encore de distant : créer un dépôt GitHub privé (`atelier`) et pousser `main` (`git remote add origin git@github.com:<compte>/atelier.git && git push -u origin main`). Le workflow `.github/workflows/ci.yml` (typecheck, tests, lint) tourne à chaque envoi.
+0 bis. Exécuter les blocs manquants du schéma Supabase, puis `node --env-file=apps/editor/.env.local scripts/check-supabase.mjs` jusqu'à « Supabase est prêt pour Atelier » (au 9 septembre 2026 il manque le bloc « partage »).
+1. **(Antoine)** Créer le projet Vercel depuis le dépôt GitHub, répertoire racine `apps/editor`, région Europe (Paris `cdg1` ou Francfort `fra1`), framework Next.js détecté. La compilation de production (`next build`) a été vérifiée en local le 9 septembre 2026 : toutes les routes sont dynamiques, aucune étape de construction ne touche Supabase.
 2. Variables d'environnement (Production et Preview) :
    - `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (les mêmes que `.env.local`) ;
    - `ATELIER_SITES_DOMAIN` = le domaine des sites, par exemple `atelier.site` (sans `https://`) ;
    - `RESEND_API_KEY`, `FORM_NOTIFY_TO`, `MAIL_FROM` pour les formulaires ;
    - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `ATELIER_ALLOWED_EMAILS` pour la connexion (voir `docs/supabase.md`, section Comptes), sans quoi l'éditeur est ouvert à tous.
-3. Premier déploiement : l'éditeur répond sur `https://<projet>.vercel.app/`, les sites publiés sur `https://<projet>.vercel.app/s/<sous-domaine>/`.
+3. Premier déploiement : l'éditeur répond sur `https://<projet>.vercel.app/`. Sans domaine de sites, les sites publiés ne répondent pas encore (le repli `/s/…` est réservé au développement) : pour un premier contrôle, poser temporairement `ATELIER_ALLOW_PATH_FALLBACK=1` et ouvrir `https://<projet>.vercel.app/s/<sous-domaine>/`, puis retirer la variable dès que le domaine des sites est branché.
+4. Republier chaque site une fois depuis l'éditeur en ligne : la publication enregistre le sous-domaine qui répond (les sites publiés avant le 9 septembre 2026 n'en ont pas ; en attendant, l'identifiant du site sert de repli).
 
 ## 3. Les sous-domaines des sites
 

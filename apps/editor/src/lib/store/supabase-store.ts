@@ -226,8 +226,9 @@ export class SupabaseSiteStore implements SiteStore {
     const bySub = await this.client.from("sites").select("id").eq("subdomain", sub).limit(1).maybeSingle();
     if (bySub.error) this.missingColumn(bySub.error);
     if (bySub.data?.id) return bySub.data.id as string;
-    const byId = await this.client.from("sites").select("id").eq("id", sub).limit(1).maybeSingle();
-    if (byId.error) throw new Error(byId.error.message);
+    // Site jamais republié depuis l'enregistrement du sous-domaine : son identifiant, ou l'identifiant dont dérive ce sous-domaine (`site_marie` → `site-marie`).
+    const byId = await this.client.from("sites").select("id, subdomain").in("id", [sub, sub.replace(/-/g, "_")]).is("subdomain", null).limit(1).maybeSingle();
+    if (byId.error) { if (this.isUndefinedColumn(byId.error)) return null; throw new Error(byId.error.message); }
     return (byId.data?.id as string | undefined) ?? null;
   }
 }
