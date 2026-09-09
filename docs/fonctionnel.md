@@ -108,6 +108,8 @@ Composants : `packages/model/src/components.ts` (`planMakeComponent`, `planDetac
 
 Rôles : `packages/model/src/roles.ts` (`Role`, `atLeast`, `opAllowedForWriter`), `lib/site-access.ts` (`siteRole`, `guardSite(id, min)`, `guardRole`), dépôts (`members`, `setMember`, `removeMember`, `isMember`, `listSites(user)` avec `role`, `publishEntries`), table `site_members`, route `/api/sites/:id/members` (GET, PUT, DELETE, propriétaire), `canSignIn` (liste ou invité). Niveaux : lecture, entrées, fichiers, changements et contenus seuls pour le rédacteur (les opérations d'un rédacteur sont filtrées par `opAllowedForWriter`) ; publication, retour arrière, export pour l'éditeur ; suppression et partage pour le propriétaire. L'éditeur reçoit `role` (`EditorShellClient`) : rédacteur forcé en Écriture, onglet Design désactivé, panneau Pages en lecture, fenêtre Publier réduite.
 
+Aperçu vivant : les barres d'outils injectées dans l'iframe lisent les jetons de l'éditeur sous `--atelier-ui-*` (copiés depuis le document parent), jamais sous `--color-*`, qui appartient au thème du site.
+
 ### 2.4 Rendu publié et référencement
 
 `app/(site)/s/[sub]/[[...path]]/route.ts` : gestionnaire de route, instantané publié mis en cache (`unstable_cache`, étiquette `site:<id>`, invalidée avec `expire: 0`), redirections (`matchRedirect`), page `/404` en 404, document HTML complet par `lib/html-document.ts` (`htmlDocument` : titre, description, robots, canonique, Open Graph avec image absolue, Twitter, favicon, polices, `color-scheme`, feuille en ligne, code head et fin de body tels quels), partagé avec l'export. `sitemap.xml` (sans `/404`) et `robots.txt` par site.

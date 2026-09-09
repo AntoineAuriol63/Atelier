@@ -436,7 +436,7 @@ Les `Asset` référencent un fichier stocké (`{ id, kind: "image" | "video" | "
 - Les jetons deviennent des variables CSS sur `:root` et par mode.
 - Un `divider` n'a pas d'orientation propre : le CSS du conteneur (nœud ou style partagé) le rend vertical quand ce conteneur dispose ses enfants côte à côte (flex en ligne, grille à plusieurs colonnes) et horizontal sinon, point de rupture par point de rupture. Un réglage de bordure posé sur le séparateur lui-même en Design reste possible mais le conteneur a le dernier mot sur l'orientation.
 - Les liaisons sont résolues au rendu à partir d'un contexte `{ site, page, entry?, item?, props?, params, locale, state }`.
-- Le même moteur sert l'éditeur (dans une iframe, D16), le site publié et l'export (D15). L'export émet des composants nommés d'après `name`.
+- Le même moteur sert l'éditeur (dans une iframe, D16), le site publié et l'export (D15). Les variables CSS `--color-*`, `--font-*`, `--space-*`… du thème sont un espace de noms réservé au site : rien de l'éditeur ne doit poser une variable de ce nom dans le document rendu. L'export émet des composants nommés d'après `name`.
 
 ## 12. Exemple minimal
 

@@ -10,7 +10,7 @@ type Props = { initialSite: Site; entries: Entry[]; path: string; mode?: string;
 
 type EditMode = "write" | "design";
 
-const ACCENT = "var(--color-accent, #6aa6ff)";
+const ACCENT = "var(--atelier-ui-accent, #6aa6ff)";
 
 /** Feuille de la page seule, recalculée uniquement quand le site ou la page change. */
 function PageCss({ site, pageId }: { site: Site; pageId: string }) {
@@ -77,23 +77,24 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     // Les couleurs de l'interface viennent de l'éditeur (même origine) : un seul système de design, pas de copie.
     try {
       const pcs = getComputedStyle(parent.document.documentElement);
-      for (const v of ["--color-panel", "--color-surface", "--color-raised", "--color-hover", "--color-line", "--color-line-strong", "--color-ink", "--color-muted", "--color-dim", "--color-accent", "--color-accent-soft", "--color-accent-ink", "--color-danger"]) { const val = pcs.getPropertyValue(v); if (val) document.documentElement.style.setProperty(v, val); }
+      // Les jetons de l'éditeur sont posés sous un préfixe à part : `--color-ink`, `--color-accent`… sont aussi les noms des jetons du thème du site, et une valeur en ligne sur <html> les écraserait.
+      for (const v of ["panel", "surface", "raised", "hover", "line", "line-strong", "ink", "muted", "dim", "accent", "accent-soft", "accent-ink", "danger"]) { const val = pcs.getPropertyValue(`--color-${v}`); if (val) document.documentElement.style.setProperty(`--atelier-ui-${v}`, val); }
     } catch { /* aperçu ouvert hors de l'éditeur */ }
-    const UI = "font:13px/1.4 system-ui,sans-serif;color:var(--color-ink,#e8e8ec);pointer-events:auto;z-index:2147483647;position:absolute;box-sizing:border-box;transform-origin:top left";
+    const UI = "font:13px/1.4 system-ui,sans-serif;color:var(--atelier-ui-ink,#e8e8ec);pointer-events:auto;z-index:2147483647;position:absolute;box-sizing:border-box;transform-origin:top left";
     // L'aperçu est souvent réduit à l'échelle : l'interface dans l'aperçu compense pour garder sa vraie taille à l'écran.
     let uiScale = 1;
     const applyUiScale = () => { [blockBar, selBar, slashMenu, grip].forEach((l) => { l.style.transform = `scale(${uiScale})`; }); };
-    const indicator = layer("position:absolute;pointer-events:none;z-index:2147483647;display:none;background:var(--color-accent,#6aa6ff);border-radius:2px;box-shadow:0 0 0 1px #fff");
+    const indicator = layer("position:absolute;pointer-events:none;z-index:2147483647;display:none;background:var(--atelier-ui-accent,#6aa6ff);border-radius:2px;box-shadow:0 0 0 1px #fff");
     const gridLayer = layer("position:absolute;left:0;top:0;right:0;pointer-events:none;z-index:2147483646;display:none");
     gridLayer.setAttribute("data-atelier-grid", "");
-    const blockBar = layer(`${UI};display:none;background:var(--color-panel,#1a1b1f);border:1px solid var(--color-line-strong,#3a3b42);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.4);padding:2px;gap:2px;align-items:center`);
-    const selBar = layer(`${UI};display:none;background:var(--color-panel,#1a1b1f);border:1px solid var(--color-line-strong,#3a3b42);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.4);padding:2px;gap:2px;align-items:center`);
-    const slashMenu = layer(`${UI};display:none;background:var(--color-panel,#1a1b1f);border:1px solid var(--color-line-strong,#3a3b42);border-radius:6px;box-shadow:0 12px 32px rgba(0,0,0,.5);min-width:240px;max-height:280px;overflow:auto;padding:4px`);
+    const blockBar = layer(`${UI};display:none;background:var(--atelier-ui-panel,#1a1b1f);border:1px solid var(--atelier-ui-line-strong,#3a3b42);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.4);padding:2px;gap:2px;align-items:center`);
+    const selBar = layer(`${UI};display:none;background:var(--atelier-ui-panel,#1a1b1f);border:1px solid var(--atelier-ui-line-strong,#3a3b42);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.4);padding:2px;gap:2px;align-items:center`);
+    const slashMenu = layer(`${UI};display:none;background:var(--atelier-ui-panel,#1a1b1f);border:1px solid var(--atelier-ui-line-strong,#3a3b42);border-radius:6px;box-shadow:0 12px 32px rgba(0,0,0,.5);min-width:240px;max-height:280px;overflow:auto;padding:4px`);
     // Poignée à gauche du bloc, comme dans Notion : « + » pour insérer, « ⋮⋮ » pour glisser.
     const grip = layer(`${UI};display:none;flex-direction:column;gap:1px;background:transparent`);
-    const BTN = "background:none;border:0;color:var(--color-muted,#c9cad0);font:inherit;font-weight:600;height:28px;min-width:28px;padding:0 8px;border-radius:5px;cursor:pointer";
+    const BTN = "background:none;border:0;color:var(--atelier-ui-muted,#c9cad0);font:inherit;font-weight:600;height:28px;min-width:28px;padding:0 8px;border-radius:5px;cursor:pointer";
     const style = document.createElement("style");
-    style.textContent = `[data-atelier-ui] button:hover{background:var(--color-hover,#2a2b30);color:var(--color-ink,#fff)}[data-atelier-ui] select,[data-atelier-ui] input{background:var(--color-surface,#232428);color:var(--color-ink,#e8e8ec);border:1px solid var(--color-line-strong,#3a3b42);border-radius:5px;height:28px;font:inherit;padding:0 6px}[data-atelier-ui] input:focus{outline:none;border-color:var(--color-accent,#6aa6ff)}[data-atelier-ui] .on{background:var(--color-accent-soft,rgba(106,166,255,.18));color:var(--color-accent,#6aa6ff)}[data-atelier-ui] .item{display:flex;gap:8px;align-items:center;height:32px;padding:0 10px;border-radius:5px;cursor:pointer;white-space:nowrap}[data-atelier-ui] .item.cur{background:var(--color-accent-soft,rgba(106,166,255,.18))}[data-atelier-ui] .grp{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--color-dim,#8b8c95);padding:8px 10px 2px}`;
+    style.textContent = `[data-atelier-ui] button:hover{background:var(--atelier-ui-hover,#2a2b30);color:var(--atelier-ui-ink,#fff)}[data-atelier-ui] select,[data-atelier-ui] input{background:var(--atelier-ui-surface,#232428);color:var(--atelier-ui-ink,#e8e8ec);border:1px solid var(--atelier-ui-line-strong,#3a3b42);border-radius:5px;height:28px;font:inherit;padding:0 6px}[data-atelier-ui] input:focus{outline:none;border-color:var(--atelier-ui-accent,#6aa6ff)}[data-atelier-ui] .on{background:var(--atelier-ui-accent-soft,rgba(106,166,255,.18));color:var(--atelier-ui-accent,#6aa6ff)}[data-atelier-ui] .item{display:flex;gap:8px;align-items:center;height:32px;padding:0 10px;border-radius:5px;cursor:pointer;white-space:nowrap}[data-atelier-ui] .item.cur{background:var(--atelier-ui-accent-soft,rgba(106,166,255,.18))}[data-atelier-ui] .grp{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--atelier-ui-dim,#8b8c95);padding:8px 10px 2px}`;
     document.head.appendChild(style);
 
     const sizeGrid = () => { gridLayer.style.height = `${Math.max(document.documentElement.scrollHeight, document.body.scrollHeight)}px`; };
@@ -191,7 +192,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       placeBar(blockBar, el);
       // poignée gauche
       grip.innerHTML = "";
-      const g = (label: string, title: string, cursor: string) => { const x = document.createElement("button"); x.textContent = label; x.title = title; x.style.cssText = BTN + `;height:20px;min-width:20px;padding:0;font-size:13px;background:var(--color-panel,#1a1b1f);border:1px solid var(--color-line-strong,#3a3b42);color:#9c9da6;cursor:${cursor}`; x.addEventListener("mousedown", (e) => e.preventDefault()); grip.appendChild(x); return x; };
+      const g = (label: string, title: string, cursor: string) => { const x = document.createElement("button"); x.textContent = label; x.title = title; x.style.cssText = BTN + `;height:20px;min-width:20px;padding:0;font-size:13px;background:var(--atelier-ui-panel,#1a1b1f);border:1px solid var(--atelier-ui-line-strong,#3a3b42);color:#9c9da6;cursor:${cursor}`; x.addEventListener("mousedown", (e) => e.preventDefault()); grip.appendChild(x); return x; };
       const plus = g("+", "Insérer un bloc après (ou tapez / dans un texte)", "pointer");
       plus.style.height = "24px"; plus.style.minWidth = "24px";
       plus.addEventListener("click", (e) => { e.stopPropagation(); openSlash(el, true); });
