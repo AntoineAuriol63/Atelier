@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Plus, Sparkles, X } from "lucide-react";
 import type { CommitOptions, Interaction, Node, Op, Site } from "@atelier/model";
 import { EASINGS, REVEAL_LABEL, describeInteraction, hiddenAtLoad, indexSite, instanceVariant, planHiddenAtLoad, planRemoveReveal, planReveal, revealOf, toggleInteraction, variantInteraction, walk, type RevealKind } from "@atelier/model";
-import { Button, Field, FieldGroup, Hint, IconButton, NumberInput, Section, Select, Toggle } from "@/ui";
+import { Button, Field, FieldGroup, Hint, IconButton, NumberInput, Section, Select, Toggle, Eyebrow } from "@/ui";
 import { nodeLabel } from "../node-icons";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
@@ -58,7 +58,7 @@ export function InteractionsPanel({ site, node, pageRoot, commit }: { site: Site
         </ul>
       ) : null}
       <div className="flex flex-col gap-1 border-t border-line pt-2">
-        <span className="text-2xs uppercase tracking-[0.12em] text-dim">Ajouter</span>
+        <Eyebrow as="span">Ajouter</Eyebrow>
         <div className="grid grid-cols-2 gap-1">
           <Select value={trigger} options={[{ value: "click", label: "Au clic" }, { value: "hover", label: "Au survol" }]} onValueChange={(v) => setTrigger(v as "click" | "hover")} />
           <Select value={kind} options={[{ value: "toggle", label: "Afficher / masquer…" }, { value: "variant", label: "Changer la variante de…" }]} onValueChange={(v) => { setKind(v as "toggle" | "variant"); setTarget(""); }} />

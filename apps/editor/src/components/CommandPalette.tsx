@@ -3,7 +3,7 @@
 import { createElement, useEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Search } from "lucide-react";
-import { Kbd } from "@/ui";
+import { Kbd, Eyebrow } from "@/ui";
 import { cx } from "@/ui/cx";
 
 export type Command = { id: string; label: string; group: string; icon?: LucideIcon; keys?: string; run: () => void; keywords?: string };
@@ -59,7 +59,7 @@ export function CommandPalette({ open, onClose, commands }: { open: boolean; onC
             const prevGroup = list[i - 1]?.group;
             return (
               <li key={c.id}>
-                {c.group !== prevGroup ? <div className="px-3 pt-2 pb-1 text-2xs uppercase tracking-[0.12em] text-dim">{c.group}</div> : null}
+                {c.group !== prevGroup ? <Eyebrow as="div" className="px-3 pt-2 pb-1">{c.group}</Eyebrow> : null}
                 <button type="button" role="option" aria-selected={i === cursor} onMouseEnter={() => setCursor(i)} onClick={() => run(c)} className={cx("w-full flex items-center gap-2 px-3 h-8 text-sm text-left", i === cursor ? "bg-accent-soft text-ink" : "text-ink hover:bg-hover")}>
                   {c.icon ? createElement(c.icon, { size: 14, className: "text-muted shrink-0", "aria-hidden": true }) : <span className="w-3.5" />}
                   <span className="flex-1 truncate">{c.label}</span>

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Copy, Database as DatabaseIcon, FileText, Plus, Settings2, Trash2 } from "lucide-react";
 import type { CommitOptions, Database, Node, Op, Page, Site } from "@atelier/model";
 import { cloneWithNewIds, newId, NOT_FOUND_PATH, templateOf } from "@atelier/model";
-import { Badge, Button, Field, FieldGroup, Hint, IconButton, Select, TextInput, askConfirm } from "@/ui";
+import { Badge, Button, Field, FieldGroup, Hint, IconButton, Select, TextInput, askConfirm, Eyebrow } from "@/ui";
 import { mod } from "@/lib/keys";
 import { Segmented } from "@/ui/controls";
 import { AssetPicker } from "@/components/design/AppearancePanel";
@@ -123,7 +123,7 @@ export function PagesPanel({ site, pageId, onOpen, commit, readOnly = false }: {
           const firstTemplate = p.kind === "template" && (i === 0 || all[i - 1]!.kind !== "template");
           return (
             <li key={p.id}>
-              {firstTemplate ? <div className="flex items-center gap-1.5 h-7 px-3 mt-1 text-2xs uppercase tracking-[0.12em] text-dim border-t border-line" title="Une page par entrée d'une base : son contenu vient de l'entrée, son adresse aussi."><DatabaseIcon size={11} aria-hidden />Pages par entrée</div> : null}
+              {firstTemplate ? <Eyebrow as="div" className="flex items-center gap-1.5 h-7 px-3 mt-1 border-t border-line" title="Une page par entrée d'une base : son contenu vient de l'entrée, son adresse aussi."><DatabaseIcon size={11} aria-hidden />Pages par entrée</Eyebrow> : null}
               <div className={cx("group flex items-center gap-1 h-[28px] pl-3 pr-1 text-sm", active ? "bg-accent-soft text-ink" : "text-ink hover:bg-hover")}>
                 <button type="button" onClick={() => onOpen(p.id)} className="flex-1 min-w-0 flex items-center gap-2 text-left h-full" title={tpl ? `Page par entrée de la base « ${tpl.database.name[locale] ?? tpl.database.slug} » · ${tpl.slugPattern}` : p.path}>
                   {p.kind === "template" ? <DatabaseIcon size={13} className={active ? "text-accent" : "text-muted"} aria-hidden /> : <FileText size={13} className={active ? "text-accent" : "text-muted"} aria-hidden />}

@@ -2,7 +2,7 @@
 
 import type { Site, StyleValue } from "@atelier/model";
 import { Hint, Section, TextInput } from "@/ui";
-import { PropRow, Segmented, UnitInput } from "@/ui/controls";
+import { PropRow, Segmented, UnitInput, TokenSelect } from "@/ui/controls";
 import type { StyleApi } from "./useStyle";
 
 const KW = ["auto", "none", "min-content", "max-content", "fit-content"];
@@ -56,7 +56,7 @@ export function SizePanel({ site, style, defaultOpen = true }: { site: Site; sty
       {len("minHeight", "Hauteur min.")}
       {len("maxHeight", "Hauteur max.")}
       <PropRow label="Ratio" source={s.source("aspectRatio")} sourceTitle={s.title("aspectRatio")} onReset={() => s.reset("aspectRatio")}>
-        <TextInput mono className="flex-1" value={typeof s.value("aspectRatio") === "string" ? String(s.value("aspectRatio")) : ""} placeholder="16 / 9" onValueChange={(v) => s.set("aspectRatio", v || undefined)} />
+        <div className="flex items-center gap-1 flex-1 min-w-0"><TextInput mono className="flex-1 min-w-0" value={typeof s.value("aspectRatio") === "string" ? String(s.value("aspectRatio")) : ""} placeholder="16 / 9" onValueChange={(v) => s.set("aspectRatio", v || undefined)} /><TokenSelect site={site} onPick={(t) => s.set("aspectRatio", t)} /></div>
       </PropRow>
       <Hint>La pastille bleue devant un réglage le remet à zéro (retour à auto).</Hint>
     </Section>

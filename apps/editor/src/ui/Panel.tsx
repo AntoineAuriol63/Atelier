@@ -14,11 +14,16 @@ export function Panel({ children, side, className }: { children: ReactNode; side
   );
 }
 
+/** Intitulé en capitales espacées (le seul du système : même taille, même interlettrage partout). */
+export function Eyebrow({ children, className, as: Tag = "span", title }: { children: ReactNode; className?: string; as?: "span" | "div" | "h2" | "h3" | "h4"; title?: string }) {
+  return <Tag className={cx("m-0 text-2xs uppercase tracking-[0.12em] text-dim font-medium", className)} title={title}>{children}</Tag>;
+}
+
 /** En-tête de panneau ou de zone : titre en capitales espacées. */
 export function PanelHeading({ children, actions, className, as: Tag = "h2" }: { children: ReactNode; actions?: ReactNode; className?: string; /** Niveau de titre : la structure du document suit les zones de l'éditeur. */ as?: "h2" | "h3" | "span" }) {
   return (
     <div className={cx("flex items-center justify-between px-3 h-8 shrink-0", className)}>
-      <Tag className="m-0 text-2xs uppercase tracking-[0.12em] text-dim font-medium">{children}</Tag>
+      <Eyebrow as={Tag}>{children}</Eyebrow>
       {actions}
     </div>
   );

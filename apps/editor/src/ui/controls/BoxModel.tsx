@@ -5,6 +5,7 @@ import { Link2, Unlink2 } from "lucide-react";
 import type { ResolvedValue, Site, StyleValue } from "@atelier/model";
 import { parseInput, shortLabel, tokenValue } from "@/lib/css-value";
 import { cx } from "../cx";
+import { Eyebrow } from "../Panel";
 import { startDragValue, stepFor } from "./useDragValue";
 
 const SIDES = ["Top", "Right", "Bottom", "Left"] as const;
@@ -65,13 +66,13 @@ export function BoxModel({ site, get, set }: { site: Site; get: (prop: string) =
   const toggle = (kind: "margin" | "padding") => setLinked((l) => ({ ...l, [kind]: !l[kind] }));
   return (
     <div className="relative rounded-sm border border-dashed border-line-strong px-2 pt-4 pb-2" style={{ background: "repeating-linear-gradient(45deg, transparent 0 6px, rgba(255,255,255,.02) 6px 7px)" }}>
-      <span className="absolute top-1 left-2 text-2xs uppercase tracking-[0.12em] text-dim">Marge</span>
+      <Eyebrow as="span" className="absolute top-1 left-2">Marge</Eyebrow>
       <div className="absolute top-0.5 right-1"><LinkToggle linked={linked.margin} onToggle={() => toggle("margin")} what="marges" /></div>
       <div className="grid grid-cols-[44px_1fr_44px] grid-rows-[20px_1fr_20px] items-center justify-items-center gap-y-1">
         <div /><Cell site={site} prop="marginTop" value={get("marginTop")} onCommit={commit("margin", "Top")} title="Marge haute" /><div />
         <Cell site={site} prop="marginLeft" value={get("marginLeft")} onCommit={commit("margin", "Left")} title="Marge gauche" />
         <div className="relative w-full rounded-sm border border-line-strong bg-surface px-2 pt-4 pb-2">
-          <span className="absolute top-1 left-2 text-2xs uppercase tracking-[0.12em] text-dim">Remplissage</span>
+          <Eyebrow as="span" className="absolute top-1 left-2">Remplissage</Eyebrow>
           <div className="absolute top-0.5 right-1"><LinkToggle linked={linked.padding} onToggle={() => toggle("padding")} what="remplissages" /></div>
           <div className="grid grid-cols-[44px_1fr_44px] grid-rows-[20px_28px_20px] items-center justify-items-center gap-y-1">
             <div /><Cell site={site} prop="paddingTop" value={get("paddingTop")} onCommit={commit("padding", "Top")} title="Remplissage haut" /><div />

@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { Check, Images, RefreshCw, Trash2, Upload } from "lucide-react";
 import type { Asset, CommitOptions, Entry, Op, Site } from "@atelier/model";
 import { newId } from "@atelier/model";
-import { Button, Dialog, Hint, Select, TextInput, askConfirm } from "@/ui";
+import { Button, Dialog, Hint, Select, TextInput, askConfirm, Eyebrow } from "@/ui";
 import { mod } from "@/lib/keys";
 import { assetLabel, isImageFile, uploadImages } from "@/lib/upload";
 import { assetUsages, type AssetUsage } from "@/lib/asset-usage";
@@ -57,14 +57,14 @@ let opener: ((opts?: OpenOptions) => void) | null = null;
 export function openMediaLibrary(opts?: OpenOptions) { opener?.(opts); }
 
 /** Fournit la bibliothèque au reste de l'éditeur (`useMediaLibrary().open(...)` ou `openMediaLibrary(...)`). */
-export function MediaLibraryProvider({ site, entries, commit, saveEntry, onGoTo, children }: { site: Site; entries: Entry[]; commit: Commit; saveEntry: (e: Entry) => void; onGoTo: (u: AssetUsage) => void; children: ReactNode }) {
+export function MediaLibraryProvider({ site, entries, commit, saveEntry, onGoTo, children, readOnly }: { site: Site; entries: Entry[]; commit: Commit; saveEntry: (e: Entry) => void; onGoTo: (u: AssetUsage) => void; children: ReactNode; /** Rédacteur : on choisit une image, on n'en importe ni n'en modifie. */ readOnly?: boolean }) {
   const [opts, setOpts] = useState<OpenOptions | null>(null);
   const api = useMemo<MediaLibraryHandle>(() => ({ open: (o) => setOpts(o ?? {}) }), []);
   useEffect(() => { opener = api.open; return () => { if (opener === api.open) opener = null; }; }, [api]);
   return (
     <Ctx.Provider value={api}>
       {children}
-      {opts ? <MediaLibrary site={site} entries={entries} open onClose={() => setOpts(null)} value={opts.value} onPick={opts.onPick} commit={commit} saveEntry={saveEntry} onGoTo={(u) => { setOpts(null); onGoTo(u); }} /> : null}
+      {opts ? <MediaLibrary site={site} entries={entries} open onClose={() => setOpts(null)} value={opts.value} onPick={opts.onPick} commit={commit} saveEntry={saveEntry} readOnly={readOnly} onGoTo={(u) => { setOpts(null); onGoTo(u); }} /> : null}
     </Ctx.Provider>
   );
 }
@@ -77,7 +77,7 @@ const when = (iso?: string) => (iso ? new Date(iso).toLocaleDateString("fr-FR", 
  * renommer, décrire (texte alternatif porté par l'image), remplacer le fichier partout, supprimer les inutilisées.
  * En mode choix (`onPick`), un double-clic ou « Utiliser » pose l'image sur l'élément.
  */
-export function MediaLibrary({ site, entries, open, onClose, value, onPick, commit, saveEntry, onGoTo }: { site: Site; entries: Entry[]; open: boolean; onClose: () => void; value?: string | null; onPick?: (id: string | null) => void; commit: Commit; saveEntry?: (e: Entry) => void; onGoTo?: (u: AssetUsage) => void }) {
+export function MediaLibrary({ site, entries, open, onClose, value, onPick, commit, saveEntry, onGoTo, readOnly }: { site: Site; entries: Entry[]; open: boolean; onClose: () => void; value?: string | null; onPick?: (id: string | null) => void; commit: Commit; saveEntry?: (e: Entry) => void; readOnly?: boolean; onGoTo?: (u: AssetUsage) => void }) {
   const locale = site.settings.defaultLocale;
   const { importFiles, busy, error } = useImageImport(site, commit);
   const [url, setUrl] = useState("");
@@ -145,22 +145,22 @@ export function MediaLibrary({ site, entries, open, onClose, value, onPick, comm
   };
 
   return (
-    <Dialog open={open} onClose={onClose} title={onPick ? "Choisir une image" : "Images du site"} width={980} actions={<div className="flex items-center gap-1">{unusedCount ? <Button size="sm" variant="ghost" icon={Trash2} onClick={() => void removeUnused()} title="Retirer de la bibliothèque toutes les images qui ne servent nulle part">{unusedCount} inutilisée{unusedCount > 1 ? "s" : ""}</Button> : null}<ImportButton onFiles={importHere} busy={busy} size="sm" /></div>}>
+    <Dialog open={open} onClose={onClose} title={onPick ? "Choisir une image" : "Images du site"} width={980} actions={readOnly ? null : <div className="flex items-center gap-1">{unusedCount ? <Button size="sm" variant="ghost" icon={Trash2} onClick={() => void removeUnused()} title="Retirer de la bibliothèque toutes les images qui ne servent nulle part">{unusedCount} inutilisée{unusedCount > 1 ? "s" : ""}</Button> : null}<ImportButton onFiles={importHere} busy={busy} size="sm" /></div>}>
       <div className="grid min-h-[420px]" style={{ gridTemplateColumns: "1fr 300px" }}>
         <div
           className={`p-3 flex flex-col gap-3 min-w-0 ${over ? "outline outline-2 outline-accent -outline-offset-4" : ""}`}
           onDragOver={(e) => { e.preventDefault(); setOver(true); }} onDragLeave={() => setOver(false)}
-          onDrop={(e) => { e.preventDefault(); setOver(false); const files = [...e.dataTransfer.files]; if (files.length) void importHere(files); }}
+          onDrop={(e) => { e.preventDefault(); setOver(false); if (readOnly) return; const files = [...e.dataTransfer.files]; if (files.length) void importHere(files); }}
         >
           <div className="flex gap-1 flex-wrap items-center">
             <TextInput className="flex-1 min-w-[160px]" value={query} placeholder="Chercher par nom ou description" aria-label="Chercher une image" onValueChange={setQuery} />
             <Select className="w-[150px]" value={sort} options={[{ value: "recent", label: "Plus récentes" }, { value: "name", label: "Par nom" }]} onValueChange={(v) => setSort(v as "recent" | "name")} />
             <label className="flex items-center gap-1 text-xs text-muted cursor-pointer"><input type="checkbox" checked={onlyUnused} onChange={(e) => setOnlyUnused(e.target.checked)} className="accent-[var(--color-accent)]" />Inutilisées</label>
           </div>
-          <form className="flex gap-1" onSubmit={(e) => { e.preventDefault(); addByUrl(); }}>
+          {readOnly ? null : <form className="flex gap-1" onSubmit={(e) => { e.preventDefault(); addByUrl(); }}>
             <TextInput className="flex-1" value={url} placeholder="https://… (ajouter une image par son adresse)" aria-label="Adresse d'une image à ajouter" onValueChange={setUrl} />
             <Button size="md" type="submit" disabled={!/^https?:\/\//.test(url.trim())}>Ajouter</Button>
-          </form>
+          </form>}
           {error ? <p className="text-xs text-danger">{error}</p> : null}
           {images.length === 0 ? <Hint>{query || onlyUnused ? "Aucune image ne correspond." : "Aucune image pour l'instant. Importez-en, ou déposez des fichiers ici."}</Hint> : null}
           <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))" }}>
@@ -190,12 +190,13 @@ export function MediaLibrary({ site, entries, open, onClose, value, onPick, comm
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={selected.variants?.[1]?.url ?? selected.url} alt="" className="w-full rounded-xs object-contain max-h-40 bg-black/20" />
               <div className="flex flex-col gap-1.5">
-                <TextInput value={selected.name ?? ""} placeholder="Nom" aria-label="Nom de l'image" onValueChange={(v) => patch(selected, { name: v || undefined }, "Renommer l'image", `asset-name:${selected.id}`)} />
-                <TextInput value={selected.alt?.[locale] ?? ""} placeholder="Texte alternatif (décrit l'image aux moteurs et aux lecteurs d'écran)" aria-label="Texte alternatif" onValueChange={(v) => patch(selected, { alt: v ? { ...selected.alt, [locale]: v } : undefined }, "Décrire l'image", `asset-alt:${selected.id}`)} />
+                {readOnly ? <p className="text-sm text-ink">{selected.name ?? "Sans nom"}{selected.alt?.[locale] ? <span className="text-muted"> · {selected.alt[locale]}</span> : null}</p> : null}
+                {readOnly ? null : <TextInput value={selected.name ?? ""} placeholder="Nom" aria-label="Nom de l'image" onValueChange={(v) => patch(selected, { name: v || undefined }, "Renommer l'image", `asset-name:${selected.id}`)} />}
+                {readOnly ? null : <TextInput value={selected.alt?.[locale] ?? ""} placeholder="Texte alternatif (décrit l'image aux moteurs et aux lecteurs d'écran)" aria-label="Texte alternatif" onValueChange={(v) => patch(selected, { alt: v ? { ...selected.alt, [locale]: v } : undefined }, "Décrire l'image", `asset-alt:${selected.id}`)} />}
                 <p className="text-2xs text-dim">{selected.width && selected.height ? `${selected.width} × ${selected.height} · ` : ""}{selected.variants?.length ? `${selected.variants.length} déclinaisons · ` : ""}ajoutée le {when(selected.createdAt)}</p>
               </div>
               <div className="flex flex-col gap-1">
-                <span className="text-2xs uppercase tracking-[0.12em] text-dim">{selectedUsages.length ? `Utilisée dans ${selectedUsages.length} endroit${selectedUsages.length > 1 ? "s" : ""}` : "Utilisée nulle part"}</span>
+                <Eyebrow as="span">{selectedUsages.length ? `Utilisée dans ${selectedUsages.length} endroit${selectedUsages.length > 1 ? "s" : ""}` : "Utilisée nulle part"}</Eyebrow>
                 <ul className="flex flex-col max-h-40 overflow-auto">
                   {selectedUsages.map((u, i) => (
                     <li key={i} className="flex items-center gap-1 h-6 text-xs">
@@ -209,9 +210,9 @@ export function MediaLibrary({ site, entries, open, onClose, value, onPick, comm
               <div className="flex flex-col gap-1 mt-auto">
                 {onPick ? <Button variant="primary" icon={Check} onClick={() => pick(selected.id)}>Utiliser cette image</Button> : null}
                 <input ref={replaceInput} type="file" accept={ACCEPT} hidden onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ""; if (files.length) void replaceFile(selected, files); }} />
-                <Button icon={RefreshCw} disabled={replaceBusy} onClick={() => replaceInput.current?.click()} title="Envoyer un autre fichier à la place : l'image change partout où elle sert">{replaceBusy ? "Remplacement…" : "Remplacer le fichier…"}</Button>
+                {readOnly ? null : <Button icon={RefreshCw} disabled={replaceBusy} onClick={() => replaceInput.current?.click()} title="Envoyer un autre fichier à la place : l'image change partout où elle sert">{replaceBusy ? "Remplacement…" : "Remplacer le fichier…"}</Button>}
                 {replaceError ? <p className="text-sm text-danger">{replaceError}</p> : null}
-                <Button variant="danger" icon={Trash2} disabled={!!selectedUsages.length} title={selectedUsages.length ? "Retirez d'abord l'image des endroits où elle sert" : "Retirer de la bibliothèque"} onClick={() => void removeAsset(selected)}>Retirer</Button>
+                {readOnly ? null : <Button variant="danger" icon={Trash2} disabled={!!selectedUsages.length} title={selectedUsages.length ? "Retirez d'abord l'image des endroits où elle sert" : "Retirer de la bibliothèque"} onClick={() => void removeAsset(selected)}>Retirer</Button>}
               </div>
             </>
           )}

@@ -4,12 +4,14 @@ import { createElement, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Copy, Trash2, X } from "lucide-react";
 import type { CommitOptions, Inline, Node, NodeLocation, Op, Site, StyleValue, DataSource } from "@atelier/model";
 import { BASE, classMap, cloneWithNewIds, newId, resolveNodeStyle, resolveSharedStyleSet, stylePath, variantKey } from "@atelier/model";
-import { Badge, Field, FieldGroup, Hint, IconButton, Section, TextArea, TextInput } from "@/ui";
+import { Badge, Field, FieldGroup, Hint, IconButton, Section, TextArea, TextInput, Eyebrow } from "@/ui";
 import { nodeIcon, nodeLabel, TYPE_LABEL } from "./node-icons";
 import { propLabel } from "@/lib/prop-labels";
 import { uniqueFieldName } from "@/lib/forms";
 import { AppearancePanel, BindingPanel, CollectionPanel, ComponentPanel, EffectsPanel, FieldPanel, FormPanel, ImagePanel, InstancePanel, InteractionsPanel, LayoutPanel, LinkPanel, MakeComponentRow, PropBindingPanel, ResponsivePanel, SharedStylesPanel, SizePanel, SpacingPanel, STATE_LABEL, TagPanel, TypographyPanel, useStyle, type StyleTarget } from "./design";
-import { PropRow, Segmented } from "@/ui/controls";
+import { PropRow, Segmented, TokenSelect } from "@/ui/controls";
+import { cx } from "@/ui/cx";
+import { supported, tokenGroupFor } from "@/lib/css-value";
 import { sharedStyleUsages } from "@atelier/model";
 
 /** Section de l'inspecteur qui porte chaque propriété (pour y aller en un clic). */
@@ -156,12 +158,12 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
 
       {editMode === "write" ? null : (<>
       <div className="flex items-center gap-2 px-3 h-9 border-b border-line">
-        <span className="text-2xs uppercase tracking-[0.12em] text-dim">État</span>
+        <Eyebrow as="span">État</Eyebrow>
         <Segmented className="flex-1" size="sm" value={state} options={["hover", "active", "focus"].map((st) => { const n = stateProps(st).length; return { value: st, label: n ? `${STATE_LABEL[st]} · ${n}` : STATE_LABEL[st]! }; })} onChange={(v) => setState(v)} />
       </div>
       {component?.variants?.length ? (
         <div className="flex items-center gap-2 px-3 h-9 border-b border-line">
-          <span className="text-2xs uppercase tracking-[0.12em] text-dim">Variante</span>
+          <Eyebrow as="span">Variante</Eyebrow>
           <Segmented className="flex-1" size="sm" value={activeVariant} options={component.variants.flatMap((a) => a.values.map((v) => ({ value: variantKey(a.name, v), label: component.variants!.length > 1 ? `${a.name} · ${v}` : v })))} onChange={setVariant} />
         </div>
       ) : null}
@@ -285,7 +287,7 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
           {Object.entries(localProps).map(([prop, value]) => (
             <div key={prop} className="grid grid-cols-[88px_1fr_24px] items-center gap-1">
               <span className="font-mono text-xs text-muted truncate" title={prop}>{prop}</span>
-              <TextInput mono value={displayValue(value)} onValueChange={(v) => style.set(prop, parseRaw(v))} />
+              <div className="flex items-center gap-1 min-w-0"><TextInput mono className={cx("flex-1 min-w-0", !supported(prop, value) && "border-danger focus:border-danger")} title={!supported(prop, value) ? "Valeur non comprise par le navigateur : enregistrée, mais sans effet" : undefined} value={displayValue(value)} onValueChange={(v) => style.set(prop, parseRaw(v))} /><TokenSelect site={site} group={tokenGroupFor(prop)} onPick={(t) => style.set(prop, parseRaw(t))} /></div>
               <IconButton size="sm" label={`Retirer ${prop}`} icon={X} onClick={() => style.reset(prop)} />
             </div>
           ))}

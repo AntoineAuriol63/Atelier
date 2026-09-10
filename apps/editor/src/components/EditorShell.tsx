@@ -12,7 +12,7 @@ import Link from "next/link";
 import { PRODUCT_NAME } from "@/lib/product";
 import { mod } from "@/lib/keys";
 import type { BlockPreset } from "@/lib/blocks";
-import { Badge, Button, Hint, IconButton, NumberInput, Panel, PanelHeading, Separator, Tabs, TreeRow, type DropIndicator, Select, ConfirmProvider, askConfirm } from "@/ui";
+import { Badge, Button, Hint, IconButton, NumberInput, Panel, PanelHeading, Separator, Tabs, TreeRow, type DropIndicator, Select, ConfirmProvider, askConfirm, Eyebrow } from "@/ui";
 import { NodeInspector } from "./NodeInspector";
 import { AddPanel } from "./AddPanel";
 import { ThemePanel } from "./ThemePanel";
@@ -179,6 +179,10 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
   const post = useCallback((msg: ToPreview) => frame.current?.contentWindow?.postMessage(msg, window.location.origin), []);
 
 
+  // Entrées de la version publiée (id → date) : le tableau compte ce qui est publié ici mais pas encore en ligne.
+  const [publishedEntries, setPublishedEntries] = useState<Record<string, string> | undefined>(undefined);
+  const loadPublished = useCallback(() => { void fetch(`/api/sites/${initialSite.id}/publish`).then(async (r) => { if (r.ok) { const b = (await r.json()) as { publishedEntries?: Record<string, string> }; setPublishedEntries(b.publishedEntries ?? {}); } }).catch(() => {}); }, [initialSite.id]);
+  useEffect(() => { loadPublished(); }, [loadPublished]);
   /** Entrées des bases (hors document) et base ouverte en vue tableur. */
   const ents = useEntries(initialSite.id, initialEntries, notify);
   const [dbOpen, setDbOpen] = useState<string | null>(null);
@@ -502,7 +506,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
   }, [index, doc]);
 
   return (
-    <ConfirmProvider><MediaLibraryProvider site={site} entries={ents.entries} commit={doc.commit} saveEntry={ents.save} onGoTo={goToUsage}>
+    <ConfirmProvider><MediaLibraryProvider site={site} entries={ents.entries} commit={doc.commit} saveEntry={ents.save} onGoTo={goToUsage} readOnly={writer}>
     <div className="h-full grid grid-rows-[40px_1fr] grid-cols-[300px_1fr_340px]">
       <header className="col-span-3 flex items-center gap-2 px-3 border-b border-line bg-panel">
         <Link href="/" className="font-semibold text-base tracking-tight text-ink hover:text-accent" title="Retour à vos sites">{PRODUCT_NAME}</Link>
@@ -513,7 +517,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
         {page.kind === "template" ? <Badge tone="accent" title="Cette page s'affiche une fois par entrée de sa base">page par entrée</Badge> : null}
         {template ? (
           <div className="flex items-center gap-1 ml-2" title="Modèle de page : quelle entrée afficher dans l'aperçu">
-            <span className="text-2xs uppercase tracking-[0.12em] text-dim">Entrée</span>
+            <Eyebrow as="span">Entrée</Eyebrow>
             {templateEntries.length ? <Select className="max-w-[220px]" value={previewEntry?.id ?? ""} options={templateEntries.map((e) => ({ value: e.id, label: String(e.values[template.database.titleField] ?? "") || "Sans titre" }))} onValueChange={(id) => { setPreviewEntryByPage((m) => ({ ...m, [page.id]: id })); select(null); setFrameReady(false); }} /> : <Badge tone="warning" title="Sans entrée publiée, la page s'affiche avec ses textes de repli">Aucune entrée publiée dans {template.database.name[locale] ?? template.database.slug}</Badge>}
           </div>
         ) : null}
@@ -621,9 +625,9 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
         )}
       </Panel>
       {paletteOpen ? <CommandPalette open onClose={() => setPaletteOpen(false)} commands={commands} /> : null}
-      {dbOpen && site.databases.some((d) => d.id === dbOpen) ? <DatabaseTable site={site} db={site.databases.find((d) => d.id === dbOpen)!} entries={ents.entries} save={ents.save} saveMany={ents.saveMany} remove={ents.remove} commit={doc.commit} onClose={() => setDbOpen(null)} saving={ents.saving} onDeleteDatabase={() => void deleteDatabase(dbOpen)} notify={notify} /> : null}
+      {dbOpen && site.databases.some((d) => d.id === dbOpen) ? <DatabaseTable site={site} db={site.databases.find((d) => d.id === dbOpen)!} entries={ents.entries} save={ents.save} saveMany={ents.saveMany} remove={ents.remove} commit={doc.commit} onClose={() => setDbOpen(null)} canEditSchema={!writer} publishedEntries={publishedEntries} saving={ents.saving} onDeleteDatabase={() => void deleteDatabase(dbOpen)} notify={notify} /> : null}
       {dbOpen && formForOpen ? <DatabaseTable site={site} db={formDatabase(site, formForOpen)} entries={ents.entries} save={ents.save} remove={ents.remove} commit={doc.commit} onClose={() => setDbOpen(null)} saving={ents.saving} readOnly /> : null}
-      {publishOpen ? <PublishDialog site={site} role={role} version={doc.version} dirty={doc.status !== "saved" && !doc.blocked} broken={doc.blocked} commit={doc.commit} onClose={() => setPublishOpen(false)} notify={notify} /> : null}
+      {publishOpen ? <PublishDialog site={site} role={role} version={doc.version} dirty={doc.status !== "saved" && !doc.blocked} broken={doc.blocked} commit={doc.commit} onClose={() => { setPublishOpen(false); loadPublished(); }} notify={notify} /> : null}
 
     </div>
     </MediaLibraryProvider></ConfirmProvider>

@@ -5,7 +5,7 @@ import { Plus, Trash2 } from "lucide-react";
 import type { CommitOptions, Op, Site, StyleValue, Theme } from "@atelier/model";
 import { defaultLayoutGrid, walk } from "@atelier/model";
 import { UnitInput } from "@/ui/controls";
-import { Button, Hint, IconButton, NumberInput, PanelHeading, Section, TextInput, askConfirm, Select, Field } from "@/ui";
+import { Button, Hint, IconButton, NumberInput, PanelHeading, Section, TextInput, askConfirm, Select, Field, Eyebrow } from "@/ui";
 import { ColorInput } from "@/ui/controls";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
@@ -125,7 +125,7 @@ function LayoutGridSection({ site, commit }: { site: Site; commit: Commit }) {
         <span className="text-xs text-muted">Marge</span><UnitInput site={site} tokenGroup="space" value={grid.margin} onChange={(v) => set({ margin: v ?? "0px" }, "Marge de la grille")} />
         <span className="text-xs text-muted">Largeur max.</span><UnitInput site={site} tokenGroup="width" keywords={["none"]} value={grid.maxWidth} onChange={(v) => set({ maxWidth: v }, "Largeur de la grille")} placeholder="aucune" />
       </div>
-      <div className="text-2xs uppercase tracking-[0.12em] text-dim mt-1">Par taille d&apos;écran</div>
+      <Eyebrow as="div" className="mt-1">Par taille d&apos;écran</Eyebrow>
       {bps.map((b) => (
         <div key={b.id} className="grid grid-cols-[84px_64px_minmax(0,1fr)] items-center gap-1.5">
           <span className="text-xs text-muted truncate" title={`jusqu'à ${b.maxWidth} px`}>{b.name}</span>

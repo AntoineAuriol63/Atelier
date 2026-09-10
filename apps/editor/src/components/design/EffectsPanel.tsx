@@ -2,7 +2,7 @@
 
 import type { CommitOptions, Node, Op, Site } from "@atelier/model";
 import { Hint, NumberInput, Section, Select, TextInput } from "@/ui";
-import { PropRow } from "@/ui/controls";
+import { PropRow, TokenSelect } from "@/ui/controls";
 import type { StyleApi } from "./useStyle";
 
 const EASINGS = [{ value: "ease", label: "Naturel" }, { value: "linear", label: "Linéaire" }, { value: "ease-in", label: "Entrée" }, { value: "ease-out", label: "Sortie" }, { value: "ease-in-out", label: "Entrée-sortie" }, { value: "cubic-bezier(.2,.8,.2,1)", label: "Doux" }];
@@ -58,7 +58,7 @@ function parseTransition(v: string | undefined): { prop: string; ms: number; eas
   return { prop: m[1]!, ms: m[3] === "s" ? Number(m[2]) * 1000 : Number(m[2]), easing: m[4] ?? "ease" };
 }
 
-export function EffectsPanel({ style, node, commit }: { site: Site; style: StyleApi; node?: Node; commit?: (op: Op, opts?: CommitOptions) => void }) {
+export function EffectsPanel({ site, style, node, commit }: { site: Site; style: StyleApi; node?: Node; commit?: (op: Op, opts?: CommitOptions) => void }) {
   const s = style;
   const row = (prop: string, label: string, children: React.ReactNode, wide?: boolean) => (
     <PropRow key={`${prop}:${label}`} prop={prop} label={label} source={s.source(prop)} sourceTitle={s.title(prop)} onReset={() => s.reset(prop)} wide={wide}>{children}</PropRow>
@@ -72,7 +72,7 @@ export function EffectsPanel({ style, node, commit }: { site: Site; style: Style
   return (
     <Section title="Effets" defaultOpen={false} hint="Transformations (rotation, échelle, décalage), transitions, filtres et curseur.">
       {tf.raw ? (
-        row("transform", "Transform.", <TextInput mono className="flex-1" value={str(s.value("transform")) ?? ""} onValueChange={(v) => s.set("transform", v || undefined)} />)
+        row("transform", "Transform.", <div className="flex items-center gap-1 flex-1 min-w-0"><TextInput mono className="flex-1 min-w-0" value={str(s.value("transform")) ?? ""} onValueChange={(v) => s.set("transform", v || undefined)} /><TokenSelect site={site} onPick={(t) => s.set("transform", t)} /></div>)
       ) : (
         <>
           {row("transform", "Rotation", <NumberInput className="w-20" unit="°" step={5} value={tf.rotate} onValueChange={(n) => setTf({ rotate: n === "" ? 0 : n })} />)}
@@ -91,7 +91,7 @@ export function EffectsPanel({ style, node, commit }: { site: Site; style: Style
       {(() => {
         const fl = parseFilter(str(s.value("filter")));
         const setFl = (patch: Partial<typeof fl>) => s.set("filter", composeFilter({ ...fl, ...patch }));
-        if (fl.raw) return row("filter", "Filtre", <TextInput mono className="flex-1" value={str(s.value("filter")) ?? ""} onValueChange={(v) => s.set("filter", v || undefined)} />);
+        if (fl.raw) return row("filter", "Filtre", <div className="flex items-center gap-1 flex-1 min-w-0"><TextInput mono className="flex-1 min-w-0" value={str(s.value("filter")) ?? ""} onValueChange={(v) => s.set("filter", v || undefined)} /><TokenSelect site={site} onPick={(t) => s.set("filter", t)} /></div>);
         return (
           <>
             {row("filter", "Flou", <NumberInput className="w-20" unit="px" min={0} step={1} value={fl.blur} onValueChange={(n) => setFl({ blur: n === "" ? 0 : n })} />)}

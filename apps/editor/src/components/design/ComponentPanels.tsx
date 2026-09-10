@@ -1,10 +1,11 @@
 "use client";
+import { TokenSelect } from "@/ui/controls";
 
 import { useState } from "react";
 import { Plus, Puzzle, Trash2, Unlink, X } from "lucide-react";
 import type { CommitOptions, ComponentDef, Node, Op, PropDef, Site, VariantAxis } from "@atelier/model";
 import { componentUsages, instanceVariant, planDeleteComponent, slugify } from "@atelier/model";
-import { Button, Field, FieldGroup, Hint, IconButton, Section, Select, TextArea, TextInput, Toggle, NumberInput, askConfirm } from "@/ui";
+import { Button, Field, FieldGroup, Hint, IconButton, Section, Select, TextArea, TextInput, Toggle, NumberInput, askConfirm, Eyebrow } from "@/ui";
 import { AssetPicker } from "./AppearancePanel";
 import { nodeLabel } from "../node-icons";
 
@@ -56,7 +57,7 @@ export function InstancePanel({ site, node, commit, onEnterComponent }: { site: 
             case "select": return <Field key={p.name} label={label}><Select value={String(v ?? "")} options={(p.options ?? []).map((o) => ({ value: o, label: o }))} placeholder="—" onValueChange={(s) => setValue(p, s)} /></Field>;
             case "image": return <Field key={p.name} label={label} inline={false}><AssetPicker site={site} value={typeof v === "string" ? v : undefined} onChange={(id) => setValue(p, id ?? undefined)} /></Field>;
             case "richtext": return <Field key={p.name} label={label} inline={false}><TextArea value={String(v ?? "")} onValueChange={(s) => setValue(p, s)} /></Field>;
-            case "color": return <Field key={p.name} label={label}><TextInput mono value={String(v ?? "")} placeholder="#000000" onValueChange={(s) => setValue(p, s)} /></Field>;
+            case "color": return <Field key={p.name} label={label}><div className="flex items-center gap-1"><TextInput mono className="flex-1 min-w-0" value={String(v ?? "")} placeholder="#000000" onValueChange={(s) => setValue(p, s)} /><TokenSelect site={site} group="color" onPick={(t) => setValue(p, t)} /></div></Field>;
             default: return <Field key={p.name} label={label}><TextInput value={String(v ?? "")} placeholder={typeof p.default === "string" ? p.default : ""} onValueChange={(s) => setValue(p, s)} /></Field>;
           }
         })}
@@ -111,7 +112,7 @@ export function ComponentPanel({ site, component, commit, onDeleted, notify }: {
         <Field label="Description"><TextInput value={component.description ?? ""} onValueChange={(v) => set("description", v || undefined, "Décrire le composant")} /></Field>
       </FieldGroup>
       <div className="flex flex-col gap-1.5">
-        <span className="text-2xs uppercase tracking-[0.12em] text-dim">Propriétés</span>
+        <Eyebrow as="span">Propriétés</Eyebrow>
         {component.props.map((p, idx) => (
           <div key={p.name} className="grid grid-cols-[1fr_auto_24px] gap-1 items-center">
             <TextInput value={p.label[locale] ?? p.name} onValueChange={(v) => updateProp(idx, { label: { ...p.label, [locale]: v } }, "Renommer la propriété")} />
@@ -129,7 +130,7 @@ export function ComponentPanel({ site, component, commit, onDeleted, notify }: {
         <Hint>Puis sélectionnez un texte, une image ou un lien du composant et reliez-le à la propriété (section « Propriété du composant »).</Hint>
       </div>
       <div className="flex flex-col gap-1.5">
-        <span className="text-2xs uppercase tracking-[0.12em] text-dim">Variantes</span>
+        <Eyebrow as="span">Variantes</Eyebrow>
         {axes.map((a, idx) => (
           <div key={a.name} className="grid grid-cols-[88px_1fr_24px] gap-1 items-center">
             <span className="font-mono text-xs text-muted truncate" title={a.name}>{a.name}</span>

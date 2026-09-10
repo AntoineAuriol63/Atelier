@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Database as DatabaseIcon, Inbox, Plus, Table2 } from "lucide-react";
 import type { CommitOptions, Database, Entry, Op, Site } from "@atelier/model";
 import { newId } from "@atelier/model";
-import { Button, Hint, TextInput } from "@/ui";
+import { Button, Hint, TextInput, Eyebrow } from "@/ui";
 import { slugify, templatePage } from "@/components/PagesPanel";
 import { findForms, formDatabaseId } from "@/lib/forms";
 
@@ -63,7 +63,7 @@ export function DataPanel({ site, entries, commit, onOpen, readOnly }: { site: S
       </ul>
       {forms.length ? (
         <div className="border-t border-line">
-          <div className="flex items-center gap-1.5 h-7 px-3 mt-1 text-2xs uppercase tracking-[0.12em] text-dim" title="Les envois de chaque formulaire du site"><Inbox size={11} aria-hidden />Messages reçus</div>
+          <Eyebrow as="div" className="flex items-center gap-1.5 h-7 px-3 mt-1" title="Les envois de chaque formulaire du site"><Inbox size={11} aria-hidden />Messages reçus</Eyebrow>
           <ul className="flex flex-col pb-1">
             {forms.map((f) => {
               const dbId = formDatabaseId(f.formId);

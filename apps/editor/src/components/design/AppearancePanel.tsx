@@ -6,7 +6,7 @@ import { assetLabel } from "@/lib/upload";
 import { useMediaLibrary } from "@/components/MediaLibrary";
 import type { Asset, Gradient, Site, StyleValue } from "@atelier/model";
 import { Button, Hint, NumberInput, Section, Select, TextInput } from "@/ui";
-import { ColorInput, PropRow, Segmented, UnitInput } from "@/ui/controls";
+import { ColorInput, PropRow, Segmented, UnitInput, TokenSelect } from "@/ui/controls";
 import { tokenOptions } from "@/lib/css-value";
 import type { StyleApi } from "./useStyle";
 
@@ -143,7 +143,7 @@ export function AppearancePanel({ site, style, mode }: { site: Site; style: Styl
       {row("boxShadow", "Ombre", (
         <div className="flex items-center gap-1 flex-1">
           <Select className="w-24" value={shadowValue.startsWith("{") ? shadowValue : ""} placeholder={shadowValue ? "Perso." : "Aucune"} options={shadowTokens.map((t) => ({ value: `{${t.token}}`, label: t.label }))} onValueChange={(v) => { const m = v.match(/^\{(.+)\}$/); s.set("boxShadow", m ? { token: m[1]! } : undefined, false); }} />
-          <TextInput mono className="flex-1" value={shadowValue.startsWith("{") ? "" : shadowValue} placeholder="0 4px 12px rgba(0,0,0,.2)" onValueChange={(v) => s.set("boxShadow", v || undefined)} />
+          <div className="flex items-center gap-1 flex-1 min-w-0"><TextInput mono className="flex-1 min-w-0" value={shadowValue.startsWith("{") ? "" : shadowValue} placeholder="0 4px 12px rgba(0,0,0,.2)" onValueChange={(v) => s.set("boxShadow", v || undefined)} /><TokenSelect site={site} group="shadow" onPick={(t) => s.set("boxShadow", t)} /></div>
         </div>
       ))}
       {row("opacity", "Opacité", (

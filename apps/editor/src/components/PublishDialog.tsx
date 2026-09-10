@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Check, Download, ExternalLink, FileText, History, Plus, UploadCloud, Users, X } from "lucide-react";
 import type { CommitOptions, Op, Redirect, Role, Site } from "@atelier/model";
 import { NOT_FOUND_PATH, ROLE_LABEL, validRedirect } from "@atelier/model";
-import { Badge, Button, Dialog, Field, FieldGroup, Hint, IconButton, Select, TextArea, TextInput, Toggle, askConfirm } from "@/ui";
+import { Badge, Button, Dialog, Field, FieldGroup, Hint, IconButton, Select, TextArea, TextInput, Toggle, askConfirm, Eyebrow } from "@/ui";
 import { notFoundPage } from "@/components/PagesPanel";
 import { AssetPicker } from "@/components/design/AppearancePanel";
 
@@ -123,7 +123,7 @@ export function PublishDialog({ site, role = "owner", version, dirty, broken, co
 
         {writer ? null : <>
         <section className="flex flex-col gap-2 border-t border-line pt-3">
-          <h3 className="text-2xs uppercase tracking-[0.12em] text-dim">Site, adresse et référencement</h3>
+          <Eyebrow as="h3">Site, adresse et référencement</Eyebrow>
           <FieldGroup>
             <Field label="Nom du site" hint="Nom de l'organisation ou de la personne : Open Graph, notifications, tableau de bord"><TextInput value={site.name} onValueChange={(v) => setSetting("name", v || "Site", "Nom du site")} /></Field>
             <Field label="Sous-domaine" hint="Lettres, chiffres et tirets. L'adresse complète apparaît ci-dessus après publication."><TextInput mono value={site.settings.subdomain ?? ""} placeholder={site.id.replace(/[^a-z0-9-]/gi, "-").toLowerCase()} onValueChange={(v) => { const s = v.toLowerCase().replace(/[^a-z0-9-]/g, "").replace(/^-+/, ""); setSetting("settings.subdomain", s || undefined, "Sous-domaine"); }} /></Field>
@@ -135,7 +135,7 @@ export function PublishDialog({ site, role = "owner", version, dirty, broken, co
         </section>
 
         <section className="flex flex-col gap-2 border-t border-line pt-3">
-          <h3 className="text-2xs uppercase tracking-[0.12em] text-dim">Page introuvable (404)</h3>
+          <Eyebrow as="h3">Page introuvable (404)</Eyebrow>
           {notFound ? <p className="text-sm text-muted">La page <strong className="font-medium text-ink">{notFound.name[locale] ?? notFound.path}</strong> (<span className="font-mono text-xs">{NOT_FOUND_PATH}</span>) s&apos;affiche quand une adresse n&apos;existe pas. Modifiez-la comme une autre page ; elle n&apos;est pas indexée.</p> : (
             <div className="flex items-center gap-2 flex-wrap">
               <Button size="sm" icon={Plus} onClick={() => commit({ op: "site.set", path: "pages", value: [...site.pages, notFoundPage(site)] }, { label: "Créer la page introuvable" })}>Créer la page introuvable</Button>
@@ -145,7 +145,7 @@ export function PublishDialog({ site, role = "owner", version, dirty, broken, co
         </section>
 
         <section className="flex flex-col gap-2 border-t border-line pt-3">
-          <h3 className="text-2xs uppercase tracking-[0.12em] text-dim">Redirections</h3>
+          <Eyebrow as="h3">Redirections</Eyebrow>
           {site.redirects.length ? (
             <ul className="flex flex-col gap-1">
               {site.redirects.map((r, i) => (
@@ -167,7 +167,7 @@ export function PublishDialog({ site, role = "owner", version, dirty, broken, co
         </section>
 
         <section className="flex flex-col gap-2 border-t border-line pt-3">
-          <h3 className="text-2xs uppercase tracking-[0.12em] text-dim">Code personnalisé</h3>
+          <Eyebrow as="h3">Code personnalisé</Eyebrow>
           <FieldGroup>
             <Field label="Dans <head>" hint="Balises meta, scripts d'analyse, polices tierces, vérification de domaine… inséré tel quel dans le head de chaque page publiée" inline={false}><TextArea className="font-mono text-xs min-h-[72px]" value={site.settings.head ?? ""} placeholder={'<script defer data-domain="exemple.fr" src="https://plausible.io/js/script.js"></script>'} onValueChange={(v) => setSetting("settings.head", v || undefined, "Code dans head")} spellCheck={false} /></Field>
             <Field label="Fin de <body>" hint="Scripts à charger après la page (chat, widgets)" inline={false}><TextArea className="font-mono text-xs min-h-[56px]" value={site.settings.bodyEnd ?? ""} onValueChange={(v) => setSetting("settings.bodyEnd", v || undefined, "Code en fin de body")} spellCheck={false} /></Field>
@@ -176,7 +176,7 @@ export function PublishDialog({ site, role = "owner", version, dirty, broken, co
         </section>
 
         <section className="flex flex-col gap-2 border-t border-line pt-3">
-          <h3 className="text-2xs uppercase tracking-[0.12em] text-dim">Exporter le code</h3>
+          <Eyebrow as="h3">Exporter le code</Eyebrow>
           <div className="flex items-center gap-2">
             <Button variant={exported ? "primary" : "default"} icon={exported ? Check : Download} disabled={!!busy || !state} onClick={() => void exportCode()}>{exported ? "Téléchargé" : "Télécharger le site (.zip)"}</Button>
             <span className="text-xs text-muted">{state?.publishedVersion !== null && state?.publishedVersion !== undefined ? `Depuis la version publiée ${state.publishedVersion}` : "Depuis la version de travail (site jamais publié)"}</span>
@@ -187,7 +187,7 @@ export function PublishDialog({ site, role = "owner", version, dirty, broken, co
 
         {role === "owner" && members !== null ? (
           <section className="flex flex-col gap-2 border-t border-line pt-3">
-            <h3 className="text-2xs uppercase tracking-[0.12em] text-dim flex items-center gap-1.5"><Users size={12} />Partage</h3>
+            <Eyebrow as="h3" className="flex items-center gap-1.5"><Users size={12} />Partage</Eyebrow>
             {members.length ? (
               <ul className="flex flex-col gap-1">
                 {members.map((m) => (
@@ -209,7 +209,7 @@ export function PublishDialog({ site, role = "owner", version, dirty, broken, co
         ) : null}
 
         <section className="flex flex-col gap-1 border-t border-line pt-3">
-          <h3 className="text-2xs uppercase tracking-[0.12em] text-dim flex items-center gap-1.5"><History size={12} />Historique</h3>
+          <Eyebrow as="h3" className="flex items-center gap-1.5"><History size={12} />Historique</Eyebrow>
           {!state?.publications.length ? <p className="text-sm text-dim">Aucune publication pour l&apos;instant.</p> : (
             <ul className="flex flex-col">
               {state.publications.map((p) => {
