@@ -1,6 +1,7 @@
-import { Columns2, FormInput, Image, LayoutGrid, Link, List, Minus, MousePointerClick, Puzzle, Quote, Square, SquareDashed, Type, type LucideIcon } from "lucide-react";
+import { Columns2, FormInput, Image, LayoutGrid, Link, List, Minus, MousePointerClick, Puzzle, Quote, Square, SquareDashed, Type, type LucideIcon, TextCursorInput } from "lucide-react";
 import type { Inline, Node, Site, StyleProps } from "@atelier/model";
 import { layoutGridAt, newId } from "@atelier/model";
+import { defaultCard } from "./collection-card";
 
 export type BlockPreset = { id: string; label: string; description: string; /** Autres mots sous lesquels on cherche ce bloc (menu / et palette). */ keywords?: string; icon: LucideIcon; group: "Sections" | "Structure" | "Contenu" | "Données" | "Composants"; make: (site: Site) => Node };
 
@@ -25,14 +26,11 @@ export const BLOCKS: BlockPreset[] = [
   { id: "divider", label: "Séparateur", description: "Trait entre deux blocs : horizontal dans une colonne, vertical dans une rangée", keywords: "séparateur hr ligne trait", icon: Minus, group: "Contenu", make: () => ({ id: newId(), type: "divider", props: {} }) },
   { id: "collection", label: "Vue de base de données", description: "Grille des entrées d'une base", keywords: "base de données galerie collection projets articles vue", icon: LayoutGrid, group: "Données", make: (site) => {
     const db = site.databases[0];
-    const itemId = newId();
     return { id: newId(), type: "collection", name: db ? `Vue · ${db.name[site.settings.defaultLocale] ?? db.slug}` : "Vue", props: { database: db?.id ?? "", view: { layout: "gallery", sort: [], columns: { base: 3, tablet: 2, small: 1 } } },
       style: { base: { gap: { token: "space.5" } } },
-      children: [{ id: itemId, type: "item", name: "Carte", props: {}, style: { base: { display: "flex", flexDirection: "column", gap: { token: "space.3" } } }, children: [
-        { id: newId(), type: "image", props: { alt: { fr: "" }, fit: "cover", ratio: "4 / 5" }, bindings: db ? { asset: { source: "item", path: "cover" }, alt: { source: "item", path: db.titleField } } : undefined, style: { base: { borderRadius: { token: "radius.md" }, overflow: "hidden" } } },
-        { id: newId(), type: "text", props: { tag: "h3", content: { [site.settings.defaultLocale]: db ? [{ t: "bind", binding: { source: "item", path: db.titleField } }] : [{ t: "text", v: "Titre" }] } } },
-      ] }] };
+      children: [defaultCard(db, site.settings.defaultLocale)] };
   } },
+  { id: "field", label: "Champ de formulaire", description: "Un champ à placer dans un formulaire", keywords: "champ formulaire input texte email téléphone date choix", icon: TextCursorInput, group: "Données", make: (site) => ({ id: newId(), type: "field", props: { fieldType: "text", name: "champ", label: { [site.settings.defaultLocale]: "Nouveau champ" } } }) },
   { id: "form", label: "Formulaire", description: "Nom, email, message et bouton d'envoi", keywords: "formulaire contact email envoi", icon: FormInput, group: "Données", make: (site) => ({ id: newId(), type: "form", name: "Formulaire", props: { formId: newId(), successMessage: { fr: "Merci, votre message est bien envoyé." } }, style: { base: { display: "flex", flexDirection: "column", gap: { token: "space.4" } } }, children: [
     { id: newId(), type: "field", props: { fieldType: "text", name: "name", label: { fr: "Votre nom" }, required: true } },
     { id: newId(), type: "field", props: { fieldType: "email", name: "email", label: { fr: "Votre email" }, required: true } },
@@ -65,9 +63,15 @@ export const SECTIONS: BlockPreset[] = [
   { id: "sec-cta", label: "Appel à l'action", description: "Un titre, une phrase et un bouton, sur fond de surface", keywords: "appel à l’action cta bouton contact", icon: MousePointerClick, group: "Sections", make: (site) => section(site, "Appel à l'action", [
     text(site, "h2", "Un projet, une question ?"), text(site, "p", "Écrivez-nous, nous répondons vite."), button(site, "Nous contacter"),
   ], { alignItems: "flex-start", background: { token: "color.surface" }, borderRadius: { token: "radius.lg" } }) },
-  { id: "sec-faq", label: "Questions fréquentes", description: "Trois questions et leurs réponses", keywords: "faq questions réponses", icon: List, group: "Sections", make: (site) => section(site, "Questions fréquentes", [
+  { id: "sec-faq", label: "Questions fréquentes", description: "Trois questions dépliables et leurs réponses", keywords: "faq questions réponses accordéon", icon: List, group: "Sections", make: (site) => section(site, "Questions fréquentes", [
     text(site, "h2", "Questions fréquentes"),
-    ...[1, 2, 3].map((i) => ({ id: newId(), type: "box" as const, name: `Question ${i}`, props: { tag: "div" }, style: { base: { display: "flex", flexDirection: "column", gap: { token: "space.2" }, paddingTop: { token: "space.4" }, borderTopWidth: "1px", borderTopStyle: "solid", borderTopColor: { token: "color.line" } } }, children: [text(site, "h3", `Question ${i} ?`), text(site, "p", "La réponse, claire et courte.")] })),
+    ...[1, 2, 3].map((i) => {
+      // Réponse nommée et masquée au chargement ; la question l'affiche ou la masque au clic (D31).
+      const answer: Node = { ...text(site, "p", "La réponse, en une ou deux phrases.", `Réponse ${i}`), style: { shared: ["st_muted"] } };
+      answer.interactions = [{ id: newId(), trigger: { kind: "load" }, actions: [{ kind: "hide", target: { self: true } }] }];
+      const question: Node = { ...text(site, "h3", `Question ${i} ?`, `Question ${i}`), style: { base: { cursor: "pointer", transition: "color .2s" }, states: { hover: { color: { token: "color.accent" } } } }, interactions: [{ id: newId(), trigger: { kind: "click" }, actions: [{ kind: "toggle", target: { node: answer.id }, transition: { duration: 250, easing: "ease-out" } }] }] };
+      return { id: newId(), type: "box" as const, name: `Bloc question ${i}`, props: { tag: "div" }, style: { base: { display: "flex", flexDirection: "column", gap: { token: "space.2" }, paddingTop: { token: "space.4" }, paddingBottom: { token: "space.4" }, borderTopWidth: "1px", borderTopStyle: "solid", borderTopColor: { token: "color.line" } } }, children: [question, answer] };
+    }),
   ], { maxWidth: { token: "width.narrow" } }) },
 ];
 

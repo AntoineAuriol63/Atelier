@@ -20,7 +20,12 @@ export function blankSite(id: string, name: string): Site {
     name,
     settings: { ...structuredClone(sampleSite.settings), subdomain: undefined, seo: { titleSuffix: { [locale]: ` · ${name}` } } },
     theme: structuredClone(sampleSite.theme),
-    sharedStyles: structuredClone(sampleSite.sharedStyles),
+    sharedStyles: [
+      ...structuredClone(sampleSite.sharedStyles),
+      // Deux styles que tout site finit par demander : la carte qui se soulève au survol, l'étiquette.
+      { id: "st_card", name: "Carte", style: { base: { background: { token: "color.surface" }, borderWidth: "1px", borderStyle: "solid", borderColor: { token: "color.line" }, borderRadius: { token: "radius.lg" }, overflow: "hidden", transition: "transform .4s cubic-bezier(.22,1,.36,1), box-shadow .4s, border-color .3s" }, states: { hover: { transform: "translateY(-6px)", boxShadow: { token: "shadow.md" }, borderColor: { token: "color.accent" } } } } },
+      { id: "st_badge", name: "Étiquette", style: { base: { display: "inline-flex", alignItems: "center", gap: { token: "space.1" }, fontSize: { token: "fontSize.xs" }, paddingTop: "0.2rem", paddingBottom: "0.2rem", paddingLeft: { token: "space.3" }, paddingRight: { token: "space.3" }, borderRadius: { token: "radius.full" }, borderWidth: "1px", borderStyle: "solid", borderColor: { token: "color.line" }, color: { token: "color.muted" } } } },
+    ],
     components: [headerCmp, footerCmp],
     codeComponents: [],
     databases: [],

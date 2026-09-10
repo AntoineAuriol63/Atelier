@@ -21,7 +21,8 @@ export function InteractionsPanel({ site, node, pageRoot, commit }: { site: Site
   const nameOf = (id: string) => { const n = index.get(id)?.node; return n ? (n.name ?? nodeLabel(n)) : id; };
   // Cibles : les éléments nommés de la page (hors celui-ci), et pour les variantes, les instances dont le composant en a.
   const candidates: { id: string; label: string; node: Node }[] = [];
-  walk(pageRoot, (n) => { if (n.id !== node.id && (n.name || n.type === "instance")) candidates.push({ id: n.id, label: nameOf(n.id), node: n }); });
+  const parentKids = index.get(node.id)?.parent?.children ?? [];
+  walk(pageRoot, (n) => { if (n.id !== node.id && (n.name || n.type === "instance" || parentKids.includes(n))) candidates.push({ id: n.id, label: parentKids.includes(n) && !n.name ? `${nameOf(n.id)} (voisin)` : nameOf(n.id), node: n }); });
   const variantTargets = candidates.filter((c) => { if (c.node.type !== "instance") return false; const cmp = site.components.find((x) => x.id === c.node.props.component); return !!cmp?.variants?.length; });
   const targetNode = candidates.find((c) => c.id === target)?.node;
   const targetCmp = targetNode?.type === "instance" ? site.components.find((x) => x.id === targetNode.props.component) : undefined;
@@ -45,6 +46,8 @@ export function InteractionsPanel({ site, node, pageRoot, commit }: { site: Site
           <Field label="Courbe"><Select value={reveal.options.easing ?? EASINGS[0]!.value} options={EASINGS} onValueChange={(v) => commit({ op: "batch", ops: planReveal(node, { ...reveal.options, easing: v }), label: "Courbe de l'apparition" })} /></Field>
           <Field label="Rejouer" hint="Rejoue l'apparition à chaque retour dans l'écran"><Toggle checked={!!reveal.options.repeat} label={reveal.options.repeat ? "à chaque passage" : "une seule fois"} onChange={(b) => commit({ op: "batch", ops: planReveal(node, { ...reveal.options, repeat: b }), label: "Rejouer l'apparition" })} /></Field>
         </> : null}
+        {reveal && parentKids.length > 1 ? <Field label="En cascade" hint="Applique la même apparition aux éléments voisins qui suivent, chacun décalé de 100 ms de plus"><Button size="sm" variant="ghost" icon={Sparkles} onClick={() => { const after = parentKids.slice(parentKids.indexOf(node) + 1); const ops = after.flatMap((n, i) => planReveal(n, { ...reveal.options, delay: (reveal.options.delay ?? 0) + 100 * (i + 1) })); if (ops.length) commit({ op: "batch", ops, label: "Apparition en cascade" }, { label: "Apparition en cascade" }); }}>Décaler les voisins</Button></Field> : null}
+        {node.type === "text" ? <Field label="Compteur" hint="Le nombre du texte défile de 0 à sa valeur quand il entre dans l'écran (« 12 ans » compte jusqu'à 12)"><Toggle checked={!!node.props.countUp} label={node.props.countUp ? "animé" : "fixe"} onChange={(b) => commit({ op: "node.set", id: node.id, path: "props.countUp", value: b || undefined }, { label: b ? "Compteur animé" : "Compteur fixe" })} /></Field> : null}
         <Field label="Au chargement" hint="Masqué jusqu'à ce qu'une interaction l'affiche (réponse d'une question, panneau…)"><Toggle checked={!!hidden} label={hidden ? "masqué" : "visible"} onChange={(b) => { const ops = planHiddenAtLoad(node, b); if (ops.length) commit({ op: "batch", ops, label: b ? "Masquer au chargement" : "Visible au chargement" }); }} /></Field>
       </FieldGroup>
       {others.length ? (

@@ -2,7 +2,7 @@ import type { ComponentDef, Inline, Mark, Node, Overrides, Page, Site, ViewConfi
 import { applyOverrides, variantClasses } from "@atelier/model";
 import { createElement, Fragment, type ReactNode } from "react";
 import { nodeClassName } from "./css";
-import { INTERACTION_SCRIPT, hasInteractions, interactionsAttr } from "./interactions";
+import { INTERACTION_SCRIPT, hasInteractions, hasMotion, interactionsAttr } from "./interactions";
 import { findComponent, findDatabase, localized, resolveBinding, resolveHref, type RenderContext } from "./context";
 
 const BOX_TAGS = new Set(["div", "section", "header", "footer", "nav", "article", "aside", "main", "figure", "figcaption", "span"]);
@@ -27,6 +27,9 @@ function attrs(node: Node, ctx: RenderContext, extra: Record<string, unknown> = 
   if (ctx.editor) a["data-node"] = node.id;
   const ix = interactionsAttr(node, ctx);
   if (ix) a["data-ix"] = ix;
+  // Effets de mouvement joués par le script du site (parallaxe, compteur), sans effet dans l'éditeur.
+  if (typeof node.props.parallax === "number" && node.props.parallax !== 0) a["data-parallax"] = String(node.props.parallax);
+  if (node.props.countUp) a["data-countup"] = "";
   if (node.props.anchor) a.id = String(node.props.anchor);
   return a;
 }
@@ -70,6 +73,13 @@ export function RenderNode({ node, ctx }: { node: Node; ctx: RenderContext }): R
 
   switch (node.type) {
     case "box": {
+      // Bandeau défilant : les enfants sont rendus deux fois dans une piste animée en CSS, la copie sans identifiant d'édition.
+      const marquee = typeof node.props.marquee === "number" && node.props.marquee > 0 ? node.props.marquee : 0;
+      if (marquee) {
+        const copy = (node.children ?? []).map((c) => createElement(RenderNode, { key: `${keyOf(c)}-copie`, node: c, ctx: { ...ctx, editor: false } }));
+        return createElement(tagOf(node, BOX_TAGS, "div"), attrs(node, ctx, { "data-marquee": "", style: { "--at-marquee": `${marquee}s` } }),
+          createElement("div", { className: "at-marquee-track" }, children(), createElement("div", { className: "at-marquee-copy", "aria-hidden": true }, copy)));
+      }
       return createElement(tagOf(node, BOX_TAGS, "div"), attrs(node, ctx), children());
     }
     case "text": {
@@ -153,7 +163,8 @@ export function RenderNode({ node, ctx }: { node: Node; ctx: RenderContext }): R
       if (!db || !item) return createElement("div", attrs(node, ctx), ctx.editor ? "Collection non configurée" : null);
       const entries = ctx.data.entries(db, view, ctx);
       if (entries.length === 0 && view.empty) return createElement("div", attrs(node, ctx), view.empty.map((c) => createElement(RenderNode, { key: keyOf(c), node: c, ctx })));
-      return createElement("div", attrs(node, ctx, { "data-layout": view.layout }), entries.map((e) => createElement(RenderNode, { key: e.id, node: item, ctx: { ...ctx, item: e } })));
+      const autoplay = view.layout === "carousel" && view.autoplay ? { "data-autoplay": String(view.autoplay) } : {};
+      return createElement("div", attrs(node, ctx, { "data-layout": view.layout, ...autoplay }), entries.map((e) => createElement(RenderNode, { key: e.id, node: item, ctx: { ...ctx, item: e } })));
     }
     case "item":
       return createElement("div", attrs(node, ctx), children());
@@ -197,7 +208,7 @@ function hasForm(n: Node): boolean { return n.type === "form" || (n.children ?? 
 export function RenderPage({ ctx, mode }: { ctx: RenderContext; mode?: string }): ReactNode {
   const page: Page = ctx.page;
   const withForm = hasForm(page.root) || ctx.site.components.some((c) => hasForm(c.root));
-  const withIx = hasInteractions(page.root) || ctx.site.components.some((c) => hasInteractions(c.root));
+  const withIx = hasInteractions(page.root) || ctx.site.components.some((c) => hasInteractions(c.root)) || hasMotion(page.root) || ctx.site.components.some((c) => hasMotion(c.root));
   return createElement("div", { className: "at-page", "data-mode": mode ?? ctx.site.theme.defaultMode, lang: ctx.locale, "data-editor": ctx.editor ? "" : undefined },
     createElement(RenderNode, { node: page.root, ctx }),
     withForm && !ctx.editor ? createElement("script", { dangerouslySetInnerHTML: { __html: FORM_SCRIPT } }) : null,

@@ -57,6 +57,12 @@ export function applyInstantStates(root: ParentNode): void {
   });
 }
 
+/** Vrai si la page contient un effet joué par le script (parallaxe, compteur, carrousel automatique). */
+export function hasMotion(n: Node): boolean {
+  const own = (typeof n.props.parallax === "number" && n.props.parallax !== 0) || !!n.props.countUp || (n.type === "collection" && !!(n.props.view as { autoplay?: number } | undefined)?.autoplay);
+  return own || (n.children ?? []).some(hasMotion);
+}
+
 export function hasInteractions(n: Node): boolean { return !!n.interactions?.length || (n.children ?? []).some(hasInteractions); }
 
 /**
@@ -82,4 +88,15 @@ document.querySelectorAll("[data-ix]").forEach(function(el){var list;try{list=JS
   else if(ix.t==="click"){el.addEventListener("click",function(ev){if(el.tagName!=="A"&&el.tagName!=="BUTTON")ev.preventDefault();ix.a.forEach(function(a){run(el,a,false);});});}
   else if(ix.t==="hover"){el.addEventListener("mouseenter",function(){ix.a.forEach(function(a){run(el,a,false);});});el.addEventListener("mouseleave",function(){ix.a.forEach(function(a){run(el,a,true);});});}
  });
-});})();`;
+});
+/* Parallaxe : l'élément se décale selon sa position dans l'écran, à la vitesse donnée (0.1 = léger, 0.5 = marqué). */
+var px=Array.prototype.slice.call(document.querySelectorAll("[data-parallax]"));
+if(px.length&&!instant){var ticking=false;var move=function(){ticking=false;var vh=window.innerHeight;px.forEach(function(el){var r=el.getBoundingClientRect();var c=r.top+r.height/2-vh/2;el.style.transform="translate3d(0,"+Math.round(-c*parseFloat(el.getAttribute("data-parallax"))*100)/100+"px,0)";el.style.willChange="transform";});};window.addEventListener("scroll",function(){if(!ticking){ticking=true;requestAnimationFrame(move);}},{passive:true});window.addEventListener("resize",move);move();}
+/* Compteur : le nombre du texte défile de 0 à sa valeur quand il entre dans l'écran (la ponctuation autour est gardée). */
+var counters=Array.prototype.slice.call(document.querySelectorAll("[data-countup]"));
+if(counters.length){var runCount=function(el){var txt=el.textContent||"";var m=txt.match(/-?\d[\d\s\u00a0.,]*/);if(!m)return;var raw=m[0];var dec=(raw.match(/[.,](\d+)$/)||[])[1];var target=parseFloat(raw.replace(/[\s\u00a0]/g,"").replace(",","."));if(isNaN(target))return;var digits=dec?dec.length:0;var start=performance.now(),dur=1400;var fmt=function(v){var s=v.toFixed(digits);if(dec)s=s.replace(".",raw.indexOf(",")>=0?",":".");return raw.indexOf(" ")>=0||raw.indexOf("\u00a0")>=0?s.replace(/\B(?=(\d{3})+(?!\d))/g,"\u00a0"):s;};var step=function(now){var t=Math.min(1,(now-start)/dur);var e=1-Math.pow(1-t,3);el.textContent=txt.replace(raw,fmt(target*e));if(t<1)requestAnimationFrame(step);};if(instant){el.textContent=txt;return;}requestAnimationFrame(step);};
+ if(("IntersectionObserver" in window)&&!instant){var cio=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){runCount(e.target);cio.unobserve(e.target);}});},{threshold:0.4});counters.forEach(function(el){cio.observe(el);});}}
+/* Carrousel automatique : passe à la carte suivante toutes les N secondes, s'arrête au survol ou au toucher. */
+document.querySelectorAll("[data-autoplay]").forEach(function(track){var every=parseFloat(track.getAttribute("data-autoplay"))*1000;if(!(every>0)||instant)return;var paused=false;track.addEventListener("mouseenter",function(){paused=true;});track.addEventListener("mouseleave",function(){paused=false;});track.addEventListener("touchstart",function(){paused=true;},{passive:true});
+ setInterval(function(){if(paused||!track.children.length)return;var w=track.children[0].getBoundingClientRect().width+parseFloat(getComputedStyle(track).columnGap||getComputedStyle(track).gap||"0");var max=track.scrollWidth-track.clientWidth;var next=track.scrollLeft+w;track.scrollTo({left:next>max+1?0:next,behavior:"smooth"});},every);});
+})();`;

@@ -1,6 +1,7 @@
 "use client";
+import { rebindCard } from "@/lib/collection-card";
 
-import type { CommitOptions, FilterExpr, LinkTarget, Node, Op, Site, ViewConfig } from "@atelier/model";
+import type { CommitOptions, FilterExpr, LinkTarget, Node, Op, Site, ViewConfig, Inline } from "@atelier/model";
 import { newId } from "@atelier/model";
 import { Plus, X } from "lucide-react";
 import { Button, Field, FieldGroup, Hint, IconButton, NumberInput, Section, Select, TextInput, Toggle } from "@/ui";
@@ -68,10 +69,14 @@ export function LinkPanel({ site, node, commit }: { site: Site; node: Node; comm
   const isButton = node.props.tag === "button";
   const href = (node.props.href ?? { kind: "url", url: "#" }) as LinkTarget;
   const set = (h: LinkTarget) => commit({ op: "node.set", id: node.id, path: "props.href", value: h }, { coalesceKey: `href:${node.id}`, label: "Cible du lien" });
-  if (node.bindings?.href) return <Section title="Lien"><Hint>La cible est liée à une donnée ({node.bindings.href.path}).</Hint></Section>;
+  const only = node.children?.length === 1 && node.children[0]!.type === "text" && !node.children[0]!.bindings?.content ? node.children[0]! : undefined;
+  const labelText = only ? ((only.props.content as Record<string, Inline[]> | undefined)?.[locale] ?? []).map((seg) => (seg.t === "text" ? seg.v : seg.t === "break" ? "\n" : "")).join("") : "";
+  const labelField = only ? <Field label="Libellé" hint="Le texte du lien (son enfant texte)"><TextInput value={labelText} onValueChange={(v) => commit({ op: "node.set", id: only.id, path: `props.content.${locale}`, value: [{ t: "text", v }] }, { coalesceKey: `label:${only.id}`, label: "Libellé du lien" })} /></Field> : null;
+  if (node.bindings?.href) return <Section title="Lien"><FieldGroup>{labelField}</FieldGroup><Hint>La cible est liée à une donnée ({node.bindings.href.path}).</Hint></Section>;
   return (
     <Section title={isButton ? "Bouton" : "Lien"}>
       <FieldGroup>
+        {labelField}
         <Field label="Rôle">
           <Segmented value={isButton ? "button" : "a"} options={[{ value: "a", label: "Lien" }, { value: "button", label: "Formulaire" }]} onChange={(v) => { if (v) commit({ op: "node.set", id: node.id, path: "props.tag", value: v }, { label: "Rôle" }); }} />
         </Field>
@@ -147,7 +152,15 @@ export function CollectionPanel({ site, node, commit, editMode = "design" }: { s
   return (
     <Section title="Vue de base de données" hint="Quelle base, quelles entrées, dans quel ordre. La carte répétée se dessine dans l'aperçu.">
       <FieldGroup>
-        <Field label="Base"><Select value={String(node.props.database ?? "")} placeholder="Choisir" options={site.databases.map((d) => ({ value: d.id, label: d.name[locale] ?? d.slug }))} onValueChange={(v) => commit({ op: "node.set", id: node.id, path: "props.database", value: v }, { label: "Base de la vue" })} /></Field>
+        <Field label="Base"><Select value={String(node.props.database ?? "")} placeholder="Choisir" options={site.databases.map((d) => ({ value: d.id, label: d.name[locale] ?? d.slug }))} onValueChange={(v) => {
+          const next = site.databases.find((d) => d.id === v);
+          const ops: Op[] = [{ op: "node.set", id: node.id, path: "props.database", value: v }];
+          // Les liaisons de la carte suivent la nouvelle base, et le nom déduit « Vue · … » aussi.
+          const item = node.children?.find((c) => c.type === "item");
+          if (next && item) ops.push({ op: "node.replace", id: item.id, node: rebindCard(item, next, locale) });
+          if (next && (!node.name || /^Vue( · |$)/.test(node.name))) ops.push({ op: "node.set", id: node.id, path: "name", value: `Vue · ${next.name[locale] ?? next.slug}` });
+          commit({ op: "batch", ops, label: "Base de la vue" }, { label: "Base de la vue" });
+        }} /></Field>
         <Field label="Filtre" hint="Seules les entrées qui remplissent toutes les conditions s'affichent." inline={false}>
           {advanced ? <Hint>Ce filtre a été écrit en code (ou / imbrication) : il s&apos;applique mais ne se modifie pas ici.</Hint> : (
             <div className="flex flex-col gap-1">
@@ -181,6 +194,7 @@ export function CollectionPanel({ site, node, commit, editMode = "design" }: { s
             {sorts.length < 3 ? <Button size="sm" variant="ghost" icon={Plus} disabled={!fields.length} onClick={() => setView({ sort: [...sorts, { field: fields.find((f) => !sorts.some((x) => x.field === f.name))?.name ?? fields[0]!.name, dir: "asc" }] }, "Tri")}>{sorts.length ? "Puis par" : "Trier par"}</Button> : null}
           </div>
         </Field>
+        {view.layout === "carousel" ? <Field label="Défilement auto" hint="Passe à la carte suivante toutes les N secondes ; vide = à la main. S'arrête au survol."><NumberInput className="w-24" unit="s" min={1} step={1} value={view.autoplay ?? ""} placeholder="manuel" onValueChange={(n) => setView({ autoplay: n === "" ? undefined : n }, "Défilement automatique")} /></Field> : null}
         <Field label="Limite" hint="Nombre maximal d'entrées affichées"><NumberInput className="w-24" min={1} value={view.limit ?? ""} placeholder="toutes" onValueChange={(n) => setView({ limit: n === "" ? undefined : n }, "Limite")} /></Field>
         <Field label="Si vide" hint="Texte affiché quand aucune entrée ne correspond"><TextInput value={emptyText} placeholder="Rien à afficher" onValueChange={(t) => setView({ empty: t ? [{ id: view.empty?.[0]?.id ?? newId(), type: "text", props: { tag: "p", content: { [locale]: [{ t: "text", v: t }] } } }] : undefined }, "Texte si vide")} /></Field>
       </FieldGroup>

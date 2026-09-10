@@ -77,13 +77,21 @@ export function planMove(index: Map<Id, NodeLocation>, dragId: Id, targetId: Id,
  * Où insérer un nouveau bloc par rapport à la sélection : dans le conteneur sélectionné (à la fin),
  * sinon juste après l'élément sélectionné, sinon à la fin de la racine.
  */
-export function planInsert(index: Map<Id, NodeLocation>, root: Node, selectedId: Id | null, mode: "auto" | "inside" | "after" | "before" = "auto"): Placement {
+export function planInsert(index: Map<Id, NodeLocation>, root: Node, selectedId: Id | null, mode: "auto" | "inside" | "after" | "before" = "auto", node?: Node): Placement {
   const sel = selectedId ? index.get(selectedId) : undefined;
-  if (!sel) return { parent: root.id, index: (root.children ?? []).length };
+  const isSection = (n: Node | undefined) => !!n && n.type === "box" && n.props.tag === "section";
+  const isFooter = (n: Node | undefined) => !!n && n.type === "instance" && /pied de page|footer/i.test(n.name ?? "");
+  if (!sel) {
+    // Sans sélection : à la fin de la page, mais avant le pied de page.
+    const kids = root.children ?? [];
+    return { parent: root.id, index: isFooter(kids[kids.length - 1]) ? kids.length - 1 : kids.length };
+  }
   const container = CONTAINER_TYPES.has(sel.node.type) && sel.node.type !== "collection";
-  if ((mode === "inside" || mode === "auto") && container) return { parent: sel.node.id, index: (sel.node.children ?? []).length };
+  // Une section ne se pose pas dans une section, et rien ne se pose dans un lien : après, à côté.
+  const besides = (isSection(node) && isSection(sel.node)) || sel.node.type === "link" || isFooter(sel.node);
+  if ((mode === "inside" || mode === "auto") && container && !besides) return { parent: sel.node.id, index: (sel.node.children ?? []).length };
   if (!sel.parent || sel.parent.type === "collection") return { parent: sel.node.id, index: (sel.node.children ?? []).length };
-  return { parent: sel.parent.id, index: mode === "before" ? sel.index : sel.index + 1 };
+  return { parent: sel.parent.id, index: mode === "before" || isFooter(sel.node) ? sel.index : sel.index + 1 };
 }
 
 /** Où insérer un NOUVEAU nœud déposé sur `targetId` (glisser depuis la palette). */

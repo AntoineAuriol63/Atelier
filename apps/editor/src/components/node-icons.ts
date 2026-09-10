@@ -19,6 +19,7 @@ export function nodeIcon(n: Node): LucideIcon {
 export function nodeLabel(n: Node): string {
   if (n.name) return n.name;
   const tag = typeof n.props.tag === "string" ? n.props.tag : undefined;
+  if (n.type === "field") { const label = (n.props.label as Record<string, string> | undefined); const first = label ? Object.values(label)[0] : undefined; return first || `Champ ${String(n.props.name ?? "")}`.trim(); }
   if (n.type === "text" && tag) return tag === "p" ? "Paragraphe" : tag.startsWith("h") ? `Titre ${tag.slice(1)}` : TYPE_LABEL.text;
   if (n.type === "box" && tag && tag !== "div") return { section: "Section", header: "En-tête", footer: "Pied de page", nav: "Navigation", main: "Contenu principal", article: "Article", aside: "Aparté", figure: "Figure" }[tag] ?? TYPE_LABEL.box;
   return TYPE_LABEL[n.type] ?? n.type;

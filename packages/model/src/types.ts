@@ -147,6 +147,8 @@ export type ViewConfig = {
   sort?: { field: string; dir: "asc" | "desc" }[];
   limit?: number;
   pagination?: "none" | "pages" | "loadMore" | "infinite";
+  /** Défilement automatique d'un carrousel, en secondes entre deux cartes (0 ou absent : manuel). */
+  autoplay?: number;
   columns?: { base: number; [breakpoint: string]: number };
   empty?: Node[];
 };

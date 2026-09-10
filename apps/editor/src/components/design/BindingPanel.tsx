@@ -1,7 +1,7 @@
 "use client";
 
 import type { CommitOptions, DataSource, FieldType, Inline, Node, Op, Site } from "@atelier/model";
-import { Field, FieldGroup, Hint, Section, Select } from "@/ui";
+import { Field, FieldGroup, Hint, Section, Select, TextInput } from "@/ui";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
 type BindKey = "content" | "asset" | "alt" | "href";
@@ -37,12 +37,27 @@ export function BindingPanel({ site, node, source, commit }: { site: Site; node:
   };
   const hint = `Ce que cet élément affiche peut venir de ${where}.`;
   if (node.type === "text") {
+    // Texte composé : un texte avant et après le champ (« 26 € », « du 4 au 12 »), écrit en segments liés dans le contenu.
+    const segs = (node.props.content as Record<string, Inline[]> | undefined)?.[locale] ?? [];
+    const bindAt = segs.findIndex((seg) => seg.t === "bind");
+    const around = bindAt >= 0 ? { before: segs.slice(0, bindAt).map((x) => (x.t === "text" ? x.v : "")).join(""), after: segs.slice(bindAt + 1).map((x) => (x.t === "text" ? x.v : "")).join("") } : { before: "", after: "" };
+    const compose = (before: string, after: string, path: string) => {
+      const list: Inline[] = [];
+      if (before) list.push({ t: "text", v: before });
+      list.push({ t: "bind", binding: { source: source.source, path } });
+      if (after) list.push({ t: "text", v: after });
+      commit({ op: "batch", ops: [{ op: "node.set", id: node.id, path: "bindings.content", value: undefined }, { op: "node.set", id: node.id, path: `props.content.${locale}`, value: list }], label: "Texte autour du champ" }, { coalesceKey: `around:${node.id}`, label: "Texte autour du champ" });
+    };
     return (
       <Section title="Données" hint={hint}>
         <FieldGroup>
           <Field label="Contenu"><Select value={current("content")} options={[{ value: "", label: "Texte saisi ici" }, ...opts(TEXT_TYPES)]} onValueChange={(v) => set("content", v, v ? "Lier le texte à un champ" : "Délier le texte")} /></Field>
+          {current("content") ? <>
+            <Field label="Avant" hint="Texte placé avant la valeur du champ"><TextInput value={around.before} placeholder="ex. « à partir de »" onValueChange={(v) => compose(v, around.after, current("content"))} /></Field>
+            <Field label="Après" hint="Texte placé après la valeur du champ"><TextInput value={around.after} placeholder="ex. « € »" onValueChange={(v) => compose(around.before, v, current("content"))} /></Field>
+          </> : null}
         </FieldGroup>
-        {current("content") ? <Hint>Le texte se modifie dans la base, pas ici. Un champ « texte long » s&apos;affiche en paragraphes.</Hint> : null}
+        {current("content") ? <Hint>Le texte se modifie dans la base, pas ici. Un champ « texte long » s&apos;affiche en paragraphes. « Avant » et « Après » habillent la valeur (« 26 € »).</Hint> : null}
       </Section>
     );
   }

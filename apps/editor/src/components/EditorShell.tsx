@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { AlertTriangle, CheckCircle2, Command as CommandIcon, Database as DatabaseIcon, ExternalLink, Info, FileText, Grid3x3, Layers, Moon, Palette, Plus, Puzzle, Redo2, Sun, Undo2, UploadCloud } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Command as CommandIcon, Database as DatabaseIcon, ExternalLink, Info, FileText, Grid3x3, Layers, Moon, Palette, Plus, Puzzle, Redo2, Sparkles, Sun, Undo2, UploadCloud } from "lucide-react";
 import type { DropPosition, Entry, Node, Page, Site, StyleValue, Role } from "@atelier/model";
-import { BASE, breakpointForWidth, canInsertUnder, cloneWithNewIds, dataSourceFor, entryPath, fitHeadings as fitHeadingsInPage, indexSite, layoutGridAt, newId, planDetach, planDrop, planInsert, planMakeComponent, planMergePrev, planMove, planSlashInsert, planSplit, stylePath, templateOf, type ComponentPlan, type TextPlan } from "@atelier/model";
+import { BASE, breakpointForWidth, canInsertUnder, cloneWithNewIds, dataSourceFor, entryPath, fitHeadings as fitHeadingsInPage, indexSite, layoutGridAt, newId, planDetach, planDrop, planInsert, planMakeComponent, planMergePrev, planMove, planSlashInsert, planSplit, stylePath, templateOf, type ComponentPlan, type TextPlan, planReveal, REVEAL_LABEL, type RevealKind } from "@atelier/model";
 import type { Op } from "@atelier/model";
 import { valueToCss } from "@atelier/renderer";
 import type { Inline } from "@atelier/model";
@@ -27,6 +27,7 @@ import { DataPanel } from "@/components/data/DataPanel";
 import { DatabaseTable } from "@/components/data/DatabaseTable";
 import { useEntries } from "@/lib/use-entries";
 import { findForms, formDatabase, formDatabaseId } from "@/lib/forms";
+import { uniqueFieldName } from "@/lib/forms";
 import { nodeIcon, nodeLabel } from "./node-icons";
 
 const PRESETS: { id: string; label: string; width: number | null }[] = [
@@ -218,10 +219,11 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
 
   const fitHeadings = useCallback((node: Node): Node => fitHeadingsInPage(page.root, node), [page.root]);
   const addBlock = useCallback((preset: BlockPreset) => {
-    const node = fitHeadings(preset.make(site));
-    const to = planInsert(index, page.root, selected);
+    let node = fitHeadings(preset.make(site));
+    const to = planInsert(index, page.root, selected, "auto", node);
     const ok = canInsertUnder(index, to.parent, node);
     if (!ok.ok) { notify(ok.reason); return; }
+    if (node.type === "field") node = { ...node, props: { ...node.props, name: uniqueFieldName(index.get(to.parent)?.node.children ?? [], String(node.props.name ?? "champ")) } };
     doc.commit({ op: "node.insert", parent: to.parent, index: to.index, node }, { label: `Ajouter ${preset.label}` });
     setOpenMap((m) => ({ ...m, [to.parent]: true }));
     select(node.id);
@@ -449,9 +451,10 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
       ...allPresets(site).map((b) => ({ id: `add:${b.id}`, group: "Ajouter un bloc", label: b.label, icon: b.icon, keywords: `${b.description} ${b.keywords ?? ""}`, run: () => addBlock(b) })),
     ];
     if (selected && index.get(selected)?.parent) {
-      cmds.push({ id: "dup", group: "Édition", label: "Dupliquer la sélection", keys: "⌘D", run: () => { const loc = index.get(selected)!; const { node: copy } = cloneWithNewIds(loc.node, newId); doc.commit({ op: "node.insert", parent: loc.parent!.id, index: loc.index + 1, node: copy }, { label: "Dupliquer" }); select(copy.id); } });
+      cmds.push({ id: "dup", group: "Édition", label: "Dupliquer la sélection", keys: "⌘D", run: () => { const loc = index.get(selected)!; const { node: cloned } = cloneWithNewIds(loc.node, newId); const copy = cloned.type === "field" ? { ...cloned, props: { ...cloned.props, name: uniqueFieldName(loc.parent!.children ?? [], String(cloned.props.name ?? "champ")) } } : cloned; doc.commit({ op: "node.insert", parent: loc.parent!.id, index: loc.index + 1, node: copy }, { label: "Dupliquer" }); select(copy.id); } });
       cmds.push({ id: "del", group: "Édition", label: "Supprimer la sélection", keys: "⌫", run: () => { const loc = index.get(selected)!; doc.commit({ op: "node.remove", id: selected }, { label: "Supprimer" }); select(loc.parent!.id); } });
       const sel = index.get(selected)!.node;
+      for (const [kind, label] of Object.entries(REVEAL_LABEL)) cmds.push({ id: `reveal:${kind}`, group: "Apparition", label: `Apparition · ${label}`, icon: Sparkles, keywords: "animation apparition défilement reveal", run: () => doc.commit({ op: "batch", ops: planReveal(sel, { kind: kind as RevealKind }), label: `Apparition · ${label}` }, { label: `Apparition · ${label}` }) });
       if (sel.type === "instance") cmds.push({ id: "detach", group: "Édition", label: "Détacher l'instance du composant", icon: Puzzle, run: detachInstance });
       else cmds.push({ id: "makecmp", group: "Édition", label: `Faire de « ${nodeLabel(sel)} » un composant`, icon: Puzzle, keywords: "composant réutiliser", run: () => makeComponent(sel.name ?? nodeLabel(sel)) });
     }

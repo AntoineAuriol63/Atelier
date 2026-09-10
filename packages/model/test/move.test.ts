@@ -37,8 +37,11 @@ describe("planMove", () => {
 });
 
 describe("planInsert", () => {
-  it("sans sélection : à la fin de la racine", () => {
-    expect(planInsert(idx, home, null)).toEqual({ parent: "home", index: home.children!.length });
+  it("sans sélection : à la fin de la racine, avant le pied de page", () => {
+    // La page d'exemple se termine par l'instance « Pied de page » : on insère juste devant.
+    const last = home.children![home.children!.length - 1]!;
+    expect(last.type).toBe("instance");
+    expect(planInsert(idx, home, null)).toEqual({ parent: "home", index: home.children!.length - 1 });
   });
   it("conteneur sélectionné : dedans à la fin ; feuille sélectionnée : après", () => {
     expect(planInsert(idx, home, "hero_txt")).toEqual({ parent: "hero_txt", index: 4 });

@@ -32,3 +32,12 @@ export function formDatabase(site: Site, form: FormInfo): Database {
   const title = fields.find((f) => f.name === "name" || f.name === "nom") ?? fields.find((f) => f.name === "email") ?? fields[0]!;
   return { id: formDatabaseId(form.formId), name: { [locale]: `Messages · ${form.node.name ?? form.where}` }, slug: formDatabaseId(form.formId), fields, titleField: title.name };
 }
+
+/** Clé unique d'un champ parmi ses voisins (`email`, `email-2`…), pour un champ ajouté ou dupliqué. */
+export function uniqueFieldName(siblings: Node[], base: string, except?: string): string {
+  const taken = new Set(siblings.filter((n) => n.type === "field" && n.id !== except).map((n) => String(n.props.name ?? "")));
+  const root = (base || "champ").replace(/-\d+$/, "");
+  let name = root, i = 2;
+  while (taken.has(name)) name = `${root}-${i++}`;
+  return name;
+}

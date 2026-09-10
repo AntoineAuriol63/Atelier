@@ -173,6 +173,46 @@ describe("site d'exemple : restaurant", () => {
   });
 });
 
+describe("mouvements : parallaxe, compteur, bandeau, carrousel auto", () => {
+  it("émet les attributs et le script, et double le contenu d'un bandeau sans identifiant d'édition", () => {
+    const site = { ...sampleSite, pages: [{ ...sampleSite.pages[0]!, root: { id: "mr", type: "box" as const, props: { tag: "div" }, children: [
+      { id: "mi", type: "image" as const, props: { asset: "as_hero", parallax: 0.3 } },
+      { id: "mc", type: "text" as const, props: { tag: "span", countUp: true, content: { fr: [{ t: "text" as const, v: "12 ans" }] } } },
+      { id: "mm", type: "box" as const, props: { tag: "div", marquee: 18 }, children: [{ id: "mm1", type: "text" as const, props: { tag: "span", content: { fr: [{ t: "text" as const, v: "Ouvert ce soir" }] } } }] },
+      { id: "mv", type: "collection" as const, props: { database: "db_projets", view: { layout: "carousel" as const, autoplay: 4, columns: { base: 2 } } }, children: [{ id: "mvi", type: "item" as const, props: {}, children: [] }] },
+    ] } }] };
+    const ctx: RenderContext = { ...ctxFor("/"), site, page: site.pages[0]!, editor: true };
+    const html = renderToStaticMarkup(createElement(RenderPage, { ctx }));
+    expect(html).toContain('data-parallax="0.3"');
+    expect(html).toContain('data-countup=""');
+    expect(html).toContain('data-autoplay="4"');
+    expect((html.match(/Ouvert ce soir/g) ?? []).length).toBe(2);
+    expect((html.match(/data-node="mm1"/g) ?? []).length).toBe(1);
+    const pub = renderToStaticMarkup(createElement(RenderPage, { ctx: { ...ctx, editor: false } }));
+    expect(pub).toContain("data-parallax");
+    expect(pub).toContain("requestAnimationFrame");
+    expect(siteCss(site)).toContain("@keyframes at-marquee");
+  });
+});
+
+describe("placement des blocs", () => {
+  it("pose une section avant le pied de page et jamais dans une section ou un lien", async () => {
+    const { planInsert, indexSite } = await import("@atelier/model");
+    const footer = { id: "f", type: "instance" as const, name: "Pied de page", props: { component: "cmp_footer" } };
+    const sec = { id: "s1", type: "box" as const, props: { tag: "section" }, children: [] };
+    const link = { id: "l1", type: "link" as const, props: { tag: "a", href: { kind: "url" as const, url: "#" } }, children: [] };
+    const root = { id: "r", type: "box" as const, props: {}, children: [sec, link, footer] };
+    const site = { ...sampleSite, pages: [{ ...sampleSite.pages[0]!, root }] };
+    const index = indexSite(site);
+    const newSection = { id: "n", type: "box" as const, props: { tag: "section" } };
+    expect(planInsert(index, root, null, "auto", newSection)).toEqual({ parent: "r", index: 2 });
+    expect(planInsert(index, root, "s1", "auto", newSection)).toEqual({ parent: "r", index: 1 });
+    expect(planInsert(index, root, "s1", "auto", { id: "t", type: "text" as const, props: { tag: "p" } })).toEqual({ parent: "s1", index: 0 });
+    expect(planInsert(index, root, "l1", "auto", link)).toEqual({ parent: "r", index: 2 });
+    expect(planInsert(index, root, "f", "auto", newSection)).toEqual({ parent: "r", index: 2 });
+  });
+});
+
 describe("séparateur", () => {
   const bps = sampleSite.settings.breakpoints;
   it("est vertical dans une rangée et redevient horizontal quand la rangée s'empile", () => {

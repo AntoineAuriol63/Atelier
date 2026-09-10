@@ -7,6 +7,7 @@ import { BASE, classMap, cloneWithNewIds, newId, resolveNodeStyle, resolveShared
 import { Badge, Field, FieldGroup, Hint, IconButton, Section, TextArea, TextInput } from "@/ui";
 import { nodeIcon, nodeLabel, TYPE_LABEL } from "./node-icons";
 import { propLabel } from "@/lib/prop-labels";
+import { uniqueFieldName } from "@/lib/forms";
 import { AppearancePanel, BindingPanel, CollectionPanel, ComponentPanel, EffectsPanel, FieldPanel, FormPanel, ImagePanel, InstancePanel, InteractionsPanel, LayoutPanel, LinkPanel, MakeComponentRow, PropBindingPanel, ResponsivePanel, SharedStylesPanel, SizePanel, SpacingPanel, STATE_LABEL, TagPanel, TypographyPanel, useStyle, type StyleTarget } from "./design";
 import { PropRow, Segmented } from "@/ui/controls";
 import { sharedStyleUsages } from "@atelier/model";
@@ -143,7 +144,7 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
           <div className="ml-auto flex items-center">
             <IconButton size="sm" label="Monter" icon={ArrowUp} disabled={loc.index === 0} onClick={() => commit({ op: "node.move", id: node.id, to: { parent: loc.parent!.id, index: loc.index - 1 } }, { label: "Monter" })} />
             <IconButton size="sm" label="Descendre" icon={ArrowDown} disabled={loc.index >= siblings.length - 1} onClick={() => commit({ op: "node.move", id: node.id, to: { parent: loc.parent!.id, index: loc.index + 1 } }, { label: "Descendre" })} />
-            <IconButton size="sm" label="Dupliquer (⌘D)" icon={Copy} onClick={() => { const { node: copy } = cloneWithNewIds(node, newId); commit({ op: "node.insert", parent: loc.parent!.id, index: loc.index + 1, node: copy }, { label: "Dupliquer" }); }} />
+            <IconButton size="sm" label="Dupliquer (⌘D)" icon={Copy} onClick={() => { const { node: copy } = cloneWithNewIds(node, newId); const dup = copy.type === "field" ? { ...copy, props: { ...copy.props, name: uniqueFieldName(loc.parent!.children ?? [], String(copy.props.name ?? "champ")) } } : copy; commit({ op: "node.insert", parent: loc.parent!.id, index: loc.index + 1, node: dup }, { label: "Dupliquer" }); }} />
             <IconButton size="sm" label="Supprimer" icon={Trash2} tone="danger" onClick={() => { commit({ op: "node.remove", id: node.id }, { label: "Supprimer" }); onDeleted(); }} />
           </div>
         ) : null}
@@ -199,6 +200,7 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
           </Field>
           {exportClass ? <Field label="Classe CSS" hint="Dans le code exporté ; déduite du nom et de l'emplacement"><span className="font-mono text-xs text-muted truncate" title={`.${exportClass}`}>.{exportClass}</span></Field> : null}
           <TagPanel node={node} commit={commit} />
+          <Field label="Ancre" hint="Identifiant pour y faire défiler la page : un lien « Ancre » vers « carte » mène ici, et l'adresse #carte aussi"><TextInput mono value={String(node.props.anchor ?? "")} placeholder="aucune" onValueChange={(v) => commit({ op: "node.set", id: node.id, path: "props.anchor", value: v.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || undefined }, { coalesceKey: `anchor:${node.id}`, label: "Ancre" })} /></Field>
         </FieldGroup>
         {loc.parent ? <MakeComponentRow node={node} isInstance={node.type === "instance"} onMake={onMakeComponent} onDetach={onDetach} /> : null}
       </Section> : null}
@@ -262,7 +264,7 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
       <SizePanel site={site} style={style} />
       <TypographyPanel site={site} style={style} mode={mode} />
       <AppearancePanel site={site} style={style} mode={mode} />
-      <EffectsPanel site={site} style={style} />
+      <EffectsPanel site={site} style={style} node={sharedDef ? undefined : node} commit={commit} />
       {!sharedDef ? <InteractionsPanel site={site} node={node} pageRoot={pageRoot} commit={commit} /> : null}
 
         </>

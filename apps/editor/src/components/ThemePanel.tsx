@@ -5,7 +5,7 @@ import { Plus, Trash2 } from "lucide-react";
 import type { CommitOptions, Op, Site, StyleValue, Theme } from "@atelier/model";
 import { defaultLayoutGrid, walk } from "@atelier/model";
 import { UnitInput } from "@/ui/controls";
-import { Button, Hint, IconButton, NumberInput, PanelHeading, Section, TextInput, askConfirm } from "@/ui";
+import { Button, Hint, IconButton, NumberInput, PanelHeading, Section, TextInput, askConfirm, Select, Field } from "@/ui";
 import { ColorInput } from "@/ui/controls";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
@@ -150,6 +150,9 @@ export function ThemePanel({ site, commit }: { site: Site; commit: Commit }) {
       <LayoutGridSection site={site} commit={commit} />
       <FontsSection site={site} commit={commit} />
       <Section title="Couleurs" defaultOpen>
+        <Field label="Mode par défaut" hint="Le mode dans lequel le site est publié. Les icônes soleil / lune de la barre du haut ne changent que l'aperçu.">
+          <Select value={site.theme.defaultMode} options={site.theme.modes.map((m) => ({ value: m.id, label: m.name }))} onValueChange={(v) => commit({ op: "site.set", path: "theme.defaultMode", value: v }, { label: "Mode par défaut" })} />
+        </Field>
         <TokenList site={site} group="color" commit={commit} />
       </Section>
       {GROUPS.map((g) => (

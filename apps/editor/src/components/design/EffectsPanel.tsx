@@ -1,6 +1,6 @@
 "use client";
 
-import type { Site } from "@atelier/model";
+import type { CommitOptions, Node, Op, Site } from "@atelier/model";
 import { Hint, NumberInput, Section, Select, TextInput } from "@/ui";
 import { PropRow } from "@/ui/controls";
 import type { StyleApi } from "./useStyle";
@@ -58,7 +58,7 @@ function parseTransition(v: string | undefined): { prop: string; ms: number; eas
   return { prop: m[1]!, ms: m[3] === "s" ? Number(m[2]) * 1000 : Number(m[2]), easing: m[4] ?? "ease" };
 }
 
-export function EffectsPanel({ style }: { site: Site; style: StyleApi }) {
+export function EffectsPanel({ style, node, commit }: { site: Site; style: StyleApi; node?: Node; commit?: (op: Op, opts?: CommitOptions) => void }) {
   const s = style;
   const row = (prop: string, label: string, children: React.ReactNode, wide?: boolean) => (
     <PropRow key={`${prop}:${label}`} prop={prop} label={label} source={s.source(prop)} sourceTitle={s.title(prop)} onReset={() => s.reset(prop)} wide={wide}>{children}</PropRow>
@@ -103,7 +103,15 @@ export function EffectsPanel({ style }: { site: Site; style: StyleApi }) {
         );
       })()}
       {row("cursor", "Curseur", <Select className="flex-1" value={str(s.value("cursor")) ?? ""} placeholder="Auto" options={CURSORS} onValueChange={(v) => s.set("cursor", v || undefined, false)} />)}
-      <Hint>Pour animer un changement au survol (couleur, taille…), réglez une transition ici : elle s&apos;applique au passage d&apos;un état à l&apos;autre. Les animations à l&apos;apparition et au défilement arrivent avec les interactions (v1).</Hint>
+      <Hint>Pour animer un changement au survol (couleur, taille…), réglez une transition ici : elle s&apos;applique au passage d&apos;un état à l&apos;autre. Les apparitions au défilement se règlent dans « Interactions ».</Hint>
+      {node && commit ? (
+        <>
+          <div className="h-px bg-line my-1" />
+          <PropRow label="Parallaxe" sourceTitle="Propriété de l'élément (props.parallax)" source={typeof node.props.parallax === "number" ? { kind: "local" } : undefined} onReset={typeof node.props.parallax === "number" ? () => commit({ op: "node.set", id: node.id, path: "props.parallax", value: undefined }, { label: "Parallaxe" }) : undefined}><NumberInput className="w-24" step={0.05} min={-1} max={1} value={typeof node.props.parallax === "number" ? node.props.parallax : ""} placeholder="aucune" onValueChange={(n) => commit({ op: "node.set", id: node.id, path: "props.parallax", value: n === "" || n === 0 ? undefined : n }, { coalesceKey: `parallax:${node.id}`, label: "Parallaxe" })} /></PropRow>
+          {node.type === "box" ? <PropRow label="Bandeau" sourceTitle="Propriété de l'élément (props.marquee)" source={typeof node.props.marquee === "number" ? { kind: "local" } : undefined} onReset={typeof node.props.marquee === "number" ? () => commit({ op: "node.set", id: node.id, path: "props.marquee", value: undefined }, { label: "Bandeau défilant" }) : undefined}><NumberInput className="w-24" unit="s" step={1} min={2} value={typeof node.props.marquee === "number" ? node.props.marquee : ""} placeholder="non" onValueChange={(n) => commit({ op: "node.set", id: node.id, path: "props.marquee", value: n === "" || n === 0 ? undefined : n }, { coalesceKey: `marquee:${node.id}`, label: "Bandeau défilant" })} /></PropRow> : null}
+          <Hint>Parallaxe : l&apos;élément se déplace moins vite (0,1 léger, 0,3 marqué) ou plus vite (négatif) que la page au défilement. Bandeau : le contenu de la boîte défile en continu vers la gauche, en N secondes par tour, et s&apos;arrête au survol. Les deux se jouent sur le site publié et dans l&apos;aperçu « Voir », pas dans l&apos;éditeur.</Hint>
+        </>
+      ) : null}
     </Section>
   );
 }

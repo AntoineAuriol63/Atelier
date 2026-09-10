@@ -52,7 +52,8 @@ export function templatePage(site: Site, db: Database): Page {
   const main = page.root.children?.find((c) => c.type === "box");
   const h1 = main?.children?.find((c) => c.type === "text");
   if (h1) { h1.bindings = { content: { source: "entry", path: db.titleField } }; h1.props = { ...h1.props, content: { [locale]: [{ t: "text", v: "Titre de l'entrée" }] } }; }
-  return { ...page, kind: "template", path: `/${db.slug}/{${db.slugField ?? "slug"}}` };
+  // Le titre de l'onglet reprend celui de l'entrée ({champ} est composé au rendu).
+  return { ...page, kind: "template", path: `/${db.slug}/{${db.slugField ?? "slug"}}`, seo: { title: { [locale]: `{${db.titleField}}` } } };
 }
 
 export function PagesPanel({ site, pageId, onOpen, commit, readOnly = false }: { site: Site; pageId: string; onOpen: (id: string) => void; commit: Commit; /** Rédacteur : navigation seulement, pas de création ni de réglages. */ readOnly?: boolean }) {
