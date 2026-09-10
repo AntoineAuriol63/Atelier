@@ -45,7 +45,7 @@ export function Section({ title, children, defaultOpen = true, actions, classNam
   const [prevForce, setPrevForce] = useState(forceOpen);
   if (forceOpen !== prevForce) { setPrevForce(forceOpen); if (forceOpen) setOpen(true); }
   useEffect(() => {
-    const onReveal = (e: Event) => { if ((e as CustomEvent<string>).detail === title) setOpen(true); };
+    const onReveal = (e: Event) => { if ((e as CustomEvent<string>).detail === title) setOpenState(() => { remember(title, true); return true; }); };
     window.addEventListener("atelier:reveal-section", onReveal);
     return () => window.removeEventListener("atelier:reveal-section", onReveal);
   }, [title]);

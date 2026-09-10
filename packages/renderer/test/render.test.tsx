@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
-import { sampleSite, sampleEntries, classMap, restaurantSite, restaurantEntries } from "@atelier/model";
+import { sampleSite, sampleEntries, classMap, restaurantSite, restaurantEntries, type Site } from "@atelier/model";
 import { RenderPage, siteCss, styleSetCss, collectionViewCss, memoryData, matchPath, assetMap, pageTitle, type RenderContext } from "../src";
 
 const data = memoryData(sampleEntries);

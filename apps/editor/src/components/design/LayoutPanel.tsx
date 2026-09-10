@@ -1,6 +1,6 @@
 "use client";
 
-import { AlignHorizontalJustifyCenter, AlignHorizontalJustifyEnd, AlignHorizontalJustifyStart, AlignHorizontalSpaceAround, AlignHorizontalSpaceBetween, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, AlignVerticalSpaceAround, AlignVerticalSpaceBetween, ArrowDown, ArrowRight, Baseline, EyeOff, LayoutGrid, Rows3, Square, StretchHorizontal, StretchVertical, WrapText } from "lucide-react";
+import { AlignHorizontalJustifyCenter, AlignHorizontalJustifyEnd, AlignHorizontalJustifyStart, AlignHorizontalSpaceAround, AlignHorizontalSpaceBetween, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, AlignVerticalSpaceAround, AlignVerticalSpaceBetween, ArrowDown, ArrowRight, Baseline, EyeOff, LayoutGrid, Rows3, Square, StretchHorizontal, StretchVertical } from "lucide-react";
 import type { Node, Site } from "@atelier/model";
 import { Button, NumberInput, Section, TextInput, Toggle, Select } from "@/ui";
 import { layoutGridAt } from "@atelier/model";

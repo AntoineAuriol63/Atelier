@@ -6,7 +6,7 @@ import type { CommitOptions, Database, Node, Op, Page, Site } from "@atelier/mod
 import { cloneWithNewIds, newId, NOT_FOUND_PATH, templateOf } from "@atelier/model";
 import { Badge, Button, Field, FieldGroup, Hint, IconButton, Select, TextInput, askConfirm, Eyebrow, Toggle } from "@/ui";
 import { mod } from "@/lib/keys";
-import { Segmented } from "@/ui/controls";
+
 import { AssetPicker } from "@/components/design/AppearancePanel";
 import { cx } from "@/ui/cx";
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlignCenter, AlignJustify, AlignLeft, AlignRight, Italic, Strikethrough, Underline } from "lucide-react";
+import { AlignCenter, AlignJustify, AlignLeft, AlignRight, Strikethrough, Underline } from "lucide-react";
 import type { Site } from "@atelier/model";
 import { Section, Select, Toggle } from "@/ui";
 import { ColorInput, PropRow, Segmented, UnitInput } from "@/ui/controls";
