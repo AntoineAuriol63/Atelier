@@ -6,12 +6,14 @@ import { ChevronRight } from "lucide-react";
 import { cx } from "./cx";
 
 export type DropIndicator = "before" | "after" | "inside" | null;
+/** Refus de dépôt : indicateur rouge et raison en infobulle. */
+export type DropRefusal = string | null;
 
-export function TreeRow({ id, depth, label, meta, icon: Icon, selected, open, hasChildren, onToggle, onSelect, dimmed, editing, onRename, onEditStart, drop, draggable, trailing, onDragStart, onDragOver, onDragLeave, onDrop }: {
+export function TreeRow({ id, depth, label, meta, icon: Icon, selected, open, hasChildren, onToggle, onSelect, dimmed, editing, onRename, onEditStart, drop, refusal, draggable, trailing, onDragStart, onDragOver, onDragLeave, onDrop }: {
   id: string; depth: number; label: string; meta?: string; icon: LucideIcon; selected: boolean; open: boolean; hasChildren: boolean;
   onToggle: () => void; onSelect: () => void; dimmed?: boolean;
   editing?: boolean; onRename?: (name: string | null) => void; onEditStart?: () => void;
-  drop?: DropIndicator; draggable?: boolean; trailing?: React.ReactNode;
+  drop?: DropIndicator; refusal?: DropRefusal; draggable?: boolean; trailing?: React.ReactNode;
   onDragStart?: (e: DragEvent) => void; onDragOver?: (e: DragEvent) => void; onDragLeave?: (e: DragEvent) => void; onDrop?: (e: DragEvent) => void;
 }) {
   const [draft, setDraft] = useState(label);
@@ -19,6 +21,7 @@ export function TreeRow({ id, depth, label, meta, icon: Icon, selected, open, ha
     <div
       role="treeitem"
       data-row-id={id}
+      title={drop && refusal ? refusal : undefined}
       tabIndex={selected ? 0 : -1}
       aria-selected={selected}
       aria-expanded={hasChildren ? open : undefined}
@@ -33,12 +36,12 @@ export function TreeRow({ id, depth, label, meta, icon: Icon, selected, open, ha
         "relative group flex items-center h-[26px] pr-2 text-sm select-none cursor-default focus-visible:outline-2 focus-visible:outline-accent focus-visible:-outline-offset-2",
         selected ? "bg-accent-soft text-ink" : "hover:bg-hover text-ink",
         dimmed && "opacity-60",
-        drop === "inside" && "shadow-[inset_0_0_0_1.5px_var(--color-accent)]",
+        drop === "inside" && (refusal ? "shadow-[inset_0_0_0_1.5px_var(--color-danger)]" : "shadow-[inset_0_0_0_1.5px_var(--color-accent)]"),
       )}
       style={{ paddingLeft: 4 + depth * 14 }}
     >
       {drop === "before" || drop === "after" ? (
-        <span aria-hidden className={cx("absolute left-0 right-0 h-0.5 bg-accent pointer-events-none", drop === "before" ? "top-0" : "bottom-0")} style={{ left: 4 + depth * 14 }} />
+        <span aria-hidden className={cx("absolute left-0 right-0 h-0.5 pointer-events-none", refusal ? "bg-danger" : "bg-accent", drop === "before" ? "top-0" : "bottom-0")} style={{ left: 4 + depth * 14 }} />
       ) : null}
       <button
         type="button"

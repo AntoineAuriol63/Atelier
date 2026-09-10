@@ -10,7 +10,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const store = getStore();
   try {
     const [published, publications, stored] = await Promise.all([store.published(id), store.publications(id), store.get(id)]);
-    return Response.json({ publishedVersion: published?.version ?? null, publishedAt: published?.publishedAt ?? null, publications, url: stored ? await publicUrl(stored.site) : null, version: stored?.version ?? null, publishedEntries: Object.fromEntries((published?.entries ?? []).map((e) => [e.id, e.updatedAt])) });
+    return Response.json({ publishedVersion: published?.version ?? null, publishedAt: published?.publishedAt ?? null, publications, url: stored ? await publicUrl(stored.site) : null, version: stored?.version ?? null, sitesDomain: process.env.ATELIER_SITES_DOMAIN ?? null, publishedEntries: Object.fromEntries((published?.entries ?? []).map((e) => [e.id, e.updatedAt])) });
   } catch (e) { return Response.json({ error: e instanceof Error ? e.message : "Erreur" }, { status: 500 }); }
 }
 

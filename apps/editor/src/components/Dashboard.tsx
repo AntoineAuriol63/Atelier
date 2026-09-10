@@ -1,17 +1,38 @@
 "use client";
+import type React from "react";
 
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ExternalLink, LogOut, Plus, Trash2 } from "lucide-react";
 import { Badge, Button, ConfirmProvider, Hint, IconButton, TextInput, askConfirm } from "@/ui";
-import { Segmented } from "@/ui/controls";
 import { PRODUCT_NAME } from "@/lib/product";
 
 export type DashboardSite = { id: string; name: string; version: number; updatedAt: string; publishedVersion: number | null; subdomain: string | null; owner: string | null; url: string | null; role?: "owner" | "editor" | "writer" };
 const when = (iso: string) => (iso ? new Date(iso).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "");
 
 /** Les sites d'un compte : ouvrir, créer (vierge ou exemple), supprimer, voir en ligne. */
+const TEMPLATES: { id: "blank" | "sample" | "restaurant"; label: string; text: string; sketch: React.ReactNode }[] = [
+  { id: "blank", label: "Site vierge", text: "Thème de base, en-tête, pied de page, une page d'accueil.", sketch: <><i className="h-1.5 w-10 bg-line-strong rounded-full" /><i className="h-6 w-full bg-surface rounded-xs" /><i className="h-1.5 w-full bg-line rounded-full" /></> },
+  { id: "sample", label: "Exemple photographe", text: "Pages, base de projets, galeries, formulaire de contact.", sketch: <><i className="h-1.5 w-10 bg-line-strong rounded-full" /><span className="grid grid-cols-3 gap-1 w-full"><i className="aspect-square bg-accent/40 rounded-xs" /><i className="aspect-square bg-accent/25 rounded-xs" /><i className="aspect-square bg-accent/40 rounded-xs" /></span><i className="h-1.5 w-2/3 bg-line rounded-full" /></> },
+  { id: "restaurant", label: "Exemple restaurant", text: "Carte en base de données, événements, réservation, animations.", sketch: <><i className="h-1.5 w-10 bg-line-strong rounded-full" /><span className="flex gap-1 w-full"><i className="h-8 flex-1 bg-warning/40 rounded-xs" /><span className="flex-1 flex flex-col gap-1"><i className="h-1.5 w-full bg-line rounded-full" /><i className="h-1.5 w-3/4 bg-line rounded-full" /><i className="h-3 w-10 bg-accent/60 rounded-full" /></span></span></> },
+];
+
+/** Choix du modèle de site : trois cartes esquissées, pas une liste aveugle. */
+function TemplatePicker({ value, onChange }: { value: string; onChange: (t: "blank" | "sample" | "restaurant") => void }) {
+  return (
+    <div role="radiogroup" aria-label="Modèle de site" className="grid gap-2 w-full" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))" }}>
+      {TEMPLATES.map((t) => (
+        <button key={t.id} type="button" role="radio" aria-checked={value === t.id} onClick={() => onChange(t.id)} className={`flex flex-col gap-2 p-3 rounded-md border text-left transition-colors ${value === t.id ? "border-accent bg-accent-soft" : "border-line bg-surface hover:border-line-strong"}`}>
+          <span aria-hidden className="flex flex-col gap-1.5 p-2 rounded-xs bg-panel border border-line h-16 justify-start">{t.sketch}</span>
+          <span className="text-sm font-medium text-ink">{t.label}</span>
+          <span className="text-xs text-muted leading-snug">{t.text}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function Dashboard({ sites, user }: { sites: DashboardSite[]; user: string | null }) {
   const router = useRouter();
   const [creating, setCreating] = useState(false);
@@ -58,7 +79,7 @@ export function Dashboard({ sites, user }: { sites: DashboardSite[]; user: strin
             <TextInput autoFocus value={name} placeholder="Nom du site (Boulangerie Martin, Studio Rivière…)" onValueChange={setName} onKeyDown={(e) => { if (e.key === "Escape") setCreating(false); }} />
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs text-muted">Partir de</span>
-              <Segmented value={template} options={[{ value: "blank", label: "Site vierge" }, { value: "sample", label: "Exemple photographe" }, { value: "restaurant", label: "Exemple restaurant" }]} onChange={(v) => { if (v) setTemplate(v as "blank" | "sample" | "restaurant"); }} />
+<TemplatePicker value={template} onChange={setTemplate} />
               <span className="flex-1" />
               <Button variant="ghost" type="button" onClick={() => setCreating(false)}>Annuler</Button>
               <Button variant="primary" type="submit" disabled={!name.trim() || !!busy}>{busy ?? "Créer et ouvrir"}</Button>
@@ -87,7 +108,12 @@ export function Dashboard({ sites, user }: { sites: DashboardSite[]; user: strin
             </li>
           ))}
         </ul>
-        {!sites.length ? <Hint>Créez votre premier site avec « Nouveau site ».</Hint> : null}
+        {!sites.length && !creating ? (
+          <div className="flex flex-col items-center gap-4 py-10 rounded-md border border-dashed border-line-strong text-center">
+            <p className="text-sm text-muted max-w-[46ch]">Aucun site pour l&apos;instant. Choisissez un point de départ : chaque modèle s&apos;ouvre dans l&apos;éditeur, prêt à être modifié.</p>
+            <TemplatePicker value={template} onChange={(t) => { setTemplate(t); setCreating(true); }} />
+          </div>
+        ) : null}
       </main>
     </div></ConfirmProvider>
   );

@@ -2,7 +2,7 @@
 
 import { AlignCenter, AlignJustify, AlignLeft, AlignRight, Italic, Strikethrough, Underline } from "lucide-react";
 import type { Site } from "@atelier/model";
-import { Section, Select } from "@/ui";
+import { Section, Select, Toggle } from "@/ui";
 import { ColorInput, PropRow, Segmented, UnitInput } from "@/ui/controls";
 import { tokenOptions } from "@/lib/css-value";
 import type { StyleApi } from "./useStyle";
@@ -14,10 +14,13 @@ const WRAP = [{ value: "wrap", label: "Normal" }, { value: "balance", label: "É
 
 function str(v: unknown): string | undefined { return typeof v === "string" ? v : undefined; }
 
+/** Propriétés numériques réglables en glissant sur leur libellé. */
+const SCRUBBABLE = new Set(["lineHeight", "letterSpacing"]);
+
 export function TypographyPanel({ site, style, mode, defaultOpen = true }: { site: Site; style: StyleApi; mode?: string; defaultOpen?: boolean }) {
   const s = style;
   const row = (prop: string, label: string, children: React.ReactNode, wide?: boolean) => (
-    <PropRow key={`${prop}:${label}`} prop={prop} label={label} source={s.source(prop)} sourceTitle={s.title(prop)} onReset={() => s.reset(prop)} wide={wide}>{children}</PropRow>
+    <PropRow key={`${prop}:${label}`} prop={prop} label={label} source={s.source(prop)} sourceTitle={s.title(prop)} onReset={() => s.reset(prop)} wide={wide} onScrub={SCRUBBABLE.has(prop) ? s.scrub(prop) : undefined}>{children}</PropRow>
   );
   const fontTokens = tokenOptions(site, "font");
   const familyValue = (() => { const v = s.value("fontFamily"); if (typeof v === "object" && v && "token" in v) return `{${v.token}}`; return str(v) ?? ""; })();
@@ -38,7 +41,7 @@ export function TypographyPanel({ site, style, mode, defaultOpen = true }: { sit
       {row("textAlign", "Alignement", <Segmented className="flex-1" value={str(s.value("textAlign"))} options={ALIGN} onChange={(v) => s.set("textAlign", v, false)} />, true)}
       {row("fontStyle", "Style", (
         <div className="flex items-center gap-1 flex-1">
-          <Segmented value={str(s.value("fontStyle"))} options={[{ value: "italic", label: "Italique", icon: Italic }]} onChange={(v) => s.set("fontStyle", v, false)} />
+          <Toggle checked={str(s.value("fontStyle")) === "italic"} label="Italique" onChange={(b) => s.set("fontStyle", b ? "italic" : undefined, false)} />
           <Segmented value={str(s.value("textDecoration"))} options={[{ value: "underline", label: "Souligné", icon: Underline }, { value: "line-through", label: "Barré", icon: Strikethrough }, { value: "none", label: "Aucune décoration" }]} onChange={(v) => s.set("textDecoration", v, false)} />
         </div>
       ), true)}

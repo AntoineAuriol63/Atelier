@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Upload } from "lucide-react";
 import type { CommitOptions, Database, Entry, Field, Op, Site } from "@atelier/model";
 import { newId } from "@atelier/model";
@@ -35,13 +35,14 @@ function convert(field: Field, raw: string, locale: string, related: Entry[], re
 }
 
 /** Import d'un tableau (CSV ou JSON) dans une base : correspondance des colonnes, conversion par type, entrées créées ou mises à jour. */
-export function ImportDialog({ site, db, table, entries, commit, saveMany, onClose, onDone }: { site: Site; db: Database; table: Table; entries: Entry[]; commit: Commit; saveMany: (list: Entry[]) => void; onClose: () => void; onDone: (n: number) => void }) {
+export function ImportDialog({ site, db, table, entries, commit, saveMany, onClose, onDone }: { site: Site; db: Database; table: Table; entries: Entry[]; commit: Commit; saveMany: (list: Entry[]) => void; onClose: () => void; onDone: (n: number, createdIds: string[]) => void }) {
   const locale = site.settings.defaultLocale;
   const auto = useMemo(() => table.columns.map((c) => {
     const n = norm(c);
     if (n === "id" || n === "identifiant") return "@id";
     const f = db.fields.find((x) => norm(x.name) === n || norm(x.label[locale] ?? "") === n);
-    return f ? f.name : NEW;
+    // Une colonne inconnue est ignorée par défaut : créer un champ est un choix, pas un effet de bord.
+    return f ? f.name : SKIP;
   }), [table.columns, db.fields, locale]);
   const [mapping, setMapping] = useState<string[]>(auto);
   const [status, setStatus] = useState<"draft" | "published">("draft");
@@ -50,6 +51,16 @@ export function ImportDialog({ site, db, table, entries, commit, saveMany, onClo
   const posField = db.fields.find((f) => f.type === "position")?.name;
   const fieldOptions = [{ value: SKIP, label: "Ignorer" }, { value: NEW, label: "Nouveau champ texte" }, { value: "@id", label: "Identifiant (mise à jour)" }, ...db.fields.map((f) => ({ value: f.name, label: `${f.label[locale] ?? f.name}` }))];
   const usable = table.columns.filter((_, i) => mapping[i] !== SKIP && mapping[i] !== "@id").length;
+  // Pré-analyse : pour chaque colonne reliée à un champ typé, combien de valeurs non vides ne se convertissent pas.
+  const problems = useMemo(() => table.columns.map((_, i) => {
+    const m = mapping[i]!;
+    const f = db.fields.find((x) => x.name === m);
+    if (!f || m === SKIP || m === NEW || m === "@id" || f.type === "text" || f.type === "richtext" || f.type === "link") return 0;
+    const relDb = f.type === "relation" ? site.databases.find((d) => d.id === f.relation?.database) : undefined;
+    return table.rows.reduce((n, r) => { const raw = r[i] ?? ""; if (!raw.trim()) return n; const v = convert(f, raw, locale, relDb ? entries.filter((e) => e.database === relDb.id) : [], relDb); return v === undefined ? n + 1 : n; }, 0);
+  }), [table, mapping, db.fields, site.databases, entries, locale]);
+  const problemTotal = problems.reduce((a, b) => a + b, 0);
+  const created = useRef<string[]>([]);
 
   const run = () => {
     // 1. Les nouveaux champs.
@@ -83,14 +94,16 @@ export function ImportDialog({ site, db, table, entries, commit, saveMany, onClo
       });
       if (db.slugField && !values[db.slugField] && typeof values[db.titleField] === "string") values[db.slugField] = slugify(values[db.titleField] as string);
       if (posField && values[posField] === undefined) values[posField] = ++pos;
-      out.push(prev ? { ...prev, values } : { id: id && /^[A-Za-z_][A-Za-z0-9_-]{2,31}$/.test(id) ? id : newId(), database: db.id, status, values, createdAt: now, updatedAt: now });
+      const entry = prev ? { ...prev, values } : { id: id && /^[A-Za-z_][A-Za-z0-9_-]{2,31}$/.test(id) ? id : newId(), database: db.id, status, values, createdAt: now, updatedAt: now };
+      if (!prev) created.current.push(entry.id);
+      out.push(entry);
     }
     saveMany(out);
-    onDone(out.length);
+    onDone(out.length, created.current);
   };
 
   return (
-    <Dialog open onClose={onClose} title={`Importer dans ${db.name[locale] ?? db.slug}`} width={820} actions={<Button variant="primary" icon={Upload} disabled={!table.rows.length || !usable} onClick={run}>Importer {table.rows.length} ligne{table.rows.length > 1 ? "s" : ""}</Button>}>
+    <Dialog open onClose={onClose} title={`Importer dans ${db.name[locale] ?? db.slug}`} width={820} footer={<><span className="text-xs text-muted flex-1">{problemTotal ? `${problemTotal} valeur${problemTotal > 1 ? "s" : ""} ne se convertir${problemTotal > 1 ? "ont" : "a"} pas (voir les colonnes en rouge).` : usable ? "Colonnes reliées, prêt à importer." : "Reliez au moins une colonne à un champ."}</span><Button variant="ghost" onClick={onClose}>Annuler</Button><Button variant="primary" icon={Upload} disabled={!table.rows.length || !usable} onClick={run}>Importer {table.rows.length} ligne{table.rows.length > 1 ? "s" : ""}</Button></>}>
       <div className="p-4 flex flex-col gap-3">
         <Hint>Chaque colonne du fichier va dans un champ de la base. Une colonne « id » met à jour les entrées existantes au lieu d&apos;en créer. Les images se posent ensuite depuis la bibliothèque.</Hint>
         <div className="overflow-auto border border-line rounded-xs">
@@ -100,6 +113,7 @@ export function ImportDialog({ site, db, table, entries, commit, saveMany, onClo
                 <th key={i} className="text-left font-medium px-2 py-1.5 border-b border-r border-line min-w-[160px] align-top">
                   <div className="text-muted truncate mb-1" title={c}>{c}</div>
                   <Select value={mapping[i]!} options={fieldOptions} onValueChange={(v) => setMapping((m) => m.map((x, j) => (j === i ? v : x)))} />
+                  {problems[i] ? <div className="text-2xs text-danger mt-1 whitespace-normal">{problems[i]} valeur{problems[i]! > 1 ? "s" : ""} illisible{problems[i]! > 1 ? "s" : ""} pour ce type (laissée{problems[i]! > 1 ? "s" : ""} vide{problems[i]! > 1 ? "s" : ""})</div> : null}
                 </th>
               ))}</tr>
             </thead>

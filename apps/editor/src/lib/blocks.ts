@@ -7,7 +7,9 @@ export type BlockPreset = { id: string; label: string; description: string; /** 
 
 const fr = (site: Site, text: string): Record<string, Inline[]> => ({ [site.settings.defaultLocale]: [{ t: "text", v: text }] });
 const text = (site: Site, tag: string, content: string, name?: string): Node => ({ id: newId(), type: "text", name, props: { tag, content: fr(site, content) } });
-const shared = (site: Site, name: string): string[] => { const s = site.sharedStyles.find((x) => x.name === name); return s ? [s.id] : []; };
+// Styles de base d'un site : retrouvés par identifiant stable (st_section…), le nom n'étant qu'un repli (il peut être renommé).
+const BASE_IDS: Record<string, string> = { Section: "st_section", Conteneur: "st_container", Bouton: "st_button", "Bouton / secondaire": "st_button_secondary", Surtitre: "st_eyebrow", "Texte atténué": "st_muted", Carte: "st_card", "Étiquette": "st_badge" };
+const shared = (site: Site, name: string): string[] => { const s = site.sharedStyles.find((x) => x.id === BASE_IDS[name]) ?? site.sharedStyles.find((x) => x.name === name); return s ? [s.id] : []; };
 
 export const BLOCKS: BlockPreset[] = [
   { id: "section", label: "Section", description: "Bande pleine largeur avec marges intérieures", keywords: "section bande fond", icon: SquareDashed, group: "Structure", make: (site) => ({ id: newId(), type: "box", name: "Section", props: { tag: "section" }, style: { shared: shared(site, "Section"), base: { display: "flex", flexDirection: "column", gap: { token: "space.5" } } }, children: [text(site, "h2", "Titre de la section"), text(site, "p", "Un paragraphe pour présenter cette section.")] }) },

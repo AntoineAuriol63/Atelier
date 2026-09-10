@@ -45,6 +45,10 @@ function isDescendant(ancestor: Node, id: Id): boolean {
  * Calcule où déposer `dragId` par rapport à `targetId`, ou explique pourquoi c'est impossible.
  * L'index retourné est celui à utiliser dans `node.move` (après retrait du nœud de sa position d'origine).
  */
+/** Libellés français des types de nœuds, pour les messages de refus. */
+const TYPE_FR: Record<string, string> = { box: "Une boîte", text: "Un texte", list: "Une liste", listItem: "Un élément de liste", image: "Une image", video: "Une vidéo", link: "Un lien", icon: "Une icône", divider: "Un séparateur", embed: "Un bloc HTML", form: "Un formulaire", field: "Un champ", collection: "Une vue", item: "Une carte", instance: "Une instance", slot: "Un emplacement", code: "Un composant code" };
+const typeFr = (t: string) => TYPE_FR[t] ?? `Un ${t}`;
+
 export function planMove(index: Map<Id, NodeLocation>, dragId: Id, targetId: Id, position: DropPosition): { ok: true; to: Placement } | { ok: false; reason: string } {
   const drag = index.get(dragId), target = index.get(targetId);
   if (!drag || !target) return { ok: false, reason: "Élément introuvable" };
@@ -56,7 +60,7 @@ export function planMove(index: Map<Id, NodeLocation>, dragId: Id, targetId: Id,
   const linkCheck = (parentId: Id) => (containsLink(drag.node) && hasLinkAncestor(index, parentId) ? { ok: false as const, reason: "Un lien ne peut pas être placé dans un autre lien" } : linkChildCheck(index, parentId, drag.node));
 
   if (position === "inside") {
-    if (!CONTAINER_TYPES.has(target.node.type)) return { ok: false, reason: `Un ${target.node.type} n'accepte pas d'enfants` };
+    if (!CONTAINER_TYPES.has(target.node.type)) return { ok: false, reason: `${typeFr(target.node.type)} ne peut pas contenir d'autres éléments` };
     if (target.node.type === "collection") return { ok: false, reason: "Une collection ne contient que son élément répété" };
     const lc = linkCheck(targetId); if (lc) return lc;
     const count = (target.node.children ?? []).filter((c) => c.id !== dragId).length;
@@ -106,7 +110,7 @@ export function planDrop(index: Map<Id, NodeLocation>, targetId: Id, position: D
   if (!target) return { ok: false, reason: "Cible introuvable" };
   const linkCheck = (parentId: Id) => (node && containsLink(node) && hasLinkAncestor(index, parentId) ? { ok: false as const, reason: "Un lien ne peut pas être placé dans un autre lien" } : node ? linkChildCheck(index, parentId, node) : null);
   if (position === "inside") {
-    if (!CONTAINER_TYPES.has(target.node.type)) return { ok: false, reason: `Un ${target.node.type} n'accepte pas d'enfants` };
+    if (!CONTAINER_TYPES.has(target.node.type)) return { ok: false, reason: `${typeFr(target.node.type)} ne peut pas contenir d'autres éléments` };
     if (target.node.type === "collection") return { ok: false, reason: "Une collection ne contient que son élément répété" };
     const lc = linkCheck(targetId); if (lc) return lc;
     return { ok: true, to: { parent: targetId, index: (target.node.children ?? []).length } };

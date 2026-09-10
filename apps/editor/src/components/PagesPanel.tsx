@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Copy, Database as DatabaseIcon, FileText, Plus, Settings2, Trash2 } from "lucide-react";
 import type { CommitOptions, Database, Node, Op, Page, Site } from "@atelier/model";
 import { cloneWithNewIds, newId, NOT_FOUND_PATH, templateOf } from "@atelier/model";
-import { Badge, Button, Field, FieldGroup, Hint, IconButton, Select, TextInput, askConfirm, Eyebrow } from "@/ui";
+import { Badge, Button, Field, FieldGroup, Hint, IconButton, Select, TextInput, askConfirm, Eyebrow, Toggle } from "@/ui";
 import { mod } from "@/lib/keys";
 import { Segmented } from "@/ui/controls";
 import { AssetPicker } from "@/components/design/AppearancePanel";
@@ -25,7 +25,7 @@ export function blankPage(site: Site, name: string): Page {
   if (header) children.push({ id: newId(), type: "instance", name: header.name, props: { component: header.id } });
   children.push({
     id: newId(), type: "box", name: "Contenu principal", props: { tag: "main" },
-    style: { shared: site.sharedStyles.filter((s) => s.name === "Section").map((s) => s.id), base: { display: "flex", flexDirection: "column", gap: { token: "space.5" }, maxWidth: { token: "width.content" }, marginLeft: "auto", marginRight: "auto" } },
+    style: { shared: site.sharedStyles.filter((s) => s.id === "st_section" || (s.name === "Section" && !site.sharedStyles.some((x) => x.id === "st_section"))).map((s) => s.id), base: { display: "flex", flexDirection: "column", gap: { token: "space.5" }, maxWidth: { token: "width.content" }, marginLeft: "auto", marginRight: "auto" } },
     children: [{ id: newId(), type: "text", props: { tag: "h1", content: { [locale]: [{ t: "text", v: name }] } } }],
   });
   if (footer) children.push({ id: newId(), type: "instance", name: footer.name, props: { component: footer.id } });
@@ -41,7 +41,7 @@ export function notFoundPage(site: Site): Page {
   const main = page.root.children?.find((c) => c.props.tag === "main");
   main?.children?.push(
     { id: newId(), type: "text", props: { tag: "p", content: { [locale]: [{ t: "text", v: "Cette adresse ne correspond à aucune page. Elle a peut-être changé, ou le lien était erroné." }] } } },
-    { id: newId(), type: "link", name: "Retour à l'accueil", props: { tag: "a", href: home ? { kind: "page", page: home.id } : { kind: "url", url: "/" } }, style: { shared: site.sharedStyles.filter((s) => s.name === "Bouton").map((s) => s.id) }, children: [{ id: newId(), type: "text", props: { tag: "span", content: { [locale]: [{ t: "text", v: "Retour à l'accueil" }] } } }] },
+    { id: newId(), type: "link", name: "Retour à l'accueil", props: { tag: "a", href: home ? { kind: "page", page: home.id } : { kind: "url", url: "/" } }, style: { shared: site.sharedStyles.filter((s) => s.id === "st_button" || (s.name === "Bouton" && !site.sharedStyles.some((x) => x.id === "st_button"))).map((s) => s.id) }, children: [{ id: newId(), type: "text", props: { tag: "span", content: { [locale]: [{ t: "text", v: "Retour à l'accueil" }] } } }] },
   );
   return { ...page, path: NOT_FOUND_PATH, seo: { index: false } };
 }
@@ -153,7 +153,7 @@ export function PagesPanel({ site, pageId, onOpen, commit, readOnly = false }: {
                       </Field>
                     ) : null}
                     <Field label="Titre SEO" hint="Titre affiché dans l'onglet et les moteurs ; le suffixe du site est ajouté"><TextInput value={p.seo?.title?.[locale] ?? ""} placeholder={p.name[locale]} onValueChange={(v) => update(p.id, { seo: { ...p.seo, title: v ? { ...p.seo?.title, [locale]: v } : undefined } }, "Titre SEO", `page-seo-title:${p.id}`)} /></Field>
-                    <Field label="Indexer" hint="Non : la page reste accessible mais demande aux moteurs de ne pas la lister"><Segmented value={p.seo?.index === false ? "0" : "1"} options={[{ value: "1", label: "Oui" }, { value: "0", label: "Non" }]} onChange={(v) => update(p.id, { seo: { ...p.seo, index: v === "0" ? false : undefined } }, "Indexation")} /></Field>
+                    <Field label="Indexer" hint="Non : la page reste accessible mais demande aux moteurs de ne pas la lister"><Toggle checked={p.seo?.index !== false} label={p.seo?.index === false ? "non" : "oui"} onChange={(b) => update(p.id, { seo: { ...p.seo, index: b ? undefined : false } }, "Indexation")} /></Field>
                     <Field label="Image sociale" hint="Image de partage de cette page (Open Graph)" inline={false}><AssetPicker site={site} value={p.seo?.image} onChange={(id) => update(p.id, { seo: { ...p.seo, image: id ?? undefined } }, "Image sociale")} /></Field>
                     <Field label="Description"><TextInput value={p.seo?.description?.[locale] ?? ""} onValueChange={(v) => update(p.id, { seo: { ...p.seo, description: v ? { ...p.seo?.description, [locale]: v } : undefined } }, "Description SEO", `page-seo-desc:${p.id}`)} /></Field>
                   </FieldGroup>

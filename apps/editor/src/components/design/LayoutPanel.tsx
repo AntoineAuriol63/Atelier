@@ -2,7 +2,7 @@
 
 import { AlignHorizontalJustifyCenter, AlignHorizontalJustifyEnd, AlignHorizontalJustifyStart, AlignHorizontalSpaceAround, AlignHorizontalSpaceBetween, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart, AlignVerticalSpaceAround, AlignVerticalSpaceBetween, ArrowDown, ArrowRight, Baseline, EyeOff, LayoutGrid, Rows3, Square, StretchHorizontal, StretchVertical, WrapText } from "lucide-react";
 import type { Node, Site } from "@atelier/model";
-import { Button, NumberInput, Section, TextInput } from "@/ui";
+import { Button, NumberInput, Section, TextInput, Toggle, Select } from "@/ui";
 import { layoutGridAt } from "@atelier/model";
 import { PropRow, Segmented, UnitInput, TokenSelect } from "@/ui/controls";
 import type { StyleApi } from "./useStyle";
@@ -78,7 +78,7 @@ export function LayoutPanel({ site, style, parentDisplay, parentDirection, leaf 
             {row("flexDirection", "Sens", (
               <div className="flex items-center gap-1 flex-1">
                 <Segmented value={dir} options={[{ value: "row", label: "En ligne", icon: ArrowRight }, { value: "column", label: "En colonne", icon: ArrowDown }]} onChange={(v) => s.set("flexDirection", v, false)} />
-                <Segmented value={str(s.value("flexWrap"))} options={[{ value: "wrap", label: "Retour à la ligne", icon: WrapText }]} onChange={(v) => s.set("flexWrap", v, false)} />
+                <Toggle checked={str(s.value("flexWrap")) === "wrap"} label="Retour à la ligne" onChange={(b) => s.set("flexWrap", b ? "wrap" : undefined, false)} />
               </div>
             ), true)}
             {dir === "column" ? seg("justifyContent", "Vertical", JUSTIFY_V) : seg("justifyContent", "Horizontal", JUSTIFY_H)}
@@ -128,7 +128,7 @@ export function LayoutPanel({ site, style, parentDisplay, parentDirection, leaf 
       ) : null}
 
       <Section title="Position et débordement" defaultOpen={false} hint="Position dans le flux : normal, ou décalé, fixé à l'écran, collant au défilement. Débordement : ce qui dépasse est visible, coupé ou défilable.">
-        {seg("position", "Position", POSITION)}
+        {row("position", "Position", <Select className="flex-1" value={str(s.value("position")) ?? ""} placeholder="Normale" options={POSITION.map((o) => ({ value: o.value, label: o.label }))} onValueChange={(v) => s.set("position", v || undefined, false)} />)}
         {position !== "static" ? (
           <div className="grid grid-cols-2 gap-1.5">
             {len("top", "Haut")}{len("right", "Droite")}{len("bottom", "Bas")}{len("left", "Gauche")}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { AlertTriangle, CheckCircle2, Command as CommandIcon, Database as DatabaseIcon, ExternalLink, Info, FileText, Grid3x3, Layers, Moon, Palette, Plus, Puzzle, Redo2, Sparkles, Sun, Undo2, UploadCloud, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Command as CommandIcon, Database as DatabaseIcon, ExternalLink, Info, FileText, Grid3x3, Layers, Moon, Palette, Plus, Puzzle, Redo2, Sparkles, Sun, Undo2, UploadCloud, X, Settings2 } from "lucide-react";
 import type { DropPosition, Entry, Node, Page, Site, StyleValue, Role } from "@atelier/model";
 import { BASE, breakpointForWidth, canInsertUnder, cloneWithNewIds, dataSourceFor, entryPath, fitHeadings as fitHeadingsInPage, indexSite, layoutGridAt, newId, planDetach, planDrop, planInsert, planMakeComponent, planMergePrev, planMove, planSlashInsert, planSplit, stylePath, templateOf, type ComponentPlan, type TextPlan, planReveal, REVEAL_LABEL, type RevealKind } from "@atelier/model";
 import type { Op } from "@atelier/model";
@@ -40,7 +40,7 @@ type EditMode = "write" | "design";
 const MIN_WIDTH = 320;
 const MAX_WIDTH = 4000;
 
-type DropState = { id: string; position: DropPosition } | null;
+type DropState = { id: string; position: DropPosition; refusal?: string | null } | null;
 
 function dropPositionFor(e: DragEvent, canInside: boolean): DropPosition {
   const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -60,6 +60,7 @@ function Layer(p: {
   const open = p.openMap[node.id] ?? depth < 2;
   const canInside = kids.length > 0 || ["box", "list", "listItem", "link", "form", "item", "slot"].includes(node.type);
   const indicator: DropIndicator = p.drop?.id === node.id ? p.drop.position : null;
+  const refusal = p.drop?.id === node.id ? p.drop.refusal ?? null : null;
   return (
     <div role="group">
       <TreeRow
@@ -79,6 +80,7 @@ function Layer(p: {
         onRename={(name) => p.onRename(node.id, name)}
         draggable={depth > 0}
         drop={indicator}
+        refusal={refusal}
         trailing={node.type === "instance" && p.onEnterComponent ? <button type="button" onClick={(e) => { e.stopPropagation(); p.onEnterComponent!(String(node.props.component)); }} className="h-5 px-1.5 rounded-xs text-2xs text-accent hover:bg-accent-soft opacity-60 group-hover:opacity-100 focus-visible:opacity-100" title="Ouvrir le composant pour modifier son contenu">Ouvrir</button> : undefined}
         onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", node.id); p.onDragStart(node.id); }}
         onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = "move"; p.onDragOver(node.id, dropPositionFor(e, canInside)); }}
@@ -187,6 +189,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
   const ents = useEntries(initialSite.id, initialEntries, notify);
   const [dbOpen, setDbOpen] = useState<string | null>(null);
   const [publishOpen, setPublishOpen] = useState(false);
+  const [publishTab, setPublishTab] = useState<"publish" | "settings">("publish");
   const formForOpen = useMemo(() => (dbOpen ? findForms(site).find((f) => formDatabaseId(f.formId) === dbOpen) : undefined), [dbOpen, site]);
   // Modèle de page : l'aperçu se fait avec une entrée au choix (publiée, pour que l'adresse existe).
   const template = useMemo(() => templateOf(site, page.id), [site, page.id]);
@@ -469,6 +472,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
     const cmds: Command[] = [
       { id: "undo", group: "Édition", label: "Annuler", keys: "⌘Z", icon: Undo2, run: doc.undo },
       { id: "redo", group: "Édition", label: "Rétablir", keys: "⇧⌘Z", icon: Redo2, run: doc.redo },
+      ...(writer ? [] : [{ id: "settings", group: "Site", label: "Réglages du site… (adresse, référencement, 404, redirections, code, export, partage)", icon: Settings2, keywords: "réglages sous-domaine seo favicon redirection export partage", run: () => { setPublishTab("settings"); setPublishOpen(true); } }]),
       { id: "preview", group: "Affichage", label: "Ouvrir l'aperçu dans un nouvel onglet", icon: ExternalLink, run: () => window.open(previewPath, "_blank") },
       { id: "mode:write", group: "Affichage", label: "Mode Écriture", run: () => switchMode("write") },
       ...(writer ? [] : [{ id: "mode:design", group: "Affichage", label: "Mode Design", run: () => switchMode("design") }]),
@@ -521,10 +525,10 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
             {templateEntries.length ? <Select className="max-w-[220px]" value={previewEntry?.id ?? ""} options={templateEntries.map((e) => ({ value: e.id, label: String(e.values[template.database.titleField] ?? "") || "Sans titre" }))} onValueChange={(id) => { setPreviewEntryByPage((m) => ({ ...m, [page.id]: id })); select(null); setFrameReady(false); }} /> : <Badge tone="warning" title="Sans entrée publiée, la page s'affiche avec ses textes de repli">Aucune entrée publiée dans {template.database.name[locale] ?? template.database.slug}</Badge>}
           </div>
         ) : null}
-        <div className="ml-4"><Tabs variant="pill" tabs={MODES.map((m) => ({ ...m, disabled: m.id === "code" || (writer && m.id !== "write"), hint: writer && m.id === "design" ? "Réservé aux éditeurs du site" : m.hint }))} value={editMode} onChange={(m) => switchMode(m as EditMode)} /></div>
+        <div className="ml-4"><Tabs variant="pill" label="Mode" tabs={MODES.map((m) => ({ ...m, disabled: m.id === "code" || (writer && m.id !== "write"), hint: writer && m.id === "design" ? "Réservé aux éditeurs du site" : m.hint }))} value={editMode} onChange={(m) => switchMode(m as EditMode)} /></div>
 
         <div className="ml-auto flex items-center gap-2">
-          <Tabs variant="pill" tabs={PRESETS.map((x) => ({ id: x.id, label: x.label }))} value={customWidth === null ? preset : ""} onChange={(id) => { setPreset(id); setCustomWidth(null); }} />
+          <Tabs variant="pill" label="Largeur de l'aperçu" tabs={PRESETS.map((x) => ({ id: x.id, label: x.label }))} value={customWidth === null ? preset : ""} onChange={(id) => { setPreset(id); setCustomWidth(null); }} />
           {editMode === "design" ? <><NumberInput className="w-[92px]" unit="px" min={MIN_WIDTH} max={MAX_WIDTH} step={10} title="Largeur de l'aperçu (320 à 4000 px)" value={Math.round(effective) || ""} onValueChange={(v) => setCustomWidth(v === "" ? null : v)} />
           <Badge tone="accent" title="Taille d'écran active : les réglages de style se posent dessus">{breakpoint}</Badge></> : null}
           {scale < 1 ? <Badge title="Aperçu réduit pour tenir dans la zone">{Math.round(scale * 100)} %</Badge> : null}
@@ -543,12 +547,13 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
           <IconButton label="Images du site" icon={ImagesIcon} onClick={() => openMediaLibrary()} />
           <IconButton label={`Palette de commandes (${mod()}K)`} icon={CommandIcon} onClick={() => setPaletteOpen(true)} />
           <Button variant="ghost" icon={ExternalLink} onClick={() => window.open(previewPath, "_blank")}>Aperçu</Button>
+          {writer ? null : <IconButton label="Réglages du site (adresse, référencement, redirections, export, partage)" icon={Settings2} onClick={() => { setPublishTab("settings"); setPublishOpen(true); }} />}
           <Button variant="primary" icon={UploadCloud} onClick={() => setPublishOpen(true)} title={writer ? "Publier les contenus (entrées des bases)" : "Publier le site, voir l'historique, revenir en arrière"}>{writer ? "Publier les contenus" : "Publier"}</Button>
         </div>
       </header>
 
       <Panel side="left">
-        <Tabs tabs={editMode === "write" ? [{ id: "pages", label: "Pages", icon: FileText }, { id: "add", label: "Ajouter", icon: Plus }, { id: "data", label: "Données", icon: DatabaseIcon }] : [{ id: "pages", label: "Pages", icon: FileText }, { id: "layers", label: "Calques", icon: Layers }, { id: "add", label: "Ajouter", icon: Plus }, { id: "data", label: "Données", icon: DatabaseIcon }, { id: "theme", label: "Thème", icon: Palette }]} value={leftTab} onChange={setLeftTab} className="px-1 shrink-0" />
+        <Tabs label="Panneau" tabs={editMode === "write" ? [{ id: "pages", label: "Pages", icon: FileText }, { id: "add", label: "Ajouter", icon: Plus }, { id: "data", label: "Données", icon: DatabaseIcon }] : [{ id: "pages", label: "Pages", icon: FileText }, { id: "layers", label: "Calques", icon: Layers }, { id: "add", label: "Ajouter", icon: Plus }, { id: "data", label: "Données", icon: DatabaseIcon }, { id: "theme", label: "Thème", icon: Palette }]} value={leftTab} onChange={setLeftTab} className="px-1 shrink-0" />
         <div className="flex-1 overflow-auto py-1" onDragOver={(e) => { if (dragId.current || dragBlock.current) e.preventDefault(); }} onDrop={(e) => { e.preventDefault(); setDrop(null); }}>
           {leftTab === "pages" ? (
             <PagesPanel site={site} pageId={pageId} commit={doc.commit} readOnly={writer} onOpen={(id) => { setPageId(id); select(null); setFrameReady(false); }} />
@@ -566,7 +571,14 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
                 editing={editing} onEditStart={setEditing} onRename={rename}
                 drop={drop}
                 onDragStart={(id) => { dragId.current = id; select(id); }}
-                onDragOver={(id, position) => { if ((dragId.current && dragId.current !== id) || dragBlock.current) setDrop((d) => (d?.id === id && d.position === position ? d : { id, position })); }}
+                onDragOver={(id, position) => {
+                  if (!((dragId.current && dragId.current !== id) || dragBlock.current)) return;
+                  // Le refus se voit pendant le glissement (indicateur rouge et raison), pas seulement après le dépôt.
+                  let refusal: string | null = null;
+                  if (dragId.current) { const r = planMove(index, dragId.current, id, position); if (!r.ok) refusal = r.reason; }
+                  else if (dragBlock.current) { const preset = allPresets(site).find((b) => b.id === dragBlock.current); const r = preset ? planDrop(index, id, position, preset.make(site)) : null; if (r && !r.ok) refusal = r.reason; }
+                  setDrop((d) => (d?.id === id && d.position === position && d.refusal === refusal ? d : { id, position, refusal }));
+                }}
                 onDragEnd={() => { dragId.current = null; dragBlock.current = null; setDrop(null); }}
                 onDropOn={(id, position) => { if (dragId.current) moveNode(dragId.current, id, position); else if (dragBlock.current) dropBlock(dragBlock.current, id, position); }}
               />
@@ -627,7 +639,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
       {paletteOpen ? <CommandPalette open onClose={() => setPaletteOpen(false)} commands={commands} /> : null}
       {dbOpen && site.databases.some((d) => d.id === dbOpen) ? <DatabaseTable site={site} db={site.databases.find((d) => d.id === dbOpen)!} entries={ents.entries} save={ents.save} saveMany={ents.saveMany} remove={ents.remove} commit={doc.commit} onClose={() => setDbOpen(null)} canEditSchema={!writer} publishedEntries={publishedEntries} saving={ents.saving} onDeleteDatabase={() => void deleteDatabase(dbOpen)} notify={notify} /> : null}
       {dbOpen && formForOpen ? <DatabaseTable site={site} db={formDatabase(site, formForOpen)} entries={ents.entries} save={ents.save} remove={ents.remove} commit={doc.commit} onClose={() => setDbOpen(null)} saving={ents.saving} readOnly /> : null}
-      {publishOpen ? <PublishDialog site={site} role={role} version={doc.version} dirty={doc.status !== "saved" && !doc.blocked} broken={doc.blocked} commit={doc.commit} onClose={() => { setPublishOpen(false); loadPublished(); }} notify={notify} /> : null}
+      {publishOpen ? <PublishDialog site={site} role={role} initialTab={publishTab} version={doc.version} dirty={doc.status !== "saved" && !doc.blocked} broken={doc.blocked} commit={doc.commit} onClose={() => { setPublishOpen(false); setPublishTab("publish"); loadPublished(); }} notify={notify} /> : null}
 
     </div>
     </MediaLibraryProvider></ConfirmProvider>

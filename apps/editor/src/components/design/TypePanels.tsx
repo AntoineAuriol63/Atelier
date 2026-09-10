@@ -94,7 +94,7 @@ export function LinkPanel({ site, node, commit }: { site: Site; node: Node; comm
             {href.kind === "phone" ? <Field label="Numéro"><TextInput value={href.number} onValueChange={(u) => set({ kind: "phone", number: u })} /></Field> : null}
             {href.kind === "anchor" ? <Field label="Ancre visée" hint="Une ancre posée sur un élément (réglage « Ancre » dans Élément) ; la page défile jusqu'à lui">{anchors.length ? <Select value={anchors.includes(href.node) ? href.node : ""} placeholder="Choisir une ancre" options={anchors.map((a) => ({ value: a, label: `#${a}` }))} onValueChange={(u) => set({ kind: "anchor", node: u })} /> : <TextInput mono value={href.node} placeholder="aucune ancre sur le site" onValueChange={(u) => set({ kind: "anchor", node: u })} />}</Field> : null}
             <Field label="Ouverture">
-              <Segmented value={node.props.newTab ? "1" : undefined} options={[{ value: "1", label: "Nouvel onglet" }]} onChange={(v) => commit({ op: "node.set", id: node.id, path: "props.newTab", value: v ? true : undefined }, { label: "Nouvel onglet" })} />
+              <Toggle checked={!!node.props.newTab} label="Nouvel onglet" onChange={(b) => commit({ op: "node.set", id: node.id, path: "props.newTab", value: b ? true : undefined }, { label: "Nouvel onglet" })} />
             </Field>
           </>
         )}

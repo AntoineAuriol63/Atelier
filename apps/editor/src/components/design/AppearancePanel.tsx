@@ -42,6 +42,9 @@ function GradientEditor({ site, value, onChange, mode }: { site: Site; value: Gr
   );
 }
 
+/** Propriétés numériques réglables en glissant sur leur libellé. */
+const SCRUBBABLE = new Set(["borderWidth", "borderRadius", "opacity"]);
+
 export function AssetPicker({ site, value, onChange, kind = "image", onImport, busy, onOpenLibrary }: { site: Site; value: string | null | undefined; onChange: (id: string | null) => void; kind?: Asset["kind"]; onImport?: (files: File[]) => void; busy?: string | null; onOpenLibrary?: () => void }) {
   const locale = site.settings.defaultLocale;
   const library = useMediaLibrary();
@@ -83,7 +86,7 @@ export function AssetPicker({ site, value, onChange, kind = "image", onImport, b
 export function AppearancePanel({ site, style, mode }: { site: Site; style: StyleApi; mode?: string }) {
   const s = style;
   const row = (prop: string, label: string, children: React.ReactNode, wide?: boolean) => (
-    <PropRow key={`${prop}:${label}`} prop={prop} label={label} source={s.source(prop)} sourceTitle={s.title(prop)} onReset={() => s.reset(prop)} wide={wide}>{children}</PropRow>
+    <PropRow key={`${prop}:${label}`} prop={prop} label={label} source={s.source(prop)} sourceTitle={s.title(prop)} onReset={() => s.reset(prop)} wide={wide} onScrub={SCRUBBABLE.has(prop) ? s.scrub(prop) : undefined}>{children}</PropRow>
   );
   const bg = s.value("background");
   const kind = bgKind(bg);

@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
-import type { CommitOptions, Op, Site, StyleValue, Theme } from "@atelier/model";
-import { defaultLayoutGrid, walk } from "@atelier/model";
+import type { CommitOptions, Op, Site, StyleValue, Theme, SharedStyle } from "@atelier/model";
+import { defaultLayoutGrid, walk, sharedStyleUsages } from "@atelier/model";
 import { UnitInput } from "@/ui/controls";
-import { Button, Hint, IconButton, NumberInput, PanelHeading, Section, TextInput, askConfirm, Select, Field, Eyebrow } from "@/ui";
+import { Button, Hint, IconButton, NumberInput, PanelHeading, Section, TextInput, askConfirm, Select, Field, Eyebrow, Badge } from "@/ui";
 import { ColorInput } from "@/ui/controls";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
@@ -139,6 +139,41 @@ function LayoutGridSection({ site, commit }: { site: Site; commit: Commit }) {
   );
 }
 
+/** Les styles partagés du site : renommer, voir les usages, supprimer (les éléments qui l'utilisaient gardent leurs autres styles). */
+function SharedStylesSection({ site, commit }: { site: Site; commit: Commit }) {
+  const remove = async (st: SharedStyle) => {
+    const usages = sharedStyleUsages(site, st.id);
+    const extendedBy = site.sharedStyles.filter((x) => x.extends === st.id);
+    const ok = await askConfirm({ title: `Supprimer le style « ${st.name} » ?`, danger: true, action: "Supprimer le style", consequences: [
+      usages.length ? `${usages.length} élément${usages.length > 1 ? "s" : ""} perd${usages.length > 1 ? "ent" : ""} ce style (leurs réglages propres restent).` : "Aucun élément ne l'utilise.",
+      ...(extendedBy.length ? [`${extendedBy.map((x) => `« ${x.name} »`).join(", ")} héritai${extendedBy.length > 1 ? "ent" : "t"} de ce style : ${extendedBy.length > 1 ? "ils" : "il"} devien${extendedBy.length > 1 ? "nent" : "t"} indépendant${extendedBy.length > 1 ? "s" : ""}.`] : []),
+      "⌘Z annule.",
+    ] });
+    if (!ok) return;
+    const ops: Op[] = usages.map((u) => ({ op: "node.set", id: u.node.id, path: "style.shared", value: (u.node.style?.shared ?? []).filter((x) => x !== st.id).length ? (u.node.style?.shared ?? []).filter((x) => x !== st.id) : undefined }));
+    ops.push({ op: "site.set", path: "sharedStyles", value: site.sharedStyles.filter((x) => x.id !== st.id).map((x) => (x.extends === st.id ? { ...x, extends: undefined } : x)) });
+    commit({ op: "batch", ops, label: `Supprimer le style « ${st.name} »` }, { label: `Supprimer le style « ${st.name} »` });
+  };
+  return (
+    <Section title="Styles partagés" defaultOpen={false} hint="Les styles réutilisés par plusieurs éléments. Ils se créent depuis un élément (section Styles partagés de l'inspecteur) ; ici, on les renomme et on les supprime.">
+      {site.sharedStyles.length ? (
+        <ul className="flex flex-col gap-1">
+          {site.sharedStyles.map((st, i) => {
+            const n = sharedStyleUsages(site, st.id).length;
+            return (
+              <li key={st.id} className="grid grid-cols-[1fr_auto_24px] items-center gap-1">
+                <TextInput value={st.name} aria-label="Nom du style" onValueChange={(v) => commit({ op: "site.set", path: `sharedStyles.${i}.name`, value: v || st.name }, { label: "Renommer le style", coalesceKey: `shared-name:${st.id}` })} />
+                <Badge title={n ? `${n} élément${n > 1 ? "s" : ""} utilise${n > 1 ? "nt" : ""} ce style` : "Inutilisé"}>{n}</Badge>
+                <IconButton size="sm" tone="danger" label={`Supprimer le style « ${st.name} »`} icon={Trash2} onClick={() => void remove(st)} />
+              </li>
+            );
+          })}
+        </ul>
+      ) : <Hint>Aucun style partagé pour l&apos;instant.</Hint>}
+    </Section>
+  );
+}
+
 export function ThemePanel({ site, commit }: { site: Site; commit: Commit }) {
   const bps = [...site.settings.breakpoints].sort((a, b) => b.maxWidth - a.maxWidth);
   const setBps = (list: Site["settings"]["breakpoints"], label: string) => commit({ op: "site.set", path: "settings.breakpoints", value: list }, { label });
@@ -161,6 +196,7 @@ export function ThemePanel({ site, commit }: { site: Site; commit: Commit }) {
           {g.hint ? <Hint>{g.hint}</Hint> : null}
         </Section>
       ))}
+      <SharedStylesSection site={site} commit={commit} />
       <Section title="Tailles d'écran" defaultOpen={false}>
         <div className="grid grid-cols-[1fr_84px_24px] gap-1 text-2xs text-dim uppercase tracking-[0.12em]"><span>Nom</span><span>Jusqu&apos;à</span><span /></div>
         {bps.map((b) => {
