@@ -201,8 +201,8 @@ export function RenderPage({ ctx, mode }: { ctx: RenderContext; mode?: string })
   return createElement("div", { className: "at-page", "data-mode": mode ?? ctx.site.theme.defaultMode, lang: ctx.locale, "data-editor": ctx.editor ? "" : undefined },
     createElement(RenderNode, { node: page.root, ctx }),
     withForm && !ctx.editor ? createElement("script", { dangerouslySetInnerHTML: { __html: FORM_SCRIPT } }) : null,
-    // Le script des interactions tourne aussi dans l'éditeur : il y pose l'état d'arrivée des apparitions, sans quoi les éléments resteraient invisibles.
-    withIx ? createElement("script", { dangerouslySetInnerHTML: { __html: INTERACTION_SCRIPT } }) : null,
+    // Dans l'éditeur, pas de script (React ne l'exécuterait pas au rendu suivant) : `applyInstantStates` pose l'état d'arrivée après chaque rendu.
+    withIx && !ctx.editor ? createElement("script", { dangerouslySetInnerHTML: { __html: INTERACTION_SCRIPT } }) : null,
   );
 }
 

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Entry, Site } from "@atelier/model";
 import { serialize, isEmptyText } from "./preview/serialize";
 import { isAtelierMessage, type BlockPresetInfo, type FromPreview, type ToPreview } from "@/lib/preview-protocol";
-import { RenderPage, assetMap, fontsHref, matchPath, memoryData, siteCss, type RenderContext } from "@atelier/renderer";
+import { RenderPage, applyInstantStates, assetMap, fontsHref, matchPath, memoryData, siteCss, type RenderContext } from "@atelier/renderer";
 
 type Props = { initialSite: Site; entries: Entry[]; path: string; mode?: string; editor: boolean };
 
@@ -26,6 +26,8 @@ function PageCss({ site, pageId }: { site: Site; pageId: string }) {
  */
 export function LivePreview({ initialSite, entries, path, mode, editor }: Props) {
   const [site, setSite] = useState(initialSite);
+  // Après chaque rendu, l'état d'arrivée des apparitions est posé sans transition : sinon un élément qui reçoit une apparition disparaîtrait de l'aperçu.
+  useEffect(() => { applyInstantStates(document); });
   const [entriesState, setEntriesState] = useState(entries);
   const [modeState, setModeState] = useState(mode ?? initialSite.theme.defaultMode);
   const data = useMemo(() => memoryData(entriesState), [entriesState]);

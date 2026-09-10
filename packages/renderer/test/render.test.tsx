@@ -147,7 +147,7 @@ describe("interactions (D31)", () => {
     expect(html).toContain("IntersectionObserver");
     const editor = renderToStaticMarkup(createElement(RenderPage, { ctx: { ...ctx, editor: true } }));
     expect(editor).toContain('data-editor=""');
-    expect(editor).toContain("IntersectionObserver");
+    expect(editor).not.toContain("IntersectionObserver");
   });
 });
 

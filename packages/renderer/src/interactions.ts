@@ -35,6 +35,28 @@ export function interactionsAttr(node: Node, ctx: RenderContext): string | undef
   return wire.length ? JSON.stringify(wire) : undefined;
 }
 
+/**
+ * Dans l'éditeur, le script du site ne tourne pas (l'aperçu est rendu par React et se met à jour sans rechargement) :
+ * cette fonction pose l'état d'arrivée des apparitions et des actions « au chargement », sans transition, après chaque rendu.
+ */
+export function applyInstantStates(root: ParentNode): void {
+  root.querySelectorAll<HTMLElement>("[data-ix]").forEach((el) => {
+    let list: WireInteraction[];
+    try { list = JSON.parse(el.getAttribute("data-ix") ?? "[]") as WireInteraction[]; } catch { return; }
+    for (const ix of list) {
+      if (ix.t !== "inView" && ix.t !== "load") continue;
+      for (const a of ix.a) {
+        const targets: HTMLElement[] = a.s ? Array.from(root.querySelectorAll<HTMLElement>(a.s)) : [el];
+        for (const t of targets) {
+          if (a.k === "style" && a.css) { t.style.transition = "none"; t.style.cssText += ";" + a.css; }
+          else if (a.k === "hide") t.setAttribute("data-ix-hidden", "");
+          else if (a.k === "show") t.removeAttribute("data-ix-hidden");
+        }
+      }
+    }
+  });
+}
+
 export function hasInteractions(n: Node): boolean { return !!n.interactions?.length || (n.children ?? []).some(hasInteractions); }
 
 /**

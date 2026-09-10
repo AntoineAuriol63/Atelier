@@ -116,6 +116,8 @@ Aperçu vivant : les barres d'outils injectées dans l'iframe lisent les jetons 
 
 Interactions : `packages/model/src/interactions.ts` (apparitions, masqué au chargement, `toggleInteraction`, `variantInteraction`, `describeInteraction`), `packages/renderer/src/interactions.ts` (`interactionsAttr`, `INTERACTION_SCRIPT`), panneau `components/design/InteractionsPanel.tsx`. Deuxième site d'exemple : `packages/model/src/sample-restaurant.ts` (`restaurantSite`, `restaurantEntries`), gabarit « restaurant » de `POST /api/sites`.
 
+Aperçu vivant et interactions : le script du site n'est pas injecté dans l'aperçu ; `applyInstantStates` (moteur) pose l'état d'arrivée des apparitions et masque les éléments « au chargement » après chaque rendu.
+
 ### 2.4 Rendu publié et référencement
 
 `app/(site)/s/[sub]/[[...path]]/route.ts` : gestionnaire de route, instantané publié mis en cache (`unstable_cache`, étiquette `site:<id>`, invalidée avec `expire: 0`), redirections (`matchRedirect`), page `/404` en 404, document HTML complet par `lib/html-document.ts` (`htmlDocument` : titre, description, robots, canonique, Open Graph avec image absolue, Twitter, favicon, polices, `color-scheme`, feuille en ligne, code head et fin de body tels quels), partagé avec l'export. `sitemap.xml` (sans `/404`) et `robots.txt` par site.
