@@ -67,7 +67,7 @@ export function AssetPicker({ site, value, onChange, kind = "image", onImport, b
           );
         })}
         {onImport ? (
-          <button type="button" title="Importer des images depuis l'ordinateur" disabled={!!busy} onClick={() => input.current?.click()} className="aspect-square rounded-xs border border-dashed border-line-strong text-dim hover:text-ink hover:border-accent grid place-items-center disabled:opacity-50">
+          <button type="button" title="Importer des images depuis l'ordinateur" aria-label="Importer des images depuis l'ordinateur" disabled={!!busy} onClick={() => input.current?.click()} className="aspect-square rounded-xs border border-dashed border-line-strong text-dim hover:text-ink hover:border-accent grid place-items-center disabled:opacity-50">
             <Upload size={14} strokeWidth={1.75} />
           </button>
         ) : null}
@@ -122,7 +122,7 @@ export function AppearancePanel({ site, style, mode }: { site: Site; style: Styl
           <ColorInput className="flex-1" site={site} mode={mode} value={s.value("borderColor")} onChange={(v) => s.set("borderColor", v)} />
         </div>
       ))}
-      {SIDES.some((side) => s.value(`border${side}Width`) !== undefined) ? <Hint>Des bordures par côté sont posées (Avancé) ; elles priment sur la bordure globale.</Hint> : null}
+      {SIDES.some((side) => s.value(`border${side}Width`) !== undefined) ? <Hint>Des bordures sont posées côté par côté (section CSS brut) ; elles priment sur la bordure globale.</Hint> : null}
 
       {row("borderRadius", "Arrondi", (
         <div className="flex items-center gap-1 flex-1">

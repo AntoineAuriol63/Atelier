@@ -12,7 +12,7 @@ type Side = (typeof SIDES)[number];
 
 const SOURCE_TEXT: Record<string, string> = { local: "text-ink", inherited: "text-warning", shared: "text-violet-400", default: "text-dim" };
 
-function Cell({ value, site, onCommit, title, className }: { value: ResolvedValue | undefined; site: Site; onCommit: (v: StyleValue | undefined, coalesce?: boolean) => void; title: string; className?: string }) {
+function Cell({ value, site, onCommit, title, className, prop }: { value: ResolvedValue | undefined; site: Site; onCommit: (v: StyleValue | undefined, coalesce?: boolean) => void; title: string; className?: string; prop?: string }) {
   // Une valeur du thème (ex. space.12) s'affiche par ce qu'elle vaut (6rem), jamais par son nom, pour ne pas la confondre avec des pixels.
   const raw = value?.value;
   const isToken = typeof raw === "object" && raw !== null && "token" in raw;
@@ -26,6 +26,7 @@ function Cell({ value, site, onCommit, title, className }: { value: ResolvedValu
     <input
       type="text"
       inputMode="decimal"
+      data-prop={prop}
       value={draft}
       placeholder="0"
       title={isToken ? `${title} · valeur du thème ${(raw as { token: string }).token} = ${text}` : title}
@@ -41,7 +42,7 @@ function Cell({ value, site, onCommit, title, className }: { value: ResolvedValu
       onBlur={() => { setFocused(false); onCommit(parseInput(draft, "px", ["auto"])); }}
       onChange={(e) => setDraft(e.target.value)}
       onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setDraft(text); (e.target as HTMLInputElement).blur(); } }}
-      className={cx("w-12 h-5 text-center text-[11px] font-mono tabular-nums bg-transparent rounded-xs border border-transparent hover:border-line-strong focus:border-accent focus:bg-surface focus:outline-none", !focused && "cursor-ew-resize", tone, isToken && "underline decoration-dotted underline-offset-2", className)}
+      className={cx("w-12 h-5 text-center text-[11px] font-mono tabular-nums bg-transparent rounded-xs border border-transparent hover:border-line-strong focus:border-accent focus:bg-surface", !focused && "cursor-ew-resize", tone, isToken && "underline decoration-dotted underline-offset-2", className)}
     />
   );
 }
@@ -67,21 +68,21 @@ export function BoxModel({ site, get, set }: { site: Site; get: (prop: string) =
       <span className="absolute top-1 left-2 text-2xs uppercase tracking-wider text-dim">Marge</span>
       <div className="absolute top-0.5 right-1"><LinkToggle linked={linked.margin} onToggle={() => toggle("margin")} what="marges" /></div>
       <div className="grid grid-cols-[44px_1fr_44px] grid-rows-[20px_1fr_20px] items-center justify-items-center gap-y-1">
-        <div /><Cell site={site} value={get("marginTop")} onCommit={commit("margin", "Top")} title="Marge haute" /><div />
-        <Cell site={site} value={get("marginLeft")} onCommit={commit("margin", "Left")} title="Marge gauche" />
+        <div /><Cell site={site} prop="marginTop" value={get("marginTop")} onCommit={commit("margin", "Top")} title="Marge haute" /><div />
+        <Cell site={site} prop="marginLeft" value={get("marginLeft")} onCommit={commit("margin", "Left")} title="Marge gauche" />
         <div className="relative w-full rounded-sm border border-line-strong bg-surface px-2 pt-4 pb-2">
           <span className="absolute top-1 left-2 text-2xs uppercase tracking-wider text-dim">Remplissage</span>
           <div className="absolute top-0.5 right-1"><LinkToggle linked={linked.padding} onToggle={() => toggle("padding")} what="remplissages" /></div>
           <div className="grid grid-cols-[44px_1fr_44px] grid-rows-[20px_28px_20px] items-center justify-items-center gap-y-1">
-            <div /><Cell site={site} value={get("paddingTop")} onCommit={commit("padding", "Top")} title="Remplissage haut" /><div />
-            <Cell site={site} value={get("paddingLeft")} onCommit={commit("padding", "Left")} title="Remplissage gauche" />
+            <div /><Cell site={site} prop="paddingTop" value={get("paddingTop")} onCommit={commit("padding", "Top")} title="Remplissage haut" /><div />
+            <Cell site={site} prop="paddingLeft" value={get("paddingLeft")} onCommit={commit("padding", "Left")} title="Remplissage gauche" />
             <div className="w-full h-full min-h-6 rounded-xs bg-accent-soft border border-accent/30" />
-            <Cell site={site} value={get("paddingRight")} onCommit={commit("padding", "Right")} title="Remplissage droit" />
-            <div /><Cell site={site} value={get("paddingBottom")} onCommit={commit("padding", "Bottom")} title="Remplissage bas" /><div />
+            <Cell site={site} prop="paddingRight" value={get("paddingRight")} onCommit={commit("padding", "Right")} title="Remplissage droit" />
+            <div /><Cell site={site} prop="paddingBottom" value={get("paddingBottom")} onCommit={commit("padding", "Bottom")} title="Remplissage bas" /><div />
           </div>
         </div>
-        <Cell site={site} value={get("marginRight")} onCommit={commit("margin", "Right")} title="Marge droite" />
-        <div /><Cell site={site} value={get("marginBottom")} onCommit={commit("margin", "Bottom")} title="Marge basse" /><div />
+        <Cell site={site} prop="marginRight" value={get("marginRight")} onCommit={commit("margin", "Right")} title="Marge droite" />
+        <div /><Cell site={site} prop="marginBottom" value={get("marginBottom")} onCommit={commit("margin", "Bottom")} title="Marge basse" /><div />
       </div>
     </div>
   );

@@ -43,7 +43,7 @@ export function CommandPalette({ open, onClose, commands }: { open: boolean; onC
             value={q}
             onChange={(e) => { setQ(e.target.value); setCursor(0); }}
             placeholder="Que voulez-vous faire ? Ajouter un titre, aller à Contact, passer en sombre…"
-            className="flex-1 bg-transparent text-sm text-ink placeholder:text-dim focus:outline-none"
+            className="flex-1 bg-transparent text-sm text-ink placeholder:text-dim"
             onKeyDown={(e) => {
               if (e.key === "ArrowDown") { e.preventDefault(); setCursor((c) => Math.min(list.length - 1, c + 1)); }
               if (e.key === "ArrowUp") { e.preventDefault(); setCursor((c) => Math.max(0, c - 1)); }

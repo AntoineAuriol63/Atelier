@@ -153,12 +153,12 @@ export function MediaLibrary({ site, entries, open, onClose, value, onPick, comm
           onDrop={(e) => { e.preventDefault(); setOver(false); const files = [...e.dataTransfer.files]; if (files.length) void importHere(files); }}
         >
           <div className="flex gap-1 flex-wrap items-center">
-            <TextInput className="flex-1 min-w-[160px]" value={query} placeholder="Chercher par nom ou description" onValueChange={setQuery} />
+            <TextInput className="flex-1 min-w-[160px]" value={query} placeholder="Chercher par nom ou description" aria-label="Chercher une image" onValueChange={setQuery} />
             <Select className="w-[150px]" value={sort} options={[{ value: "recent", label: "Plus récentes" }, { value: "name", label: "Par nom" }]} onValueChange={(v) => setSort(v as "recent" | "name")} />
             <label className="flex items-center gap-1 text-xs text-muted cursor-pointer"><input type="checkbox" checked={onlyUnused} onChange={(e) => setOnlyUnused(e.target.checked)} className="accent-[var(--color-accent)]" />Inutilisées</label>
           </div>
           <form className="flex gap-1" onSubmit={(e) => { e.preventDefault(); addByUrl(); }}>
-            <TextInput className="flex-1" value={url} placeholder="https://… (ajouter une image par son adresse)" onValueChange={setUrl} />
+            <TextInput className="flex-1" value={url} placeholder="https://… (ajouter une image par son adresse)" aria-label="Adresse d'une image à ajouter" onValueChange={setUrl} />
             <Button size="md" type="submit" disabled={!/^https?:\/\//.test(url.trim())}>Ajouter</Button>
           </form>
           {error ? <p className="text-xs text-danger">{error}</p> : null}
@@ -190,8 +190,8 @@ export function MediaLibrary({ site, entries, open, onClose, value, onPick, comm
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={selected.variants?.[1]?.url ?? selected.url} alt="" className="w-full rounded-xs object-contain max-h-40 bg-black/20" />
               <div className="flex flex-col gap-1.5">
-                <TextInput value={selected.name ?? ""} placeholder="Nom" onValueChange={(v) => patch(selected, { name: v || undefined }, "Renommer l'image", `asset-name:${selected.id}`)} />
-                <TextInput value={selected.alt?.[locale] ?? ""} placeholder="Texte alternatif (décrit l'image aux moteurs et aux lecteurs d'écran)" onValueChange={(v) => patch(selected, { alt: v ? { ...selected.alt, [locale]: v } : undefined }, "Décrire l'image", `asset-alt:${selected.id}`)} />
+                <TextInput value={selected.name ?? ""} placeholder="Nom" aria-label="Nom de l'image" onValueChange={(v) => patch(selected, { name: v || undefined }, "Renommer l'image", `asset-name:${selected.id}`)} />
+                <TextInput value={selected.alt?.[locale] ?? ""} placeholder="Texte alternatif (décrit l'image aux moteurs et aux lecteurs d'écran)" aria-label="Texte alternatif" onValueChange={(v) => patch(selected, { alt: v ? { ...selected.alt, [locale]: v } : undefined }, "Décrire l'image", `asset-alt:${selected.id}`)} />
                 <p className="text-2xs text-dim">{selected.width && selected.height ? `${selected.width} × ${selected.height} · ` : ""}{selected.variants?.length ? `${selected.variants.length} déclinaisons · ` : ""}ajoutée le {when(selected.createdAt)}</p>
               </div>
               <div className="flex flex-col gap-1">

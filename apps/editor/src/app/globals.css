@@ -10,11 +10,11 @@
   --color-surface: #232428;      /* champs, cartes */
   --color-hover: #2a2b30;
   --color-raised: #303138;
-  --color-line: #2b2c32;
-  --color-line-strong: #3a3b42;
+  --color-line: #34353c;         /* séparateurs décoratifs */
+  --color-line-strong: #66676f;  /* limites des contrôles : ≥ 3:1 sur le panneau (WCAG 1.4.11) */
   --color-ink: #e8e8ec;
   --color-muted: #9c9da6;
-  --color-dim: #8b8c95;
+  --color-dim: #9a9ba4;          /* ≥ 4,5:1 même sur les fonds survolés et surélevés */
   --color-accent: #6aa6ff;
   --color-accent-soft: rgba(106, 166, 255, 0.16);
   --color-accent-ink: #0b1220;
@@ -59,7 +59,8 @@ body {
 *::-webkit-scrollbar { width: 8px; height: 8px; }
 *::-webkit-scrollbar-thumb { background: var(--color-line-strong); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
 
-/* Focus visible uniforme */
+/* Focus visible uniforme. Cette règle doit rester HORS de toute @layer : hors couche, elle l'emporte sur les utilitaires
+   Tailwind (calqués) quelle que soit la spécificité. La déplacer dans @layer base ferait disparaître le focus de tous les champs. */
 :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 1px; }
 
 /* Entrée des messages de confirmation (barre du haut). */

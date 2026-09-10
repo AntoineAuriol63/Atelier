@@ -15,7 +15,8 @@ export function Dialog({ open, onClose, title, children, actions, width = 760, c
     const focusables = () => [...(box.current?.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])') ?? [])];
     window.setTimeout(() => { const f = focusables(); (f.find((el) => el.autofocus) ?? f[0] ?? box.current)?.focus(); }, 0);
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.stopPropagation(); onClose(); return; }
+      // Seul le dialogue le plus récent traite Échap : les autres écouteurs (dialogues en dessous) ne le voient pas.
+      if (e.key === "Escape") { e.stopImmediatePropagation(); onClose(); return; }
       if (e.key === "Tab") { const f = focusables(); if (!f.length) return; const i = f.indexOf(document.activeElement as HTMLElement); if (e.shiftKey && (i <= 0)) { e.preventDefault(); f[f.length - 1]!.focus(); } else if (!e.shiftKey && i === f.length - 1) { e.preventDefault(); f[0]!.focus(); } }
     };
     window.addEventListener("keydown", onKey, true);

@@ -27,8 +27,9 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
             {pending.o.message ? <p className="text-sm text-ink">{pending.o.message}</p> : null}
             {pending.o.consequences?.length ? <ul className="text-sm text-muted list-disc pl-5 flex flex-col gap-1">{pending.o.consequences.map((c, i) => <li key={i}>{c}</li>)}</ul> : null}
             <div className="flex justify-end gap-1 pt-1">
-              <Button variant="ghost" onClick={() => close(false)}>{pending.o.cancel ?? "Annuler"}</Button>
-              <Button variant={pending.o.danger ? "danger" : "primary"} autoFocus onClick={() => close(true)}>{pending.o.action}</Button>
+              {/* Une action dangereuse ne se déclenche pas par Entrée : le focus part sur Annuler. */}
+              <Button variant="ghost" autoFocus={!!pending.o.danger} onClick={() => close(false)}>{pending.o.cancel ?? "Annuler"}</Button>
+              <Button variant={pending.o.danger ? "danger" : "primary"} autoFocus={!pending.o.danger} onClick={() => close(true)}>{pending.o.action}</Button>
             </div>
           </div>
         </Dialog>

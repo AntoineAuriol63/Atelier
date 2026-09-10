@@ -224,7 +224,7 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
         )
       ) : null}
       {canText && !sharedDef ? (
-        <Section title="Texte" hint="Double-cliquez le texte dans l'aperçu pour le modifier sur place, ou éditez-le ici. Entrée valide, Échap annule.">
+        <Section title="Texte" hint="Double-cliquez le texte dans l'aperçu pour le modifier sur place, ou éditez-le ici : chaque frappe est enregistrée, ⌘Z revient en arrière.">
           {rich ? <Hint>Ce texte contient des mises en forme ou des liens : modifiez-le dans l&apos;aperçu (double-clic), où gras, italique et liens sont conservés.</Hint> : (
             <>
               <TextArea value={text} onValueChange={(v) => commit({ op: "node.set", id: node.id, path: `props.content.${locale}`, value: v.split("\n").flatMap((line, i) => (i === 0 ? [{ t: "text", v: line }] : [{ t: "break" }, { t: "text", v: line }])) }, { coalesceKey: `text:${node.id}`, label: "Modifier le texte" })} />
@@ -287,7 +287,7 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
             </div>
           ))}
           <form className="grid grid-cols-[1fr_auto] gap-1" onSubmit={(e) => { e.preventDefault(); const p = newProp.trim(); if (!p) return; style.set(p, "", false); setNewProp(""); }}>
-            <input value={newProp} onChange={(e) => setNewProp(e.target.value)} placeholder="Propriété CSS…" className="h-7 px-2 rounded-sm bg-transparent border border-dashed border-line-strong font-mono text-xs text-ink placeholder:text-dim focus:border-accent focus:outline-none" />
+            <input value={newProp} onChange={(e) => setNewProp(e.target.value)} placeholder="Propriété CSS…" aria-label="Nouvelle propriété CSS" className="h-7 px-2 rounded-sm bg-transparent border border-dashed border-line-strong font-mono text-xs text-ink placeholder:text-dim focus:border-accent" />
             <button type="submit" className="h-7 px-2 rounded-sm bg-surface border border-line-strong text-xs hover:bg-hover">Ajouter</button>
           </form>
         </FieldGroup>

@@ -7,7 +7,7 @@ import { LENGTH_UNITS, parseInput, parseValue, tokenOptions, tokenValue } from "
 import { cx } from "../cx";
 import { startDragValue, stepFor } from "./useDragValue";
 
-const FIELD = "h-7 rounded-sm bg-surface text-ink border border-line hover:border-line-strong focus-within:border-accent";
+const FIELD = "h-7 rounded-sm bg-surface text-ink border border-line-strong hover:border-line-strong focus-within:border-accent";
 
 /**
  * Champ de longueur CSS : nombre + unité, mot-clé, ou jeton du thème.
@@ -69,14 +69,14 @@ export function UnitInput({ value, onChange, site, tokenGroup, keywords = [], pl
           if (e.key === "Escape") { setDraft(text); (e.target as HTMLInputElement).blur(); }
           if (e.key === "ArrowUp" || e.key === "ArrowDown") { e.preventDefault(); step(e.key === "ArrowUp" ? 1 : -1, e.shiftKey); }
         }}
-        className={cx("min-w-0 flex-1 h-full bg-transparent pl-2 pr-1 text-xs font-mono tabular-nums placeholder:text-dim focus:outline-none", !focused && (parsed.kind === "number" || draft === "") && "cursor-ew-resize", muted && !focused && "text-muted", compact && "pl-1.5")}
+        className={cx("min-w-0 flex-1 h-full bg-transparent pl-2 pr-1 text-xs font-mono tabular-nums placeholder:text-dim", !focused && (parsed.kind === "number" || draft === "") && "cursor-ew-resize", muted && !focused && "text-muted", compact && "pl-1.5")}
       />
       {parsed.kind === "number" || draft === "" ? (
         <select
           aria-label="Unité"
           value={unit}
           onChange={(e) => { const u = e.target.value; const n = parsed.kind === "number" ? parsed.n : Number(draft) || 0; onChange(`${n}${u}`); }}
-          className="h-full bg-transparent text-2xs text-dim pr-0.5 focus:outline-none cursor-ew-resize appearance-none text-right w-[30px]"
+          className="h-full bg-transparent text-2xs text-dim pr-0.5 cursor-ew-resize appearance-none text-right w-[30px]"
           title="Unité. Pour ajuster la valeur à la souris, glisser sur le libellé de la propriété (ou Alt + glisser ici)."
         >
           <option value="">—</option>
@@ -84,7 +84,7 @@ export function UnitInput({ value, onChange, site, tokenGroup, keywords = [], pl
         </select>
       ) : null}
       {tokens.length ? (
-        <select aria-label="Valeurs du thème" value="" onChange={(e) => { if (e.target.value) onChange({ token: e.target.value }); }} className="h-full w-5 bg-transparent text-dim appearance-none text-center text-[10px] focus:outline-none hover:text-accent cursor-pointer" title="Utiliser une valeur du thème (réglée dans l'onglet Thème, réutilisée partout)">
+        <select aria-label="Valeurs du thème" value="" onChange={(e) => { if (e.target.value) onChange({ token: e.target.value }); }} className="h-full w-5 bg-transparent text-dim appearance-none text-center text-[10px] hover:text-accent cursor-pointer" title="Utiliser une valeur du thème (réglée dans l'onglet Thème, réutilisée partout)">
           <option value="">◇</option>
           {tokens.map((t) => <option key={t.token} value={t.token}>{t.label} · {t.value}</option>)}
         </select>

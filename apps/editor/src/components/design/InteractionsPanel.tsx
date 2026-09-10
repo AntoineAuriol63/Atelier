@@ -37,7 +37,7 @@ export function InteractionsPanel({ site, node, pageRoot, commit }: { site: Site
     setTarget("");
   };
   return (
-    <Section title="Interactions" defaultOpen={!!node.interactions?.length} hint="Ce qui se passe quand l'élément entre dans l'écran, au clic ou au survol. Les apparitions ne jouent que sur le site publié ; l'éditeur montre l'état d'arrivée.">
+    <Section title="Interactions" defaultOpen={!!node.interactions?.length} hint="Ce qui se passe quand l'élément entre dans l'écran, au clic ou au survol. L'éditeur montre l'état d'arrivée sans jouer les animations ; l'aperçu « Voir », le site publié et l'export les jouent.">
       <FieldGroup>
         <Field label="Apparition" hint="Quand l'élément entre dans l'écran, il apparaît avec cet effet"><Select value={reveal?.options.kind ?? ""} placeholder="Aucune" options={REVEALS} onValueChange={(v) => commit(v ? { op: "batch", ops: planReveal(node, { ...reveal?.options, kind: v as RevealKind }), label: "Apparition" } : { op: "batch", ops: planRemoveReveal(node), label: "Retirer l'apparition" }, { label: v ? "Apparition" : "Retirer l'apparition" })} /></Field>
         {reveal ? <>

@@ -19,6 +19,7 @@ export function TreeRow({ id, depth, label, meta, icon: Icon, selected, open, ha
     <div
       role="treeitem"
       data-row-id={id}
+      tabIndex={selected ? 0 : -1}
       aria-selected={selected}
       aria-expanded={hasChildren ? open : undefined}
       onClick={onSelect}
@@ -29,7 +30,7 @@ export function TreeRow({ id, depth, label, meta, icon: Icon, selected, open, ha
       onDragLeave={onDragLeave}
       onDrop={onDrop}
       className={cx(
-        "relative group flex items-center h-[26px] pr-2 text-sm select-none cursor-default",
+        "relative group flex items-center h-[26px] pr-2 text-sm select-none cursor-default focus-visible:outline-2 focus-visible:outline-accent focus-visible:-outline-offset-2",
         selected ? "bg-accent-soft text-ink" : "hover:bg-hover text-ink",
         dimmed && "opacity-60",
         drop === "inside" && "shadow-[inset_0_0_0_1.5px_var(--color-accent)]",
@@ -57,7 +58,7 @@ export function TreeRow({ id, depth, label, meta, icon: Icon, selected, open, ha
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => { if (e.key === "Enter") onRename?.(draft.trim() || null); if (e.key === "Escape") onRename?.(undefined as unknown as null); e.stopPropagation(); }}
           onBlur={() => onRename?.(draft.trim() || null)}
-          className="flex-1 min-w-0 h-5 px-1 rounded-xs bg-surface border border-accent text-sm text-ink focus:outline-none"
+          className="flex-1 min-w-0 h-5 px-1 rounded-xs bg-surface border border-accent text-sm text-ink"
         />
       ) : (
         <span className="truncate">{label}</span>

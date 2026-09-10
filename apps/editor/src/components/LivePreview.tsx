@@ -276,7 +276,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     };
 
     // ---------------------------------------------------------------- menu « / »
-    let slash: { el: HTMLElement; query: string; cursor: number; after: boolean } | null = null;
+    let slash: { el: HTMLElement; query: string; cursor: number; after: boolean; typed?: boolean } | null = null;
     // Classement : libellé qui commence par la recherche > libellé qui la contient > groupe ou mot-clé.
     const filtered = () => {
       const q = slash?.query.toLowerCase().trim() ?? "";
@@ -308,11 +308,14 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       slashMenu.style.top = `${r.bottom + window.scrollY + 4}px`;
       slashMenu.querySelector(".cur")?.scrollIntoView({ block: "nearest" });
     };
-    const openSlash = (el: HTMLElement, after: boolean) => { slash = { el, query: "", cursor: 0, after }; renderSlash(); };
+    const openSlash = (el: HTMLElement, after: boolean, typed = false) => { slash = { el, query: "", cursor: 0, after, typed }; renderSlash(); };
+    /** Retire le « / » tapé juste avant le caret (quand un bloc est choisi). */
+    const removeTypedSlash = () => { const sel = document.getSelection(); if (!sel || !sel.isCollapsed) return; sel.modify("extend", "backward", "character"); if (sel.toString() === "/") document.execCommand("delete"); else sel.collapseToEnd(); };
     const closeSlash = () => { slash = null; renderSlash(); };
     const pickSlash = (b: BlockPresetInfo) => {
       if (!slash) return;
       const el = slash.el;
+      if (slash.typed) removeTypedSlash();
       const replace = !slash.after && textNodes.has(idOf(el)) && isEmptyText(el);
       closeSlash();
       if (editing === el) endEdit(!replace);
@@ -539,7 +542,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
         if (e.key === "Enter") { e.preventDefault(); const b = filtered()[slash.cursor]; if (b) pickSlash(b); return; }
         if (e.key === "ArrowDown") { e.preventDefault(); slash.cursor = Math.min(filtered().length - 1, slash.cursor + 1); renderSlash(); return; }
         if (e.key === "ArrowUp") { e.preventDefault(); slash.cursor = Math.max(0, slash.cursor - 1); renderSlash(); return; }
-        if (e.key === "Backspace") { e.preventDefault(); if (!slash.query) closeSlash(); else { slash.query = slash.query.slice(0, -1); slash.cursor = 0; renderSlash(); } return; }
+        if (e.key === "Backspace") { if (!slash.query) { const typed = slash.typed; closeSlash(); if (!typed) e.preventDefault(); return; } e.preventDefault(); slash.query = slash.query.slice(0, -1); slash.cursor = 0; renderSlash(); return; }
         if (e.key.length === 1 && !meta) { e.preventDefault(); slash.query += e.key; slash.cursor = 0; renderSlash(); return; }
         return;
       }
@@ -556,7 +559,8 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
         if (meta && e.key.toLowerCase() === "i") { e.preventDefault(); document.execCommand("italic"); renderSelBar(); return; }
         if (meta && e.key.toLowerCase() === "u") { e.preventDefault(); document.execCommand("underline"); renderSelBar(); return; }
         if (meta && e.key.toLowerCase() === "k") { e.preventDefault(); makeLink(); return; }
-        if (e.key === "/" && editMode === "write" && !meta) { e.preventDefault(); openSlash(editing, false); return; }
+        // Le « / » s'écrit vraiment dans le texte (il reste si on referme le menu avec Échap) ; il est retiré quand un bloc est choisi.
+        if (e.key === "/" && editMode === "write" && !meta) { openSlash(editing, false, true); return; }
         if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); if (editMode === "write") splitAtCaret(editing); else endEdit(true); return; }
         if (e.key === "Backspace" && editMode === "write" && isEmptyText(editing) && caretAtStart(editing)) { e.preventDefault(); const el = editing; editing = null; el.contentEditable = "false"; el.innerHTML = el.getAttribute("data-original-html") ?? el.innerHTML; el.removeAttribute("data-original-html"); send({ type: "atelier:merge-prev", id: idOf(el) }); return; }
         return;

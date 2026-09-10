@@ -9,7 +9,7 @@ export function SpacingPanel({ site, style }: { site: Site; style: StyleApi }) {
   return (
     <Section title="Espacement" hint="Marge : espace autour de l'élément. Remplissage : espace entre son bord et son contenu.">
       <BoxModel site={site} get={style.get} set={style.set} />
-      <Hint>Nombre en pixels, valeur avec unité, « auto », ou une valeur du thème comme <span className="font-mono">space.4</span>. Couleur du texte : bleu posé ici, ambre hérité, violet style partagé.</Hint>
+      <Hint>Nombre en pixels, valeur avec unité, « auto », ou une valeur du thème comme <span className="font-mono">space.4</span>. Couleur du chiffre : blanc posé ici, ambre hérité d&apos;une taille d&apos;écran plus large, violet venu d&apos;un style partagé, gris = valeur par défaut.</Hint>
     </Section>
   );
 }

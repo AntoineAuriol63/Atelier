@@ -39,7 +39,7 @@ function Draft({ value, onCommit, type = "text", placeholder, mono }: { value: s
   const [prev, setPrev] = useState(value);
   if (value !== prev) { setPrev(value); setDraft(value); }
   const commit = () => { if (draft !== value) onCommit(draft); };
-  return <input type={type} value={draft} placeholder={placeholder} onChange={(e) => setDraft(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setDraft(value); (e.target as HTMLInputElement).blur(); } }} className={`w-full h-7 px-1.5 bg-transparent text-sm text-ink rounded-xs border border-transparent hover:border-line focus:border-accent focus:bg-surface outline-none ${mono ? "font-mono text-xs" : ""}`} />;
+  return <input type={type} value={draft} placeholder={placeholder} onChange={(e) => setDraft(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setDraft(value); (e.target as HTMLInputElement).blur(); } }} className={`w-full h-7 px-1.5 bg-transparent text-sm text-ink rounded-xs border border-transparent hover:border-line focus:border-accent focus:bg-surface ${mono ? "font-mono text-xs" : ""}`} />;
 }
 
 const FOCUSABLE = "input:not([type=hidden]), select, textarea, button, [tabindex]";
@@ -81,7 +81,7 @@ function Cell({ site, db, field, entry, allEntries, onChange, onPickMedia }: { s
     case "color":
       return <div className="flex items-center gap-1"><input type="color" value={typeof v === "string" && /^#[0-9a-f]{6}$/i.test(v) ? v : "#000000"} onChange={(e) => onChange(e.target.value)} className="h-6 w-7 bg-transparent border-0 p-0 cursor-pointer" /><Draft value={typeof v === "string" ? v : ""} onCommit={(s) => onChange(s || undefined)} mono placeholder="#…" /></div>;
     case "boolean":
-      return <label className="flex items-center h-7 px-1.5 cursor-pointer"><input type="checkbox" checked={!!v} onChange={(e) => onChange(e.target.checked)} className="accent-[var(--color-accent)]" /></label>;
+      return <label className="flex items-center h-7 px-1.5 cursor-pointer"><input type="checkbox" checked={!!v} aria-label={v ? "Oui" : "Non"} onChange={(e) => onChange(e.target.checked)} className="accent-[var(--color-accent)]" /></label>;
     case "select":
       return <Select value={typeof v === "string" ? v : ""} placeholder="—" options={[{ value: "", label: "—" }, ...(field.options ?? []).map((o) => ({ value: o.value, label: o.label[locale] ?? o.value }))]} onValueChange={(s) => onChange(s || undefined)} />;
     case "multiSelect": {
@@ -99,7 +99,7 @@ function Cell({ site, db, field, entry, allEntries, onChange, onPickMedia }: { s
       const ids = Array.isArray(v) ? (v as string[]) : [];
       return <div className="flex items-center gap-1 py-0.5 flex-wrap">
         {ids.map((id, i) => { const a = asset(id); return a ? <img key={`${id}-${i}`} src={a.variants?.[0]?.url ?? a.url} alt="" title={`${assetLabel(a, locale)} · cliquer pour retirer`} onClick={() => onChange(ids.filter((_, j) => j !== i))} className="h-6 w-6 rounded-xs object-cover cursor-pointer hover:opacity-60" /> : null; })}
-        <button type="button" onClick={() => onPickMedia("gallery")} title="Ajouter une image à la galerie" className="h-6 w-6 rounded-xs border border-dashed border-line-strong text-dim hover:text-ink hover:border-accent grid place-items-center"><Plus size={12} /></button>
+        <button type="button" onClick={() => onPickMedia("gallery")} title="Ajouter une image à la galerie" aria-label="Ajouter une image à la galerie" className="h-6 w-6 rounded-xs border border-dashed border-line-strong text-dim hover:text-ink hover:border-accent grid place-items-center"><Plus size={12} /></button>
       </div>;
     }
     case "relation": {
@@ -281,9 +281,10 @@ export function DatabaseTable({ site, db, entries, save, saveMany, remove, commi
             {rows.map((e) => (
               <tr key={e.id} className="group hover:bg-hover/40">
                 <td className="border-b border-r border-line text-center align-middle">
-                  <button type="button" onClick={() => save({ ...e, status: e.status === "published" ? "draft" : "published" })} title={readOnly ? (e.status === "published" ? "Traité · cliquer pour remettre en nouveau" : "Nouveau · cliquer pour marquer traité") : e.status === "published" ? "Publiée · cliquer pour passer en brouillon" : "Brouillon (invisible sur le site) · cliquer pour publier"} className="h-7 w-8 grid place-items-center">
+                  {(() => { const statusTitle = readOnly ? (e.status === "published" ? "Traité · cliquer pour remettre en nouveau" : "Nouveau · cliquer pour marquer traité") : e.status === "published" ? "Publiée · cliquer pour passer en brouillon" : "Brouillon (invisible sur le site) · cliquer pour publier"; return (
+                  <button type="button" onClick={() => save({ ...e, status: e.status === "published" ? "draft" : "published" })} title={statusTitle} aria-label={statusTitle} aria-pressed={e.status === "published"} className="h-7 w-8 grid place-items-center">
                     <span className={`h-2 w-2 rounded-full ${e.status === "published" ? "bg-success" : "border border-line-strong"}`} />
-                  </button>
+                  </button>); })()}
                 </td>
                 {db.fields.map((f) => (
                   <td key={f.name} className={`border-b border-r border-line align-middle px-0.5 ${f.name === db.titleField ? "font-medium" : ""}`}>

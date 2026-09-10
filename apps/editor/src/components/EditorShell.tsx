@@ -99,6 +99,11 @@ function isTyping(): boolean {
   const el = document.activeElement as HTMLElement | null;
   return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
 }
+/** Le focus est « dans l'espace de travail » : nulle part, sur l'arbre des calques ou sur l'aperçu. */
+function focusInWorkspace(): boolean {
+  const el = document.activeElement as HTMLElement | null;
+  return !el || el === document.body || el.tagName === "IFRAME" || !!el.closest("[role=tree]");
+}
 
 export function EditorShell({ initialSite, initialVersion, initialEntries, role = "owner" }: { initialSite: Site; initialVersion: number; initialEntries: Entry[]; /** Rôle du compte sur ce site : un rédacteur reste en Écriture et ne touche ni au design ni aux réglages. */ role?: Role }) {
   const writer = role === "writer";
@@ -323,6 +328,12 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
   }, [site, page]);
   const pageEntries = useMemo(() => ents.entries.filter((e) => pageDatabases.has(e.database)), [ents.entries, pageDatabases]);
   useEffect(() => { if (frameReady) post({ type: "atelier:entries", entries: pageEntries }); }, [pageEntries, frameReady, post]);
+  // Navigation au clavier dans les calques : le focus suit la ligne sélectionnée tant qu'il est dans l'arbre.
+  useEffect(() => {
+    const active = document.activeElement as HTMLElement | null;
+    if (!selected || !active?.closest("[role=tree]")) return;
+    document.querySelector<HTMLElement>(`[role=treeitem][data-row-id="${CSS.escape(selected)}"]`)?.focus();
+  }, [selected]);
   useEffect(() => { if (frameReady) post({ type: "atelier:editmode", editMode }); }, [editMode, frameReady, post]);
   useEffect(() => { if (frameReady) post({ type: "atelier:mode", mode }); }, [mode, frameReady, post]);
   useEffect(() => { if (frameReady) post({ type: "atelier:highlight", id: selected }); }, [selected, frameReady, post]);
@@ -342,14 +353,18 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
     type KeyLike = { key: string; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey?: boolean; preventDefault: () => void; fromPreview?: boolean };
     const onKey = (e: KeyLike) => {
       const meta = e.metaKey || e.ctrlKey;
+      // Dans un champ de saisie, le clavier appartient au champ : ⌘Z annule la frappe, pas le document ; ⌘K n'ouvre pas la palette.
+      if (!e.fromPreview && isTyping()) return;
       if (meta && e.key.toLowerCase() === "k") { e.preventDefault(); setPaletteOpen((o) => !o); return; }
       if (e.ctrlKey && !e.metaKey && e.key.toLowerCase() === "g") { e.preventDefault(); toggleGrid(); return; }
       if (paletteOpen) return;
       if (meta && e.key.toLowerCase() === "z") { e.preventDefault(); if (e.shiftKey) doc.redo(); else doc.undo(); return; }
-      if (!e.fromPreview && isTyping()) return;
       const loc = selected ? index.get(selected) : undefined;
       if (e.key === "Escape") { select(null); return; }
       if (!loc) return;
+      // Supprimer, les flèches et Entrée ne pilotent les calques que depuis l'espace de travail (calques, aperçu, rien de focalisé) :
+      // sur un bouton ou un onglet focalisé, ces touches gardent leur sens natif.
+      if (!e.fromPreview && !focusInWorkspace() && !meta) return;
       if (meta && e.key.toLowerCase() === "c") { e.preventDefault(); clipboard.current = structuredClone(loc.node); void navigator.clipboard?.writeText(JSON.stringify(loc.node)).catch(() => {}); notify("Copié", "success"); return; }
       if (meta && e.key.toLowerCase() === "x") { e.preventDefault(); if (!loc.parent) return; clipboard.current = structuredClone(loc.node); doc.commit({ op: "node.remove", id: loc.node.id }, { label: "Couper" }); select(loc.parent.id); return; }
       if (meta && e.key.toLowerCase() === "v") { e.preventDefault(); if (!clipboard.current) return; const { node: copy } = cloneWithNewIds(clipboard.current, newId); const to = planInsert(index, page.root, loc.node.id, "after"); const ok = canInsertUnder(index, to.parent, copy); if (!ok.ok) { notify(ok.reason); return; } doc.commit({ op: "node.insert", parent: to.parent, index: to.index, node: copy }, { label: "Coller" }); select(copy.id); return; }
@@ -521,7 +536,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
           {leftTab === "pages" ? (
             <PagesPanel site={site} pageId={pageId} commit={doc.commit} readOnly={writer} onOpen={(id) => { setPageId(id); select(null); setFrameReady(false); }} />
           ) : leftTab === "layers" ? (
-            <div role="tree" onDragEnd={() => { dragId.current = null; setDrop(null); }}>
+            <div role="tree" aria-label="Calques" onDragEnd={() => { dragId.current = null; setDrop(null); }} onFocus={(e) => { if (e.target !== e.currentTarget) return; const row = e.currentTarget.querySelector<HTMLElement>('[role=treeitem][aria-selected="true"]') ?? e.currentTarget.querySelector<HTMLElement>("[role=treeitem]"); row?.focus(); }} tabIndex={selected ? -1 : 0}>
               {editingComponent ? (
                 <div className="mx-2 mb-1 px-2 py-1.5 rounded-sm bg-violet-400/15 text-violet-300 text-xs flex items-center gap-2">
                   <span className="flex-1 truncate">Composant <strong className="font-medium">{site.components.find((c) => c.id === editingComponent)?.name}</strong> : toutes ses copies changent.</span>
