@@ -20,7 +20,7 @@ const button = (id: string, label: string, href: Node["props"]["href"], variant:
 });
 
 export const sampleSite: Site = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   id: "site_marie",
   name: "Marie Lambert, photographe",
   settings: {

@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
-import type { CommitOptions, Op, Site, StyleValue, Theme, SharedStyle } from "@atelier/model";
-import { defaultLayoutGrid, walk, sharedStyleUsages } from "@atelier/model";
+import type { CommitOptions, Op, Site, StyleValue, Theme, SharedStyle, AnimationDef } from "@atelier/model";
+import { defaultLayoutGrid, walk, sharedStyleUsages, animationUsages } from "@atelier/model";
 import { UnitInput } from "@/ui/controls";
 import { Button, Hint, IconButton, NumberInput, PanelHeading, Section, TextInput, askConfirm, Select, Field, Eyebrow, Badge } from "@/ui";
 import { ColorInput } from "@/ui/controls";
@@ -174,6 +174,37 @@ function SharedStylesSection({ site, commit }: { site: Site; commit: Commit }) {
   );
 }
 
+/** Les animations de la bibliothèque du site : renommer, voir les usages, supprimer (les éléments qui s'en servaient récupèrent les étapes en ligne). */
+function AnimationsLibrarySection({ site, commit }: { site: Site; commit: Commit }) {
+  const list = site.animations ?? [];
+  const remove = async (def: AnimationDef) => {
+    const usages = animationUsages(site, def.id);
+    const ok = await askConfirm({ title: `Supprimer l'animation « ${def.name} » ?`, danger: true, action: "Supprimer", consequences: [usages.length ? `${usages.length} élément${usages.length > 1 ? "s" : ""} garde${usages.length > 1 ? "nt" : ""} l'animation, avec ses propres étapes.` : "Aucun élément ne l'utilise.", "⌘Z annule."] });
+    if (!ok) return;
+    const ops: Op[] = usages.map((u) => ({ op: "node.set", id: u.node.id, path: "animations", value: (u.node.animations ?? []).map((r) => (r.animation === def.id ? { ...r, animation: { keyframes: structuredClone(def.keyframes) } } : r)) }));
+    ops.push({ op: "site.set", path: "animations", value: list.filter((x) => x.id !== def.id) });
+    commit({ op: "batch", ops, label: `Supprimer l'animation « ${def.name} »` }, { label: `Supprimer l'animation « ${def.name} »` });
+  };
+  return (
+    <Section title="Animations" defaultOpen={false} hint="Les animations enregistrées depuis un élément (Animations → Enregistrer). Réutilisables partout ; modifier leurs étapes change tous les usages.">
+      {list.length ? (
+        <ul className="flex flex-col gap-1">
+          {list.map((def, i) => {
+            const n = animationUsages(site, def.id).length;
+            return (
+              <li key={def.id} className="grid grid-cols-[1fr_auto_24px] items-center gap-1">
+                <TextInput value={def.name} aria-label="Nom de l'animation" onValueChange={(v) => commit({ op: "site.set", path: `animations.${i}.name`, value: v || def.name }, { label: "Renommer l'animation", coalesceKey: `anim-name:${def.id}` })} />
+                <Badge title={`${def.keyframes.length} étapes · ${n ? `${n} usage${n > 1 ? "s" : ""}` : "inutilisée"}`}>{n}</Badge>
+                <IconButton size="sm" tone="danger" label={`Supprimer l'animation « ${def.name} »`} icon={Trash2} onClick={() => void remove(def)} />
+              </li>
+            );
+          })}
+        </ul>
+      ) : <Hint>Aucune animation enregistrée. Depuis un élément, Animations → « Enregistrer » garde ses étapes ici.</Hint>}
+    </Section>
+  );
+}
+
 export function ThemePanel({ site, commit }: { site: Site; commit: Commit }) {
   const bps = [...site.settings.breakpoints].sort((a, b) => b.maxWidth - a.maxWidth);
   const setBps = (list: Site["settings"]["breakpoints"], label: string) => commit({ op: "site.set", path: "settings.breakpoints", value: list }, { label });
@@ -197,6 +228,7 @@ export function ThemePanel({ site, commit }: { site: Site; commit: Commit }) {
         </Section>
       ))}
       <SharedStylesSection site={site} commit={commit} />
+      <AnimationsLibrarySection site={site} commit={commit} />
       <Section title="Tailles d'écran" defaultOpen={false}>
         <div className="grid grid-cols-[1fr_84px_24px] gap-1 text-2xs text-dim uppercase tracking-[0.12em]"><span>Nom</span><span>Jusqu&apos;à</span><span /></div>
         {bps.map((b) => {

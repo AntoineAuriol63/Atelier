@@ -4,7 +4,8 @@
  * apparitions au défilement, questions dépliables, ancres. Sert de gabarit « Exemple restaurant » à la création d'un site.
  */
 import type { Entry, Inline, Node, Site, StyleProps } from "./types";
-import { REVEAL_FROM, planHiddenAtLoad, revealInteraction, toggleInteraction, type RevealKind } from "./interactions";
+import { planHiddenAtLoad, toggleInteraction, type RevealKind } from "./interactions";
+import { presetById, runFromPreset } from "./animations";
 
 const fr = (text: string): Record<string, Inline[]> => ({ fr: [{ t: "text", v: text }] });
 const T = (id: string, tag: string, content: string, extra: Partial<Node> = {}): Node => ({ id, type: "text", props: { tag, content: fr(content) }, ...extra });
@@ -13,7 +14,7 @@ const IMG = (id: string, asset: string, ratio: string, extra: Partial<Node> = {}
 const BTN = (id: string, label: string, href: Node["props"]["href"], shared = "rs_button", extra: Partial<Node> = {}): Node => ({ id, type: "link", name: label, props: { tag: "a", href }, style: { shared: [shared] }, children: [T(`${id}_t`, "span", label)], ...extra });
 const bind = (id: string, tag: string, field: string, source: "item" | "entry" = "item", extra: Partial<Node> = {}): Node => ({ id, type: "text", props: { tag, content: fr(field) }, bindings: { content: { source, path: field } }, ...extra });
 /** Apparition : état de départ dans le style, interaction à l'entrée dans l'écran. */
-const reveal = (node: Node, kind: RevealKind, delay = 0, duration = 800): Node => ({ ...node, style: { ...(node.style ?? {}), base: { ...(node.style?.base ?? {}), ...REVEAL_FROM[kind] } }, interactions: [...(node.interactions ?? []), revealInteraction({ kind, delay, duration }, `ix_${node.id}`)] });
+const reveal = (node: Node, kind: RevealKind, delay = 0, duration = 800): Node => ({ ...node, animations: [...(node.animations ?? []), runFromPreset(presetById(kind)!, { id: `ix_${node.id}`, delay, duration })] });
 const tok = (t: string) => ({ token: t });
 const section = (id: string, name: string, base: StyleProps, children: Node[], extra: Partial<Node> = {}): Node => B(id, name, "section", base, children, { ...extra, style: { shared: ["rs_section"], ...(extra.style ?? {}) } });
 const container = (id: string, base: StyleProps, children: Node[], extra: Partial<Node> = {}): Node => B(id, "Contenu", "div", base, children, { ...extra, style: { shared: ["rs_container"], ...(extra.style ?? {}) } });
@@ -136,7 +137,7 @@ function hiddenAtLoad(node: Node): Node {
 }
 
 export const restaurantSite: Site = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   id: "site_aurele",
   name: "Maison Aurèle",
   settings: {
@@ -253,7 +254,7 @@ export const restaurantSite: Site = {
         ], { style: { breakpoints: { tablet: { gridTemplateColumns: "1fr" } } } })]),
         B("rh_band", "Bandeau", "div", { display: "flex", gap: tok("space.10"), paddingTop: tok("space.4"), paddingBottom: tok("space.4"), borderTopWidth: "1px", borderTopStyle: "solid", borderTopColor: tok("color.line"), borderBottomWidth: "1px", borderBottomStyle: "solid", borderBottomColor: tok("color.line"), whiteSpace: "nowrap" },
           ["Produits d'Auvergne", "Carte courte, saisonnière", "Vins nature et bières locales", "Cuisine ouverte sur la salle", "Ouvert du mardi au samedi", "Bib Gourmand 2026"].map((t, i) => T(`rh_band_${i + 1}`, "p", `${t}  ·`, { style: { shared: ["rs_eyebrow"] } })),
-          { props: { tag: "div", marquee: 28 } }),
+          { props: { tag: "div", marquee: { duration: 28, pauseOnHover: true } } }),
         section("rh_about", "La maison", { background: tok("color.surface") }, [container("rh_about_in", { display: "grid", gridTemplateColumns: "1fr 1fr", gap: tok("space.10"), alignItems: "center" }, [
           reveal(IMG("rh_about_img", "ras_salle", "3 / 4", { name: "Photo de la salle", style: { base: { borderRadius: tok("radius.lg"), overflow: "hidden" } } }), "slide-right"),
           B("rh_about_txt", "Texte", "div", { display: "flex", flexDirection: "column", gap: tok("space.5") }, [

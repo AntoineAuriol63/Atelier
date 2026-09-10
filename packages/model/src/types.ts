@@ -179,6 +179,26 @@ export type Action =
   | { kind: "submit" }
   | { kind: "script"; code: Id };
 
+// ---------------------------------------------------------------- Animations (section 8.4)
+
+export type Keyframe = { at: number; style: StyleProps };
+export type AnimationDef = { id: Id; name: string; keyframes: Keyframe[] };
+export type AnimationRun = {
+  id: Id;
+  animation: Id | { keyframes: Keyframe[] };
+  preset?: string;
+  trigger: "load" | "inView" | "hover" | "click" | "scroll";
+  duration: number;
+  delay?: number;
+  easing?: string;
+  iterations?: number | "infinite";
+  direction?: "normal" | "reverse" | "alternate" | "alternate-reverse";
+  fill?: "none" | "forwards" | "backwards" | "both";
+  once?: boolean;
+  pauseOnHover?: boolean;
+  range?: [number, number];
+};
+
 export type Interaction = {
   id: Id;
   trigger: { kind: "click" | "hover" | "inView" | "scroll" | "load" | "change"; options?: Record<string, unknown> };
@@ -226,6 +246,7 @@ export type Node = {
   children?: Node[];
   bindings?: Record<string, Binding>;
   interactions?: Interaction[];
+  animations?: AnimationRun[];
   locked?: boolean;
   hidden?: { [breakpoint: string]: boolean };
   source?: SourceRef;
@@ -340,7 +361,7 @@ export type SiteSettings = {
 };
 
 export type Site = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   id: Id;
   name: string;
   settings: SiteSettings;
@@ -352,6 +373,7 @@ export type Site = {
   pages: Page[];
   assets: Asset[];
   redirects: Redirect[];
+  animations?: AnimationDef[];
 };
 
 // ---------------------------------------------------------------- Opérations

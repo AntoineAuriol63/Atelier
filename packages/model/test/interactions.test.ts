@@ -1,28 +1,28 @@
 import { describe, it, expect } from "vitest";
-import { applyOps, describeInteraction, planRemoveReveal, planReveal, revealOf, sampleSite, toggleInteraction, type Node } from "../src";
+import { applyOps, describeAnimation, describeInteraction, planRemoveReveal, planReveal, revealOf, sampleSite, toggleInteraction, type Node } from "../src";
 
 describe("apparitions", () => {
   const node: Node = { id: "n", type: "box", props: { tag: "div" }, style: { base: { padding: "1rem" } } };
-  it("pose l'état de départ et l'interaction, puis les retire proprement", () => {
+  it("pose une animation d'apparition sans toucher au style, la remplace, puis la retire proprement", () => {
     const site = { ...sampleSite, pages: [{ ...sampleSite.pages[0]!, root: { id: "r", type: "box" as const, props: {}, children: [node] } }] };
     const { site: s1 } = applyOps(site, planReveal(node, { kind: "fade-up", delay: 120 }));
     const n1 = s1.pages[0]!.root.children![0]!;
-    expect(n1.style?.base).toEqual({ padding: "1rem", opacity: "0", transform: "translateY(28px)" });
+    expect(n1.style?.base).toEqual({ padding: "1rem" });
     expect(revealOf(n1)?.options).toMatchObject({ kind: "fade-up", delay: 120, duration: 700 });
-    // Changer de sorte remplace l'état de départ sans laisser de trace
+    // Changer de sorte remplace le run sans doublon
     const { site: s2 } = applyOps(s1, planReveal(n1, { kind: "blur" }));
     const n2 = s2.pages[0]!.root.children![0]!;
-    expect(n2.style?.base).toEqual({ padding: "1rem", opacity: "0", filter: "blur(12px)" });
-    expect(n2.interactions).toHaveLength(1);
+    expect(n2.animations).toHaveLength(1);
+    expect(n2.animations![0]!.preset).toBe("blur");
     const { site: s3 } = applyOps(s2, planRemoveReveal(n2));
     const n3 = s3.pages[0]!.root.children![0]!;
     expect(n3.style?.base).toEqual({ padding: "1rem" });
-    expect(n3.interactions).toBeUndefined();
+    expect(n3.animations).toBeUndefined();
   });
   it("décrit une interaction en français", () => {
     expect(describeInteraction(toggleInteraction("click", { node: "x" }), () => "Réponse")).toBe("Au clic : afficher ou masquer Réponse");
     const { site } = applyOps({ ...sampleSite, pages: [{ ...sampleSite.pages[0]!, root: { id: "r", type: "box" as const, props: {}, children: [node] } }] }, planReveal(node, { kind: "zoom" }));
-    expect(describeInteraction(site.pages[0]!.root.children![0]!.interactions![0]!, () => "")).toBe("Apparition · Zoom");
+    expect(describeAnimation(site.pages[0]!.root.children![0]!.animations![0]!, site)).toBe("Zoom · à l'entrée dans l'écran · 700 ms");
   });
 });
 

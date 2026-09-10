@@ -2,7 +2,7 @@ import type { ComponentDef, Inline, Mark, Node, Overrides, Page, Site, ViewConfi
 import { applyOverrides, variantClasses } from "@atelier/model";
 import { createElement, Fragment, type ReactNode } from "react";
 import { nodeClassName } from "./css";
-import { INTERACTION_SCRIPT, hasInteractions, hasMotion, interactionsAttr } from "./interactions";
+import { INTERACTION_SCRIPT, animationsAttr, hasInteractions, hasMotion, interactionsAttr, marqueeOf } from "./interactions";
 import { findComponent, findDatabase, localized, resolveBinding, resolveHref, type RenderContext } from "./context";
 
 const BOX_TAGS = new Set(["div", "section", "header", "footer", "nav", "article", "aside", "main", "figure", "figcaption", "span"]);
@@ -29,6 +29,8 @@ function attrs(node: Node, ctx: RenderContext, extra: Record<string, unknown> = 
   if (ix) a["data-ix"] = ix;
   // Effets de mouvement joués par le script du site (parallaxe, compteur), sans effet dans l'éditeur.
   if (typeof node.props.parallax === "number" && node.props.parallax !== 0) a["data-parallax"] = String(node.props.parallax);
+  const anim = animationsAttr(node, ctx);
+  if (anim) a["data-anim"] = anim;
   if (node.props.countUp) a["data-countup"] = "";
   if (node.props.anchor) a.id = String(node.props.anchor);
   return a;
@@ -74,10 +76,10 @@ export function RenderNode({ node, ctx }: { node: Node; ctx: RenderContext }): R
   switch (node.type) {
     case "box": {
       // Bandeau défilant : les enfants sont rendus deux fois dans une piste animée en CSS, la copie sans identifiant d'édition.
-      const marquee = typeof node.props.marquee === "number" && node.props.marquee > 0 ? node.props.marquee : 0;
-      if (marquee) {
+      const mq = marqueeOf(node);
+      if (mq) {
         const copy = (node.children ?? []).map((c) => createElement(RenderNode, { key: `${keyOf(c)}-copie`, node: c, ctx: { ...ctx, editor: false } }));
-        return createElement(tagOf(node, BOX_TAGS, "div"), attrs(node, ctx, { "data-marquee": "", style: { "--at-marquee": `${marquee}s` } }),
+        return createElement(tagOf(node, BOX_TAGS, "div"), attrs(node, ctx, { "data-marquee": mq.direction ?? "left", "data-marquee-pause": mq.pauseOnHover ? "" : undefined, style: { "--at-marquee": `${mq.duration}s` } }),
           createElement("div", { className: "at-marquee-track" }, children(), createElement("div", { className: "at-marquee-copy", "aria-hidden": true }, copy)));
       }
       return createElement(tagOf(node, BOX_TAGS, "div"), attrs(node, ctx), children());
@@ -214,6 +216,8 @@ export function RenderPage({ ctx, mode }: { ctx: RenderContext; mode?: string })
     withForm && !ctx.editor && !ctx.deferScripts ? createElement("script", { dangerouslySetInnerHTML: { __html: FORM_SCRIPT } }) : null,
     // Dans l'éditeur, pas de script (React ne l'exécuterait pas au rendu suivant) : `applyInstantStates` pose l'état d'arrivée après chaque rendu.
     withIx && !ctx.editor && !ctx.deferScripts ? createElement("script", { dangerouslySetInnerHTML: { __html: INTERACTION_SCRIPT } }) : null,
+    // Sans script, les animations attendant l'écran ou le défilement ne se joueraient jamais : l'élément reste à son état de repos.
+    withIx && !ctx.editor ? createElement("noscript", { dangerouslySetInnerHTML: { __html: "<style>.at-page [data-anim]{animation:none!important}</style>" } }) : null,
   );
 }
 

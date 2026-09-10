@@ -15,7 +15,7 @@ export function blankSite(id: string, name: string): Site {
   const headerCmp = { id: newId(), name: "En-tête", scope: "site" as const, props: [], root: header };
   const footerCmp = { id: newId(), name: "Pied de page", scope: "site" as const, props: [], root: footer };
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     id,
     name,
     settings: { ...structuredClone(sampleSite.settings), subdomain: undefined, seo: { titleSuffix: { [locale]: ` · ${name}` } } },

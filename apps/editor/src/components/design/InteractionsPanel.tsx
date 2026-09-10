@@ -3,16 +3,14 @@
 import { useState } from "react";
 import { Plus, Sparkles, X } from "lucide-react";
 import type { CommitOptions, Interaction, Node, Op, Site } from "@atelier/model";
-import { EASINGS, REVEAL_LABEL, describeInteraction, hiddenAtLoad, indexSite, instanceVariant, planHiddenAtLoad, planRemoveReveal, planReveal, revealOf, toggleInteraction, variantInteraction, walk, type RevealKind } from "@atelier/model";
-import { Button, Field, FieldGroup, Hint, IconButton, NumberInput, Section, Select, Toggle, Eyebrow } from "@/ui";
+import { describeInteraction, hiddenAtLoad, indexSite, instanceVariant, planHiddenAtLoad, toggleInteraction, variantInteraction, walk } from "@atelier/model";
+import { Button, Field, FieldGroup, Hint, IconButton, Section, Select, Toggle, Eyebrow } from "@/ui";
 import { nodeLabel } from "../node-icons";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
-const REVEALS = Object.entries(REVEAL_LABEL).map(([value, label]) => ({ value, label }));
 
-/** Interactions déclaratives (D31) : apparition à l'entrée dans l'écran, afficher/masquer ou changer de variante au clic ou au survol. */
+/** Interactions déclaratives (D31) : afficher/masquer ou changer de variante au clic ou au survol, masqué au chargement. */
 export function InteractionsPanel({ site, node, pageRoot, commit }: { site: Site; node: Node; pageRoot: Node; commit: Commit }) {
-  const reveal = revealOf(node);
   const [kind, setKind] = useState<"toggle" | "variant">("toggle");
   const [trigger, setTrigger] = useState<"click" | "hover">("click");
   const [target, setTarget] = useState("");
@@ -29,7 +27,7 @@ export function InteractionsPanel({ site, node, pageRoot, commit }: { site: Site
   const variantOptions = (targetCmp?.variants ?? []).flatMap((a) => a.values.map((v) => ({ value: `${a.name}:${v}`, label: `${a.name} · ${v}` })));
   const setInteractions = (list: Interaction[], label: string) => commit({ op: "node.set", id: node.id, path: "interactions", value: list.length ? list : undefined }, { label });
   const hidden = hiddenAtLoad(node);
-  const others = (node.interactions ?? []).filter((i) => i.id !== reveal?.interaction.id && i.id !== hidden?.id);
+  const others = (node.interactions ?? []).filter((i) => i.id !== hidden?.id);
   const add = () => {
     if (!target) return;
     if (kind === "toggle") setInteractions([...(node.interactions ?? []), toggleInteraction(trigger, { node: target })], "Afficher ou masquer au clic");
@@ -37,17 +35,8 @@ export function InteractionsPanel({ site, node, pageRoot, commit }: { site: Site
     setTarget("");
   };
   return (
-    <Section title="Interactions" defaultOpen={!!node.interactions?.length} hint="Ce qui se passe quand l'élément entre dans l'écran, au clic ou au survol. L'éditeur montre l'état d'arrivée sans jouer les animations ; l'aperçu « Voir », le site publié et l'export les jouent.">
+    <Section title="Interactions" defaultOpen={!!node.interactions?.length} hint="Au clic ou au survol : afficher ou masquer un autre élément, changer la variante d'une instance. Les apparitions et les mouvements sont dans « Animations ».">
       <FieldGroup>
-        <Field label="Apparition" hint="Quand l'élément entre dans l'écran, il apparaît avec cet effet"><Select value={reveal?.options.kind ?? ""} placeholder="Aucune" options={REVEALS} onValueChange={(v) => commit(v ? { op: "batch", ops: planReveal(node, { ...reveal?.options, kind: v as RevealKind }), label: "Apparition" } : { op: "batch", ops: planRemoveReveal(node), label: "Retirer l'apparition" }, { label: v ? "Apparition" : "Retirer l'apparition" })} /></Field>
-        {reveal ? <>
-          <Field label="Durée"><NumberInput unit="ms" step={50} min={0} value={reveal.options.duration ?? 700} onValueChange={(n) => commit({ op: "batch", ops: planReveal(node, { ...reveal.options, duration: n === "" ? 700 : n }), label: "Durée de l'apparition" }, { coalesceKey: `reveal-dur:${node.id}` })} /></Field>
-          <Field label="Délai" hint="Utile pour décaler des éléments voisins : 0, 100, 200 ms…"><NumberInput unit="ms" step={50} min={0} value={reveal.options.delay ?? 0} onValueChange={(n) => commit({ op: "batch", ops: planReveal(node, { ...reveal.options, delay: n === "" ? 0 : n }), label: "Délai de l'apparition" }, { coalesceKey: `reveal-delay:${node.id}` })} /></Field>
-          <Field label="Courbe"><Select value={reveal.options.easing ?? EASINGS[0]!.value} options={EASINGS} onValueChange={(v) => commit({ op: "batch", ops: planReveal(node, { ...reveal.options, easing: v }), label: "Courbe de l'apparition" })} /></Field>
-          <Field label="Rejouer" hint="Rejoue l'apparition à chaque retour dans l'écran"><Toggle checked={!!reveal.options.repeat} label={reveal.options.repeat ? "à chaque passage" : "une seule fois"} onChange={(b) => commit({ op: "batch", ops: planReveal(node, { ...reveal.options, repeat: b }), label: "Rejouer l'apparition" })} /></Field>
-        </> : null}
-        {reveal && parentKids.length > 1 ? <Field label="En cascade" hint="Applique la même apparition aux éléments voisins qui suivent, chacun décalé de 100 ms de plus"><Button size="sm" variant="ghost" icon={Sparkles} onClick={() => { const after = parentKids.slice(parentKids.indexOf(node) + 1); const ops = after.flatMap((n, i) => planReveal(n, { ...reveal.options, delay: (reveal.options.delay ?? 0) + 100 * (i + 1) })); if (ops.length) commit({ op: "batch", ops, label: "Apparition en cascade" }, { label: "Apparition en cascade" }); }}>Décaler les voisins</Button></Field> : null}
-        {node.type === "text" ? <Field label="Compteur" hint="Le nombre du texte défile de 0 à sa valeur quand il entre dans l'écran (« 12 ans » compte jusqu'à 12)"><Toggle checked={!!node.props.countUp} label={node.props.countUp ? "animé" : "fixe"} onChange={(b) => commit({ op: "node.set", id: node.id, path: "props.countUp", value: b || undefined }, { label: b ? "Compteur animé" : "Compteur fixe" })} /></Field> : null}
         <Field label="Au chargement" hint="Masqué jusqu'à ce qu'une interaction l'affiche (réponse d'une question, panneau…)"><Toggle checked={!!hidden} label={hidden ? "masqué" : "visible"} onChange={(b) => { const ops = planHiddenAtLoad(node, b); if (ops.length) commit({ op: "batch", ops, label: b ? "Masquer au chargement" : "Visible au chargement" }); }} /></Field>
       </FieldGroup>
       {others.length ? (

@@ -11,3 +11,4 @@ export * from "./SharedStylesPanel";
 export * from "./BindingPanel";
 export * from "./ComponentPanels";
 export * from "./InteractionsPanel";
+export * from "./AnimationsPanel";

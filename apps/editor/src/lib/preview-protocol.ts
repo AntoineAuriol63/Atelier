@@ -4,6 +4,7 @@ export type EditMode = "write" | "design";
 
 /** Ce que l'éditeur (parent) envoie à l'aperçu (iframe). Une seule origine : la nôtre. */
 export type ToPreview =
+  | { type: "atelier:play"; id: string; run: string }
   | { type: "atelier:site"; site: Site; containers: string[]; links: string[]; textNodes: string[]; editMode: EditMode; blocks: BlockPresetInfo[]; pages: { path: string; name: string }[] }
   | { type: "atelier:entries"; entries: Entry[] }
   | { type: "atelier:mode"; mode: string }

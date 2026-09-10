@@ -178,7 +178,8 @@ export class FileSiteStore implements SiteStore {
   async published(id: string): Promise<Published | null> {
     const d = await this.read(id);
     const p = d?.publications?.find((x) => x.version === d.publishedVersion);
-    return p ? { site: p.site, entries: p.entries, version: p.version, publishedAt: p.createdAt } : null;
+    // L'instantané publié passe aussi par la migration : un site publié avant une évolution du modèle se rend avec le code du jour.
+    return p ? { site: migrate(p.site), entries: p.entries, version: p.version, publishedAt: p.createdAt } : null;
   }
   async restore(id: string, version: number): Promise<PublicationMeta> {
     return this.serialize(id, async () => {

@@ -1,4 +1,4 @@
-import type { Interaction, Node, Target } from "@atelier/model";
+import type { AnimationRun, Interaction, Node, Target } from "@atelier/model";
 import { variantClass } from "@atelier/model";
 import { resolveHref, type RenderContext } from "./context";
 import { declarations } from "./css";
@@ -57,9 +57,31 @@ export function applyInstantStates(root: ParentNode): void {
   });
 }
 
-/** Vrai si la page contient un effet joué par le script (parallaxe, compteur, carrousel automatique). */
+/** Réglage du bandeau défilant d'une boîte : `{ duration, direction, pauseOnHover }` (un nombre seul, ancienne forme, vaut la durée). */
+export function marqueeOf(node: Node): { duration: number; direction?: "left" | "right" | "up" | "down"; pauseOnHover?: boolean } | null {
+  const m = node.props.marquee;
+  if (typeof m === "number") return m > 0 ? { duration: m } : null;
+  if (m && typeof m === "object" && typeof (m as { duration?: unknown }).duration === "number" && (m as { duration: number }).duration > 0) return m as { duration: number; direction?: "left" | "right" | "up" | "down"; pauseOnHover?: boolean };
+  return null;
+}
+
+/**
+ * Valeur de `data-anim` : les runs du nœud avec leurs images-clés recopiées (déclarations CSS résolues), pour le script
+ * (entrée dans l'écran, clic, défilement, pause au survol) et pour le bouton « Jouer » de l'éditeur.
+ */
+export function animationsAttr(node: Node, ctx: RenderContext): string | undefined {
+  const runs = node.animations ?? [];
+  if (!runs.length) return undefined;
+  const wire = runs.map((r: AnimationRun) => {
+    const kf = typeof r.animation === "string" ? ctx.site.animations?.find((a) => a.id === r.animation)?.keyframes ?? [] : r.animation.keyframes;
+    return { i: r.id, t: r.trigger, k: kf.map((k) => ({ o: k.at / 100, c: declarations(k.style, ctx.assets) })), d: r.duration, dl: r.delay ?? 0, e: r.easing ?? "ease", it: r.iterations ?? 1, dir: r.direction ?? "normal", f: r.fill ?? "both", once: r.once !== false, ph: !!r.pauseOnHover, r: r.range ?? [0, 1] };
+  });
+  return JSON.stringify(wire);
+}
+
+/** Vrai si la page contient un effet joué par le script (animations, parallaxe, compteur, carrousel automatique). */
 export function hasMotion(n: Node): boolean {
-  const own = (typeof n.props.parallax === "number" && n.props.parallax !== 0) || !!n.props.countUp || (n.type === "collection" && !!(n.props.view as { autoplay?: number } | undefined)?.autoplay);
+  const own = !!n.animations?.length || (typeof n.props.parallax === "number" && n.props.parallax !== 0) || !!n.props.countUp || (n.type === "collection" && !!(n.props.view as { autoplay?: number } | undefined)?.autoplay);
   return own || (n.children ?? []).some(hasMotion);
 }
 
@@ -92,6 +114,21 @@ document.querySelectorAll("[data-ix]").forEach(function(el){var list;try{list=JS
 /* Parallaxe : l'élément se décale selon sa position dans l'écran, à la vitesse donnée (0.1 = léger, 0.5 = marqué). */
 var px=Array.prototype.slice.call(document.querySelectorAll("[data-parallax]"));
 if(px.length&&!instant){var ticking=false;var move=function(){ticking=false;var vh=window.innerHeight;px.forEach(function(el){var r=el.getBoundingClientRect();var c=r.top+r.height/2-vh/2;el.style.transform="translate3d(0,"+Math.round(-c*parseFloat(el.getAttribute("data-parallax"))*100)/100+"px,0)";el.style.willChange="transform";});};window.addEventListener("scroll",function(){if(!ticking){ticking=true;requestAnimationFrame(move);}},{passive:true});window.addEventListener("resize",move);move();}
+/* Animations (section 8.4) : images-clés dans data-anim. CSS joue « chargement » et « survol » ; le script lance « entrée dans l'écran », « clic » et « défilement » avec l'API Web Animations. */
+var toKf=function(k){return k.map(function(s){var o={offset:s.o};s.c.split(";").forEach(function(d){var i=d.indexOf(":");if(i>0){var p=d.slice(0,i).trim().replace(/-([a-z])/g,function(_,c){return c.toUpperCase();});o[p]=d.slice(i+1).trim();}});return o;});};
+var animOpts=function(a,extra){var o={duration:a.d,delay:a.dl,easing:a.e,iterations:a.it==="infinite"?Infinity:a.it,direction:a.dir,fill:a.f};for(var k in extra)o[k]=extra[k];return o;};
+window.__atelierPlay=function(el,a){try{return el.animate(toKf(a.k),animOpts(a,{}));}catch(e){return null;}};
+if(!instant){document.querySelectorAll("[data-anim]").forEach(function(el){var runs;try{runs=JSON.parse(el.getAttribute("data-anim"));}catch(e){return;}
+ var scripted=runs.filter(function(a){return a.t==="inView"||a.t==="click"||a.t==="scroll";});if(!scripted.length)return;
+ var live={};var pauseAll=function(){for(var k in live)live[k].pause();};var playAll=function(){for(var k in live)if(live[k].playState==="paused"&&!live[k].__scroll)live[k].play();};
+ if(runs.some(function(a){return a.ph&&a.t!=="load"&&a.t!=="hover";})){el.addEventListener("mouseenter",pauseAll);el.addEventListener("mouseleave",playAll);}
+ runs.forEach(function(a){
+  if(a.t==="click"){el.addEventListener("click",function(){var an=window.__atelierPlay(el,a);if(an)live[a.i]=an;});}
+  else if(a.t==="scroll"){var an=el.animate(toKf(a.k),{duration:1000,fill:"both",easing:"linear"});an.pause();an.__scroll=true;live[a.i]=an;var tick=false;var upd=function(){tick=false;var vh=window.innerHeight,r=el.getBoundingClientRect();var p=(vh-r.top)/(vh+r.height);var lo=a.r[0],hi=a.r[1];var q=hi>lo?(p-lo)/(hi-lo):p;q=Math.max(0,Math.min(1,q));an.currentTime=q*1000;};var onS=function(){if(!tick){tick=true;requestAnimationFrame(upd);}};window.addEventListener("scroll",onS,{passive:true});window.addEventListener("resize",onS);upd();}
+ });
+ var inView=runs.filter(function(a){return a.t==="inView";});
+ if(inView.length&&("IntersectionObserver" in window)){el.style.animation="none";var seen=false;var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){if(seen&&inView.every(function(a){return a.once;}))return;seen=true;inView.forEach(function(a){if(live[a.i])live[a.i].cancel();var an=window.__atelierPlay(el,a);if(an)live[a.i]=an;});if(inView.every(function(a){return a.once;}))io.unobserve(el);}else{inView.forEach(function(a){if(!a.once&&live[a.i]){live[a.i].cancel();delete live[a.i];}});}});},{threshold:0.15});io.observe(el);}
+});}
 /* Compteur : le nombre du texte défile de 0 à sa valeur quand il entre dans l'écran (la ponctuation autour est gardée). */
 var counters=Array.prototype.slice.call(document.querySelectorAll("[data-countup]"));
 if(counters.length){var runCount=function(el){var txt=el.textContent||"";var m=txt.match(/-?\d[\d\s\u00a0.,]*/);if(!m)return;var raw=m[0];var dec=(raw.match(/[.,](\d+)$/)||[])[1];var target=parseFloat(raw.replace(/[\s\u00a0]/g,"").replace(",","."));if(isNaN(target))return;var digits=dec?dec.length:0;var start=performance.now(),dur=1400;var fmt=function(v){var s=v.toFixed(digits);if(dec)s=s.replace(".",raw.indexOf(",")>=0?",":".");return raw.indexOf(" ")>=0||raw.indexOf("\u00a0")>=0?s.replace(/\B(?=(\d{3})+(?!\d))/g,"\u00a0"):s;};var step=function(now){var t=Math.min(1,(now-start)/dur);var e=1-Math.pow(1-t,3);el.textContent=txt.replace(raw,fmt(target*e));if(t<1)requestAnimationFrame(step);};if(instant){el.textContent=txt;return;}requestAnimationFrame(step);};

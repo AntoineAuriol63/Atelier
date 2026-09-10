@@ -168,7 +168,7 @@ describe("site d'exemple : restaurant", () => {
     expect(home).toContain("Agneau des Combrailles");
     expect(home).toContain("Brunch des producteurs");
     expect(home).toContain('class="n-rh_root v-fond-transparent"');
-    expect(home).toContain("data-ix=");
+    expect(home).toContain("data-anim=");
     expect(home).toContain("IntersectionObserver");
   });
 });
@@ -293,5 +293,45 @@ describe("rendu", () => {
   });
   it("retourne undefined pour un chemin inconnu", () => {
     expect(matchPath(sampleSite, data, "/nope")).toBeUndefined();
+  });
+});
+
+const ctxOf = (site: Site, page: Site["pages"][number]): RenderContext => ({ site, page, params: {}, locale: "fr", data, assets: assetMap(site), basePath: "" });
+
+describe("animations (section 8.4)", () => {
+  it("images-clés en ligne, propriété animation par déclencheur, pause jusqu'à l'écran, survol, données pour le script", async () => {
+    const { runFromPreset, presetById } = await import("@atelier/model");
+    const load = runFromPreset(presetById("float")!, { id: "r1", pauseOnHover: true });
+    const view = runFromPreset(presetById("fade-up")!, { id: "r2", delay: 100 });
+    const hover = runFromPreset(presetById("grow")!, { id: "r3" });
+    const node = { id: "a1", type: "text" as const, props: { tag: "p", content: { fr: [{ t: "text" as const, v: "Bonjour" }] } }, animations: [load, view, hover] };
+    const site = { ...sampleSite, pages: [{ ...sampleSite.pages[0]!, root: { id: "r", type: "box" as const, props: {}, children: [node] } }] };
+    const css = siteCss(site);
+    expect(css).toContain("@keyframes ak-r1{0%{transform:translateY(0)}50%{transform:translateY(-10px)}100%{transform:translateY(0)}}");
+    expect(css).toContain("@keyframes ak-r2{0%{opacity:0;transform:translateY(28px)}100%{opacity:1;transform:none;filter:none}}");
+    expect(css).toMatch(/\.n-a1\{animation:ak-r1 3000ms ease-in-out 0ms infinite normal both,ak-r2 700ms cubic-bezier\(\.22,1,\.36,1\) 100ms 1 normal both;animation-play-state:running,paused\}/);
+    expect(css).toContain(".n-a1:hover{animation-play-state:paused,paused}");
+    expect(css).toContain(".n-a1:hover{animation:ak-r3 250ms ease-out 0ms 1 normal forwards}");
+    expect(css).toContain(".at-page[data-editor] [data-anim]{animation:none!important}");
+    const html = renderToStaticMarkup(createElement(RenderPage, { ctx: ctxOf(site, site.pages[0]!) }));
+    expect(html).toContain('data-anim="');
+    expect(html).toContain("&quot;t&quot;:&quot;inView&quot;");
+    expect(html).toContain("<noscript>");
+    expect(html).toContain("__atelierPlay");
+  });
+  it("bibliothèque du site : images-clés émises une fois, run qui y renvoie", () => {
+    const site = { ...sampleSite, animations: [{ id: "lib1", name: "Toupie", keyframes: [{ at: 0, style: { transform: "rotate(0deg)" } }, { at: 100, style: { transform: "rotate(360deg)" } }] }],
+      pages: [{ ...sampleSite.pages[0]!, root: { id: "r", type: "box" as const, props: {}, children: [{ id: "a2", type: "box" as const, props: { tag: "div" }, animations: [{ id: "r9", animation: "lib1", trigger: "load" as const, duration: 8000, easing: "linear", iterations: "infinite" as const }] }] } }] };
+    const css = siteCss(site);
+    expect(css.match(/@keyframes an-lib1/g)).toHaveLength(1);
+    expect(css).toContain(".n-a2{animation:an-lib1 8000ms linear 0ms infinite normal both;animation-play-state:running}");
+  });
+  it("bandeau défilant : sens, pause au survol, ancienne forme numérique", () => {
+    const band = (marquee: unknown) => ({ ...sampleSite, pages: [{ ...sampleSite.pages[0]!, root: { id: "r", type: "box" as const, props: {}, children: [{ id: "b1", type: "box" as const, props: { tag: "div", marquee }, children: [{ id: "t", type: "text" as const, props: { tag: "p", content: { fr: [{ t: "text" as const, v: "x" }] } } }] }] } }] });
+    const h1 = renderToStaticMarkup(createElement(RenderPage, { ctx: ctxOf(band(28), band(28).pages[0]!) }));
+    expect(h1).toContain('data-marquee="left"'); expect(h1).toContain("--at-marquee:28s"); expect(h1).not.toContain("data-marquee-pause");
+    const s2 = band({ duration: 12, direction: "up", pauseOnHover: true }); const h2 = renderToStaticMarkup(createElement(RenderPage, { ctx: ctxOf(s2, s2.pages[0]!) }));
+    expect(h2).toContain('data-marquee="up"'); expect(h2).toContain("data-marquee-pause"); expect(h2).toContain("--at-marquee:12s");
+    expect(siteCss(band(1))).toContain("@keyframes at-marquee-up");
   });
 });

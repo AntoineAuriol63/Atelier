@@ -19,3 +19,4 @@ export { validateSite } from "./schema";
 export { sampleSite, sampleEntries } from "./sample";
 export { restaurantSite, restaurantEntries } from "./sample-restaurant";
 export { blankSite } from "./blank";
+export * from "./animations";

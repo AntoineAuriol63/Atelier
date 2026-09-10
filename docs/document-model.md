@@ -74,7 +74,7 @@ type Node = {
 
 | Type | Rôle | Enfants | Propriétés principales |
 |---|---|---|---|
-| `box` | Boîte générique : section, conteneur, colonne, carte | oui | `tag` (`div`, `section`, `header`, `footer`, `nav`, `article`, `aside`, `main`, `figure`), `marquee?: number` (bandeau défilant : durée d'un tour en secondes) |
+| `box` | Boîte générique : section, conteneur, colonne, carte | oui | `tag` (`div`, `section`, `header`, `footer`, `nav`, `article`, `aside`, `main`, `figure`), `marquee?: { duration: number; direction?: "left" | "right" | "up" | "down"; pauseOnHover?: boolean }` (bandeau défilant : durée d'un tour en secondes, sens, pause au survol ; un nombre seul, ancienne forme, vaut `{ duration }`) |
 | `text` | Un bloc de texte : paragraphe, titre, citation | non | `tag` (`p`, `h1`…`h6`, `blockquote`, `span`, `label`), `content: Localized<Inline[]>`, `countUp?: boolean` (le nombre du texte compte de 0 à sa valeur à l'entrée dans l'écran) |
 | `list` | Liste | `listItem` | `ordered: boolean` |
 | `listItem` | Élément de liste | oui | — |
@@ -369,6 +369,36 @@ type PageState = { [name: string]: { type: "boolean" | "number" | "text"; initia
 ```
 
 Un nœud peut avoir `hidden` conditionnel via `bindings: { "visible": { source: "state", path: "menuOpen" } }`.
+
+### 8.4 Animations
+
+Une animation est une suite d'**étapes** (des images-clés, comme en CSS) jouée sur un élément par un **déclencheur**. Elle vit soit dans la bibliothèque du site (`site.animations`, réutilisable, nommée), soit en ligne sur le nœud.
+
+```ts
+type Keyframe = { at: number; style: StyleProps };          // at : position de 0 à 100
+type AnimationDef = { id: Id; name: string; keyframes: Keyframe[] };
+type AnimationRun = {
+  id: Id;
+  animation: Id | { keyframes: Keyframe[] };                // bibliothèque, ou étapes propres au nœud
+  preset?: string;                                          // sorte d'origine (fade-up, float, spin…), pour l'interface
+  trigger: "load" | "inView" | "hover" | "click" | "scroll";
+  duration: number;                                         // ms (pour scroll : sans effet, la position pilote)
+  delay?: number;                                           // ms
+  easing?: string;                                          // courbe CSS
+  iterations?: number | "infinite";                         // défaut 1
+  direction?: "normal" | "reverse" | "alternate" | "alternate-reverse";
+  fill?: "none" | "forwards" | "backwards" | "both";        // défaut both
+  once?: boolean;                                           // inView : une seule fois (défaut vrai) ; sinon rejouée à chaque entrée
+  pauseOnHover?: boolean;                                   // en pause tant que la souris est dessus
+  range?: [number, number];                                 // scroll : fraction de la traversée de l'écran où l'animation va de 0 à 100 % (défaut [0, 1])
+};
+Node.animations?: AnimationRun[];
+Site.animations?: AnimationDef[];
+```
+
+Rendu (`packages/renderer`) : chaque animation devient un bloc `@keyframes` dans la feuille de style (`an-<id>` pour la bibliothèque, `ak-<id de run>` en ligne) ; un déclencheur `load` est une simple propriété `animation` CSS (sans script) ; `hover` une règle `:hover` ; `inView` la même propriété **en pause** (`animation-play-state: paused`, remplissage `both`, donc l'élément montre sa première étape) que le script lance à l'entrée dans l'écran et remet à zéro à la sortie si `once` est faux ; `click` et `scroll` sont joués par le script avec l'API Web Animations (le script lit `data-anim`, où les étapes sont recopiées), la position de défilement pilotant le temps courant pour `scroll`. `pauseOnHover` met l'animation en pause au survol. Dans l'éditeur (`.at-page[data-editor]`), aucune animation ne joue : on voit l'état de repos, et le bouton « Jouer » de l'inspecteur la rejoue une fois sur demande. Avec « réduire les animations » et sans script, l'élément est simplement à son état de repos. L'état de repos d'un élément est son style ordinaire : une apparition ne modifie plus `style.base` (l'ancienne écriture, interaction `inView` + `opacity: 0` posé dans le style, est convertie à la lecture par la migration 1 → 2).
+
+Les cas particuliers d'avant sont des animations comme les autres : une **apparition** est un run `inView` avec une des étapes prêtes à l'emploi (fondu, fondu en montant…) ; un **bandeau défilant** reste une propriété de boîte, `marquee: { duration, direction: "left" | "right" | "up" | "down", pauseOnHover }`, parce qu'il change aussi la structure (les enfants sont dupliqués dans une piste) ; la **parallaxe** (`props.parallax`) et le **compteur** (`props.countUp`) restent des propriétés simples. Une animation ne pose aucune valeur dans `style` : la supprimer rend l'élément exactement tel qu'il est stylé.
 
 ## 9. Opérations
 

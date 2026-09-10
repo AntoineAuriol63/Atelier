@@ -82,6 +82,15 @@ export const interaction = z.object({
   source: sourceRef.optional(),
 });
 
+const keyframe = z.object({ at: z.number().min(0).max(100), style: z.record(z.string(), styleValue) });
+export const animationDef = z.object({ id, name: z.string(), keyframes: z.array(keyframe) });
+export const animationRun = z.object({
+  id, animation: z.union([id, z.object({ keyframes: z.array(keyframe) })]), preset: z.string().optional(),
+  trigger: z.enum(["load", "inView", "hover", "click", "scroll"]), duration: z.number().min(0), delay: z.number().optional(), easing: z.string().optional(),
+  iterations: z.union([z.number().positive(), z.literal("infinite")]).optional(), direction: z.enum(["normal", "reverse", "alternate", "alternate-reverse"]).optional(),
+  fill: z.enum(["none", "forwards", "backwards", "both"]).optional(), once: z.boolean().optional(), pauseOnHover: z.boolean().optional(), range: z.tuple([z.number(), z.number()]).optional(),
+});
+
 export const node: z.ZodType<Node> = z.lazy(() =>
   z.object({
     id,
@@ -92,6 +101,7 @@ export const node: z.ZodType<Node> = z.lazy(() =>
     children: z.array(node).optional(),
     bindings: z.record(z.string(), binding).optional(),
     interactions: z.array(interaction).optional(),
+    animations: z.array(animationRun).optional(),
     locked: z.boolean().optional(),
     hidden: z.record(z.string(), z.boolean()).optional(),
     source: sourceRef.optional(),
@@ -232,7 +242,7 @@ export const entry = z.object({
 });
 
 export const site = z.object({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
   id,
   name: z.string(),
   settings: z.object({
@@ -265,6 +275,7 @@ export const site = z.object({
   pages: z.array(page),
   assets: z.array(asset),
   redirects: z.array(z.object({ from: z.string(), to: z.string(), permanent: z.boolean() })),
+  animations: z.array(animationDef).optional(),
 });
 
 /** Opérations (section 9 du modèle). `prev` est accepté mais ignoré côté serveur. */

@@ -1,4 +1,4 @@
-import type { Asset, Breakpoint, ClassMap, ComponentDef, Node, SharedStyle, Site, StyleProps, StyleSet, StyleValue, Theme, ViewConfig } from "@atelier/model";
+import type { Asset, Breakpoint, ClassMap, ComponentDef, Node, SharedStyle, Site, StyleProps, StyleSet, StyleValue, Theme, ViewConfig, AnimationRun, Keyframe } from "@atelier/model";
 import { parseVariantKey, variantClass, walk } from "@atelier/model";
 
 // ---------------------------------------------------------------- valeurs
@@ -73,7 +73,7 @@ export function themeCss(theme: Theme): string {
   }
   // Base minimale, indépendante de tout reset externe.
   // Base des éléments en `:where()` (spécificité nulle) : un style posé sur un nœud (`.n-<id>`) ou partagé gagne toujours, même sur un bouton ou un champ.
-  out.push(`html{scroll-behavior:smooth}@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}.at-page{margin:0;min-height:100%}:where(.at-page *,.at-page *::before,.at-page *::after){box-sizing:border-box}:where(.at-page h1,.at-page h2,.at-page h3,.at-page h4,.at-page h5,.at-page h6,.at-page p,.at-page ul,.at-page ol,.at-page blockquote,.at-page figure){margin:0}:where(.at-page ul,.at-page ol){padding-left:1.25em}:where(.at-page img,.at-page video){max-width:100%}:where(.at-page hr){border:0;border-top:1px solid var(--color-line,#ddd);width:100%;height:0;margin:0;flex:none}:where(.at-page button){font:inherit;cursor:pointer;border:0;background:none}:where(.at-page input,.at-page textarea,.at-page select){font:inherit}:where(.at-page input:not([type=checkbox]):not([type=radio]),.at-page textarea,.at-page select){width:100%;padding:.55em .75em;border:1px solid var(--color-line,#ddd);border-radius:var(--radius-sm,3px);background:var(--color-surface,#fff);color:inherit}:where(.at-page [data-form-success]){color:var(--color-accent,inherit);font-weight:500}:where(.at-page [data-form-error]){color:#b42318}.at-page [data-ix-hidden]{display:none!important}.at-page [data-marquee]{overflow:hidden}.at-page [data-marquee] .at-marquee-track{display:flex;width:max-content;gap:inherit;animation:at-marquee var(--at-marquee,20s) linear infinite}.at-page [data-marquee] .at-marquee-copy{display:contents}.at-page [data-marquee]:hover .at-marquee-track{animation-play-state:paused}@keyframes at-marquee{to{transform:translateX(-50%)}}@media (prefers-reduced-motion:reduce){.at-page [data-marquee] .at-marquee-track{animation:none}}`);
+  out.push(`html{scroll-behavior:smooth}@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}.at-page{margin:0;min-height:100%}:where(.at-page *,.at-page *::before,.at-page *::after){box-sizing:border-box}:where(.at-page h1,.at-page h2,.at-page h3,.at-page h4,.at-page h5,.at-page h6,.at-page p,.at-page ul,.at-page ol,.at-page blockquote,.at-page figure){margin:0}:where(.at-page ul,.at-page ol){padding-left:1.25em}:where(.at-page img,.at-page video){max-width:100%}:where(.at-page hr){border:0;border-top:1px solid var(--color-line,#ddd);width:100%;height:0;margin:0;flex:none}:where(.at-page button){font:inherit;cursor:pointer;border:0;background:none}:where(.at-page input,.at-page textarea,.at-page select){font:inherit}:where(.at-page input:not([type=checkbox]):not([type=radio]),.at-page textarea,.at-page select){width:100%;padding:.55em .75em;border:1px solid var(--color-line,#ddd);border-radius:var(--radius-sm,3px);background:var(--color-surface,#fff);color:inherit}:where(.at-page [data-form-success]){color:var(--color-accent,inherit);font-weight:500}:where(.at-page [data-form-error]){color:#b42318}.at-page [data-ix-hidden]{display:none!important}.at-page [data-marquee]{overflow:hidden}.at-page [data-marquee] .at-marquee-track{display:flex;width:max-content;gap:inherit;animation:at-marquee-left var(--at-marquee,20s) linear infinite}.at-page [data-marquee="right"] .at-marquee-track{animation-name:at-marquee-right}.at-page [data-marquee="up"] .at-marquee-track,.at-page [data-marquee="down"] .at-marquee-track{flex-direction:column;width:auto;height:max-content}.at-page [data-marquee="up"]{max-height:var(--at-marquee-height,12rem)}.at-page [data-marquee="down"]{max-height:var(--at-marquee-height,12rem)}.at-page [data-marquee="up"] .at-marquee-track{animation-name:at-marquee-up}.at-page [data-marquee="down"] .at-marquee-track{animation-name:at-marquee-down}.at-page [data-marquee] .at-marquee-copy{display:contents}.at-page [data-marquee-pause]:hover .at-marquee-track{animation-play-state:paused}@keyframes at-marquee-left{to{transform:translateX(-50%)}}@keyframes at-marquee-right{from{transform:translateX(-50%)}to{transform:translateX(0)}}@keyframes at-marquee-up{to{transform:translateY(-50%)}}@keyframes at-marquee-down{from{transform:translateY(-50%)}to{transform:translateY(0)}}.at-page[data-editor] [data-anim]{animation:none!important}@media (prefers-reduced-motion:reduce){.at-page [data-marquee] .at-marquee-track,.at-page [data-anim]{animation:none!important}}`);
   return out.join("\n");
 }
 
@@ -209,13 +209,43 @@ export function collectionViewCss(selector: string, view: ViewConfig | undefined
   return out.join("\n");
 }
 
-export function nodeCss(node: Node, breakpoints: Breakpoint[], assets?: Map<string, Asset>, classes?: ClassMap): string {
+/** Nom CSS des images-clés d'un run : celles de la bibliothèque (`an-<id>`) ou les siennes (`ak-<id du run>`). */
+export const keyframesName = (run: AnimationRun) => (typeof run.animation === "string" ? `an-${run.animation}` : `ak-${run.id}`);
+export function keyframesCss(name: string, keyframes: Keyframe[], assets?: Map<string, Asset>): string {
+  return `@keyframes ${name}{${keyframes.map((k) => `${k.at}%{${declarations(k.style, assets)}}`).join("")}}`;
+}
+/** Valeur `animation` CSS d'un run (durée, courbe, délai, répétitions, sens, remplissage). */
+export function animationValue(run: AnimationRun): string {
+  const it = run.iterations === "infinite" ? "infinite" : String(run.iterations ?? 1);
+  return `${keyframesName(run)} ${run.duration}ms ${run.easing ?? "ease"} ${run.delay ?? 0}ms ${it} ${run.direction ?? "normal"} ${run.fill ?? "both"}`;
+}
+/**
+ * Animations d'un nœud (section 8.4) : ses images-clés en ligne, la propriété `animation` pour les déclencheurs CSS
+ * (chargement, entrée dans l'écran en pause jusqu'au script, survol), et la pause au survol.
+ */
+export function nodeAnimationsCss(node: Node, sel: string, site: Pick<Site, "animations">, assets?: Map<string, Asset>): string {
+  const runs = node.animations ?? [];
+  if (!runs.length) return "";
+  const out: string[] = [];
+  for (const r of runs) if (typeof r.animation !== "string") out.push(keyframesCss(keyframesName(r), r.animation.keyframes, assets));
+  const base = runs.filter((r) => r.trigger === "load" || r.trigger === "inView");
+  const hover = runs.filter((r) => r.trigger === "hover");
+  if (base.length) {
+    out.push(`${sel}{animation:${base.map(animationValue).join(",")};animation-play-state:${base.map((r) => (r.trigger === "inView" ? "paused" : "running")).join(",")}}`);
+    if (base.some((r) => r.pauseOnHover && r.trigger === "load")) out.push(`${sel}:hover{animation-play-state:${base.map((r) => (r.pauseOnHover || r.trigger === "inView" ? "paused" : "running")).join(",")}}`);
+  }
+  if (hover.length) out.push(`${sel}:hover{animation:${hover.map(animationValue).join(",")}}`);
+  return out.join("\n");
+}
+
+export function nodeCss(node: Node, breakpoints: Breakpoint[], assets?: Map<string, Asset>, classes?: ClassMap, site?: Pick<Site, "animations">): string {
   const { shared: _shared, ...rest } = node.style ?? {};
   void _shared;
   const sel = `.${classes?.node.get(node.id) ?? `n-${node.id}`}`;
   const own = styleSetCss(sel, node.style ? rest : undefined, breakpoints, assets, node.hidden);
-  if (node.type !== "collection") return own;
-  return [collectionViewCss(sel, node.props.view as ViewConfig | undefined, breakpoints), own].filter(Boolean).join("\n");
+  const anim = nodeAnimationsCss(node, sel, site ?? {}, assets);
+  if (node.type !== "collection") return [own, anim].filter(Boolean).join("\n");
+  return [collectionViewCss(sel, node.props.view as ViewConfig | undefined, breakpoints), own, anim].filter(Boolean).join("\n");
 }
 
 export function assetMap(site: Site): Map<string, Asset> {
@@ -229,13 +259,15 @@ export function siteCss(site: Site, opts: { pageId?: string; classes?: ClassMap 
   // Une page ne reçoit que son CSS (et celui des composants) : le reste du site n'a rien à faire dans sa réponse.
   const pages = opts.pageId ? site.pages.filter((p) => p.id === opts.pageId) : site.pages;
   const roots = [...pages.map((p) => p.root), ...site.components.map((c) => c.root)];
+  // Images-clés de la bibliothèque du site, une fois chacune.
+  for (const def of site.animations ?? []) out.push(keyframesCss(`an-${def.id}`, def.keyframes, assets));
   for (const root of roots) {
     walk(root, (n) => {
-      const css = nodeCss(n, site.settings.breakpoints, assets, opts.classes);
+      const css = nodeCss(n, site.settings.breakpoints, assets, opts.classes, site);
       if (css) out.push(css);
       // Contenu vide d'une collection
       const view = n.type === "collection" ? (n.props as { view?: { empty?: Node[] } }).view : undefined;
-      view?.empty?.forEach((e) => walk(e, (m) => { const c = nodeCss(m, site.settings.breakpoints, assets, opts.classes); if (c) out.push(c); }));
+      view?.empty?.forEach((e) => walk(e, (m) => { const c = nodeCss(m, site.settings.breakpoints, assets, opts.classes, site); if (c) out.push(c); }));
     });
   }
   for (const c of site.components) { const v = variantCss(c, site.settings.breakpoints, assets, opts.classes); if (v) out.push(v); }

@@ -1,4 +1,5 @@
-import type { Id, Interaction, Node, Op, StyleProps, Target } from "./types";
+import type { AnimationRun, Id, Interaction, Node, Op, StyleProps, Target } from "./types";
+import { presetById, runFromPreset } from "./animations";
 import { newId } from "./ids";
 
 /** Effets d'apparition prêts à l'emploi (D31) : état de départ posé sur le nœud, arrivée jouée quand il entre dans l'écran. */
@@ -20,41 +21,26 @@ export const EASINGS: { value: string; label: string }[] = [
 
 export type RevealOptions = { kind: RevealKind; duration?: number; delay?: number; easing?: string; repeat?: boolean };
 
-/** Une apparition : interaction `inView` dont on reconnaît la sorte par `trigger.options.reveal`. */
-export function revealInteraction(o: RevealOptions, id: Id = newId()): Interaction {
-  return { id, trigger: { kind: "inView", options: { reveal: o.kind, once: !o.repeat } }, actions: [{ kind: "setStyle", target: { self: true }, style: REVEAL_TO, transition: { duration: o.duration ?? 700, delay: o.delay ?? 0, easing: o.easing ?? "cubic-bezier(.22,1,.36,1)" } }] };
-}
-export function revealOf(node: Node): { interaction: Interaction; options: RevealOptions } | undefined {
-  const ix = (node.interactions ?? []).find((i) => i.trigger.kind === "inView" && typeof i.trigger.options?.reveal === "string");
-  if (!ix) return undefined;
-  const a = ix.actions.find((x) => x.kind === "setStyle");
-  const tr = a && "transition" in a ? a.transition : undefined;
-  return { interaction: ix, options: { kind: ix.trigger.options!.reveal as RevealKind, duration: tr?.duration, delay: tr?.delay, easing: tr?.easing, repeat: ix.trigger.options?.once === false } };
+/** L'apparition d'un nœud : le run `inView` issu d'un préréglage d'apparition. */
+export function revealOf(node: Node): { run: AnimationRun; options: RevealOptions } | undefined {
+  const run = (node.animations ?? []).find((r) => r.trigger === "inView" && !!r.preset && r.preset in REVEAL_LABEL);
+  if (!run) return undefined;
+  return { run, options: { kind: run.preset as RevealKind, duration: run.duration, delay: run.delay, easing: run.easing, repeat: run.once === false } };
 }
 
-/** Pose (ou remplace) l'apparition d'un nœud : état de départ dans le style de base, interaction `inView`. */
+/** Pose (ou remplace) l'apparition d'un nœud : une animation `inView`, rien dans le style. */
 export function planReveal(node: Node, o: RevealOptions): Op[] {
   const current = revealOf(node);
-  const base = { ...(node.style?.base ?? {}) };
-  // Retire l'état de départ précédent avant de poser le nouveau.
-  if (current) for (const k of Object.keys(REVEAL_FROM[current.options.kind])) delete base[k];
-  Object.assign(base, REVEAL_FROM[o.kind]);
-  const others = (node.interactions ?? []).filter((i) => i.id !== current?.interaction.id);
-  return [
-    { op: "node.set", id: node.id, path: "style.base", value: base },
-    { op: "node.set", id: node.id, path: "interactions", value: [...others, revealInteraction(o, current?.interaction.id)] },
-  ];
+  const preset = presetById(o.kind)!;
+  const run = runFromPreset(preset, { id: current?.run.id, duration: o.duration ?? 700, delay: o.delay ?? 0, easing: o.easing ?? preset.easing, once: !o.repeat });
+  const others = (node.animations ?? []).filter((r) => r.id !== current?.run.id);
+  return [{ op: "node.set", id: node.id, path: "animations", value: [...others, run] }];
 }
 export function planRemoveReveal(node: Node): Op[] {
   const current = revealOf(node);
   if (!current) return [];
-  const base = { ...(node.style?.base ?? {}) };
-  for (const k of Object.keys(REVEAL_FROM[current.options.kind])) delete base[k];
-  const rest = (node.interactions ?? []).filter((i) => i.id !== current.interaction.id);
-  return [
-    { op: "node.set", id: node.id, path: "style.base", value: Object.keys(base).length ? base : undefined },
-    { op: "node.set", id: node.id, path: "interactions", value: rest.length ? rest : undefined },
-  ];
+  const rest = (node.animations ?? []).filter((r) => r.id !== current.run.id);
+  return [{ op: "node.set", id: node.id, path: "animations", value: rest.length ? rest : undefined }];
 }
 
 /** Autres interactions simples : au clic ou au survol, afficher/masquer une cible, changer sa variante, aller quelque part. */
@@ -79,8 +65,6 @@ export function planHiddenAtLoad(node: Node, hidden: boolean): Op[] {
 
 export const TRIGGER_LABEL: Record<Interaction["trigger"]["kind"], string> = { click: "Au clic", hover: "Au survol", inView: "À l'apparition dans l'écran", scroll: "Au défilement", load: "Au chargement", change: "Au changement" };
 export function describeInteraction(ix: Interaction, nameOf: (id: Id) => string): string {
-  const reveal = ix.trigger.kind === "inView" && typeof ix.trigger.options?.reveal === "string" ? REVEAL_LABEL[ix.trigger.options.reveal as RevealKind] : undefined;
-  if (reveal) return `Apparition · ${reveal}`;
   if (ix.trigger.kind === "load" && ix.actions.every((a) => a.kind === "hide" && "self" in a.target)) return "Masqué au chargement";
   const tgt = (t: Target) => ("self" in t ? "cet élément" : "node" in t ? nameOf(t.node) : "component" in t ? nameOf(t.component) : t.selector);
   const acts = ix.actions.map((a) => {
