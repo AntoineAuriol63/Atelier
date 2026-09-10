@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { AlertTriangle, CheckCircle2, Command as CommandIcon, Database as DatabaseIcon, ExternalLink, Info, FileText, Grid3x3, Layers, Moon, Palette, Plus, Puzzle, Redo2, Sparkles, Sun, Undo2, UploadCloud } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Command as CommandIcon, Database as DatabaseIcon, ExternalLink, Info, FileText, Grid3x3, Layers, Moon, Palette, Plus, Puzzle, Redo2, Sparkles, Sun, Undo2, UploadCloud, X } from "lucide-react";
 import type { DropPosition, Entry, Node, Page, Site, StyleValue, Role } from "@atelier/model";
 import { BASE, breakpointForWidth, canInsertUnder, cloneWithNewIds, dataSourceFor, entryPath, fitHeadings as fitHeadingsInPage, indexSite, layoutGridAt, newId, planDetach, planDrop, planInsert, planMakeComponent, planMergePrev, planMove, planSlashInsert, planSplit, stylePath, templateOf, type ComponentPlan, type TextPlan, planReveal, REVEAL_LABEL, type RevealKind } from "@atelier/model";
 import type { Op } from "@atelier/model";
@@ -91,9 +91,20 @@ function Layer(p: {
 }
 
 const STATUS: Record<string, { label: string; tone: "success" | "neutral" | "danger" | "warning" }> = {
-  saved: { label: "Enregistré", tone: "success" }, saving: { label: "Enregistrement…", tone: "neutral" },
+  saved: { label: "Enregistré", tone: "success" }, saving: { label: "Enregistrement…", tone: "neutral" }, offline: { label: "Hors ligne", tone: "warning" },
   conflict: { label: "Conflit", tone: "danger" }, error: { label: "Erreur", tone: "danger" },
 };
+type Notice = { text: string; tone: "danger" | "success" | "info"; action?: { label: string; run: () => void } };
+// Un seul message à la fois ; le minuteur d'effacement vit hors du composant (un seul éditeur par page).
+let noticeTimer: number | null = null;
+
+/** Compte à rebours vivant vers la prochaine tentative d'enregistrement. */
+function RetryCountdown({ at }: { at: number }) {
+  const [now, setNow] = useState(0);
+  useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 500); return () => window.clearInterval(t); }, []);
+  const s = now ? Math.max(0, Math.ceil((at - now) / 1000)) : null;
+  return <span>{s === null ? "nouvel essai bientôt" : `nouvel essai dans ${s} s`}</span>;
+}
 
 function isTyping(): boolean {
   const el = document.activeElement as HTMLElement | null;
@@ -107,7 +118,14 @@ function focusInWorkspace(): boolean {
 
 export function EditorShell({ initialSite, initialVersion, initialEntries, role = "owner" }: { initialSite: Site; initialVersion: number; initialEntries: Entry[]; /** Rôle du compte sur ce site : un rédacteur reste en Écriture et ne touche ni au design ni aux réglages. */ role?: Role }) {
   const writer = role === "writer";
-  const doc = useDocument(initialSite, initialVersion);
+  const [notice, setNotice] = useState<Notice | null>(null);
+  /** Message passager en haut de l'aperçu : fermable, avec une action facultative (« Annuler »). */
+  const notify = useCallback((text: string, tone: "danger" | "success" | "info" = "danger", action?: Notice["action"]) => {
+    setNotice({ text, tone, action });
+    if (noticeTimer) window.clearTimeout(noticeTimer);
+    noticeTimer = window.setTimeout(() => setNotice((n) => (n?.text === text ? null : n)), action ? 6000 : tone === "danger" ? 4000 : 3500);
+  }, []);
+  const doc = useDocument(initialSite, initialVersion, { role, onRefused: (m) => notify(m) });
   const site = doc.site;
   // La page ouverte est mémorisée par site : au rechargement, on revient où l'on était.
   const pageKey = `atelier:page:${site.id}`;
@@ -123,7 +141,6 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
   const [frameReady, setFrameReady] = useState(false);
   const [openMap, setOpenMap] = useState<Record<string, boolean>>({});
   const [drop, setDrop] = useState<DropState>(null);
-  const [notice, setNotice] = useState<{ text: string; tone: "danger" | "success" | "info" } | null>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [editMode, setEditMode] = useState<EditMode>(() => { if (role === "writer") return "write"; try { return (localStorage.getItem("atelier:editmode") as EditMode) || "write"; } catch { return "design"; } });
   // Un rédacteur reste en Écriture (l'onglet Design est désactivé avec son explication).
@@ -161,10 +178,6 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
   void previewKey;
   const post = useCallback((msg: ToPreview) => frame.current?.contentWindow?.postMessage(msg, window.location.origin), []);
 
-  const notify = useCallback((text: string, tone: "danger" | "success" | "info" = "danger") => {
-    setNotice({ text, tone });
-    window.setTimeout(() => setNotice((n) => (n?.text === text ? null : n)), tone === "danger" ? 4000 : 3500);
-  }, []);
 
   /** Entrées des bases (hors document) et base ouverte en vue tableur. */
   const ents = useEntries(initialSite.id, initialEntries, notify);
@@ -311,7 +324,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
       if (m.type === "atelier:set-style") doc.commit({ op: "node.set", id: m.id, path: stylePath(activeBpRef.current, m.prop), value: m.value as StyleValue | undefined }, { label: `${m.prop}` });
       if (m.type === "atelier:set-tag") doc.commit({ op: "node.set", id: m.id, path: "props.tag", value: m.tag }, { label: "Type de bloc" });
       if (m.type === "atelier:pick-image") { const target = m.id; select(target); openMediaLibrary({ value: (index.get(target)?.node.props.asset as string | null) ?? null, onPick: (assetId) => doc.commit({ op: "node.set", id: target, path: "props.asset", value: assetId }, { label: "Changer l'image" }) }); }
-      if (m.type === "atelier:remove") { const loc = index.get(m.id); if (loc?.parent) { doc.commit({ op: "node.remove", id: m.id }, { label: "Supprimer" }); select(loc.parent.id); } }
+      if (m.type === "atelier:remove") { const loc = index.get(m.id); if (loc?.parent) { doc.commit({ op: "node.remove", id: m.id }, { label: "Supprimer" }); select(loc.parent.id); notify(`${nodeLabel(loc.node)} supprimé`, "info", { label: "Annuler", run: () => doc.undo() }); } }
     };
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
@@ -369,7 +382,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
       if (meta && e.key.toLowerCase() === "x") { e.preventDefault(); if (!loc.parent) return; clipboard.current = structuredClone(loc.node); doc.commit({ op: "node.remove", id: loc.node.id }, { label: "Couper" }); select(loc.parent.id); return; }
       if (meta && e.key.toLowerCase() === "v") { e.preventDefault(); if (!clipboard.current) return; const { node: copy } = cloneWithNewIds(clipboard.current, newId); const to = planInsert(index, page.root, loc.node.id, "after"); const ok = canInsertUnder(index, to.parent, copy); if (!ok.ok) { notify(ok.reason); return; } doc.commit({ op: "node.insert", parent: to.parent, index: to.index, node: copy }, { label: "Coller" }); select(copy.id); return; }
       if (meta && e.key.toLowerCase() === "d") { e.preventDefault(); if (!loc.parent) return; const { node: copy } = cloneWithNewIds(loc.node, newId); doc.commit({ op: "node.insert", parent: loc.parent.id, index: loc.index + 1, node: copy }, { label: "Dupliquer" }); select(copy.id); return; }
-      if ((e.key === "Backspace" || e.key === "Delete") && loc.parent) { e.preventDefault(); doc.commit({ op: "node.remove", id: loc.node.id }, { label: "Supprimer" }); select(loc.parent.id); return; }
+      if ((e.key === "Backspace" || e.key === "Delete") && loc.parent) { e.preventDefault(); doc.commit({ op: "node.remove", id: loc.node.id }, { label: "Supprimer" }); select(loc.parent.id); notify(`${nodeLabel(loc.node)} supprimé`, "info", { label: "Annuler", run: () => doc.undo() }); return; }
       if (e.key === "ArrowUp" || e.key === "ArrowDown") {
         e.preventDefault();
         const rows = [...document.querySelectorAll<HTMLElement>("[data-row-id]")].map((r) => r.dataset.rowId!);
@@ -555,7 +568,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
               />
             </div>
           ) : leftTab === "data" ? (
-            <DataPanel site={site} entries={ents.entries} commit={doc.commit} onOpen={setDbOpen} />
+            <DataPanel site={site} entries={ents.entries} commit={doc.commit} onOpen={setDbOpen} readOnly={writer} />
           ) : leftTab === "add" ? (
             <AddPanel site={site} target={insertTarget} onAdd={addBlock} onDragBlock={(id) => { dragBlock.current = id; if (!id) setDrop(null); }} />
           ) : (
@@ -565,13 +578,26 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
       </Panel>
 
       <main ref={canvas} className="relative min-w-0 overflow-auto bg-app flex justify-center items-start p-2">
-        {(doc.error || notice) ? (
-          <div role="status" className={`fixed top-14 left-1/2 -translate-x-1/2 z-[60] max-w-[560px] flex items-center gap-2 rounded-md border px-3.5 py-2.5 text-sm font-medium shadow-2xl animate-[atelier-toast_.25s_ease-out] ${notice?.tone === "success" ? "bg-success text-[#12211a] border-success" : notice?.tone === "info" ? "bg-accent text-accent-ink border-accent" : "bg-danger text-[#2a1210] border-danger"}`}>
-            {notice?.tone === "success" ? <CheckCircle2 size={16} aria-hidden /> : notice?.tone === "info" ? <Info size={16} aria-hidden /> : <AlertTriangle size={16} aria-hidden />}
-            <span>{notice?.text ?? doc.error}</span>
-            {!notice && doc.blocked ? <button type="button" onClick={() => window.location.reload()} className="ml-2 h-7 px-2.5 rounded-sm bg-white/15 hover:bg-white/25 text-sm font-medium">Recharger</button> : null}
+        {doc.error ? (
+          <div role="alert" className={`fixed top-14 left-1/2 -translate-x-1/2 z-[60] max-w-[640px] flex items-center gap-2 rounded-md border px-3.5 py-2.5 text-sm font-medium shadow-2xl ${doc.status === "offline" ? "bg-warning text-warning-ink border-warning" : "bg-danger text-danger-ink border-danger"}`}>
+            <AlertTriangle size={16} aria-hidden />
+            <span>{doc.error}{doc.status === "offline" && doc.retryAt ? <> · <RetryCountdown at={doc.retryAt} /></> : null}</span>
+            {doc.status === "offline" ? <button type="button" onClick={doc.retryNow} className="ml-2 h-7 px-2.5 rounded-sm bg-black/15 hover:bg-black/25 text-sm font-medium whitespace-nowrap">Réessayer maintenant</button> : null}
+            {doc.blocked ? <button type="button" onClick={() => void doc.copyPending().then((n) => notify(n ? `${n} opération${n > 1 ? "s" : ""} copiée${n > 1 ? "s" : ""} dans le presse-papiers.` : "Rien à copier : tout était enregistré.", "info"))} className="ml-2 h-7 px-2.5 rounded-sm bg-black/15 hover:bg-black/25 text-sm font-medium whitespace-nowrap">Copier mes changements</button> : null}
+            {doc.blocked ? <button type="button" onClick={() => window.location.reload()} className="h-7 px-2.5 rounded-sm bg-black/15 hover:bg-black/25 text-sm font-medium">Recharger</button> : null}
           </div>
         ) : null}
+        {/* Région live permanente : elle existe avant le message, pour que les lecteurs d'écran l'annoncent. */}
+        <div role="status" aria-live="polite" className={`fixed ${doc.error ? "top-[6.5rem]" : "top-14"} left-1/2 -translate-x-1/2 z-[60] max-w-[560px]`}>
+          {notice ? (
+            <div className={`flex items-center gap-2 rounded-md border px-3.5 py-2 text-sm font-medium shadow-2xl animate-[atelier-toast_.25s_ease-out] ${notice.tone === "success" ? "bg-success text-success-ink border-success" : notice.tone === "info" ? "bg-accent text-accent-ink border-accent" : "bg-danger text-danger-ink border-danger"}`}>
+              {notice.tone === "success" ? <CheckCircle2 size={16} aria-hidden /> : notice.tone === "info" ? <Info size={16} aria-hidden /> : <AlertTriangle size={16} aria-hidden />}
+              <span>{notice.text}</span>
+              {notice.action ? <button type="button" onClick={() => { notice.action!.run(); setNotice(null); }} className="ml-1 h-7 px-2.5 rounded-sm bg-black/15 hover:bg-black/25 text-sm font-medium whitespace-nowrap">{notice.action.label}</button> : null}
+              <button type="button" aria-label="Fermer le message" onClick={() => setNotice(null)} className="ml-1 h-7 w-7 grid place-items-center rounded-sm hover:bg-black/15"><X size={14} aria-hidden /></button>
+            </div>
+          ) : null}
+        </div>
         <div className="relative flex flex-col gap-1.5" style={{ width: width ? `${Math.min(width, measured || width)}px` : "100%", maxWidth: "100%" }}>
           <div style={{ width: "100%", height: `calc(${frameHeight} * ${scale})`, overflow: "visible", marginTop: 0 }}>
             <div style={{ width: `${effective || measured}px`, height: frameHeight, transform: `scale(${scale})`, transformOrigin: "top left" }}>
@@ -586,7 +612,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
 
       <Panel side="right">
         {selectedLoc ? (
-          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} site={site} loc={selectedLoc} dataSource={dataSource} activeBp={activeBp} mode={mode} editMode={editMode} onSwitchMode={switchMode} onGoToBreakpoint={goToBreakpoint} onPreviewState={setPreviewState} onEditInPreview={() => post({ type: "atelier:edit-text", id: selectedLoc.node.id })} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }} onMakeComponent={makeComponent} onDetach={detachInstance} notify={notify} commit={doc.commit} onDeleted={() => select(selectedLoc.parent?.id ?? null)} /></div>
+          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} site={site} loc={selectedLoc} dataSource={dataSource} activeBp={activeBp} mode={mode} editMode={editMode} onSwitchMode={switchMode} onGoToBreakpoint={goToBreakpoint} onPreviewState={setPreviewState} onEditInPreview={() => post({ type: "atelier:edit-text", id: selectedLoc.node.id })} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }} onMakeComponent={makeComponent} onDetach={detachInstance} notify={notify} commit={doc.commit} onDeleted={() => { select(selectedLoc.parent?.id ?? null); notify(`${nodeLabel(selectedLoc.node)} supprimé`, "info", { label: "Annuler", run: () => doc.undo() }); }} /></div>
         ) : (
           <div className="p-3 flex flex-col gap-2">
             <PanelHeading className="px-0">Sélection</PanelHeading>

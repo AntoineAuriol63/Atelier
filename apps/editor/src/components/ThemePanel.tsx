@@ -125,7 +125,7 @@ function LayoutGridSection({ site, commit }: { site: Site; commit: Commit }) {
         <span className="text-xs text-muted">Marge</span><UnitInput site={site} tokenGroup="space" value={grid.margin} onChange={(v) => set({ margin: v ?? "0px" }, "Marge de la grille")} />
         <span className="text-xs text-muted">Largeur max.</span><UnitInput site={site} tokenGroup="width" keywords={["none"]} value={grid.maxWidth} onChange={(v) => set({ maxWidth: v }, "Largeur de la grille")} placeholder="aucune" />
       </div>
-      <div className="text-2xs uppercase tracking-wider text-dim mt-1">Par taille d&apos;écran</div>
+      <div className="text-2xs uppercase tracking-[0.12em] text-dim mt-1">Par taille d&apos;écran</div>
       {bps.map((b) => (
         <div key={b.id} className="grid grid-cols-[84px_64px_minmax(0,1fr)] items-center gap-1.5">
           <span className="text-xs text-muted truncate" title={`jusqu'à ${b.maxWidth} px`}>{b.name}</span>
@@ -162,7 +162,7 @@ export function ThemePanel({ site, commit }: { site: Site; commit: Commit }) {
         </Section>
       ))}
       <Section title="Tailles d'écran" defaultOpen={false}>
-        <div className="grid grid-cols-[1fr_84px_24px] gap-1 text-2xs text-dim uppercase tracking-wider"><span>Nom</span><span>Jusqu&apos;à</span><span /></div>
+        <div className="grid grid-cols-[1fr_84px_24px] gap-1 text-2xs text-dim uppercase tracking-[0.12em]"><span>Nom</span><span>Jusqu&apos;à</span><span /></div>
         {bps.map((b) => {
           const uses = breakpointInUse(site, b.id);
           return (

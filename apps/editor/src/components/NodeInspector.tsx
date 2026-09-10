@@ -66,10 +66,11 @@ function displayValue(v: StyleValue | undefined): string {
   if ("token" in v) return `{${v.token}}`;
   return JSON.stringify(v);
 }
+/** Valeur brute : `{space.4}` ou `space.4` donnent un jeton, le reste est gardé tel quel. */
 function parseRaw(raw: string): StyleValue | undefined {
   const s = raw.trim();
   if (!s) return undefined;
-  const m = s.match(/^\{([\w.-]+)\}$/);
+  const m = s.match(/^\{?\s*([\w-]+\.[\w.-]+)\s*\}?$/);
   return m ? { token: m[1]! } : s;
 }
 function plainText(content: unknown, locale: string): { text: string; rich: boolean } {
@@ -155,15 +156,17 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
 
       {editMode === "write" ? null : (<>
       <div className="flex items-center gap-2 px-3 h-9 border-b border-line">
-        <span className="text-2xs uppercase tracking-wider text-dim">État</span>
+        <span className="text-2xs uppercase tracking-[0.12em] text-dim">État</span>
         <Segmented className="flex-1" size="sm" value={state} options={["hover", "active", "focus"].map((st) => { const n = stateProps(st).length; return { value: st, label: n ? `${STATE_LABEL[st]} · ${n}` : STATE_LABEL[st]! }; })} onChange={(v) => setState(v)} />
       </div>
       {component?.variants?.length ? (
         <div className="flex items-center gap-2 px-3 h-9 border-b border-line">
-          <span className="text-2xs uppercase tracking-wider text-dim">Variante</span>
+          <span className="text-2xs uppercase tracking-[0.12em] text-dim">Variante</span>
           <Segmented className="flex-1" size="sm" value={activeVariant} options={component.variants.flatMap((a) => a.values.map((v) => ({ value: variantKey(a.name, v), label: component.variants!.length > 1 ? `${a.name} · ${v}` : v })))} onChange={setVariant} />
         </div>
       ) : null}
+      {/* Annonce (lecteurs d'écran) du contexte de réglage : état, variante, style partagé, taille d'écran. */}
+      <p className="sr-only" role="status" aria-live="polite">{[sharedTarget ? `Vous modifiez le style partagé ${site.sharedStyles.find((x) => x.id === sharedTarget)?.name ?? ""}` : null, activeVariant ? `Variante ${activeVariant.replace(":", " ")}` : null, activeBp !== BASE ? `Taille d'écran ${style.bpName(activeBp)}` : null, state ? `État ${STATE_LABEL[state] ?? state}` : null].filter(Boolean).join(" · ")}</p>
       {activeVariant ? <div className="px-3 py-1 bg-warning-soft text-warning text-xs leading-snug border-b border-line">Vous réglez la variante <strong className="font-medium">{activeVariant.replace(":", " · ")}</strong> : le style normal reste hérité, seules les instances de cette variante changent.</div> : null}
       {state ? (
         <div className="flex flex-col gap-1 px-3 py-1.5 text-xs border-b border-line bg-surface/60">
@@ -263,9 +266,9 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
       ) : (
         <>
       <LayoutPanel site={site} node={node} style={style} parentDisplay={parentDisplay} parentDirection={parentDirection} leaf={!sharedDef && ["text", "image", "video", "divider", "icon", "embed", "field", "code"].includes(node.type)} />
-      <SpacingPanel site={site} style={style} />
-      <SizePanel site={site} style={style} />
-      <TypographyPanel site={site} style={style} mode={mode} />
+      <SpacingPanel site={site} style={style} defaultOpen={node.type !== "text"} />
+      <SizePanel site={site} style={style} defaultOpen={node.type === "image" || node.type === "video"} />
+      <TypographyPanel site={site} style={style} mode={mode} defaultOpen={node.type === "text" || node.type === "link"} />
       <AppearancePanel site={site} style={style} mode={mode} />
       <EffectsPanel site={site} style={style} node={sharedDef ? undefined : node} commit={commit} />
       {!sharedDef ? <InteractionsPanel site={site} node={node} pageRoot={pageRoot} commit={commit} /> : null}

@@ -64,7 +64,7 @@ export function LayoutPanel({ site, style, parentDisplay, parentDirection, leaf 
   const seg = (prop: string, label: string, options: typeof DISPLAY, wide = true) => row(prop, label, <Segmented className="flex-1" value={str(s.value(prop))} options={options} onChange={(v) => s.set(prop, v, false)} />, wide);
   const len = (prop: string, label: string, kw = LENGTH_KW) => (
     <PropRow key={`${prop}:${label}`} prop={prop} label={label} source={s.source(prop)} sourceTitle={s.title(prop)} onReset={() => s.reset(prop)} onScrub={s.scrub(prop)}>
-      <UnitInput className="flex-1" site={site} tokenGroup="space" keywords={kw} value={s.value(prop)} onChange={(v) => s.set(prop, v)} placeholder="0" />
+      <UnitInput prop={prop} className="flex-1" site={site} tokenGroup="space" keywords={kw} value={s.value(prop)} onChange={(v) => s.set(prop, v)} placeholder="0" />
     </PropRow>
   );
 

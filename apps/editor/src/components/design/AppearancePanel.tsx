@@ -117,7 +117,7 @@ export function AppearancePanel({ site, style, mode }: { site: Site; style: Styl
       <div className="h-px bg-line my-1" />
       {row("borderWidth", "Bordure", (
         <div className="flex items-center gap-1 flex-1">
-          <UnitInput className="w-16" site={site} value={s.value("borderWidth")} onChange={(v) => { s.set("borderWidth", v); if (v && !s.value("borderStyle")) s.set("borderStyle", "solid", false); }} placeholder="0" />
+          <UnitInput prop="borderWidth" className="w-16" site={site} value={s.value("borderWidth")} onChange={(v) => { s.set("borderWidth", v); if (v && !s.value("borderStyle")) s.set("borderStyle", "solid", false); }} placeholder="0" />
           <Select className="w-20" value={str(s.value("borderStyle")) ?? ""} placeholder="Style" options={BORDER_STYLES} onValueChange={(v) => s.set("borderStyle", v || undefined, false)} />
           <ColorInput className="flex-1" site={site} mode={mode} value={s.value("borderColor")} onChange={(v) => s.set("borderColor", v)} />
         </div>
@@ -126,7 +126,7 @@ export function AppearancePanel({ site, style, mode }: { site: Site; style: Styl
 
       {row("borderRadius", "Arrondi", (
         <div className="flex items-center gap-1 flex-1">
-          {perCorner ? null : <UnitInput className="flex-1" site={site} tokenGroup="radius" value={s.value("borderRadius")} onChange={(v) => s.set("borderRadius", v)} placeholder="0" />}
+          {perCorner ? null : <UnitInput prop="borderRadius" className="flex-1" site={site} tokenGroup="radius" value={s.value("borderRadius")} onChange={(v) => s.set("borderRadius", v)} placeholder="0" />}
           <button type="button" onClick={() => setPerCorner((p) => !p)} className={`h-7 px-2 rounded-sm text-2xs border ${perCorner ? "border-accent text-accent" : "border-line text-muted hover:text-ink"}`} title="Régler chaque coin">coins</button>
         </div>
       ))}

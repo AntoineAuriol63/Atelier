@@ -18,6 +18,9 @@
   --color-accent: #6aa6ff;
   --color-accent-soft: rgba(106, 166, 255, 0.16);
   --color-accent-ink: #0b1220;
+  --color-success-ink: #12211a;
+  --color-danger-ink: #2a1210;
+  --color-warning-ink: #2a1d05;
   --color-danger: #f0716b;
   --color-danger-soft: rgba(240, 113, 107, 0.14);
   --color-success: #5fcb9a;

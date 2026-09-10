@@ -93,3 +93,10 @@ export function tokenOptions(site: Site, group: keyof Theme["tokens"]): { token:
   const g = site.theme.tokens[group] ?? {};
   return Object.entries(g).map(([name, v]) => ({ token: `${group}.${name}`, label: tokenLabel(name), value: typeof v === "string" ? v : v[site.theme.defaultMode] ?? Object.values(v)[0] ?? "" }));
 }
+
+/** Le navigateur comprend-il cette valeur pour cette propriété ? (jetons et vide : oui ; texte libre : demandé à `CSS.supports`). */
+export function supported(prop: string | undefined, v: StyleValue | undefined): boolean {
+  if (v === undefined || typeof v === "number" || typeof v === "object" || !prop || typeof CSS === "undefined" || !CSS.supports) return true;
+  const kebab = prop.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase());
+  try { return CSS.supports(kebab, v); } catch { return true; }
+}

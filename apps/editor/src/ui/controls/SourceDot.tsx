@@ -18,7 +18,11 @@ export function sourceLabel(source: StyleSource | undefined, bpName: (id: string
   }
 }
 
-/** Pastille d'origine d'une valeur : bleu posé ici · ambre hérité · violet style partagé · gris défaut. */
+/** Glyphe par origine, lisible sans la couleur : ● posé ici · ◐ hérité · ◆ style partagé · ○ défaut. */
+export const SOURCE_GLYPH: Record<StyleSource["kind"], string> = { local: "●", inherited: "◐", shared: "◆", default: "○" };
+const SOURCE_TEXT_COLOR: Record<StyleSource["kind"], string> = { local: "text-accent", inherited: "text-warning", shared: "text-violet-300", default: "text-dim" };
+
+/** Pastille d'origine d'une valeur : forme et couleur (● posé ici · ◐ hérité · ◆ style partagé · ○ défaut). Toujours focalisable pour lire l'explication ; cliquable seulement quand la valeur est posée ici. */
 export function SourceDot({ source, title, onReset }: { source: StyleSource | undefined; title: string; onReset?: () => void }) {
   const kind = source?.kind;
   const local = kind === "local";
@@ -27,11 +31,11 @@ export function SourceDot({ source, title, onReset }: { source: StyleSource | un
     <button
       type="button"
       aria-label={title}
-      disabled={!local}
+      aria-disabled={!local || undefined}
       onClick={local ? onReset : undefined}
-      className={cx("w-3 h-3 shrink-0 inline-flex items-center justify-center rounded-full", local ? "cursor-pointer hover:ring-2 hover:ring-accent/40" : "cursor-default")}
+      className={cx("w-5 h-5 -ml-1 shrink-0 inline-flex items-center justify-center rounded-full text-[11px] leading-none", local ? "cursor-pointer hover:ring-2 hover:ring-accent/40" : "cursor-default", kind ? SOURCE_TEXT_COLOR[kind] : "text-dim")}
     >
-      <span className={cx("block rounded-full", kind ? "w-1.5 h-1.5" : "w-1.5 h-1.5 border border-line-strong", kind && SOURCE_COLOR[kind])} />
+      <span aria-hidden>{kind ? SOURCE_GLYPH[kind] : "○"}</span>
     </button>
     </Tooltip>
   );

@@ -3,17 +3,19 @@
 import { useState } from "react";
 import { Diamond, X } from "lucide-react";
 import type { Site, StyleValue, Theme } from "@atelier/model";
-import { LENGTH_UNITS, parseInput, parseValue, tokenOptions, tokenValue } from "@/lib/css-value";
+import { LENGTH_UNITS, parseInput, parseValue, supported, tokenOptions, tokenValue } from "@/lib/css-value";
 import { cx } from "../cx";
 import { startDragValue, stepFor } from "./useDragValue";
 
 const FIELD = "h-7 rounded-sm bg-surface text-ink border border-line-strong hover:border-line-strong focus-within:border-accent";
+const INVALID = "border-danger focus-within:border-danger";
 
 /**
  * Champ de longueur CSS : nombre + unité, mot-clé, ou jeton du thème.
  * Validation à la fin de la saisie ; flèches ±1 (Maj ±10) ; glisser horizontalement sur l'unité pour ajuster.
  */
-export function UnitInput({ value, onChange, site, tokenGroup, keywords = [], placeholder, defaultUnit = "px", className, muted, compact, step: dragStep }: {
+export function UnitInput({ value, onChange, site, tokenGroup, keywords = [], placeholder, defaultUnit = "px", className, muted, compact, step: dragStep, prop }: {
+  /** Propriété CSS visée (camelCase) : sert à vérifier que le navigateur comprend la valeur saisie. */ prop?: string;
   value: StyleValue | undefined; onChange: (v: StyleValue | undefined) => void; site: Site; tokenGroup?: keyof Theme["tokens"];
   keywords?: string[]; placeholder?: string; defaultUnit?: string; className?: string; muted?: boolean; compact?: boolean; /** Pas du glisser, sinon déduit de l'unité. */ step?: number;
 }) {
@@ -26,7 +28,8 @@ export function UnitInput({ value, onChange, site, tokenGroup, keywords = [], pl
   if (text !== prev) { setPrev(text); if (!focused) setDraft(text); }
   if (editingToken && parsed.kind !== "token") setEditingToken(false);
   const unit = parsed.kind === "number" ? parsed.unit || (parsed.n === 0 ? "" : "") : "";
-  const commit = () => { const v = parseInput(draft, defaultUnit, keywords); if (JSON.stringify(v) !== JSON.stringify(value)) onChange(v); };
+  const commit = () => { const v = parseInput(draft, defaultUnit, keywords); setInvalid(!supported(prop, v)); if (JSON.stringify(v) !== JSON.stringify(value)) onChange(v); };
+  const [invalid, setInvalid] = useState(false);
   const step = (dir: number, big: boolean) => {
     const base = parsed.kind === "number" ? parsed : { kind: "number" as const, n: Number(draft) || 0, unit: defaultUnit };
     const n = Math.round((base.n + dir * (big ? 10 : 1)) * 100) / 100;
@@ -52,7 +55,7 @@ export function UnitInput({ value, onChange, site, tokenGroup, keywords = [], pl
     );
   }
   return (
-    <div className={cx(FIELD, "flex items-center", className)}>
+    <div title={invalid ? "Valeur non comprise par le navigateur : elle sera enregistrée mais sans effet" : undefined} className={cx(FIELD, invalid && INVALID, "flex items-center", className)}>
       <input
         type="text"
         inputMode="decimal"

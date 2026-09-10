@@ -111,7 +111,7 @@ export function ComponentPanel({ site, component, commit, onDeleted, notify }: {
         <Field label="Description"><TextInput value={component.description ?? ""} onValueChange={(v) => set("description", v || undefined, "Décrire le composant")} /></Field>
       </FieldGroup>
       <div className="flex flex-col gap-1.5">
-        <span className="text-2xs uppercase tracking-wider text-dim">Propriétés</span>
+        <span className="text-2xs uppercase tracking-[0.12em] text-dim">Propriétés</span>
         {component.props.map((p, idx) => (
           <div key={p.name} className="grid grid-cols-[1fr_auto_24px] gap-1 items-center">
             <TextInput value={p.label[locale] ?? p.name} onValueChange={(v) => updateProp(idx, { label: { ...p.label, [locale]: v } }, "Renommer la propriété")} />
@@ -129,7 +129,7 @@ export function ComponentPanel({ site, component, commit, onDeleted, notify }: {
         <Hint>Puis sélectionnez un texte, une image ou un lien du composant et reliez-le à la propriété (section « Propriété du composant »).</Hint>
       </div>
       <div className="flex flex-col gap-1.5">
-        <span className="text-2xs uppercase tracking-wider text-dim">Variantes</span>
+        <span className="text-2xs uppercase tracking-[0.12em] text-dim">Variantes</span>
         {axes.map((a, idx) => (
           <div key={a.name} className="grid grid-cols-[88px_1fr_24px] gap-1 items-center">
             <span className="font-mono text-xs text-muted truncate" title={a.name}>{a.name}</span>

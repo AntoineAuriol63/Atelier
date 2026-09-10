@@ -11,7 +11,7 @@ import { findForms, formDatabaseId } from "@/lib/forms";
 type Commit = (op: Op, opts?: CommitOptions) => void;
 
 /** Onglet Données : les bases du site, leur nombre d'entrées, et la création d'une base. */
-export function DataPanel({ site, entries, commit, onOpen }: { site: Site; entries: Entry[]; commit: Commit; onOpen: (dbId: string) => void }) {
+export function DataPanel({ site, entries, commit, onOpen, readOnly }: { site: Site; entries: Entry[]; commit: Commit; onOpen: (dbId: string) => void; /** Rédacteur : les bases se consultent et se remplissent, elles ne se créent pas. */ readOnly?: boolean }) {
   const locale = site.settings.defaultLocale;
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
@@ -90,7 +90,7 @@ export function DataPanel({ site, entries, commit, onOpen }: { site: Site; entri
             <div className="flex gap-1"><Button size="sm" variant="primary" type="submit" disabled={!name.trim()}>Créer</Button><Button size="sm" variant="ghost" type="button" onClick={() => setCreating(false)}>Annuler</Button></div>
           </form>
         ) : (
-          <Button size="sm" icon={Plus} onClick={() => setCreating(true)}>Nouvelle base</Button>
+          readOnly ? null : <Button size="sm" icon={Plus} onClick={() => setCreating(true)}>Nouvelle base</Button>
         )}
         <Hint>Une base, c&apos;est un tableau : des champs en colonnes, des entrées en lignes. Les pages l&apos;affichent avec une vue de base de données, ou un modèle de page par entrée.</Hint>
       </div>

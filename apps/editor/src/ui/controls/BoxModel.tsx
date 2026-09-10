@@ -65,13 +65,13 @@ export function BoxModel({ site, get, set }: { site: Site; get: (prop: string) =
   const toggle = (kind: "margin" | "padding") => setLinked((l) => ({ ...l, [kind]: !l[kind] }));
   return (
     <div className="relative rounded-sm border border-dashed border-line-strong px-2 pt-4 pb-2" style={{ background: "repeating-linear-gradient(45deg, transparent 0 6px, rgba(255,255,255,.02) 6px 7px)" }}>
-      <span className="absolute top-1 left-2 text-2xs uppercase tracking-wider text-dim">Marge</span>
+      <span className="absolute top-1 left-2 text-2xs uppercase tracking-[0.12em] text-dim">Marge</span>
       <div className="absolute top-0.5 right-1"><LinkToggle linked={linked.margin} onToggle={() => toggle("margin")} what="marges" /></div>
       <div className="grid grid-cols-[44px_1fr_44px] grid-rows-[20px_1fr_20px] items-center justify-items-center gap-y-1">
         <div /><Cell site={site} prop="marginTop" value={get("marginTop")} onCommit={commit("margin", "Top")} title="Marge haute" /><div />
         <Cell site={site} prop="marginLeft" value={get("marginLeft")} onCommit={commit("margin", "Left")} title="Marge gauche" />
         <div className="relative w-full rounded-sm border border-line-strong bg-surface px-2 pt-4 pb-2">
-          <span className="absolute top-1 left-2 text-2xs uppercase tracking-wider text-dim">Remplissage</span>
+          <span className="absolute top-1 left-2 text-2xs uppercase tracking-[0.12em] text-dim">Remplissage</span>
           <div className="absolute top-0.5 right-1"><LinkToggle linked={linked.padding} onToggle={() => toggle("padding")} what="remplissages" /></div>
           <div className="grid grid-cols-[44px_1fr_44px] grid-rows-[20px_28px_20px] items-center justify-items-center gap-y-1">
             <div /><Cell site={site} prop="paddingTop" value={get("paddingTop")} onCommit={commit("padding", "Top")} title="Remplissage haut" /><div />

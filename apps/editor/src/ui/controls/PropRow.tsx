@@ -27,7 +27,7 @@ export function PropRow({ label, source, sourceTitle, onReset, children, classNa
     </Tooltip>
   );
   return (
-    <div data-prop={prop ?? label} className={cx("grid items-center gap-1.5 rounded-xs", wide ? "grid-cols-[12px_1fr]" : "grid-cols-[12px_84px_1fr]", className)}>
+    <div data-prop={prop ?? label} className={cx("grid items-center gap-1.5 rounded-xs", wide ? "grid-cols-[16px_1fr]" : "grid-cols-[16px_80px_1fr]", className)}>
       <SourceDot source={source} title={sourceTitle} onReset={onReset} />
       {wide ? null : labelEl}
       <div className="min-w-0 flex items-center gap-1">{wide ? labelEl : null}{children}</div>

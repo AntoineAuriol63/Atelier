@@ -15,7 +15,7 @@ function modeOf(v: StyleValue | undefined): Mode {
   return "fixed";
 }
 
-export function SizePanel({ site, style }: { site: Site; style: StyleApi }) {
+export function SizePanel({ site, style, defaultOpen = true }: { site: Site; style: StyleApi; defaultOpen?: boolean }) {
   const s = style;
   const dim = (prop: "width" | "height", label: string) => {
     const v = s.value(prop);
@@ -29,18 +29,18 @@ export function SizePanel({ site, style }: { site: Site; style: StyleApi }) {
             else if (m === "fill") s.set(prop, "100%", false);
             else s.set(prop, prop === "width" ? "320px" : "200px", false);
           }} />
-          {mode === "fixed" ? <UnitInput className="flex-1 min-w-[72px]" site={site} tokenGroup="width" keywords={KW} value={v} onChange={(x) => s.set(prop, x)} /> : <span className="text-xs text-dim truncate" title={mode === "auto" ? "Auto : le navigateur décide" : mode === "hug" ? "Ajustée au contenu" : "Remplit le parent (100 %)"}>{mode === "auto" ? "auto" : mode === "hug" ? "au contenu" : "100 %"}</span>}
+          {mode === "fixed" ? <UnitInput prop={prop} className="flex-1 min-w-[72px]" site={site} tokenGroup="width" keywords={KW} value={v} onChange={(x) => s.set(prop, x)} /> : <span className="text-xs text-dim truncate" title={mode === "auto" ? "Auto : le navigateur décide" : mode === "hug" ? "Ajustée au contenu" : "Remplit le parent (100 %)"}>{mode === "auto" ? "auto" : mode === "hug" ? "au contenu" : "100 %"}</span>}
         </div>
       </PropRow>
     );
   };
   const len = (prop: string, label: string) => (
     <PropRow key={prop} prop={prop} label={label} source={s.source(prop)} sourceTitle={s.title(prop)} onReset={() => s.reset(prop)} onScrub={s.scrub(prop)}>
-      <UnitInput className="flex-1" site={site} tokenGroup="width" keywords={KW} value={s.value(prop)} onChange={(v) => s.set(prop, v)} placeholder="aucune" />
+      <UnitInput prop={prop} className="flex-1" site={site} tokenGroup="width" keywords={KW} value={s.value(prop)} onChange={(v) => s.set(prop, v)} placeholder="aucune" />
     </PropRow>
   );
   return (
-    <Section title="Dimensions" hint="Auto : le navigateur décide (une boîte prend toute la largeur disponible, une hauteur suit son contenu). Ajustée : juste la taille du contenu. Remplit : toute la place du parent. Fixe : une valeur.">
+    <Section title="Dimensions" defaultOpen={defaultOpen} hint="Auto : le navigateur décide (une boîte prend toute la largeur disponible, une hauteur suit son contenu). Ajustée : juste la taille du contenu. Remplit : toute la place du parent. Fixe : une valeur.">
       {dim("width", "Largeur")}
       <div className="grid grid-cols-[12px_84px_1fr] items-center gap-1.5">
         <span /><span className="text-xs text-dim">Fractions</span>

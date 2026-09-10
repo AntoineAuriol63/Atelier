@@ -14,7 +14,7 @@ const WRAP = [{ value: "wrap", label: "Normal" }, { value: "balance", label: "É
 
 function str(v: unknown): string | undefined { return typeof v === "string" ? v : undefined; }
 
-export function TypographyPanel({ site, style, mode }: { site: Site; style: StyleApi; mode?: string }) {
+export function TypographyPanel({ site, style, mode, defaultOpen = true }: { site: Site; style: StyleApi; mode?: string; defaultOpen?: boolean }) {
   const s = style;
   const row = (prop: string, label: string, children: React.ReactNode, wide?: boolean) => (
     <PropRow key={`${prop}:${label}`} prop={prop} label={label} source={s.source(prop)} sourceTitle={s.title(prop)} onReset={() => s.reset(prop)} wide={wide}>{children}</PropRow>
@@ -25,14 +25,14 @@ export function TypographyPanel({ site, style, mode }: { site: Site; style: Styl
   if (familyValue && !families.some((f) => f.value === familyValue)) families.unshift({ value: familyValue, label: familyValue });
 
   return (
-    <Section title="Typographie" defaultOpen={false} hint="Police, taille et alignement du texte de cet élément et de tout ce qu'il contient.">
+    <Section title="Typographie" defaultOpen={defaultOpen} hint="Police, taille et alignement du texte de cet élément et de tout ce qu'il contient.">
       {row("fontFamily", "Police", <Select className="flex-1" value={familyValue} placeholder="Héritée" options={families} onValueChange={(v) => { const m = v.match(/^\{(.+)\}$/); s.set("fontFamily", !v ? undefined : m ? { token: m[1]! } : v, false); }} />)}
       <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
         {(() => { const prop = "fontSize"; return <PropRow key={prop} label="Taille" source={s.source(prop)} sourceTitle={s.title(prop)} onReset={() => s.reset(prop)} onScrub={s.scrub(prop)}><UnitInput className="flex-1" site={site} tokenGroup="fontSize" value={s.value(prop)} onChange={(v) => s.set(prop, v)} placeholder="16" /></PropRow>; })()}
         {false && row("fontSize", "Taille", <UnitInput className="flex-1" site={site} tokenGroup="fontSize" value={s.value("fontSize")} onChange={(v) => s.set("fontSize", v)} placeholder="16" />)}
-        {row("lineHeight", "Interligne", <UnitInput className="flex-1" site={site} tokenGroup="lineHeight" defaultUnit="" keywords={["normal"]} value={s.value("lineHeight")} onChange={(v) => s.set("lineHeight", v)} placeholder="1.5" />)}
+        {row("lineHeight", "Interligne", <UnitInput prop="lineHeight" className="flex-1" site={site} tokenGroup="lineHeight" defaultUnit="" keywords={["normal"]} value={s.value("lineHeight")} onChange={(v) => s.set("lineHeight", v)} placeholder="1.5" />)}
         {row("fontWeight", "Graisse", <Select className="flex-1" value={str(s.value("fontWeight")) ?? ""} placeholder="Héritée" options={WEIGHTS} onValueChange={(v) => s.set("fontWeight", v || undefined, false)} />)}
-        {row("letterSpacing", "Espacement", <UnitInput step={0.01} className="flex-1" site={site} defaultUnit="em" keywords={["normal"]} value={s.value("letterSpacing")} onChange={(v) => s.set("letterSpacing", v)} placeholder="0" />)}
+        {row("letterSpacing", "Espacement", <UnitInput prop="letterSpacing" step={0.01} className="flex-1" site={site} defaultUnit="em" keywords={["normal"]} value={s.value("letterSpacing")} onChange={(v) => s.set("letterSpacing", v)} placeholder="0" />)}
       </div>
       {row("color", "Couleur", <ColorInput className="flex-1" site={site} mode={mode} value={s.value("color")} onChange={(v) => s.set("color", v)} />)}
       {row("textAlign", "Alignement", <Segmented className="flex-1" value={str(s.value("textAlign"))} options={ALIGN} onChange={(v) => s.set("textAlign", v, false)} />, true)}

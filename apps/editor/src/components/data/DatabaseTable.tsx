@@ -67,6 +67,16 @@ function tableKeys(e: React.KeyboardEvent<HTMLTableElement>) {
   else if (e.key === "ArrowLeft" && (!isText || atStart)) { let c = col - 1; while (c >= 0 && !focusCell(tr, c)) c--; }
 }
 
+/** Valeur d'une cellule en texte (messages reçus, lecture seule). */
+function cellText(site: Site, field: Field, entry: Entry): string {
+  const v = entry.values[field.name];
+  if (v == null || v === "") return "";
+  if (field.type === "boolean") return v ? "Oui" : "Non";
+  if (field.type === "date" && typeof v === "string") { const d = new Date(v); return Number.isNaN(d.getTime()) ? v : d.toLocaleString(site.settings.defaultLocale, { dateStyle: "medium", timeStyle: v.includes("T") ? "short" : undefined }); }
+  if (Array.isArray(v)) return v.map(String).join(", ");
+  return String(v);
+}
+
 function Cell({ site, db, field, entry, allEntries, onChange, onPickMedia }: { site: Site; db: Database; field: Field; entry: Entry; allEntries: Entry[]; onChange: (v: unknown) => void; onPickMedia: (mode: "image" | "gallery") => void }) {
   const locale = site.settings.defaultLocale;
   const v = entry.values[field.name];
@@ -256,6 +266,8 @@ export function DatabaseTable({ site, db, entries, save, saveMany, remove, commi
   };
   const copyCsv = async () => { try { await navigator.clipboard.writeText(toCsv(db, rows, locale)); notify?.("CSV copié : collez-le dans un tableur.", "success"); } catch { notify?.("Copie impossible dans ce navigateur."); } };
   const editing = fieldEdit && !readOnly ? db.fields.find((f) => f.name === fieldEdit) : undefined;
+  const publishedCount = rows.filter((e) => e.status === "published").length;
+  const draftCount = rows.length - publishedCount;
   const title = (e: Entry) => String(e.values[db.titleField] ?? "") || "Sans titre";
   return (
     <Dialog open onClose={onClose} title={`${db.name[locale] ?? db.slug} · ${rows.length} entrée${rows.length > 1 ? "s" : ""}`} width={1240} actions={<div className="flex items-center gap-1">{saving ? <span className="text-2xs text-dim mr-2">Enregistrement…</span> : null}<Button size="sm" variant={justExported ? "primary" : "default"} icon={justExported ? Check : Download} onClick={() => void exportCsv()} disabled={!rows.length} title="Télécharger toutes les entrées en CSV (tableur)">{justExported ? "Téléchargé" : "CSV"}</Button><Button size="sm" variant="ghost" icon={Copy} onClick={copyCsv} disabled={!rows.length} title="Copier le CSV dans le presse-papier (à coller dans un tableur)">Copier</Button>{readOnly || !saveMany ? null : <><input ref={importInput} type="file" accept=".csv,.json,text/csv,application/json" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void onImportFile(f); }} /><Button size="sm" icon={Upload} onClick={() => importInput.current?.click()} title="Importer un CSV (tableur) ou un JSON : les colonnes deviennent des champs">Importer…</Button></>}{readOnly ? null : <><Button size="sm" icon={Plus} onClick={addField}>Champ</Button><Button size="sm" variant="primary" icon={Plus} onClick={addEntry}>Nouvelle entrée</Button></>}</div>}>
@@ -281,18 +293,22 @@ export function DatabaseTable({ site, db, entries, save, saveMany, remove, commi
             {rows.map((e) => (
               <tr key={e.id} className="group hover:bg-hover/40">
                 <td className="border-b border-r border-line text-center align-middle">
-                  {(() => { const statusTitle = readOnly ? (e.status === "published" ? "Traité · cliquer pour remettre en nouveau" : "Nouveau · cliquer pour marquer traité") : e.status === "published" ? "Publiée · cliquer pour passer en brouillon" : "Brouillon (invisible sur le site) · cliquer pour publier"; return (
-                  <button type="button" onClick={() => save({ ...e, status: e.status === "published" ? "draft" : "published" })} title={statusTitle} aria-label={statusTitle} aria-pressed={e.status === "published"} className="h-7 w-8 grid place-items-center">
-                    <span className={`h-2 w-2 rounded-full ${e.status === "published" ? "bg-success" : "border border-line-strong"}`} />
+                  {(() => {
+                    const on = e.status === "published";
+                    const label = readOnly ? (on ? "Traité" : "Nouveau") : on ? "Publiée" : "Brouillon";
+                    const statusTitle = readOnly ? (on ? "Traité · cliquer pour remettre en nouveau" : "Nouveau · cliquer pour marquer traité") : on ? "Publiée · en ligne à la prochaine publication · cliquer pour passer en brouillon" : "Brouillon (invisible sur le site) · cliquer pour publier";
+                    return (
+                  <button type="button" onClick={() => save({ ...e, status: on ? "draft" : "published" })} title={statusTitle} aria-label={statusTitle} aria-pressed={on} className={`h-5 px-1.5 rounded-xs text-2xs font-medium whitespace-nowrap ${on ? "bg-success-soft text-success" : "bg-surface text-muted border border-line-strong"}`}>
+                    {label}
                   </button>); })()}
                 </td>
                 {db.fields.map((f) => (
                   <td key={f.name} className={`border-b border-r border-line align-middle px-0.5 ${f.name === db.titleField ? "font-medium" : ""}`}>
-                    <Cell site={site} db={db} field={f} entry={e} allEntries={entries} onChange={(v) => setValue(e, f, v)} onPickMedia={(mode) => setMedia({ entryId: e.id, field: f.name, mode })} />
+                    {readOnly ? <div className="px-1.5 py-1 text-sm whitespace-pre-wrap break-words max-w-[420px]">{cellText(site, f, e)}</div> : <Cell site={site} db={db} field={f} entry={e} allEntries={entries} onChange={(v) => setValue(e, f, v)} onPickMedia={(mode) => setMedia({ entryId: e.id, field: f.name, mode })} />}
                   </td>
                 ))}
                 <td className="border-b border-line align-middle">
-                  <IconButton size="sm" tone="danger" label={`Supprimer « ${title(e)} »`} icon={Trash2} className="opacity-60 group-hover:opacity-100 focus-visible:opacity-100" onClick={() => { void askConfirm({ title: `Supprimer « ${title(e)} » ?`, message: "Cette entrée ne se récupère pas.", action: "Supprimer l'entrée", danger: true }).then((ok) => { if (ok) remove(e.id); }); }} />
+                  <IconButton size="sm" tone="danger" label={readOnly ? `Supprimer le message de « ${title(e)} »` : `Supprimer « ${title(e)} »`} icon={Trash2} className="opacity-60 group-hover:opacity-100 focus-visible:opacity-100" onClick={() => { void askConfirm({ title: readOnly ? `Supprimer ce message ?` : `Supprimer « ${title(e)} » ?`, message: readOnly ? "Le message d'un visiteur ne se récupère pas." : "Cette entrée ne se récupère pas.", action: readOnly ? "Supprimer le message" : "Supprimer l'entrée", danger: true }).then((ok) => { if (ok) remove(e.id); }); }} />
                 </td>
               </tr>
             ))}
@@ -301,7 +317,7 @@ export function DatabaseTable({ site, db, entries, save, saveMany, remove, commi
         </table>
       </div>
       <div className="px-3 py-2 border-t border-line flex items-center gap-3">
-        <Hint>{readOnly ? "Les messages arrivent ici à chaque envoi du formulaire. Le point en tête de ligne marque un message traité ; la corbeille le supprime." : "Une entrée en brouillon reste invisible sur le site. Cliquez un en-tête pour régler le champ. Les images se choisissent dans la bibliothèque du site ; dans une galerie, cliquer une vignette la retire."}</Hint>
+        <Hint>{readOnly ? "Les messages arrivent ici à chaque envoi du formulaire, en lecture seule. « Nouveau » / « Traité » en tête de ligne se bascule d'un clic ; la corbeille supprime le message." : `Une entrée « Publiée » n'est visible sur le site qu'à la prochaine publication (« Publier » ou « Publier les contenus seulement »)${publishedCount ? ` : ${publishedCount} entrée${publishedCount > 1 ? "s" : ""} publiée${publishedCount > 1 ? "s" : ""}, ${draftCount} en brouillon` : ""}. Cliquez un en-tête pour régler le champ. Les images se choisissent dans la bibliothèque du site.`}</Hint>
         {onDeleteDatabase ? <Button size="sm" variant="danger" icon={Trash2} className="shrink-0" onClick={onDeleteDatabase}>Supprimer la base…</Button> : null}
       </div>
       {importTable && saveMany ? <ImportDialog site={site} db={db} table={importTable} entries={entries} commit={commit} saveMany={saveMany} onClose={() => setImportTable(null)} onDone={(n) => { setImportTable(null); notify?.(`${n} entrée${n > 1 ? "s" : ""} importée${n > 1 ? "s" : ""}.`, "success"); }} /> : null}

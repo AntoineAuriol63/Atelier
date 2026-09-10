@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
-import { canRedo, canUndo, commit as commitOp, createHistory, redo as redoOp, undo as undoOp, type CommitOptions, type History, type Op, type Site } from "@atelier/model";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { canRedo, canUndo, commit as commitOp, createHistory, migrate, opAllowedForWriter, redo as redoOp, undo as undoOp, type CommitOptions, type History, type Op, type Role, type Site } from "@atelier/model";
 
-export type SyncStatus = "saved" | "saving" | "conflict" | "error";
+export type SyncStatus = "saved" | "saving" | "offline" | "conflict" | "error";
 
 type Doc = { site: Site; history: History };
 
@@ -12,20 +12,58 @@ type Doc = { site: Site; history: History };
  * et envoi séquentiel des opérations au journal du serveur.
  * L'état de référence vit dans un ref pour que deux commits d'un même événement s'enchaînent
  * sans dépendre du rendu ; les fonctions ci-dessous ne sont appelées que depuis des gestionnaires d'événements.
+ *
+ * Trois sortes d'incidents, trois réponses :
+ * - coupure réseau : rien n'est perdu, le lot repart en tête de file, nouvel essai à délai croissant (`retryNow` force l'essai) ;
+ * - refus du serveur pour une raison de rôle (403) : l'opération est annulée localement, le document est remis dans son état
+ *   enregistré, l'éditeur reste utilisable ;
+ * - conflit de version (409) ou erreur serveur : l'éditeur est figé (`blocked`) ; `copyPending` met les opérations non
+ *   enregistrées dans le presse-papiers avant de recharger.
  */
-export function useDocument(initialSite: Site, initialVersion: number) {
+export function useDocument(initialSite: Site, initialVersion: number, options: { role?: Role; onRefused?: (message: string) => void } = {}) {
   const initialDoc = useMemo<Doc>(() => ({ site: initialSite, history: createHistory() }), [initialSite]);
   const docRef = useRef<Doc>(initialDoc);
   const [doc, setDoc] = useState<Doc>(initialDoc);
   const [status, setStatus] = useState<SyncStatus>("saved");
   const [error, setError] = useState<string | undefined>();
   const [version, setVersion] = useState(initialVersion);
+  const [retryAt, setRetryAt] = useState<number | null>(null);
   const pending = useRef<Op[]>([]);
   const inflight = useRef(false);
   const versionRef = useRef(initialVersion);
   const blocked = useRef(false);
   const retries = useRef(0);
+  const retryTimer = useRef<number | null>(null);
   const [isBlocked, setIsBlocked] = useState(false);
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
+
+  // Quitter la page avec des opérations en attente perdrait du travail : le navigateur demande confirmation.
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => { if (pending.current.length || inflight.current) { e.preventDefault(); e.returnValue = ""; } };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, []);
+
+  function setLocal(next: Doc) {
+    docRef.current = next;
+    if (process.env.NODE_ENV !== "production") (globalThis as unknown as { __atelierDoc?: Doc }).__atelierDoc = next;
+    setDoc(next);
+  }
+
+  /** Remet le document dans son état enregistré (après un refus du serveur) ; l'historique local repart de zéro. */
+  async function resetFromServer(): Promise<boolean> {
+    try {
+      const res = await fetch(`/api/sites/${initialSite.id}`);
+      if (!res.ok) return false;
+      const body = (await res.json()) as { site: Site; version: number };
+      pending.current = [];
+      versionRef.current = body.version;
+      setVersion(body.version);
+      setLocal({ site: migrate(body.site), history: createHistory() });
+      return true;
+    } catch { return false; }
+  }
 
   async function flush(): Promise<void> {
     if (inflight.current || blocked.current || pending.current.length === 0) return;
@@ -38,21 +76,32 @@ export function useDocument(initialSite: Site, initialVersion: number) {
         body: JSON.stringify({ ops, baseVersion: versionRef.current }),
       });
       if (res.status === 409) {
+        pending.current = [...ops, ...pending.current];
         blocked.current = true; setIsBlocked(true);
         setStatus("conflict");
-        setError("Le site a été modifié ailleurs. Rechargez la page pour continuer.");
+        setError("Le site a été modifié ailleurs. Copiez vos changements si besoin, puis rechargez la page.");
+        return;
+      }
+      if (res.status === 403) {
+        // Refus de rôle : on annule localement au lieu de figer l'éditeur.
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        const ok = await resetFromServer();
+        setStatus(ok ? "saved" : "error");
+        optionsRef.current.onRefused?.(`${body.error ?? "Cette modification n'est pas permise avec votre rôle."} ${ok ? "Le site a été remis dans son état enregistré." : "Rechargez la page."}`);
         return;
       }
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string; issues?: string[] };
+        pending.current = [...ops, ...pending.current];
         blocked.current = true; setIsBlocked(true);
         setStatus("error");
-        setError(`${body.error ?? `Erreur ${res.status}`}${body.issues?.length ? ` (${body.issues.join(" ; ")})` : ""}. Vos dernières modifications ne sont pas enregistrées : rechargez la page.`);
+        setError(`${body.error ?? `Erreur ${res.status}`}${body.issues?.length ? ` (${body.issues.join(" ; ")})` : ""}. Vos dernières modifications ne sont pas enregistrées : copiez-les si besoin, puis rechargez la page.`);
         return;
       }
       const body = (await res.json()) as { version: number };
       versionRef.current = body.version;
       retries.current = 0;
+      setRetryAt(null);
       setVersion(body.version);
       setError(undefined);
       setStatus(pending.current.length ? "saving" : "saved");
@@ -61,28 +110,47 @@ export function useDocument(initialSite: Site, initialVersion: number) {
       pending.current = [...ops, ...pending.current];
       retries.current += 1;
       const delay = Math.min(30_000, 2_000 * 2 ** (retries.current - 1));
-      setStatus("error");
-      setError(`Connexion perdue : vos modifications sont gardées, nouvel essai dans ${Math.round(delay / 1000)} s.`);
+      setStatus("offline");
+      setError("Connexion perdue : vos modifications sont gardées ici, nouvel essai automatique.");
+      setRetryAt(Date.now() + delay);
       inflight.current = false;
-      window.setTimeout(() => void flush(), delay);
+      if (retryTimer.current) window.clearTimeout(retryTimer.current);
+      retryTimer.current = window.setTimeout(() => { retryTimer.current = null; void flush(); }, delay);
       return;
     } finally {
       inflight.current = false;
-      if (pending.current.length && !blocked.current) void flush();
+      if (pending.current.length && !blocked.current && !retryTimer.current) void flush();
     }
   }
 
+  /** Réessayer sans attendre le délai (bouton « Réessayer maintenant »). */
+  function retryNow() {
+    if (retryTimer.current) { window.clearTimeout(retryTimer.current); retryTimer.current = null; }
+    setRetryAt(null);
+    void flush();
+  }
+
+  /** Copie les opérations non enregistrées (JSON) : à coller dans un ticket ou à garder avant de recharger. */
+  async function copyPending(): Promise<number> {
+    const ops = pending.current;
+    try { await navigator.clipboard.writeText(JSON.stringify({ site: initialSite.id, baseVersion: versionRef.current, ops }, null, 2)); } catch { /* presse-papiers refusé : rien à faire */ }
+    return ops.length;
+  }
+
   function apply(next: Doc, applied: Op) {
-    docRef.current = next;
-    if (process.env.NODE_ENV !== "production") (globalThis as unknown as { __atelierDoc?: Doc }).__atelierDoc = next;
-    setDoc(next);
+    setLocal(next);
     pending.current.push(applied);
-    setStatus("saving");
+    setStatus((s) => (s === "offline" ? s : "saving"));
     void flush();
   }
 
   function commit(op: Op, opts?: CommitOptions) {
     if (blocked.current) return;
+    // Un rédacteur ne touche ni aux réglages du site ni à la mise en forme : refusé ici, sans aller-retour serveur.
+    if (optionsRef.current.role === "writer" && !opAllowedForWriter(op)) {
+      optionsRef.current.onRefused?.("En tant que rédacteur, vous pouvez modifier les contenus, pas la mise en forme ni les réglages du site.");
+      return;
+    }
     try {
       const r = commitOp(docRef.current.site, docRef.current.history, op, opts);
       apply({ site: r.site, history: r.history }, r.applied);
@@ -104,5 +172,5 @@ export function useDocument(initialSite: Site, initialVersion: number) {
     if (r) apply({ site: r.site, history: r.history }, r.applied);
   }
 
-  return { site: doc.site, history: doc.history, version, status, error, blocked: isBlocked, commit, undo, redo, canUndo: canUndo(doc.history), canRedo: canRedo(doc.history) };
+  return { site: doc.site, history: doc.history, version, status, error, retryAt, blocked: isBlocked, commit, undo, redo, retryNow, copyPending, canUndo: canUndo(doc.history), canRedo: canRedo(doc.history) };
 }
