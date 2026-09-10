@@ -136,8 +136,8 @@ Le panneau de droite actuel est un échafaudage. Il est remplacé, pas amélior�
 - [x] Publier / historique / retour arrière : fenêtre Publier (état en ligne, écart de versions, note, historique, « Remettre en ligne »), API `GET/POST /api/sites/:id/publish` et `POST …/publish/restore`, instantanés `snapshots` (`kind = 'publish'`) avec les entrées, `sites.published_version` et `sites.subdomain` (bloc « publication » du schéma à exécuter sur un projet existant, vérifié par `scripts/check-supabase.mjs`)
 - [x] Référencement automatique (D38, D39 en partie) : titre avec suffixe, description, canonique, Open Graph et carte Twitter, `robots` par page (« Indexer »), favicon, `sitemap.xml` (pages fixes et une adresse par entrée publiée), `robots.txt` ; réglages du site (suffixe, description, image sociale, favicon) dans la fenêtre Publier, image sociale et indexation par page dans les réglages de page ; code head et fin de body injectés (D40)
 - [x] Polices préconnectées et chargées avec `display=swap`, `color-scheme` annoncé ; reste : bascule clair/sombre selon le système (décision à prendre : réglage du site), performances à mesurer avec Lighthouse une fois déployé
-- [ ] Code head et fin de body (D40) : **non fonctionnel** aujourd'hui (injecté dans le corps, scripts inertes, aucune interface) ; à refaire en v1 avec une interface par site et par page. Corrigé dans la liste lors de la revue du 8 sept.
-- [ ] Déploiement Vercel du rendu multi-sites et domaine wildcard, en suivant `docs/mise-en-ligne.md` (projet Vercel, variables, DNS wildcard, Resend) ; Lighthouse ensuite
+- [x] Code head et fin de body (D40) : fait le 9 sept. avec le « minimum professionnel » (fenêtre Publier → Réglages du site → Code personnalisé, injecté dans le `head` et en fin de `body` du site publié et de l'export) ; reste le code par page, en v1
+- [x] Déploiement Vercel du rendu multi-sites (9 sept., `atelier-editor.vercel.app`, `docs/mise-en-ligne.md`) ; reste `[ ]` le domaine wildcard des sites publiés (DNS, `ATELIER_SITES_DOMAIN`) et une mesure Lighthouse sur la production
 - [x] Vérifié sur Supabase le 9 sept. : colonnes en place, publication depuis l'éditeur, site servi avec quatorze adresses dans le plan
 
 ### Sortie de v0
@@ -152,9 +152,11 @@ Le panneau de droite actuel est un échafaudage. Il est remplacé, pas amélior�
 - [x] Connexion par lien magique (Supabase Auth via `@supabase/ssr`) : page `/connexion`, envoi côté serveur après vérification des adresses autorisées (`ATELIER_ALLOWED_EMAILS`), retour `/auth/callback`, déconnexion ; `src/proxy.ts` protège l'éditeur, l'aperçu et l'API, laisse publics les sites publiés, les formulaires, les fichiers ; sans variables publiques Supabase, accès libre (développement)
 - [x] Multi-sites : `sites.owner`, `listSites(owner)`, création (`POST /api/sites`, site vierge `blankSite` testé ou exemple photographe), suppression, éditeur à `/sites/<id>`, aperçu à `/preview/<id>/…`, formulaires à `/api/forms/<id>/<formId>`, garde du propriétaire dans chaque route d'un site
 - [x] Tableau de bord `/` : sites du compte avec état de publication, changements à publier, adresse en ligne, nouveau site, suppression
-- [ ] Rôles et partage d'un site entre comptes (D51), gabarit d'email de connexion en français via Resend SMTP
+- [x] Rôles et partage d'un site entre comptes (D51, 9 sept.) : propriétaire, éditeur, rédacteur ; table `site_members`, invitation depuis la fenêtre Publier, rédacteur cantonné à l'Écriture et aux contenus, publication des contenus seule ; reste `[ ]` l'email d'invitation et le gabarit d'email de connexion en français (Resend SMTP)
 
 ## v1 · Utilisable pour un client
+
+État au 11 septembre 2026 — déjà fait pendant la v0 : panneau SEO et redirections (D39), code head/body par site (D40), première tranche des interactions et états (D31–D33 : apparitions, cascade, clic, survol, variantes, parallaxe, bandeau, carrousel, compteurs), espace de travail et rôles (D50–D51), import et export CSV/JSON. Reste : domaine personnalisé et wildcard, export Next.js (D15), API des bases (D46), email et webhooks (D43–D45), import Figma structurel (D26), interface bilingue, email d'invitation. Plus les suites de l'audit UX (`docs/audit-ux-2026-09.md`) : multi-sélection, un seul modèle responsive pour boîtes et vues, reparentage au clavier, `Field` / `PropRow` étendus.
 
 Domaine personnalisé · export Next.js (D15) · panneau SEO et redirections (D39) · code head/body (D40) · interactions et états (D31–D33) · espace de travail et rôles (D50–D51) · import et export CSV/JSON, API des bases (D25, D46) · email et webhooks (D43–D45) · import Figma structurel (D26) · interface bilingue (D05) · audit d'usage n°2 avec un vrai client.
 
