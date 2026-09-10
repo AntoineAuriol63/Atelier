@@ -19,6 +19,8 @@ export type RenderContext = {
   slots?: Record<string, Node[]>;
   state?: Record<string, unknown>;
   editor?: boolean;
+  /** Vrai quand l'hôte hydrate le HTML avec React (aperçu) : les scripts (interactions, formulaires) ne sont pas émis dans le HTML, l'hôte les injecte après hydratation pour ne pas créer d'écart entre le HTML serveur et le DOM. */
+  deferScripts?: boolean;
   /** Vrai sous un lien : un lien imbriqué se rend alors en span (le HTML interdit a > a). */
   inLink?: boolean;
   assets: Map<string, Asset>;

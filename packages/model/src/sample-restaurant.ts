@@ -73,7 +73,7 @@ const stat: Node = {
   id: "rk_root", type: "box", name: "Chiffre clé", props: { tag: "div" },
   style: { base: { display: "flex", flexDirection: "column", gap: tok("space.1") } },
   children: [
-    { id: "rk_value", type: "text", props: { tag: "span", content: fr("12") }, bindings: { content: { source: "prop", path: "value" } }, style: { base: { fontFamily: tok("font.display"), fontSize: tok("fontSize.3xl"), lineHeight: "1", color: tok("color.accent") } } },
+    { id: "rk_value", type: "text", props: { tag: "span", countUp: true, content: fr("12") }, bindings: { content: { source: "prop", path: "value" } }, style: { base: { fontFamily: tok("font.display"), fontSize: tok("fontSize.3xl"), lineHeight: "1", color: tok("color.accent") } } },
     { id: "rk_label", type: "text", props: { tag: "span", content: fr("années") }, bindings: { content: { source: "prop", path: "label" } }, style: { shared: ["rs_muted"], base: { fontSize: tok("fontSize.sm") } } },
   ],
 };
@@ -240,17 +240,20 @@ export const restaurantSite: Site = {
             reveal(T("rh_hero_p", "p", "Une carte courte qui change avec les saisons, des producteurs à moins de cinquante kilomètres, et une salle où l'on reste longtemps. Le soir, du jeudi au samedi.", { style: { shared: ["rs_muted"], base: { fontSize: tok("fontSize.lg") } } }), "fade-up", 240),
             reveal(B("rh_hero_cta", "Boutons", "div", { display: "flex", gap: tok("space.3"), flexWrap: "wrap" }, [
               BTN("rh_hero_b1", "Réserver une table", { kind: "page", page: "rp_reserve" }),
-              { ...BTN("rh_hero_b2", "Voir la carte", { kind: "url", url: "#carte" }, "rs_button_secondary"), interactions: [{ id: "ix_hero_scroll", trigger: { kind: "click" }, actions: [{ kind: "scrollTo", target: { node: "rh_menu" } }] }] },
+              BTN("rh_hero_b2", "Voir la carte", { kind: "anchor", node: "carte" }, "rs_button_secondary"),
             ]), "fade-up", 360),
           ]),
           reveal(B("rh_hero_visual", "Visuel", "div", { position: "relative" }, [
-            IMG("rh_hero_img", "ras_hero", "4 / 5", { name: "Photo", style: { base: { borderRadius: tok("radius.lg"), overflow: "hidden", boxShadow: tok("shadow.md") } } }),
+            IMG("rh_hero_img", "ras_hero", "4 / 5", { name: "Photo", props: { asset: "ras_hero", alt: { fr: "" }, fit: "cover", ratio: "4 / 5", parallax: 0.15 }, style: { base: { borderRadius: tok("radius.lg"), overflow: "hidden", boxShadow: tok("shadow.md") } } }),
             B("rh_hero_badge", "Pastille", "div", { position: "absolute", left: "-1.5rem", bottom: "2rem", background: tok("color.surface"), borderRadius: tok("radius.md"), padding: "1rem 1.25rem", boxShadow: tok("shadow.md"), display: "flex", flexDirection: "column", gap: "0.1rem" }, [
               T("rh_hero_badge_v", "span", "Bib Gourmand", { style: { base: { fontFamily: tok("font.display"), fontSize: tok("fontSize.lg") } } }),
               T("rh_hero_badge_l", "span", "Guide 2026", { style: { shared: ["rs_muted"], base: { fontSize: tok("fontSize.xs") } } }),
             ], { style: { breakpoints: { mobile: { left: "1rem", bottom: "1rem" } } } }),
           ]), "zoom", 200, 1000),
         ], { style: { breakpoints: { tablet: { gridTemplateColumns: "1fr" } } } })]),
+        B("rh_band", "Bandeau", "div", { display: "flex", gap: tok("space.10"), paddingTop: tok("space.4"), paddingBottom: tok("space.4"), borderTopWidth: "1px", borderTopStyle: "solid", borderTopColor: tok("color.line"), borderBottomWidth: "1px", borderBottomStyle: "solid", borderBottomColor: tok("color.line"), whiteSpace: "nowrap" },
+          ["Produits d'Auvergne", "Carte courte, saisonnière", "Vins nature et bières locales", "Cuisine ouverte sur la salle", "Ouvert du mardi au samedi", "Bib Gourmand 2026"].map((t, i) => T(`rh_band_${i + 1}`, "p", `${t}  ·`, { style: { shared: ["rs_eyebrow"] } })),
+          { props: { tag: "div", marquee: 28 } }),
         section("rh_about", "La maison", { background: tok("color.surface") }, [container("rh_about_in", { display: "grid", gridTemplateColumns: "1fr 1fr", gap: tok("space.10"), alignItems: "center" }, [
           reveal(IMG("rh_about_img", "ras_salle", "3 / 4", { name: "Photo de la salle", style: { base: { borderRadius: tok("radius.lg"), overflow: "hidden" } } }), "slide-right"),
           B("rh_about_txt", "Texte", "div", { display: "flex", flexDirection: "column", gap: tok("space.5") }, [
@@ -276,7 +279,7 @@ export const restaurantSite: Site = {
             B("rh_events_head_txt", undefined, "div", { display: "flex", flexDirection: "column", gap: tok("space.2") }, [T("rh_events_eyebrow", "p", "Prochainement", { style: { shared: ["rs_eyebrow"] } }), T("rh_events_h2", "h2", "Les soirées de la maison")]),
             BTN("rh_events_more", "Tous les événements", { kind: "page", page: "rp_events" }, "rs_button_secondary"),
           ]), "fade-up"),
-          reveal({ id: "rh_ev_list", type: "collection", name: "Événements", props: { database: "rdb_events", view: { layout: "gallery", sort: [{ field: "date", dir: "asc" }], limit: 3, columns: { base: 3, tablet: 2, small: 1 } } }, style: { base: { gap: tok("space.5") } }, children: [eventItem("rh_ev")] }, "fade-up", 150),
+          reveal({ id: "rh_ev_list", type: "collection", name: "Événements", props: { database: "rdb_events", view: { layout: "carousel", sort: [{ field: "date", dir: "asc" }], autoplay: 4, columns: { base: 3, tablet: 2, small: 1 } } }, style: { base: { gap: tok("space.5") } }, children: [eventItem("rh_ev")] }, "fade-up", 150),
         ])]),
         section("rh_voices", "Témoignages", {}, [container("rh_voices_in", { display: "flex", flexDirection: "column", gap: tok("space.8") }, [
           reveal(B("rh_voices_head", "Titre de section", "div", { display: "flex", flexDirection: "column", gap: tok("space.2"), alignItems: "center", textAlign: "center" }, [T("rh_voices_eyebrow", "p", "Ils en parlent", { style: { shared: ["rs_eyebrow"] } }), T("rh_voices_h2", "h2", "Ce que disent les habitués")]), "fade-up"),
@@ -300,10 +303,10 @@ export const restaurantSite: Site = {
           reveal(T("rc_h1", "h1", "La carte"), "fade-up", 100),
           reveal(T("rc_p", "p", "Elle change toutes les six semaines. Le midi, du mardi au samedi, formule entrée-plat ou plat-dessert à 24 €.", { style: { shared: ["rs_muted"], base: { fontSize: tok("fontSize.lg") } } }), "fade-up", 200),
           reveal(B("rc_anchors", "Ancres", "nav", { display: "flex", gap: tok("space.2"), flexWrap: "wrap", paddingTop: tok("space.2") }, [
-            { id: "rc_a1", type: "link", props: { tag: "a", href: { kind: "url", url: "#entrees" } }, style: { shared: ["rs_badge"], base: { textDecoration: "none", transition: "color .2s, border-color .2s" }, states: { hover: { color: tok("color.accent"), borderColor: tok("color.accent") } } }, children: [T("rc_a1_t", "span", "Entrées")] },
-            { id: "rc_a2", type: "link", props: { tag: "a", href: { kind: "url", url: "#plats" } }, style: { shared: ["rs_badge"], base: { textDecoration: "none", transition: "color .2s, border-color .2s" }, states: { hover: { color: tok("color.accent"), borderColor: tok("color.accent") } } }, children: [T("rc_a2_t", "span", "Plats")] },
-            { id: "rc_a3", type: "link", props: { tag: "a", href: { kind: "url", url: "#desserts" } }, style: { shared: ["rs_badge"], base: { textDecoration: "none", transition: "color .2s, border-color .2s" }, states: { hover: { color: tok("color.accent"), borderColor: tok("color.accent") } } }, children: [T("rc_a3_t", "span", "Desserts")] },
-            { id: "rc_a4", type: "link", props: { tag: "a", href: { kind: "url", url: "#boissons" } }, style: { shared: ["rs_badge"], base: { textDecoration: "none", transition: "color .2s, border-color .2s" }, states: { hover: { color: tok("color.accent"), borderColor: tok("color.accent") } } }, children: [T("rc_a4_t", "span", "Boissons")] },
+            { id: "rc_a1", type: "link", props: { tag: "a", href: { kind: "anchor", node: "entrees" } }, style: { shared: ["rs_badge"], base: { textDecoration: "none", transition: "color .2s, border-color .2s" }, states: { hover: { color: tok("color.accent"), borderColor: tok("color.accent") } } }, children: [T("rc_a1_t", "span", "Entrées")] },
+            { id: "rc_a2", type: "link", props: { tag: "a", href: { kind: "anchor", node: "plats" } }, style: { shared: ["rs_badge"], base: { textDecoration: "none", transition: "color .2s, border-color .2s" }, states: { hover: { color: tok("color.accent"), borderColor: tok("color.accent") } } }, children: [T("rc_a2_t", "span", "Plats")] },
+            { id: "rc_a3", type: "link", props: { tag: "a", href: { kind: "anchor", node: "desserts" } }, style: { shared: ["rs_badge"], base: { textDecoration: "none", transition: "color .2s, border-color .2s" }, states: { hover: { color: tok("color.accent"), borderColor: tok("color.accent") } } }, children: [T("rc_a3_t", "span", "Desserts")] },
+            { id: "rc_a4", type: "link", props: { tag: "a", href: { kind: "anchor", node: "boissons" } }, style: { shared: ["rs_badge"], base: { textDecoration: "none", transition: "color .2s, border-color .2s" }, states: { hover: { color: tok("color.accent"), borderColor: tok("color.accent") } } }, children: [T("rc_a4_t", "span", "Boissons")] },
           ]), "fade-up", 300),
         ])]),
         ...([["entrees", "Entrées", "Pour commencer"], ["plats", "Plats", "Le cœur de la carte"], ["desserts", "Desserts", "Pour finir"], ["boissons", "Boissons", "Vins d'Auvergne et environs"]] as const).map(([cat, title, sub], i) =>

@@ -2,7 +2,7 @@
 import { rebindCard } from "@/lib/collection-card";
 
 import type { CommitOptions, FilterExpr, LinkTarget, Node, Op, Site, ViewConfig, Inline } from "@atelier/model";
-import { newId } from "@atelier/model";
+import { newId, walk } from "@atelier/model";
 import { Plus, X } from "lucide-react";
 import { Button, Field, FieldGroup, Hint, IconButton, NumberInput, Section, Select, TextInput, Toggle } from "@/ui";
 import { Segmented } from "@/ui/controls";
@@ -65,6 +65,9 @@ export function ImagePanel({ site, node, commit, editMode = "design" }: { site: 
 const KINDS = [{ value: "page", label: "Page du site" }, { value: "url", label: "Adresse web" }, { value: "email", label: "Email" }, { value: "phone", label: "Téléphone" }, { value: "anchor", label: "Ancre" }];
 
 export function LinkPanel({ site, node, commit }: { site: Site; node: Node; commit: Commit }) {
+  // Ancres posées sur les éléments du site (props.anchor), toutes pages confondues.
+  const anchors: string[] = [];
+  for (const p of site.pages) walk(p.root, (n) => { if (typeof n.props.anchor === "string" && n.props.anchor && !anchors.includes(n.props.anchor)) anchors.push(n.props.anchor); });
   const locale = site.settings.defaultLocale;
   const isButton = node.props.tag === "button";
   const href = (node.props.href ?? { kind: "url", url: "#" }) as LinkTarget;
@@ -89,7 +92,7 @@ export function LinkPanel({ site, node, commit }: { site: Site; node: Node; comm
             {href.kind === "url" ? <Field label="Adresse"><TextInput mono value={href.url} onValueChange={(u) => set({ kind: "url", url: u })} /></Field> : null}
             {href.kind === "email" ? <Field label="Email"><TextInput value={href.to} onValueChange={(u) => set({ kind: "email", to: u })} /></Field> : null}
             {href.kind === "phone" ? <Field label="Numéro"><TextInput value={href.number} onValueChange={(u) => set({ kind: "phone", number: u })} /></Field> : null}
-            {href.kind === "anchor" ? <Field label="Identifiant" hint="Identifiant d'un élément de la page"><TextInput mono value={href.node} onValueChange={(u) => set({ kind: "anchor", node: u })} /></Field> : null}
+            {href.kind === "anchor" ? <Field label="Ancre visée" hint="Une ancre posée sur un élément (réglage « Ancre » dans Élément) ; la page défile jusqu'à lui">{anchors.length ? <Select value={anchors.includes(href.node) ? href.node : ""} placeholder="Choisir une ancre" options={anchors.map((a) => ({ value: a, label: `#${a}` }))} onValueChange={(u) => set({ kind: "anchor", node: u })} /> : <TextInput mono value={href.node} placeholder="aucune ancre sur le site" onValueChange={(u) => set({ kind: "anchor", node: u })} />}</Field> : null}
             <Field label="Ouverture">
               <Segmented value={node.props.newTab ? "1" : undefined} options={[{ value: "1", label: "Nouvel onglet" }]} onChange={(v) => commit({ op: "node.set", id: node.id, path: "props.newTab", value: v ? true : undefined }, { label: "Nouvel onglet" })} />
             </Field>

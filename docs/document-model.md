@@ -74,8 +74,8 @@ type Node = {
 
 | Type | Rôle | Enfants | Propriétés principales |
 |---|---|---|---|
-| `box` | Boîte générique : section, conteneur, colonne, carte | oui | `tag` (`div`, `section`, `header`, `footer`, `nav`, `article`, `aside`, `main`, `figure`) |
-| `text` | Un bloc de texte : paragraphe, titre, citation | non | `tag` (`p`, `h1`…`h6`, `blockquote`, `span`, `label`), `content: Localized<Inline[]>` |
+| `box` | Boîte générique : section, conteneur, colonne, carte | oui | `tag` (`div`, `section`, `header`, `footer`, `nav`, `article`, `aside`, `main`, `figure`), `marquee?: number` (bandeau défilant : durée d'un tour en secondes) |
+| `text` | Un bloc de texte : paragraphe, titre, citation | non | `tag` (`p`, `h1`…`h6`, `blockquote`, `span`, `label`), `content: Localized<Inline[]>`, `countUp?: boolean` (le nombre du texte compte de 0 à sa valeur à l'entrée dans l'écran) |
 | `list` | Liste | `listItem` | `ordered: boolean` |
 | `listItem` | Élément de liste | oui | — |
 | `image` | Image | non | `asset: Id \| null`, `alt: Localized<string>`, `fit`, `ratio`, `priority` |
@@ -91,6 +91,8 @@ type Node = {
 | `instance` | Instance d'un composant (section 6) | non (via `slots`) | `component: Id`, `variant`, `props`, `slots` |
 | `slot` | Emplacement dans la définition d'un composant | oui (contenu par défaut) | `name` |
 | `code` | Instance d'un composant code (D14, D41) | non | `component: Id`, `props` |
+
+Propriétés communes à tout nœud (dans `props`) : `anchor?: string` (identifiant d'ancre, rendu en attribut `id` ; un lien `{ kind: "anchor", node }` ou l'adresse `#…` y mène, et `html { scroll-behavior: smooth }` adoucit le défilement) et `parallax?: number` (l'élément se déplace au défilement à `parallax` fois l'écart au centre de l'écran : 0,15 léger, 0,3 marqué, négatif = plus vite que la page ; joué par le script du site, jamais dans l'éditeur, désactivé avec « réduire les animations »). Le rendu de `marquee` duplique les enfants dans une piste (`.at-marquee-track`, copie `aria-hidden`) animée en CSS, en pause au survol.
 
 Les blocs du mode Écriture (D18) sont des préréglages de ces types : « Section » est un `box` avec `tag: section` et un style partagé de section ; « Colonnes » est un `box` en grille avec des `box` enfants ; « Galerie » est une `collection` avec une vue galerie ; « Bouton » est un `link` avec le style partagé bouton.
 
@@ -309,6 +311,7 @@ type ViewConfig = {
   pagination?: "none" | "pages" | "loadMore" | "infinite";
   columns?: { base: number; [breakpoint: string]: number };
   empty?: Node[];                 // contenu affiché sans résultat
+  autoplay?: number;              // carrousel : passe à la carte suivante toutes les N secondes (pause au survol et au toucher)
 };
 ```
 
@@ -331,6 +334,8 @@ Dans l'éditeur, un élément (texte, image, lien) placé dans un modèle de pag
 `entry` désigne l'entrée courante d'un modèle de page ; `item` l'élément courant d'une collection ; `prop` une propriété de composant ; `page` et `site` les métadonnées ; `param` un paramètre d'URL ; `state` une variable de page (D32).
 
 ## 8. Interactions et états
+
+Conventions d'édition (éditeur) : dupliquer un sous-arbre (`cloneWithNewIds`) réécrit les cibles `target.node` des interactions qui visent un nœud du sous-arbre copié, pour qu'une question dupliquée ouvre sa propre réponse. Placement d'un nouveau bloc (`planInsert`) : sans sélection, à la fin de la page mais avant l'instance « Pied de page » ; une section (`box` à `tag: section`) se pose toujours au niveau de la page, après la région qui contient la sélection ; rien ne se pose dans un lien ni dans le pied de page (après, à côté) ; un conteneur sélectionné reçoit le bloc à sa fin, une feuille le reçoit après elle.
 
 ```ts
 type Interaction = {

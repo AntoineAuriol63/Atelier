@@ -199,17 +199,22 @@ describe("placement des blocs", () => {
   it("pose une section avant le pied de page et jamais dans une section ou un lien", async () => {
     const { planInsert, indexSite } = await import("@atelier/model");
     const footer = { id: "f", type: "instance" as const, name: "Pied de page", props: { component: "cmp_footer" } };
+    const deep = { id: "d1", type: "text" as const, props: { tag: "p" } };
+    const main = { id: "m1", type: "box" as const, props: { tag: "main" }, children: [deep] };
     const sec = { id: "s1", type: "box" as const, props: { tag: "section" }, children: [] };
     const link = { id: "l1", type: "link" as const, props: { tag: "a", href: { kind: "url" as const, url: "#" } }, children: [] };
-    const root = { id: "r", type: "box" as const, props: {}, children: [sec, link, footer] };
+    const root = { id: "r", type: "box" as const, props: {}, children: [main, sec, link, footer] };
     const site = { ...sampleSite, pages: [{ ...sampleSite.pages[0]!, root }] };
     const index = indexSite(site);
     const newSection = { id: "n", type: "box" as const, props: { tag: "section" } };
-    expect(planInsert(index, root, null, "auto", newSection)).toEqual({ parent: "r", index: 2 });
-    expect(planInsert(index, root, "s1", "auto", newSection)).toEqual({ parent: "r", index: 1 });
+    expect(planInsert(index, root, null, "auto", newSection)).toEqual({ parent: "r", index: 3 });
+    expect(planInsert(index, root, "s1", "auto", newSection)).toEqual({ parent: "r", index: 2 });
+    // Depuis un élément profond (ou la région <main>), la section se pose après la région de page qui le contient.
+    expect(planInsert(index, root, "d1", "auto", newSection)).toEqual({ parent: "r", index: 1 });
+    expect(planInsert(index, root, "m1", "auto", newSection)).toEqual({ parent: "r", index: 1 });
     expect(planInsert(index, root, "s1", "auto", { id: "t", type: "text" as const, props: { tag: "p" } })).toEqual({ parent: "s1", index: 0 });
-    expect(planInsert(index, root, "l1", "auto", link)).toEqual({ parent: "r", index: 2 });
-    expect(planInsert(index, root, "f", "auto", newSection)).toEqual({ parent: "r", index: 2 });
+    expect(planInsert(index, root, "l1", "auto", link)).toEqual({ parent: "r", index: 3 });
+    expect(planInsert(index, root, "f", "auto", newSection)).toEqual({ parent: "r", index: 3 });
   });
 });
 

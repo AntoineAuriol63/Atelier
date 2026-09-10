@@ -60,7 +60,14 @@ export function cloneWithNewIds(node: Node, makeId: () => Id): { node: Node; map
     if (n.children) copy.children = n.children.map(rec);
     return copy;
   };
-  return { node: rec(node), mapping };
+  // Les interactions qui visent un nœud du sous-arbre copié suivent la copie (une question dupliquée ouvre sa propre réponse).
+  const retarget = (n: Node): void => {
+    for (const ix of n.interactions ?? []) for (const a of ix.actions) { if (!("target" in a)) continue; const t = a.target as { node?: Id } | undefined; if (t?.node && mapping.has(t.node)) t.node = mapping.get(t.node)!; }
+    n.children?.forEach(retarget);
+  };
+  const clone = rec(node);
+  retarget(clone);
+  return { node: clone, mapping };
 }
 
 /** Liste plate des identifiants d'un sous-arbre. */

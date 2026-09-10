@@ -87,8 +87,14 @@ export function planInsert(index: Map<Id, NodeLocation>, root: Node, selectedId:
     return { parent: root.id, index: isFooter(kids[kids.length - 1]) ? kids.length - 1 : kids.length };
   }
   const container = CONTAINER_TYPES.has(sel.node.type) && sel.node.type !== "collection";
-  // Une section ne se pose pas dans une section, et rien ne se pose dans un lien : après, à côté.
-  const besides = (isSection(node) && isSection(sel.node)) || sel.node.type === "link" || isFooter(sel.node);
+  // Une section est une bande de la page : elle se pose au niveau de la page, après la région qui contient la sélection.
+  if (isSection(node) && sel.parent) {
+    let region = sel;
+    while (region.parent && region.parent.id !== root.id) region = index.get(region.parent.id)!;
+    if (region.parent) return { parent: root.id, index: isFooter(region.node) ? region.index : region.index + 1 };
+  }
+  // Rien ne se pose dans un lien, ni dans le pied de page : après, à côté.
+  const besides = sel.node.type === "link" || isFooter(sel.node);
   if ((mode === "inside" || mode === "auto") && container && !besides) return { parent: sel.node.id, index: (sel.node.children ?? []).length };
   if (!sel.parent || sel.parent.type === "collection") return { parent: sel.node.id, index: (sel.node.children ?? []).length };
   return { parent: sel.parent.id, index: mode === "before" || isFooter(sel.node) ? sel.index : sel.index + 1 };

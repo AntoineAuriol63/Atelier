@@ -129,7 +129,10 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
   const { text, rich } = canText ? plainText(node.props.content, locale) : { text: "", rich: false };
   // Propriétés posées sur la cible courante (nœud, style partagé ou variante) au point de rupture actif.
   const localSet = target.kind === "node" ? node.style : target.kind === "shared" ? sharedDef?.style : component?.variantStyles?.[target.key]?.[node.id];
-  const localProps = activeBp === BASE ? localSet?.base ?? {} : localSet?.breakpoints?.[activeBp] ?? {};
+  // Les propriétés posées sur la cible courante : état actif (survol…) ou normal, au point de rupture actif.
+  const localProps = state
+    ? (activeBp === BASE ? localSet?.states?.[state] ?? {} : localSet?.stateBreakpoints?.[state]?.[activeBp] ?? {})
+    : (activeBp === BASE ? localSet?.base ?? {} : localSet?.breakpoints?.[activeBp] ?? {});
   const [newProp, setNewProp] = useState("");
 
   return (
@@ -288,7 +291,7 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
             <button type="submit" className="h-7 px-2 rounded-sm bg-surface border border-line-strong text-xs hover:bg-hover">Ajouter</button>
           </form>
         </FieldGroup>
-        <Hint>Toutes les propriétés posées sur ce point de rupture, en CSS brut.</Hint>
+        <Hint>{state ? `Les propriétés posées pour l'état « ${STATE_LABEL[state] ?? state} » sur ce point de rupture.` : "Toutes les propriétés posées sur ce point de rupture, en CSS brut."}</Hint>
       </Section> : null}
     </div>
   );

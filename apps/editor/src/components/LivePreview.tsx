@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Entry, Site } from "@atelier/model";
 import { serialize, isEmptyText } from "./preview/serialize";
 import { isAtelierMessage, type BlockPresetInfo, type FromPreview, type ToPreview } from "@/lib/preview-protocol";
-import { RenderPage, applyInstantStates, assetMap, fontsHref, matchPath, memoryData, siteCss, type RenderContext } from "@atelier/renderer";
+import { FORM_SCRIPT, INTERACTION_SCRIPT, RenderPage, applyInstantStates, assetMap, fontsHref, matchPath, memoryData, siteCss, type RenderContext } from "@atelier/renderer";
 
 type Props = { initialSite: Site; entries: Entry[]; path: string; mode?: string; editor: boolean };
 
@@ -27,7 +27,13 @@ function PageCss({ site, pageId }: { site: Site; pageId: string }) {
 export function LivePreview({ initialSite, entries, path, mode, editor }: Props) {
   const [site, setSite] = useState(initialSite);
   // Après chaque rendu, l'état d'arrivée des apparitions est posé sans transition : sinon un élément qui reçoit une apparition disparaîtrait de l'aperçu.
-  useEffect(() => { applyInstantStates(document); });
+  useEffect(() => { if (editor) applyInstantStates(document); });
+  // Aperçu hors éditeur : les scripts du site (interactions, formulaires) sont injectés après l'hydratation, pas dans le HTML serveur.
+  useEffect(() => {
+    if (editor) return;
+    const scripts = [INTERACTION_SCRIPT, FORM_SCRIPT].map((code) => { const el = document.createElement("script"); el.textContent = code; document.body.appendChild(el); return el; });
+    return () => { scripts.forEach((el) => el.remove()); };
+  }, [editor]);
   const [entriesState, setEntriesState] = useState(entries);
   const [modeState, setModeState] = useState(mode ?? initialSite.theme.defaultMode);
   const data = useMemo(() => memoryData(entriesState), [entriesState]);
@@ -645,7 +651,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
   const templatePage = templateOnly ? site.pages.find((p) => p.id === templateOnly) : undefined;
   const match = templatePage ? { page: templatePage, entry: undefined, params: {} } : matchPath(site, data, path);
   if (!match) return <p style={{ padding: 24, fontFamily: "system-ui", color: "#777" }}>{editor ? "Chargement de la page…" : `Page introuvable : ${path}`}</p>;
-  const ctx: RenderContext = { site, page: match.page, entry: match.entry, params: match.params, locale: site.settings.defaultLocale, data, assets, basePath: `/preview/${site.id}`, editor };
+  const ctx: RenderContext = { site, page: match.page, entry: match.entry, params: match.params, locale: site.settings.defaultLocale, data, assets, basePath: `/preview/${site.id}`, editor, deferScripts: !editor };
   const fonts = fontsHref(site.theme);
   return (
     <>

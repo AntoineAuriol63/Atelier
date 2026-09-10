@@ -69,7 +69,7 @@ export function hasInteractions(n: Node): boolean { return !!n.interactions?.len
  * Script des interactions du site (D31) : lit `data-ix`, joue apparitions (IntersectionObserver), clics, survols, chargement.
  * Dans l'éditeur (`.at-page[data-editor]`) et avec « réduire les animations », l'état d'arrivée est posé sans transition et les clics sont ignorés.
  */
-export const INTERACTION_SCRIPT = `(function(){var root=document.querySelector(".at-page");var editor=!!(root&&root.hasAttribute("data-editor"));var reduce=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;var instant=editor||reduce;
+export const INTERACTION_SCRIPT = `(function(){if(window.__atelierIx)return;window.__atelierIx=1;var root=document.querySelector(".at-page");var editor=!!(root&&root.hasAttribute("data-editor"));var reduce=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;var instant=editor||reduce;
 function targets(el,s){return s?Array.prototype.slice.call(document.querySelectorAll(s)):[el];}
 function setStyle(el,css,tr){if(tr&&!instant){el.style.transition=tr;}else{el.style.transition="none";}el.style.cssText+=";"+css;}
 function run(el,a,revert){targets(el,a.s).forEach(function(t){

@@ -25,3 +25,19 @@ describe("apparitions", () => {
     expect(describeInteraction(site.pages[0]!.root.children![0]!.interactions![0]!, () => "")).toBe("Apparition · Zoom");
   });
 });
+
+describe("duplication", () => {
+  it("une question dupliquée vise sa propre réponse, pas l'originale", async () => {
+    const { cloneWithNewIds } = await import("../src");
+    type N = import("../src").Node;
+    let i = 0;
+    const answer = { id: "a", type: "text" as const, props: { tag: "p" }, interactions: [{ id: "ix1", trigger: { kind: "load" as const }, actions: [{ kind: "hide" as const, target: { self: true } }] }] };
+    const question = { id: "q", type: "text" as const, props: { tag: "h3" }, interactions: [{ id: "ix2", trigger: { kind: "click" as const }, actions: [{ kind: "toggle" as const, target: { node: "a" } }] }] };
+    const block = { id: "b", type: "box" as const, props: {}, children: [question, answer] } as unknown as N;
+    const { node, mapping } = cloneWithNewIds(block, () => `n${i++}`);
+    const q2 = node.children![0]!;
+    const targetOf = (n: N) => (n.interactions![0]!.actions[0] as unknown as { target: { node: string } }).target.node;
+    expect(targetOf(q2)).toBe(mapping.get("a"));
+    expect(targetOf(question as unknown as N)).toBe("a");
+  });
+});
