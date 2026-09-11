@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { AlertTriangle, CheckCircle2, Command as CommandIcon, Database as DatabaseIcon, ExternalLink, Info, FileText, Grid3x3, Layers, Moon, Palette, Plus, Puzzle, Redo2, Sparkles, Sun, Undo2, UploadCloud, X, Settings2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Command as CommandIcon, Database as DatabaseIcon, ExternalLink, Info, FileText, Grid3x3, Layers, Moon, Palette, Plus, Puzzle, Redo2, Sparkles, Sun, Undo2, UploadCloud, X, Settings2, Maximize2, Minimize2 } from "lucide-react";
 import type { DropPosition, Entry, Node, Page, Site, StyleValue, Role } from "@atelier/model";
 import { BASE, breakpointForWidth, canInsertUnder, cloneWithNewIds, dataSourceFor, entryPath, fitHeadings as fitHeadingsInPage, indexSite, layoutGridAt, newId, planDetach, planDrop, planInsert, planMakeComponent, planMergePrev, planMove, planSlashInsert, planSplit, stylePath, templateOf, type ComponentPlan, type TextPlan, planReveal, REVEAL_LABEL, type RevealKind } from "@atelier/model";
 import type { Op } from "@atelier/model";
@@ -150,6 +150,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
   const [showGrid, setShowGrid] = useState<boolean>(() => { try { return localStorage.getItem("atelier:grid") === "1"; } catch { return false; } });
   const toggleGrid = useCallback(() => setShowGrid((g) => { try { localStorage.setItem("atelier:grid", g ? "0" : "1"); } catch {} return !g; }), []);
   const [previewState, setPreviewState] = useState<string | null>(null);
+  const [focusMode, setFocusMode] = useState(false);
   const dragId = useRef<string | null>(null);
   const dragBlock = useRef<string | null>(null);
   const clipboard = useRef<Node | null>(null);
@@ -511,8 +512,8 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
 
   return (
     <ConfirmProvider><MediaLibraryProvider site={site} entries={ents.entries} commit={doc.commit} saveEntry={ents.save} onGoTo={goToUsage} readOnly={writer}>
-    <div className="h-full grid grid-rows-[40px_1fr] grid-cols-[300px_1fr_340px]">
-      <header className="col-span-3 flex items-center gap-2 px-3 border-b border-line bg-panel">
+    <div className={`h-full grid grid-rows-[48px_1fr] ${focusMode ? "grid-cols-[1fr]" : "grid-cols-[300px_1fr_360px]"}`}>
+      <header className="flex items-center gap-2 px-3 border-b border-line bg-panel" style={{ gridColumn: "1 / -1" }}>
         <Link href="/" className="font-semibold text-base tracking-tight text-ink hover:text-accent" title="Retour à vos sites">{PRODUCT_NAME}</Link>
         <Separator vertical />
         <span className="text-sm text-muted truncate max-w-[200px]" title={site.name}>{site.name}</span>
@@ -533,6 +534,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
           <Badge tone="accent" title="Taille d'écran active : les réglages de style se posent dessus">{breakpoint}</Badge></> : null}
           {scale < 1 ? <Badge title="Aperçu réduit pour tenir dans la zone">{Math.round(scale * 100)} %</Badge> : null}
           <IconButton label={showGrid ? "Masquer la grille de mise en page (⌃G)" : "Afficher la grille de mise en page (⌃G)"} icon={Grid3x3} active={showGrid} onClick={toggleGrid} />
+          <IconButton label={focusMode ? "Quitter le mode concentration" : "Mode concentration : masquer les panneaux"} icon={focusMode ? Minimize2 : Maximize2} active={focusMode} onClick={() => setFocusMode((v) => !v)} />
           <Separator vertical />
           <div className="flex items-center gap-0.5">
             <IconButton label={`Annuler (${mod()}Z)`} icon={Undo2} disabled={!doc.canUndo} onClick={doc.undo} />
@@ -552,7 +554,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
         </div>
       </header>
 
-      <Panel side="left">
+      {focusMode ? null : <Panel side="left">
         <Tabs label="Panneau" tabs={editMode === "write" ? [{ id: "pages", label: "Pages", icon: FileText }, { id: "add", label: "Ajouter", icon: Plus }, { id: "data", label: "Données", icon: DatabaseIcon }] : [{ id: "pages", label: "Pages", icon: FileText }, { id: "layers", label: "Calques", icon: Layers }, { id: "add", label: "Ajouter", icon: Plus }, { id: "data", label: "Données", icon: DatabaseIcon }, { id: "theme", label: "Thème", icon: Palette }]} value={leftTab} onChange={setLeftTab} className="px-1 shrink-0" />
         <div className="flex-1 overflow-auto py-1" onDragOver={(e) => { if (dragId.current || dragBlock.current) e.preventDefault(); }} onDrop={(e) => { e.preventDefault(); setDrop(null); }}>
           {leftTab === "pages" ? (
@@ -591,9 +593,10 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
             <ThemePanel site={site} commit={doc.commit} />
           )}
         </div>
-      </Panel>
+      </Panel>}
 
-      <main ref={canvas} className="relative min-w-0 overflow-auto bg-app flex justify-center items-start p-2">
+      <main ref={canvas} className="relative min-w-0 overflow-auto bg-app flex justify-center items-start p-3">
+        {editMode === "design" ? <div className="sticky top-2 z-30 self-start mx-auto rounded-md border border-accent bg-panel/95 px-3 py-1.5 text-xs font-semibold text-accent shadow-lg backdrop-blur" title="Les styles ajoutés maintenant s’appliquent à cette taille d’écran">Vous modifiez : {breakpoint}</div> : null}
         {doc.error ? (
           <div role="alert" className={`fixed top-14 left-1/2 -translate-x-1/2 z-[60] max-w-[640px] flex items-center gap-2 rounded-md border px-3.5 py-2.5 text-sm font-medium shadow-2xl ${doc.status === "offline" ? "bg-warning text-warning-ink border-warning" : "bg-danger text-danger-ink border-danger"}`}>
             <AlertTriangle size={16} aria-hidden />
@@ -626,7 +629,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
         </div>
       </main>
 
-      <Panel side="right">
+      {focusMode ? null : <Panel side="right">
         {selectedLoc ? (
           <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} onPlay={(id, run) => post({ type: "atelier:play", id, run })} site={site} loc={selectedLoc} dataSource={dataSource} activeBp={activeBp} mode={mode} editMode={editMode} onSwitchMode={switchMode} onGoToBreakpoint={goToBreakpoint} onPreviewState={setPreviewState} onEditInPreview={() => post({ type: "atelier:edit-text", id: selectedLoc.node.id })} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }} onMakeComponent={makeComponent} onDetach={detachInstance} notify={notify} commit={doc.commit} onDeleted={() => { select(selectedLoc.parent?.id ?? null); notify(`${nodeLabel(selectedLoc.node)} supprimé`, "info", { label: "Annuler", run: () => doc.undo() }); }} /></div>
         ) : (
@@ -635,7 +638,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
             {editMode === "write" ? <Hint>Cliquez un texte pour écrire, tapez « / » pour ajouter un bloc, glissez la poignée ⋮⋮ pour déplacer. {mod()}Z annule.</Hint> : <Hint>Cliquez un élément dans l&apos;aperçu ou dans les calques. Flèches pour naviguer, Entrée pour renommer, {mod()}D pour dupliquer, Suppr pour supprimer, glisser pour déplacer.</Hint>}
           </div>
         )}
-      </Panel>
+      </Panel>}
       {paletteOpen ? <CommandPalette open onClose={() => setPaletteOpen(false)} commands={commands} /> : null}
       {dbOpen && site.databases.some((d) => d.id === dbOpen) ? <DatabaseTable site={site} db={site.databases.find((d) => d.id === dbOpen)!} entries={ents.entries} save={ents.save} saveMany={ents.saveMany} remove={ents.remove} commit={doc.commit} onClose={() => setDbOpen(null)} canEditSchema={!writer} publishedEntries={publishedEntries} saving={ents.saving} onDeleteDatabase={() => void deleteDatabase(dbOpen)} notify={notify} /> : null}
       {dbOpen && formForOpen ? <DatabaseTable site={site} db={formDatabase(site, formForOpen)} entries={ents.entries} save={ents.save} remove={ents.remove} commit={doc.commit} onClose={() => setDbOpen(null)} saving={ents.saving} readOnly /> : null}
