@@ -12,10 +12,13 @@ type EditMode = "write" | "design";
 
 const ACCENT = "var(--atelier-ui-accent, #6aa6ff)";
 
+/** Empêche une valeur CSS de fermer la balise style de l’aperçu. */
+export const safeStyleText = (css: string) => css.replace(/</g, "\\3c ");
+
 /** Feuille de la page seule, recalculée uniquement quand le site ou la page change. */
 function PageCss({ site, pageId }: { site: Site; pageId: string }) {
   const css = useMemo(() => siteCss(site, { pageId }), [site, pageId]);
-  return <style dangerouslySetInnerHTML={{ __html: css }} />;
+  return <style dangerouslySetInnerHTML={{ __html: safeStyleText(css) }} />;
 }
 
 
