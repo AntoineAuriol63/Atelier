@@ -250,3 +250,19 @@ Cinq examens (architecture, charge, UI/UX, cohérence produit, sécurité) conso
 - 8 sept. 2026 (soir) — Séparateur invisible en Écriture : le `hr` gardait les bordures et la largeur automatique du navigateur (2 px de large dans une colonne alignée au début). Base CSS du moteur pour `hr`, orientation décidée par le conteneur, modèle « Séparateur » sans style local. Décision de positionnement du mode Écriture consignée ci-dessus. Piste notée : variantes de styles partagés sélectionnables en Écriture (M4 bis). Retour d'Antoine : Entrée sur un bloc sélectionné (section, image…) ne permettait pas d'ajouter un élément (la touche renommait le calque). En Écriture, Entrée sur un texte sélectionné reprend la frappe à la fin ; sur tout autre bloc, un paragraphe vide apparaît juste après lui, prêt à écrire (dedans, à la fin, si rien ne peut suivre le bloc). En Design, Entrée renomme toujours le calque. Décision d'Antoine (8 sept.) : Entrée sur une boîte sélectionnée met le paragraphe dedans, en dernier (la boîte s'ouvre) ; sur une feuille (image, bouton, vue, séparateur), juste après ; Entrée sur un paragraphe vide dernier de sa boîte sort de la boîte (règle des listes appliquée aux boîtes, planification `planExitBox` testée dans le modèle ; les régions de premier niveau d'une page ne se quittent pas). Le « + » de la barre de bloc reste « insérer après ».
 - 7 sept. 2026 — Grille de mise en page (modèle `settings.layoutGrid`, cascade par point de rupture, testée) et calque dans l'éditeur.
 - 7 sept. 2026 — M3 session 3 : états avec prévisualisation forcée, styles partagés complets, onglet Thème avec points de rupture, palette ⌘K. Reste : erreurs d'affichage à relever pendant l'audit d'usage n°1, qui est la prochaine étape.
+
+
+## Journal — 11 septembre 2026 · durcissement UI
+
+- [x] Renforcer le contraste des surfaces, textes secondaires et séparateurs.
+- [x] Porter les contrôles principaux à des cibles plus confortables (28–32 px).
+- [x] Rendre les onglets et états actifs perceptibles par fond, bordure et couleur.
+- [x] Renforcer la sélection et les zones cliquables dans les calques.
+- [x] Ajouter un mode concentration qui masque les deux panneaux.
+- [x] Afficher un contexte de breakpoint persistant dans le canvas Design.
+- [x] Aérer les sections de l’inspecteur et les dialogues.
+- [x] Améliorer la hiérarchie et la densité du tableau de bord.
+- [x] Ajouter une navigation persistante par catégories dans les réglages.
+- [x] Ajouter la comparaison responsive côte à côte avec un aperçu mobile en lecture seule.
+
+Les changements sont limités au système de design et à la composition de l’éditeur : aucun format de document, rendu de site ou contrat d’API n’est modifié.

@@ -33,8 +33,8 @@ export function TreeRow({ id, depth, label, meta, icon: Icon, selected, open, ha
       onDragLeave={onDragLeave}
       onDrop={onDrop}
       className={cx(
-        "relative group flex items-center h-[26px] pr-2 text-sm select-none cursor-default focus-visible:outline-2 focus-visible:outline-accent focus-visible:-outline-offset-2",
-        selected ? "bg-accent-soft text-ink" : "hover:bg-hover text-ink",
+        "relative group flex items-center h-7 pr-2 text-sm border-l-2 select-none cursor-default focus-visible:outline-2 focus-visible:outline-accent focus-visible:-outline-offset-2",
+        selected ? "bg-accent-soft text-ink border-accent shadow-[inset_0_0_0_1px_rgba(106,166,255,0.2)]" : "hover:bg-hover text-ink border-transparent",
         dimmed && "opacity-60",
         drop === "inside" && (refusal ? "shadow-[inset_0_0_0_1.5px_var(--color-danger)]" : "shadow-[inset_0_0_0_1.5px_var(--color-accent)]"),
       )}
@@ -47,10 +47,10 @@ export function TreeRow({ id, depth, label, meta, icon: Icon, selected, open, ha
         type="button"
         tabIndex={-1}
         onClick={(e) => { e.stopPropagation(); onToggle(); }}
-        className={cx("w-4 h-4 mr-0.5 inline-flex items-center justify-center rounded-xs text-dim hover:text-ink", !hasChildren && "invisible")}
+        className={cx("w-[18px] h-[18px] mr-1 inline-flex items-center justify-center rounded-xs text-dim hover:text-ink", !hasChildren && "invisible")}
         aria-label={open ? "Replier" : "Déplier"}
       >
-        <ChevronRight size={11} className={cx("transition-transform", open && "rotate-90")} aria-hidden />
+        <ChevronRight size={12} className={cx("transition-transform", open && "rotate-90")} aria-hidden />
       </button>
       <Icon size={13} strokeWidth={1.75} className={cx("mr-1.5 shrink-0", selected ? "text-accent" : "text-muted")} aria-hidden />
       {editing ? (

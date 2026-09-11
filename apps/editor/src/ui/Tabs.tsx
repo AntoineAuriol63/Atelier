@@ -25,7 +25,7 @@ export function Tabs({ tabs, value, onChange, variant = "underline", className, 
   };
   const pill = variant === "pill";
   return (
-    <div ref={root} role={pill ? "radiogroup" : "tablist"} aria-label={label} onKeyDown={onKey} className={cx("flex items-stretch min-w-0", pill ? "gap-0.5 rounded-sm bg-surface p-0.5" : "border-b border-line overflow-hidden", className)}>
+    <div ref={root} role={pill ? "radiogroup" : "tablist"} aria-label={label} onKeyDown={onKey} className={cx("flex items-stretch min-w-0", pill ? "gap-1 rounded-md bg-surface p-1 border border-line" : "border-b border-line overflow-hidden gap-0.5 px-1", className)}>
       {tabs.map((t) => {
         const active = t.id === value;
         const Icon = t.icon;
@@ -44,8 +44,8 @@ export function Tabs({ tabs, value, onChange, variant = "underline", className, 
             className={cx(
               "inline-flex items-center gap-1.5 whitespace-nowrap select-none disabled:opacity-40 disabled:cursor-not-allowed",
               pill
-                ? cx("h-6 px-2.5 rounded-xs text-xs", active ? "bg-raised text-ink shadow-sm" : "text-muted hover:text-ink")
-                : cx("h-8 px-2 text-xs -mb-px border-b-2 min-w-0", active ? "border-accent text-ink" : "border-transparent text-muted hover:text-ink"),
+                ? cx("h-7 px-3 rounded-sm text-xs font-medium border", active ? "bg-accent-soft text-ink border-accent shadow-sm" : "text-muted border-transparent hover:bg-hover hover:text-ink")
+                : cx("h-9 px-2.5 text-xs rounded-t-sm -mb-px border-b-2 min-w-0", active ? "border-accent bg-accent-soft text-ink" : "border-transparent text-muted hover:bg-hover/70 hover:text-ink"),
             )}
           >
             {Icon ? <Icon size={13} strokeWidth={1.75} aria-hidden /> : null}

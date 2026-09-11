@@ -5,7 +5,7 @@ import { ChevronDown } from "lucide-react";
 import { cx } from "./cx";
 import { startDragValue } from "./controls/useDragValue";
 
-const FIELD = "w-full h-7 px-2 rounded-sm bg-surface text-ink border border-line-strong placeholder:text-dim hover:border-line-strong focus:border-accent text-sm";
+const FIELD = "w-full h-8 px-2.5 rounded-sm bg-surface text-ink border border-line-strong placeholder:text-dim hover:border-line-strong focus:border-accent text-sm";
 
 /** Champ texte contrôlé qui ne perd pas la frappe quand la valeur externe change pendant la saisie. */
 export function TextInput({ value, onValueChange, mono, className, ...rest }: Omit<InputHTMLAttributes<HTMLInputElement>, "value" | "onChange"> & { value: string; onValueChange: (v: string) => void; mono?: boolean }) {
