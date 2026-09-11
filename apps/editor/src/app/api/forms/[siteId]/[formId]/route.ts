@@ -4,6 +4,7 @@ import { LIMITS, tooLarge } from "@/lib/limits";
 import { findForms, formDatabaseId } from "@/lib/forms";
 import { sendMail } from "@/lib/mail";
 import { safePath } from "@/lib/safe-path";
+import { isProduction } from "@/lib/env";
 
 const MAX_LEN = 5000;
 type FieldSpec = { name: string; type: string; required: boolean; label: string; options?: string[] };
@@ -48,7 +49,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ siteId:
   // Dix envois par minute et par adresse, comptés dans le dépôt (donc partagés entre instances). L'adresse vient de la plateforme.
   const ip = req.headers.get("x-real-ip") ?? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
   let allowed = true;
-  try { allowed = await getStore().rateLimit(`form:${siteId}:${formId}:${ip}`, 60, 10); } catch (e) { console.warn(`[formulaire] limite de débit indisponible : ${e instanceof Error ? e.message : e}`); }
+  try { allowed = await getStore().rateLimit(`form:${siteId}:${formId}:${ip}`, 60, 10); } catch (e) {
+    console.warn(`[formulaire] limite de débit indisponible : ${e instanceof Error ? e.message : e}`);
+    // En production, une panne du limiteur ne doit pas transformer la route publique en relais de spam.
+    if (isProduction()) return reply(503, { error: "Service momentanément indisponible, réessayez dans quelques instants." });
+  }
   if (!allowed) return reply(429, { error: "Trop d'envois d'affilée, réessayez dans une minute." });
   const values: Record<string, unknown> = {};
   for (const f of fieldsOf(form.node, locale)) {

@@ -4,6 +4,7 @@ import { assetMap, entryUrl, memoryData, siteCss, type RenderContext } from "@at
 import { htmlDocument } from "@/lib/html-document";
 import { FileAssetStorage, getAssetStorage } from "@/lib/store";
 import type { ZipEntry } from "@/lib/zip";
+import { fetchPublicBytes } from "@/lib/safe-fetch";
 
 export type ExportSource = { site: Site; entries: Entry[]; version: number | null; publishedAt: string | null };
 export type ExportResult = { files: ZipEntry[]; pages: number; assets: number; external: string[] };
@@ -32,9 +33,7 @@ async function fetchAsset(siteId: string, url: string): Promise<Uint8Array | nul
     const storage = getAssetStorage();
     if (local && storage instanceof FileAssetStorage) { const b = await storage.read(siteId, decodeURIComponent(local[1]!)); return b ? new Uint8Array(b) : null; }
     if (!/^https?:\/\//.test(url)) return null;
-    const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
-    if (!res.ok) return null;
-    return new Uint8Array(await res.arrayBuffer());
+    return await fetchPublicBytes(url, 25_000_000);
   } catch { return null; }
 }
 

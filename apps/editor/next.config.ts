@@ -14,7 +14,7 @@ const nextConfig: NextConfig = {
       { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
     ];
     return [
-      { source: "/((?!s/).*)", headers: [...common, { key: "Content-Security-Policy", value: "frame-ancestors 'self'" }, { key: "X-Frame-Options", value: "SAMEORIGIN" }] },
+      { source: "/((?!s/).*)", headers: [...common, { key: "Content-Security-Policy", value: "base-uri 'self'; object-src 'none'; frame-ancestors 'self'" }, { key: "X-Frame-Options", value: "SAMEORIGIN" }] },
       { source: "/s/:path*", headers: common },
     ];
   },
