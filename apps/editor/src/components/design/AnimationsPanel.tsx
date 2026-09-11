@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { BookmarkPlus, Play, Plus, Sparkles, Unlink2, X } from "lucide-react";
 import type { AnimationRun, CommitOptions, Keyframe, Node, Op, Site, StyleProps } from "@atelier/model";
-import { ANIMATION_PRESETS, ANIM_EASINGS, DIRECTION_LABELS, FILL_LABELS, SPLIT_LABELS, STAGGER_FROM_LABELS, TRIGGER_LABELS, animationTargetKind, animationUsages, describeAnimation, indexSite, keyframesOf, planAddAnimation, planDetachFromLibrary, planRemoveAnimation, planReveal, planSaveToLibrary, planUpdateAnimation, presetById, revealOf, runFromPreset } from "@atelier/model";
+import { ANIMATION_PRESETS, ANIM_EASINGS, DIRECTION_LABELS, FILL_LABELS, SPLIT_LABELS, STAGGER_FROM_LABELS, TRIGGER_LABELS, animationTargetKind, animationUsages, describeAnimation, indexSite, keyframesOf, parseSpring, springDuration, springEasing, springSamples, planAddAnimation, planDetachFromLibrary, planRemoveAnimation, planReveal, planSaveToLibrary, planUpdateAnimation, presetById, revealOf, runFromPreset } from "@atelier/model";
 import { Button, Field, FieldGroup, Hint, IconButton, NumberInput, Section, Select, TextInput, Toggle, Eyebrow } from "@/ui";
 import { animationTargetOptions, targetFromValue, targetValue } from "@/lib/anim-targets";
 
@@ -49,6 +49,27 @@ function StepEditor({ step, onChange, onRemove, canRemove }: { step: Keyframe; o
       </div>
       <Field label="Autre CSS" hint="Toute autre propriété, en CSS : « background: {color.accent}; letter-spacing: .2em »"><TextInput mono value={s.other} placeholder="color: red" onValueChange={(v) => set({ other: v })} /></Field>
     </li>
+  );
+}
+
+/** Raideur et amortissement d'un ressort, avec la courbe qui en résulte (position de 0 à 1 sur la durée du run). */
+function SpringFields({ run, onChange }: { run: AnimationRun; onChange: (stiffness: number, damping: number) => void }) {
+  const sp = parseSpring(run.easing) ?? { stiffness: 170, damping: 26 };
+  const pts = springSamples(sp.stiffness, sp.damping, run.duration, 48);
+  const max = Math.max(1.05, ...pts);
+  const path = pts.map((v, i) => `${(i / (pts.length - 1)) * 96},${28 - (v / max) * 24}`).join(" ");
+  return (
+    <div className="grid grid-cols-[88px_1fr] items-center gap-2">
+      <span className="text-xs text-muted">Ressort</span>
+      <div className="flex items-center gap-1">
+        <NumberInput className="w-16" title="Raideur : plus elle est haute, plus le ressort est vif" min={1} max={1000} step={10} value={sp.stiffness} onValueChange={(v) => onChange(v === "" ? 170 : v, sp.damping)} />
+        <NumberInput className="w-16" title="Amortissement : bas, ça rebondit ; haut, ça s'arrête net" min={0} max={200} step={1} value={sp.damping} onValueChange={(v) => onChange(sp.stiffness, v === "" ? 26 : v)} />
+        <svg width="96" height="30" viewBox="0 0 96 30" aria-hidden className="shrink-0 rounded-sm border border-line bg-surface">
+          <line x1="0" x2="96" y1={28 - (1 / max) * 24} y2={28 - (1 / max) * 24} stroke="currentColor" strokeOpacity=".2" strokeDasharray="2 2" />
+          <polyline points={path} fill="none" stroke="currentColor" strokeWidth="1.2" className="text-accent" />
+        </svg>
+      </div>
+    </div>
   );
 }
 
@@ -104,10 +125,13 @@ export function AnimationsPanel({ site, node, pageRoot, commit, onPlay }: { site
                     {animationTargetKind(run) === "children" || animationTargetKind(run) === "pieces" ? <Field label="Décalage" hint="Délai en plus pour chaque élément suivant, compté depuis le début, la fin ou le centre"><div className="flex items-center gap-1"><NumberInput className="w-20" unit="ms" step={10} min={0} value={run.stagger?.each ?? 0} onValueChange={(v) => update(run.id, { stagger: v && v > 0 ? { each: v, from: run.stagger?.from } : undefined }, "Décalage", `anim-st:${run.id}`)} /><Select className="flex-1" value={run.stagger?.from ?? "start"} options={Object.entries(STAGGER_FROM_LABELS).map(([value, label]) => ({ value, label }))} onValueChange={(v) => update(run.id, { stagger: { each: run.stagger?.each ?? 80, from: v as NonNullable<AnimationRun["stagger"]>["from"] } }, "Décalage")} /></div></Field> : null}
                     {run.trigger !== "scroll" ? <Field label="Durée"><NumberInput unit="ms" step={50} min={0} value={run.duration} onValueChange={(v) => update(run.id, { duration: v === "" ? 0 : v }, "Durée", `anim-d:${run.id}`)} /></Field> : null}
                     {run.trigger !== "scroll" ? <Field label="Délai"><NumberInput unit="ms" step={50} min={0} value={run.delay ?? 0} onValueChange={(v) => update(run.id, { delay: v === "" ? 0 : v }, "Délai", `anim-dl:${run.id}`)} /></Field> : null}
-                    {run.trigger !== "scroll" ? <Field label="Courbe"><Select value={run.easing ?? "ease"} options={ANIM_EASINGS.some((e) => e.value === (run.easing ?? "ease")) ? ANIM_EASINGS : [...ANIM_EASINGS, { value: run.easing ?? "ease", label: run.easing ?? "ease" }]} onValueChange={(v) => update(run.id, { easing: v }, "Courbe")} /></Field> : null}
+                    {run.trigger !== "scroll" ? <Field label="Courbe" hint="Ressort : la durée se règle d'elle-même sur le temps de stabilisation ; un amortissement faible fait rebondir"><Select value={parseSpring(run.easing) ? "spring" : run.easing ?? "ease"} options={[...(ANIM_EASINGS.some((e) => e.value === (run.easing ?? "ease")) || parseSpring(run.easing) ? ANIM_EASINGS : [...ANIM_EASINGS, { value: run.easing ?? "ease", label: run.easing ?? "ease" }]), { value: "spring", label: "Ressort" }]} onValueChange={(v) => update(run.id, v === "spring" ? { easing: springEasing(170, 26), duration: springDuration(170, 26) } : { easing: v }, "Courbe")} /></Field> : null}
+                    {run.trigger !== "scroll" && parseSpring(run.easing) ? <SpringFields run={run} onChange={(stiffness, damping) => update(run.id, { easing: springEasing(stiffness, damping), duration: springDuration(stiffness, damping) }, "Ressort", `anim-spring:${run.id}`)} /> : null}
                     {run.trigger !== "scroll" && run.trigger !== "hover" ? <Field label="Répétitions" hint="Vide ou 1 : une fois. « En boucle » : sans fin."><div className="flex items-center gap-1"><NumberInput className="w-16" min={1} step={1} value={run.iterations === "infinite" ? "" : run.iterations ?? 1} placeholder="∞" onValueChange={(v) => update(run.id, { iterations: v === "" ? "infinite" : v }, "Répétitions")} /><Toggle checked={run.iterations === "infinite"} label="en boucle" onChange={(b) => update(run.id, { iterations: b ? "infinite" : 1 }, "Répétitions")} /></div></Field> : null}
                     {run.trigger !== "scroll" ? <Field label="Sens"><Select value={run.direction ?? "normal"} options={Object.entries(DIRECTION_LABELS).map(([value, label]) => ({ value, label }))} onValueChange={(v) => update(run.id, { direction: v as AnimationRun["direction"] }, "Sens")} /></Field> : null}
                     {run.trigger !== "scroll" ? <Field label="À la fin" hint="Où l'élément reste quand l'animation est finie"><Select value={run.fill ?? "both"} options={Object.entries(FILL_LABELS).map(([value, label]) => ({ value, label }))} onValueChange={(v) => update(run.id, { fill: v as AnimationRun["fill"] }, "Remplissage")} /></Field> : null}
+                    {run.trigger === "hover" ? <Field label="Au départ" hint="Quand la souris quitte l'élément : l'animation revient en arrière, ou se coupe net"><Toggle checked={!!run.reverseOnLeave} label={run.reverseOnLeave ? "revient en arrière" : "se coupe"} onChange={(b) => update(run.id, { reverseOnLeave: b || undefined }, "Au départ de la souris")} /></Field> : null}
+                    {run.trigger === "click" ? <Field label="Clic suivant" hint="Un clic joue ; le suivant revient en arrière (bascule), ou rejoue depuis le début"><Toggle checked={!!run.toggle} label={run.toggle ? "revient en arrière" : "rejoue"} onChange={(b) => update(run.id, { toggle: b || undefined }, "Clic suivant")} /></Field> : null}
                     {run.trigger === "inView" ? <Field label="Rejouer" hint="À chaque retour dans l'écran, au lieu d'une seule fois"><Toggle checked={run.once === false} label={run.once === false ? "à chaque passage" : "une seule fois"} onChange={(b) => update(run.id, { once: !b }, "Rejouer")} /></Field> : null}
                     {run.trigger === "scroll" ? <Field label="Plage" hint="Part de la traversée de l'écran pendant laquelle l'animation va du début à la fin : 0 = l'élément entre par le bas, 1 = il sort par le haut"><div className="flex items-center gap-1"><NumberInput className="w-16" step={0.05} min={0} max={1} value={run.range?.[0] ?? 0} onValueChange={(v) => update(run.id, { range: [v === "" ? 0 : v, run.range?.[1] ?? 1] }, "Plage")} /><span className="text-xs text-muted">à</span><NumberInput className="w-16" step={0.05} min={0} max={1} value={run.range?.[1] ?? 1} onValueChange={(v) => update(run.id, { range: [run.range?.[0] ?? 0, v === "" ? 1 : v] }, "Plage")} /></div></Field> : null}
                     {run.trigger !== "hover" ? <Field label="Au survol"><Toggle checked={!!run.pauseOnHover} label={run.pauseOnHover ? "en pause" : "continue"} onChange={(b) => update(run.id, { pauseOnHover: b || undefined }, "Pause au survol")} /></Field> : null}

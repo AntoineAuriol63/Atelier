@@ -109,6 +109,46 @@ export function staggerDelay(run: Pick<AnimationRun, "delay" | "stagger">, i: nu
   return (run.delay ?? 0) + (run.stagger ? staggerRank(i, n, run.stagger.from) * run.stagger.each : 0);
 }
 
+// ---------------------------------------------------------------- ressorts
+
+/** Lit `spring(raideur, amortissement)` ; `null` pour toute autre courbe. */
+export function parseSpring(easing: string | undefined): { stiffness: number; damping: number } | null {
+  const m = easing?.match(/^spring\(\s*([\d.]+)\s*,\s*([\d.]+)\s*\)$/);
+  return m ? { stiffness: Number(m[1]), damping: Number(m[2]) } : null;
+}
+export const springEasing = (stiffness: number, damping: number): string => `spring(${stiffness}, ${damping})`;
+/** Position (0 → 1) d'un ressort de masse 1 lâché à 0 sans vitesse, à l'instant `t` (secondes). */
+export function springAt(stiffness: number, damping: number, t: number): number {
+  const w0 = Math.sqrt(stiffness);
+  if (!(w0 > 0)) return 1;
+  const z = damping / (2 * w0);
+  if (z < 1) { const wd = w0 * Math.sqrt(1 - z * z); return 1 - Math.exp(-z * w0 * t) * (Math.cos(wd * t) + (z * w0 / wd) * Math.sin(wd * t)); }
+  if (z === 1) return 1 - (1 + w0 * t) * Math.exp(-w0 * t);
+  const s1 = -w0 * (z - Math.sqrt(z * z - 1)), s2 = -w0 * (z + Math.sqrt(z * z - 1));
+  const A = s2 / (s1 - s2), B = -1 - A;
+  return 1 + A * Math.exp(s1 * t) + B * Math.exp(s2 * t);
+}
+/** Temps de stabilisation (ms) : après lui, le ressort reste à moins de 0,1 % de sa cible. Borné entre 100 ms et 10 s. */
+export function springDuration(stiffness: number, damping: number): number {
+  if (!(stiffness > 0)) return 300;
+  let last = 0;
+  for (let t = 0; t <= 10; t += 0.004) if (Math.abs(springAt(stiffness, damping, t) - 1) > 0.001) last = t;
+  return Math.min(10000, Math.max(100, Math.ceil((last * 1000) / 10) * 10));
+}
+/** `n` positions du ressort réparties sur `duration` ms, de 0 à exactement 1. */
+export function springSamples(stiffness: number, damping: number, duration: number, n: number): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < n; i++) out.push(i === 0 ? 0 : i === n - 1 ? 1 : Math.round(springAt(stiffness, damping, (duration / 1000) * (i / (n - 1))) * 10000) / 10000);
+  return out;
+}
+/** Courbe CSS d'un run : un ressort devient `linear(…)` échantillonné sur sa durée ; le reste passe tel quel (`ease` par défaut). */
+export function easingCss(easing: string | undefined, duration: number): string {
+  const sp = parseSpring(easing);
+  if (!sp) return easing ?? "ease";
+  const n = Math.min(120, Math.max(24, Math.round(duration / 12)));
+  return `linear(${springSamples(sp.stiffness, sp.damping, duration, n).join(",")})`;
+}
+
 export function describeAnimation(run: AnimationRun, site: Pick<Site, "animations"> & Partial<Pick<Site, "pages" | "components">>): string {
   const preset = presetById(run.preset);
   const name = typeof run.animation === "string" ? (site.animations?.find((a) => a.id === run.animation)?.name ?? "Animation") : preset?.label ?? "Personnalisée";
@@ -121,7 +161,9 @@ export function describeAnimation(run: AnimationRun, site: Pick<Site, "animation
   else if (kind === "selector" && run.target && "selector" in run.target) target = ` · sur « ${run.target.selector} »`;
   const plural = kind === "pieces" && run.split === "letters" ? "décalées" : "décalés";
   const stagger = run.stagger && (kind === "children" || kind === "pieces") ? ` · ${plural} de ${run.stagger.each} ms${run.stagger.from === "end" ? " depuis la fin" : run.stagger.from === "center" ? " depuis le centre" : ""}` : "";
-  return `${name} · ${TRIGGER_LABELS[run.trigger].toLowerCase()}${run.trigger === "scroll" ? "" : ` · ${run.duration} ms`}${loop}${target}${stagger}`;
+  const back = run.trigger === "hover" && run.reverseOnLeave ? " · revient au départ de la souris" : run.trigger === "click" && run.toggle ? " · bascule à chaque clic" : "";
+  const spring = parseSpring(run.easing) ? " · ressort" : "";
+  return `${name} · ${TRIGGER_LABELS[run.trigger].toLowerCase()}${run.trigger === "scroll" ? "" : ` · ${run.duration} ms`}${spring}${loop}${target}${stagger}${back}`;
 }
 function nodeNameIn(site: Partial<Pick<Site, "pages" | "components">>, id: Id): string | undefined {
   let found: Node | undefined;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ANIMATION_PRESETS, animationTargetKind, animationUsages, applyOps, describeAnimation, keyframesOf, migrate, planAddAnimation, planDetachFromLibrary, planRemoveAnimation, planReveal, planSaveToLibrary, planUpdateAnimation, presetById, revealOf, runFromPreset, sampleSite, schema, staggerDelay, staggerRank, type Node, type Site } from "../src";
+import { ANIMATION_PRESETS, animationTargetKind, animationUsages, applyOps, describeAnimation, easingCss, keyframesOf, migrate, parseSpring, springDuration, springEasing, springSamples, planAddAnimation, planDetachFromLibrary, planRemoveAnimation, planReveal, planSaveToLibrary, planUpdateAnimation, presetById, revealOf, runFromPreset, sampleSite, schema, staggerDelay, staggerRank, type Node, type Site } from "../src";
 const siteSchema = schema.site;
 
 const node = (site: Site, id: string): Node => { let out: Node | undefined; const dfs = (n: Node) => { if (n.id === id) out = n; n.children?.forEach(dfs); }; site.pages.forEach((p) => dfs(p.root)); return out!; };
@@ -103,5 +103,48 @@ describe("animations : cible, découpage, décalage", () => {
     expect(animationTargetKind({ ...base(), split: "words", target: { children: true } })).toBe("pieces");
     expect(animationTargetKind({ ...base(), target: { node: "a" } })).toBe("node");
     expect(animationTargetKind({ ...base(), target: { selector: ".a" } })).toBe("selector");
+  });
+});
+
+describe("animations : retour, bascule, ressorts", () => {
+  const base = () => runFromPreset(presetById("grow")!, { id: "run2" });
+  it("le schéma accepte reverseOnLeave et toggle", () => {
+    const withRun = (run: unknown) => ({ ...structuredClone(sampleSite), pages: [{ ...sampleSite.pages[0]!, root: { id: "root", type: "box", props: {}, children: [{ id: "txt", type: "text", props: { tag: "p", content: { fr: [{ t: "text", v: "Bonjour" }] } }, animations: [run] }] } }] });
+    expect(siteSchema.safeParse(withRun({ ...base(), reverseOnLeave: true })).success).toBe(true);
+    expect(siteSchema.safeParse(withRun({ ...base(), trigger: "click", toggle: true, easing: "spring(170, 26)" })).success).toBe(true);
+    expect(siteSchema.safeParse(withRun({ ...base(), toggle: "yes" })).success).toBe(false);
+  });
+  it("parseSpring lit raideur et amortissement, et rien d'autre", () => {
+    expect(parseSpring("spring(170, 26)")).toEqual({ stiffness: 170, damping: 26 });
+    expect(parseSpring("spring(80,8)")).toEqual({ stiffness: 80, damping: 8 });
+    expect(parseSpring("ease-out")).toBeNull();
+    expect(parseSpring(undefined)).toBeNull();
+    expect(springEasing(170, 26)).toBe("spring(170, 26)");
+  });
+  it("la réponse du ressort part de 0, finit à 1, dépasse quand l'amortissement est faible", () => {
+    const soft = springSamples(170, 8, springDuration(170, 8), 60);
+    const firm = springSamples(170, 26, springDuration(170, 26), 60);
+    expect(soft[0]).toBe(0); expect(firm[0]).toBe(0);
+    expect(soft[soft.length - 1]).toBeCloseTo(1, 2); expect(firm[firm.length - 1]).toBeCloseTo(1, 2);
+    expect(Math.max(...soft)).toBeGreaterThan(1.1);
+    expect(Math.max(...firm)).toBeLessThan(1.02);
+    expect(soft).toHaveLength(60);
+  });
+  it("la durée de stabilisation est raisonnable et s'allonge quand l'amortissement baisse", () => {
+    const d1 = springDuration(170, 26), d2 = springDuration(170, 8);
+    expect(d1).toBeGreaterThan(200); expect(d1).toBeLessThan(1500);
+    expect(d2).toBeGreaterThan(d1);
+    expect(springDuration(0, 0)).toBeGreaterThan(0);
+  });
+  it("easingCss résout un ressort en linear(…) et laisse les courbes CSS telles quelles", () => {
+    const css = easingCss("spring(170, 26)", 600);
+    expect(css).toMatch(/^linear\(0(,-?[0-9.]+)+,1\)$/);
+    expect(easingCss("ease-out", 600)).toBe("ease-out");
+    expect(easingCss(undefined, 600)).toBe("ease");
+  });
+  it("describeAnimation signale le retour, la bascule et le ressort", () => {
+    expect(describeAnimation({ ...base(), reverseOnLeave: true }, sampleSite)).toContain("revient au départ de la souris");
+    expect(describeAnimation({ ...base(), trigger: "click", toggle: true }, sampleSite)).toContain("bascule à chaque clic");
+    expect(describeAnimation({ ...base(), easing: "spring(170, 26)" }, sampleSite)).toContain("ressort");
   });
 });

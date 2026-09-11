@@ -11,7 +11,9 @@ import { INTERACTION_SCRIPT, RenderPage, assetMap, memoryData, type RenderContex
  * enregistreurs, ce qui permet de vérifier quels éléments sont animés, avec quel délai, et sur quel déclencheur.
  */
 type Call = { el: Element; delay: number; duration: number };
+type Handle = { playbackRate: number; reversed: number; playState: string; currentTime: number; pause(): void; play(): void; cancel(): void; reverse(): void };
 const calls: Call[] = [];
+const handles: Handle[] = [];
 type Observer = { cb: (entries: { target: Element; isIntersecting: boolean }[]) => void; observed: Element[] };
 const ios: Observer[] = [];
 const observed = () => ios.flatMap((o) => o.observed);
@@ -31,13 +33,15 @@ function mount(site: Site) {
 }
 
 beforeEach(() => {
-  calls.length = 0; ios.length = 0;
+  calls.length = 0; ios.length = 0; handles.length = 0;
   const w = window as unknown as Record<string, unknown>;
   w.matchMedia = () => ({ matches: false });
   w.IntersectionObserver = class { observed: Element[] = []; constructor(cb: Observer["cb"]) { ios.push({ cb, observed: this.observed }); } observe(el: Element) { this.observed.push(el); } unobserve() { /* */ } disconnect() { /* */ } };
   (Element.prototype as unknown as { animate: unknown }).animate = function (this: Element, _kf: unknown, opts: { delay?: number; duration?: number }) {
     calls.push({ el: this, delay: opts.delay ?? 0, duration: opts.duration ?? 0 });
-    return { pause() { /* */ }, play() { /* */ }, cancel() { /* */ }, reverse() { /* */ }, playState: "running", currentTime: 0 };
+    const h: Handle = { playbackRate: 1, reversed: 0, playState: "running", currentTime: 0, pause() { /* */ }, play() { /* */ }, cancel() { /* */ }, reverse() { this.playbackRate = -this.playbackRate; this.reversed += 1; } };
+    handles.push(h);
+    return h;
   };
 });
 
@@ -79,5 +83,35 @@ describe("script du site : cibles et décalage", () => {
     const out = play(host, a, { fill: "none" });
     expect(out).toHaveLength(2);
     expect(calls.map((c) => [c.el.className, c.delay])).toEqual([["n-a", 0], ["n-b", 40]]);
+  });
+});
+
+describe("script du site : retour et bascule", () => {
+  const box = (id: string, runs: AnimationRun[]): Node => ({ id, type: "box", props: {}, animations: runs });
+  it("survol qui revient : joue à l'entrée, rembobine à la sortie, repart en avant à l'entrée suivante", () => {
+    mount(page([box("b", [run("r1", { trigger: "hover", reverseOnLeave: true })])]));
+    const el = document.querySelector(".n-b")!;
+    el.dispatchEvent(new Event("mouseenter"));
+    expect(calls).toHaveLength(1);
+    const an = handles[0]!;
+    el.dispatchEvent(new Event("mouseleave"));
+    expect(an.reversed).toBe(1); expect(an.playbackRate).toBe(-1);
+    el.dispatchEvent(new Event("mouseenter"));
+    expect(calls).toHaveLength(1); expect(an.reversed).toBe(2); expect(an.playbackRate).toBe(1);
+    el.dispatchEvent(new Event("mouseleave"));
+    expect(an.reversed).toBe(3);
+  });
+  it("clic qui bascule : un clic joue, le suivant rembobine, le troisième rejoue en avant", () => {
+    mount(page([box("b", [run("r1", { trigger: "click", toggle: true })])]));
+    const el = document.querySelector<HTMLElement>(".n-b")!;
+    el.click(); expect(calls).toHaveLength(1);
+    el.click(); expect(calls).toHaveLength(1); expect(handles[0]!.reversed).toBe(1);
+    el.click(); expect(calls).toHaveLength(1); expect(handles[0]!.reversed).toBe(2); expect(handles[0]!.playbackRate).toBe(1);
+  });
+  it("clic sans bascule : chaque clic rejoue", () => {
+    mount(page([box("b", [run("r1", { trigger: "click" })])]));
+    const el = document.querySelector<HTMLElement>(".n-b")!;
+    el.click(); el.click();
+    expect(calls).toHaveLength(2);
   });
 });

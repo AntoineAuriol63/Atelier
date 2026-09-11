@@ -203,6 +203,10 @@ export type AnimationRun = {
   split?: "words" | "letters";
   /** Plusieurs éléments animés : `each` ms de délai en plus par rang, compté depuis le début (défaut), la fin ou le centre. */
   stagger?: { each: number; from?: "start" | "end" | "center" };
+  /** Survol : au départ de la souris, l'animation revient en arrière au lieu de se couper (joué par le script). */
+  reverseOnLeave?: boolean;
+  /** Clic : un clic joue, le suivant revient en arrière (joué par le script). */
+  toggle?: boolean;
 };
 export type AnimationTarget = { self: true } | { children: true } | { node: Id } | { selector: string };
 

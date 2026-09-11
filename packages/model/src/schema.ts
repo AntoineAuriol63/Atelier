@@ -92,6 +92,7 @@ export const animationRun = z.object({
   target: z.union([z.object({ self: z.literal(true) }), z.object({ children: z.literal(true) }), z.object({ node: id }), z.object({ selector: z.string() })]).optional(),
   split: z.enum(["words", "letters"]).optional(),
   stagger: z.object({ each: z.number().min(0), from: z.enum(["start", "end", "center"]).optional() }).optional(),
+  reverseOnLeave: z.boolean().optional(), toggle: z.boolean().optional(),
 });
 
 export const node: z.ZodType<Node> = z.lazy(() =>

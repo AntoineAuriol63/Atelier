@@ -1,5 +1,5 @@
 import type { Asset, Breakpoint, ClassMap, ComponentDef, Node, SharedStyle, Site, StyleProps, StyleSet, StyleValue, Theme, ViewConfig, AnimationRun, Keyframe } from "@atelier/model";
-import { parseVariantKey, variantClass, walk, animationTargetKind } from "@atelier/model";
+import { parseVariantKey, variantClass, walk, animationTargetKind, easingCss } from "@atelier/model";
 
 // ---------------------------------------------------------------- valeurs
 
@@ -217,7 +217,7 @@ export function keyframesCss(name: string, keyframes: Keyframe[], assets?: Map<s
 /** Valeur `animation` CSS d'un run (durée, courbe, délai, répétitions, sens, remplissage). */
 export function animationValue(run: AnimationRun): string {
   const it = run.iterations === "infinite" ? "infinite" : String(run.iterations ?? 1);
-  return `${keyframesName(run)} ${run.duration}ms ${run.easing ?? "ease"} ${run.delay ?? 0}ms ${it} ${run.direction ?? "normal"} ${run.fill ?? "both"}`;
+  return `${keyframesName(run)} ${run.duration}ms ${easingCss(run.easing, run.duration)} ${run.delay ?? 0}ms ${it} ${run.direction ?? "normal"} ${run.fill ?? "both"}`;
 }
 /** Délai CSS d'un run : fixe, ou en `calc()` avec le rang de l'élément (`--at-i` parmi `--at-n`) quand plusieurs éléments sont décalés. */
 export function animationDelayCss(run: AnimationRun): string {
@@ -262,7 +262,8 @@ export function nodeAnimationsCss(node: Node, sel: string, site: Pick<Site, "ani
     out.push(`${t}{animation:${list.map(animationValue).join(",")};animation-play-state:${list.map((r) => (r.trigger === "inView" ? "paused" : "running")).join(",")}${delays}}`);
     if (list.some((r) => r.pauseOnHover && r.trigger === "load")) out.push(`${hoverSel(list[0]!)}{animation-play-state:${list.map((r) => (r.pauseOnHover || r.trigger === "inView" ? "paused" : "running")).join(",")}}`);
   }
-  for (const [, list] of groups(runs.filter((r) => r.trigger === "hover"))) {
+  // Un survol qui revient en arrière au départ de la souris est joué par le script (reverse()), pas en CSS.
+  for (const [, list] of groups(runs.filter((r) => r.trigger === "hover" && !r.reverseOnLeave))) {
     const delays = list.some(staggered) ? `;animation-delay:${list.map(animationDelayCss).join(",")}` : "";
     out.push(`${hoverSel(list[0]!)}{animation:${list.map(animationValue).join(",")}${delays}}`);
   }

@@ -1,5 +1,5 @@
 import type { AnimationRun, Interaction, Node, Target } from "@atelier/model";
-import { animationTargetKind, variantClass } from "@atelier/model";
+import { animationTargetKind, easingCss, variantClass } from "@atelier/model";
 import { resolveHref, type RenderContext } from "./context";
 import { declarations } from "./css";
 
@@ -77,7 +77,8 @@ export function animationsAttr(node: Node, ctx: RenderContext): string | undefin
     // Cible (`tg`) : absente pour l'élément lui-même, "children", "pieces", ou `{ s }` un sélecteur (autre élément, ou libre : `js` = joué par le script même au chargement et au survol).
     const kind = animationTargetKind(r);
     const tg = kind === "self" ? undefined : kind === "children" || kind === "pieces" ? kind : kind === "node" && r.target && "node" in r.target ? { s: `.${ctx.classes?.node.get(r.target.node) ?? `n-${r.target.node}`}` } : r.target && "selector" in r.target ? { s: r.target.selector } : undefined;
-    return { i: r.id, t: r.trigger, k: kf.map((k) => ({ o: k.at / 100, c: declarations(k.style, ctx.assets) })), d: r.duration, dl: r.delay ?? 0, e: r.easing ?? "ease", it: r.iterations ?? 1, dir: r.direction ?? "normal", f: r.fill ?? "both", once: r.once !== false, ph: !!r.pauseOnHover, r: r.range ?? [0, 1], tg, st: r.stagger ? [r.stagger.each, r.stagger.from ?? "start"] : undefined, js: kind === "selector" ? 1 : undefined };
+    // `rv` : revient en arrière au départ de la souris ; `tog` : un clic sur deux rembobine ; `js` : joué par le script même au chargement et au survol.
+    return { i: r.id, t: r.trigger, k: kf.map((k) => ({ o: k.at / 100, c: declarations(k.style, ctx.assets) })), d: r.duration, dl: r.delay ?? 0, e: easingCss(r.easing, r.duration), it: r.iterations ?? 1, dir: r.direction ?? "normal", f: r.fill ?? "both", once: r.once !== false, ph: !!r.pauseOnHover, r: r.range ?? [0, 1], tg, st: r.stagger ? [r.stagger.each, r.stagger.from ?? "start"] : undefined, rv: r.reverseOnLeave ? 1 : undefined, tog: r.toggle ? 1 : undefined, js: kind === "selector" || (r.trigger === "hover" && r.reverseOnLeave) ? 1 : undefined };
   });
   return JSON.stringify(wire);
 }
@@ -140,10 +141,10 @@ if(!instant){document.querySelectorAll("[data-anim]").forEach(function(el){var r
  if(runs.some(function(a){return a.ph&&a.t!=="load"&&a.t!=="hover";})){el.addEventListener("mouseenter",pauseAll);el.addEventListener("mouseleave",playAll);}
  var cancel=function(a){(live[a.i]||[]).forEach(function(an){an.cancel();});delete live[a.i];};
  runs.forEach(function(a){
-  if(a.t==="click"){el.addEventListener("click",function(){live[a.i]=window.__atelierPlay(el,a);});}
+  if(a.t==="click"){el.addEventListener("click",function(){if(a.tog&&live[a.i]&&live[a.i].length){live[a.i].forEach(function(an){an.reverse();});}else{live[a.i]=window.__atelierPlay(el,a,a.tog?{fill:a.f==="none"?"forwards":a.f}:{});}});}
   else if(a.t==="scroll"){var list=A.els(el,a).map(function(t){var an=t.animate(A.toKf(a.k),{duration:1000,fill:"both",easing:"linear"});an.pause();an.__scroll=true;return an;});live[a.i]=list;var tick=false;var upd=function(){tick=false;var vh=window.innerHeight,r=el.getBoundingClientRect();var p=(vh-r.top)/(vh+r.height);var lo=a.r[0],hi=a.r[1];var q=hi>lo?(p-lo)/(hi-lo):p;q=Math.max(0,Math.min(1,q));list.forEach(function(an){an.currentTime=q*1000;});};var onS=function(){if(!tick){tick=true;requestAnimationFrame(upd);}};window.addEventListener("scroll",onS,{passive:true});window.addEventListener("resize",onS);upd();}
   else if(a.js&&a.t==="load"){live[a.i]=window.__atelierPlay(el,a);}
-  else if(a.js&&a.t==="hover"){el.addEventListener("mouseenter",function(){cancel(a);live[a.i]=window.__atelierPlay(el,a);});el.addEventListener("mouseleave",function(){cancel(a);});}
+  else if(a.js&&a.t==="hover"){el.addEventListener("mouseenter",function(){if(a.rv&&live[a.i]&&live[a.i].length){live[a.i].forEach(function(an){if(an.playbackRate<0)an.reverse();});}else{cancel(a);live[a.i]=window.__atelierPlay(el,a,a.rv?{fill:a.f==="none"?"forwards":a.f}:{});}});el.addEventListener("mouseleave",function(){if(a.rv){(live[a.i]||[]).forEach(function(an){if(an.playbackRate>0)an.reverse();});}else{cancel(a);}});}
  });
  var inView=runs.filter(function(a){return a.t==="inView";});
  if(inView.length&&("IntersectionObserver" in window)){inView.forEach(function(a){A.els(el,a).forEach(function(t){t.style.animation="none";});});var seen=false;var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){if(seen&&inView.every(function(a){return a.once;}))return;seen=true;inView.forEach(function(a){cancel(a);live[a.i]=window.__atelierPlay(el,a);});if(inView.every(function(a){return a.once;}))io.unobserve(el);}else{inView.forEach(function(a){if(!a.once&&live[a.i])cancel(a);});}});},{threshold:0.15});io.observe(el);}

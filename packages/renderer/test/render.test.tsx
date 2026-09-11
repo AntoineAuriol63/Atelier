@@ -416,3 +416,22 @@ describe("animations : cibles, découpage, décalage", () => {
     expect(html(site)).toContain("<noscript><style>.at-page [data-anim],.at-page [data-anim-target]{animation:none!important}</style></noscript>");
   });
 });
+
+describe("animations : retour, bascule, ressorts", () => {
+  const page = (children: Node[]) => ({ ...sampleSite, pages: [{ ...sampleSite.pages[0]!, root: { id: "r", type: "box" as const, props: {}, children } }] });
+  const html = (site: Site) => renderToStaticMarkup(createElement(RenderPage, { ctx: ctxOf(site, site.pages[0]!) }));
+  const run = (id: string, patch: Partial<AnimationRun>): AnimationRun => ({ id, animation: { keyframes: [{ at: 0, style: { opacity: "0" } }, { at: 100, style: { opacity: "1" } }] }, trigger: "load", duration: 500, easing: "linear", ...patch });
+  it("survol qui revient et clic qui bascule : joués par le script, pas de règle :hover", () => {
+    const site = page([{ id: "b", type: "box", props: {}, animations: [run("r1", { trigger: "hover", reverseOnLeave: true }), run("r2", { trigger: "click", toggle: true })] }]);
+    const css = siteCss(site);
+    expect(css).not.toContain(".n-b:hover{animation");
+    const h = html(site);
+    expect(h).toMatch(/&quot;i&quot;:&quot;r1&quot;.*?&quot;rv&quot;:1,&quot;js&quot;:1\}/);
+    expect(h).toMatch(/&quot;i&quot;:&quot;r2&quot;.*?&quot;tog&quot;:1\}/);
+  });
+  it("ressort : easing résolu en linear() dans le CSS et dans les données du script", () => {
+    const site = page([{ id: "b", type: "box", props: {}, animations: [run("r1", { easing: "spring(170, 26)", duration: 600 })] }]);
+    expect(siteCss(site)).toMatch(/\.n-b\{animation:ak-r1 600ms linear\(0(,-?[0-9.]+)+,1\) 0ms 1 normal both/);
+    expect(html(site)).toMatch(/&quot;e&quot;:&quot;linear\(0,/);
+  });
+});
