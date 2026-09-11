@@ -262,7 +262,7 @@ Cinq examens (architecture, charge, UI/UX, cohérence produit, sécurité) conso
 - [x] Afficher un contexte de breakpoint persistant dans le canvas Design.
 - [x] Aérer les sections de l’inspecteur et les dialogues.
 - [x] Améliorer la hiérarchie et la densité du tableau de bord.
-- [ ] Repenser les réglages en sous-onglets dédiés (lot ultérieur, changement structurel).
-- [ ] Ajouter la comparaison responsive côte à côte (lot ultérieur).
+- [x] Ajouter une navigation persistante par catégories dans les réglages.
+- [x] Ajouter la comparaison responsive côte à côte avec un aperçu mobile en lecture seule.
 
 Les changements sont limités au système de design et à la composition de l’éditeur : aucun format de document, rendu de site ou contrat d’API n’est modifié.
