@@ -89,6 +89,9 @@ export const animationRun = z.object({
   trigger: z.enum(["load", "inView", "hover", "click", "scroll"]), duration: z.number().min(0), delay: z.number().optional(), easing: z.string().optional(),
   iterations: z.union([z.number().positive(), z.literal("infinite")]).optional(), direction: z.enum(["normal", "reverse", "alternate", "alternate-reverse"]).optional(),
   fill: z.enum(["none", "forwards", "backwards", "both"]).optional(), once: z.boolean().optional(), pauseOnHover: z.boolean().optional(), range: z.tuple([z.number(), z.number()]).optional(),
+  target: z.union([z.object({ self: z.literal(true) }), z.object({ children: z.literal(true) }), z.object({ node: id }), z.object({ selector: z.string() })]).optional(),
+  split: z.enum(["words", "letters"]).optional(),
+  stagger: z.object({ each: z.number().min(0), from: z.enum(["start", "end", "center"]).optional() }).optional(),
 });
 
 export const node: z.ZodType<Node> = z.lazy(() =>

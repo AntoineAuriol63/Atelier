@@ -1,5 +1,5 @@
 import type { ComponentDef, Inline, Mark, Node, Overrides, Page, Site, ViewConfig } from "@atelier/model";
-import { applyOverrides, variantClasses } from "@atelier/model";
+import { animationTargetKind, applyOverrides, variantClasses } from "@atelier/model";
 import { createElement, Fragment, type ReactNode } from "react";
 import { nodeClassName } from "./css";
 import { INTERACTION_SCRIPT, animationsAttr, hasInteractions, hasMotion, interactionsAttr, marqueeOf } from "./interactions";
@@ -31,6 +31,10 @@ function attrs(node: Node, ctx: RenderContext, extra: Record<string, unknown> = 
   if (typeof node.props.parallax === "number" && node.props.parallax !== 0) a["data-parallax"] = String(node.props.parallax);
   const anim = animationsAttr(node, ctx);
   if (anim) a["data-anim"] = anim;
+  // Cible d'une animation portée par un autre élément (section 8.4) : marquée, et numérotée pour le décalage.
+  const mark = ctx.animChild?.of === node.id ? ctx.animChild : undefined;
+  if (mark || ctx.animTargets?.has(node.id)) a["data-anim-target"] = "";
+  if (mark) a.style = { ...((extra.style as Record<string, unknown> | undefined) ?? {}), "--at-i": mark.i, "--at-n": mark.n };
   if (node.props.countUp) a["data-countup"] = "";
   if (node.props.anchor) a.id = String(node.props.anchor);
   return a;
@@ -56,7 +60,7 @@ export function renderInline(list: Inline[] | undefined, ctx: RenderContext, key
 
 const MARK_TAG: Record<Exclude<Mark, object>, string> = { bold: "strong", italic: "em", underline: "u", strike: "s", code: "code" };
 
-function wrapMarks(text: string, marks: Mark[] | undefined, key: string): ReactNode {
+function wrapMarks(text: ReactNode, marks: Mark[] | undefined, key: string): ReactNode {
   let el: ReactNode = text;
   for (const m of marks ?? []) {
     if (typeof m === "string") {
@@ -68,10 +72,77 @@ function wrapMarks(text: string, marks: Mark[] | undefined, key: string): ReactN
   return createElement(Fragment, { key }, el);
 }
 
+// ---------------------------------------------------------------- texte découpé (section 8.4)
+
+/** Découpage le plus fin demandé par les animations d'un texte : lettres, mots, ou rien. */
+export function splitOf(node: Node): "words" | "letters" | undefined {
+  const modes = (node.animations ?? []).map((r) => r.split).filter(Boolean);
+  return modes.includes("letters") ? "letters" : modes.includes("words") ? "words" : undefined;
+}
+let segmenter: { segment: (s: string) => Iterable<{ segment: string }> } | null | undefined;
+function graphemes(word: string): string[] {
+  if (segmenter === undefined) { try { segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" }); } catch { segmenter = null; } }
+  return segmenter ? Array.from(segmenter.segment(word), (g) => g.segment) : Array.from(word);
+}
+/** Texte brut d'un contenu en ligne (pour `aria-label` d'un texte découpé en lettres). */
+export function plainText(list: Inline[] | undefined, ctx: RenderContext): string {
+  return (list ?? []).map((seg) => {
+    switch (seg.t) {
+      case "break": return "\n";
+      case "link": return plainText(seg.children, ctx);
+      case "bind": { const v = resolveBinding(seg.binding, ctx); return v === undefined || v === null ? "" : String(v); }
+      case "text": return seg.v;
+    }
+  }).join("");
+}
+function countPieces(list: Inline[] | undefined, ctx: RenderContext, mode: "words" | "letters"): number {
+  let n = 0;
+  for (const seg of list ?? []) {
+    if (seg.t === "break") continue;
+    if (seg.t === "link") { n += countPieces(seg.children, ctx, mode); continue; }
+    const text = seg.t === "bind" ? String(resolveBinding(seg.binding, ctx) ?? "") : seg.v;
+    for (const w of text.split(/\s+/)) if (w) n += mode === "letters" ? graphemes(w).length : 1;
+  }
+  return n;
+}
+/** Rend un contenu en ligne en morceaux animables : un span par mot, ou par lettre (dans un span par mot), les espaces restant dehors. */
+function renderSplit(list: Inline[] | undefined, ctx: RenderContext, mode: "words" | "letters", counter: { i: number }, n: number, keyPrefix = "i"): ReactNode {
+  if (!list) return null;
+  const piece = (text: string, key: string) => createElement("span", { key, className: "at-piece", "data-anim-target": "", "aria-hidden": mode === "letters" ? true : undefined, style: { "--at-i": counter.i++, "--at-n": n } }, text);
+  const words = (text: string, key: string): ReactNode[] => text.split(/(\s+)/).map((part, j) => {
+    const k = `${key}w${j}`;
+    if (!part) return null;
+    if (/^\s+$/.test(part)) return part;
+    if (mode === "words") return piece(part, k);
+    return createElement("span", { key: k, className: "at-word" }, graphemes(part).map((g, gi) => piece(g, `${k}g${gi}`)));
+  });
+  return list.map((seg, i) => {
+    const key = `${keyPrefix}${i}`;
+    switch (seg.t) {
+      case "break": return createElement("br", { key });
+      case "link": return createElement("a", { key, href: resolveHref(seg.href, ctx), target: seg.newTab ? "_blank" : undefined, rel: seg.newTab ? "noopener" : undefined, "data-link": ctx.editor ? JSON.stringify(seg.href) : undefined }, renderSplit(seg.children, ctx, mode, counter, n, key));
+      case "bind": { const v = resolveBinding(seg.binding, ctx); return wrapMarks(words(v === undefined || v === null ? "" : String(v), key), seg.marks, key); }
+      case "text": return wrapMarks(words(seg.v, key), seg.marks, key);
+    }
+  });
+}
+
+/** Éléments visés par une animation d'un autre élément (`target.node`), sur la page et dans les composants. */
+export function collectAnimTargets(site: Site, page: Page): Set<string> {
+  const out = new Set<string>();
+  const visit = (n: Node) => { for (const r of n.animations ?? []) if (r.target && "node" in r.target && !r.split) out.add(r.target.node); n.children?.forEach(visit); };
+  visit(page.root);
+  site.components.forEach((c) => visit(c.root));
+  return out;
+}
+
 // ---------------------------------------------------------------- nœuds
 
 export function RenderNode({ node, ctx }: { node: Node; ctx: RenderContext }): ReactNode {
-  const children = () => node.children?.map((c) => createElement(RenderNode, { key: keyOf(c), node: c, ctx }));
+  // Une animation qui vise « ses enfants » : chaque enfant est numéroté (décalage) et marqué comme cible.
+  const staggerKids = !!node.animations?.some((r) => animationTargetKind(r) === "children");
+  const kidCtx = (c: Node, i: number, n: number): RenderContext => (staggerKids ? { ...ctx, animChild: { of: c.id, i, n } } : ctx);
+  const children = () => node.children?.map((c, i, all) => createElement(RenderNode, { key: keyOf(c), node: c, ctx: kidCtx(c, i, all.length) }));
 
   switch (node.type) {
     case "box": {
@@ -88,7 +159,14 @@ export function RenderNode({ node, ctx }: { node: Node; ctx: RenderContext }): R
       const bound = node.bindings?.content ? resolveBinding(node.bindings.content, ctx) : undefined;
       // Un champ « texte long » est une suite de nœuds : ils se rendent dans une boîte, avec la classe du texte lié.
       if (Array.isArray(bound)) return createElement("div", attrs(node, ctx, { "data-richtext": true }), (bound as Node[]).map((c) => createElement(RenderNode, { key: c.id, node: c, ctx })));
-      const content = bound !== undefined && bound !== null ? String(bound) : renderInline(localized<Inline[]>(node.props.content, ctx), ctx);
+      const split = splitOf(node);
+      const inlines = bound !== undefined && bound !== null ? [{ t: "text" as const, v: String(bound) }] : localized<Inline[]>(node.props.content, ctx);
+      if (split && inlines?.length) {
+        // Texte découpé (section 8.4) : mots ou lettres en spans ; en lettres, le texte complet passe en aria-label.
+        const n = countPieces(inlines, ctx, split);
+        return createElement(tagOf(node, TEXT_TAGS, "p"), attrs(node, ctx, split === "letters" ? { "aria-label": plainText(inlines, ctx) } : {}), renderSplit(inlines, ctx, split, { i: 0 }, n));
+      }
+      const content = bound !== undefined && bound !== null ? String(bound) : renderInline(inlines, ctx);
       return createElement(tagOf(node, TEXT_TAGS, "p"), attrs(node, ctx), content);
     }
     case "list":
@@ -166,7 +244,7 @@ export function RenderNode({ node, ctx }: { node: Node; ctx: RenderContext }): R
       const entries = ctx.data.entries(db, view, ctx);
       if (entries.length === 0 && view.empty) return createElement("div", attrs(node, ctx), view.empty.map((c) => createElement(RenderNode, { key: keyOf(c), node: c, ctx })));
       const autoplay = view.layout === "carousel" && view.autoplay ? { "data-autoplay": String(view.autoplay) } : {};
-      return createElement("div", attrs(node, ctx, { "data-layout": view.layout, ...autoplay }), entries.map((e) => createElement(RenderNode, { key: e.id, node: item, ctx: { ...ctx, item: e } })));
+      return createElement("div", attrs(node, ctx, { "data-layout": view.layout, ...autoplay }), entries.map((e, i) => createElement(RenderNode, { key: e.id, node: item, ctx: { ...kidCtx(item, i, entries.length), item: e } })));
     }
     case "item":
       return createElement("div", attrs(node, ctx), children());
@@ -193,11 +271,14 @@ function renderInstance(node: Node, cmp: ComponentDef, ctx: RenderContext): Reac
   const root = applyOverrides(cmp.root, node.props.overrides as Overrides | undefined);
   // Les classes de variante sur la racine portent les styles `variantStyles` (voir `variantCss`).
   const vc = cmp.variants?.length ? variantClasses(cmp, node) : "";
-  const inner: RenderContext = { ...ctx, props, slots: node.props.slots as Record<string, Node[]> | undefined, extraClass: vc ? { ...(ctx.extraClass ?? {}), [root.id]: vc } : ctx.extraClass };
+  // Si l'instance est l'enfant visé par une animation du parent, c'est la racine du composant (l'élément rendu) qui porte la marque.
+  const animChild = ctx.animChild?.of === node.id ? { ...ctx.animChild, of: root.id } : ctx.animChild;
+  const inner: RenderContext = { ...ctx, props, slots: node.props.slots as Record<string, Node[]> | undefined, extraClass: vc ? { ...(ctx.extraClass ?? {}), [root.id]: vc } : ctx.extraClass, animChild };
   // Le nœud racine du composant porte aussi la classe de l'instance pour permettre des styles locaux.
   const rootWithInstanceClass: Node = { ...root, style: { ...(root.style ?? {}), shared: [...(root.style?.shared ?? []), ...(node.style?.shared ?? [])] } };
   const el = createElement(RenderNode, { node: rootWithInstanceClass, ctx: inner });
-  return ctx.editor ? createElement("div", { "data-node": node.id, "data-instance": cmp.id, style: { display: "contents" } }, el) : el;
+  // Dans l'éditeur, l'enveloppe (sans boîte) est l'enfant direct : elle porte aussi la marque de cible pour que les règles « rien dans l'éditeur » la couvrent.
+  return ctx.editor ? createElement("div", { "data-node": node.id, "data-instance": cmp.id, "data-anim-target": ctx.animChild?.of === node.id ? "" : undefined, style: { display: "contents" } }, el) : el;
 }
 
 // ---------------------------------------------------------------- page
@@ -207,8 +288,9 @@ export const FORM_SCRIPT = `(function(){var q=new URLSearchParams(location.searc
 
 function hasForm(n: Node): boolean { return n.type === "form" || (n.children ?? []).some(hasForm); }
 
-export function RenderPage({ ctx, mode }: { ctx: RenderContext; mode?: string }): ReactNode {
-  const page: Page = ctx.page;
+export function RenderPage({ ctx: given, mode }: { ctx: RenderContext; mode?: string }): ReactNode {
+  const page: Page = given.page;
+  const ctx: RenderContext = given.animTargets ? given : { ...given, animTargets: collectAnimTargets(given.site, page) };
   const withForm = hasForm(page.root) || ctx.site.components.some((c) => hasForm(c.root));
   const withIx = hasInteractions(page.root) || ctx.site.components.some((c) => hasInteractions(c.root)) || hasMotion(page.root) || ctx.site.components.some((c) => hasMotion(c.root));
   return createElement("div", { className: "at-page", "data-mode": mode ?? ctx.site.theme.defaultMode, lang: ctx.locale, "data-editor": ctx.editor ? "" : undefined },
@@ -217,7 +299,7 @@ export function RenderPage({ ctx, mode }: { ctx: RenderContext; mode?: string })
     // Dans l'éditeur, pas de script (React ne l'exécuterait pas au rendu suivant) : `applyInstantStates` pose l'état d'arrivée après chaque rendu.
     withIx && !ctx.editor && !ctx.deferScripts ? createElement("script", { dangerouslySetInnerHTML: { __html: INTERACTION_SCRIPT } }) : null,
     // Sans script, les animations attendant l'écran ou le défilement ne se joueraient jamais : l'élément reste à son état de repos.
-    withIx && !ctx.editor ? createElement("noscript", { dangerouslySetInnerHTML: { __html: "<style>.at-page [data-anim]{animation:none!important}</style>" } }) : null,
+    withIx && !ctx.editor ? createElement("noscript", { dangerouslySetInnerHTML: { __html: "<style>.at-page [data-anim],.at-page [data-anim-target]{animation:none!important}</style>" } }) : null,
   );
 }
 

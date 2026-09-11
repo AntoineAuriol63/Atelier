@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
-import { sampleSite, sampleEntries, classMap, restaurantSite, restaurantEntries, type Site } from "@atelier/model";
+import { sampleSite, sampleEntries, classMap, restaurantSite, restaurantEntries, type AnimationRun, type ComponentDef, type Node, type Site } from "@atelier/model";
 import { RenderPage, siteCss, styleSetCss, collectionViewCss, memoryData, matchPath, assetMap, pageTitle, type RenderContext } from "../src";
 
 const data = memoryData(sampleEntries);
@@ -312,7 +312,7 @@ describe("animations (section 8.4)", () => {
     expect(css).toMatch(/\.n-a1\{animation:ak-r1 3000ms ease-in-out 0ms infinite normal both,ak-r2 700ms cubic-bezier\(\.22,1,\.36,1\) 100ms 1 normal both;animation-play-state:running,paused\}/);
     expect(css).toContain(".n-a1:hover{animation-play-state:paused,paused}");
     expect(css).toContain(".n-a1:hover{animation:ak-r3 250ms ease-out 0ms 1 normal forwards}");
-    expect(css).toContain(".at-page[data-editor] [data-anim]{animation:none!important}");
+    expect(css).toContain(".at-page[data-editor] [data-anim],.at-page[data-editor] [data-anim-target]{animation:none!important}");
     const html = renderToStaticMarkup(createElement(RenderPage, { ctx: ctxOf(site, site.pages[0]!) }));
     expect(html).toContain('data-anim="');
     expect(html).toContain("&quot;t&quot;:&quot;inView&quot;");
@@ -333,5 +333,86 @@ describe("animations (section 8.4)", () => {
     const s2 = band({ duration: 12, direction: "up", pauseOnHover: true }); const h2 = renderToStaticMarkup(createElement(RenderPage, { ctx: ctxOf(s2, s2.pages[0]!) }));
     expect(h2).toContain('data-marquee="up"'); expect(h2).toContain("data-marquee-pause"); expect(h2).toContain("--at-marquee:12s");
     expect(siteCss(band(1))).toContain("@keyframes at-marquee-up");
+  });
+});
+
+describe("animations : cibles, découpage, décalage", () => {
+  const page = (children: Node[]) => ({ ...sampleSite, pages: [{ ...sampleSite.pages[0]!, root: { id: "r", type: "box" as const, props: {}, children } }] });
+  const html = (site: Site) => renderToStaticMarkup(createElement(RenderPage, { ctx: ctxOf(site, site.pages[0]!) }));
+  const text = (id: string, v: string, extra: Partial<Node> = {}): Node => ({ id, type: "text", props: { tag: "p", content: { fr: [{ t: "text", v }] } }, ...extra });
+  const run = (id: string, patch: Partial<AnimationRun>): AnimationRun => ({ id, animation: { keyframes: [{ at: 0, style: { opacity: "0" } }, { at: 100, style: { opacity: "1" } }] }, trigger: "load", duration: 500, easing: "linear", ...patch });
+
+  it("cible « ses enfants » : règle sur les enfants, décalage en calc(), enfants marqués et numérotés", () => {
+    const site = page([{ id: "p", type: "box", props: {}, animations: [run("r1", { delay: 100, target: { children: true }, stagger: { each: 80 } })], children: [text("a", "A"), text("b", "B"), text("c", "C")] }]);
+    const css = siteCss(site);
+    expect(css).toContain(".n-p>*{animation:ak-r1 500ms linear 100ms 1 normal both;animation-play-state:running;animation-delay:calc(100ms + var(--at-i,0)*80ms)}");
+    expect(css).not.toMatch(/\.n-p\{animation/);
+    const h = html(site);
+    expect(h).toContain('class="n-b" data-anim-target="" style="--at-i:1;--at-n:3"');
+    expect(h).toContain('class="n-c" data-anim-target="" style="--at-i:2;--at-n:3"');
+    expect(h).toMatch(/class="n-p" data-anim="[^"]*&quot;tg&quot;:&quot;children&quot;[^"]*&quot;st&quot;:\[80,&quot;start&quot;\]/);
+  });
+  it("décalage depuis la fin ou le centre : expressions CSS", () => {
+    const site = page([{ id: "p", type: "box", props: {}, animations: [run("r1", { target: { children: true }, stagger: { each: 50, from: "end" } }), run("r2", { trigger: "hover", target: { children: true }, stagger: { each: 20, from: "center" } })], children: [text("a", "A")] }]);
+    const css = siteCss(site);
+    expect(css).toContain("animation-delay:calc(0ms + (var(--at-n,1) - 1 - var(--at-i,0))*50ms)");
+    expect(css).toContain(".n-p:hover>*{animation:ak-r2 500ms linear 0ms 1 normal both;animation-delay:calc(0ms + abs(var(--at-i,0) - (var(--at-n,1) - 1)/2)*20ms)}");
+  });
+  it("cible « un autre élément » : règle sur la cible, survol par :has(), cible marquée", () => {
+    const site = page([{ id: "btn", type: "box", props: {}, animations: [run("r1", { target: { node: "panel" } }), run("r2", { trigger: "hover", target: { node: "panel" } })] }, { id: "panel", type: "box", props: {} }]);
+    const css = siteCss(site);
+    expect(css).toContain(".n-panel{animation:ak-r1 500ms linear 0ms 1 normal both;animation-play-state:running}");
+    expect(css).toContain(".at-page:has(.n-btn:hover) .n-panel{animation:ak-r2 500ms linear 0ms 1 normal both}");
+    expect(css).not.toContain(".n-btn{animation");
+    const h = html(site);
+    expect(h).toContain('class="n-panel" data-anim-target=""');
+    expect(h).toMatch(/&quot;tg&quot;:\{&quot;s&quot;:&quot;\.n-panel&quot;\}/);
+  });
+  it("cible « sélecteur » : rien en CSS, tout par le script", () => {
+    const site = page([{ id: "btn", type: "box", props: {}, animations: [run("r1", { target: { selector: ".x" } })] }]);
+    expect(siteCss(site)).not.toContain(".x{animation");
+    expect(siteCss(site)).not.toContain(".n-btn{animation");
+    expect(html(site)).toMatch(/&quot;tg&quot;:\{&quot;s&quot;:&quot;\.x&quot;\}/);
+  });
+  it("découpage en lettres : mots et lettres en spans, espaces dehors, marques gardées, accessibilité", () => {
+    const site = page([{ id: "t", type: "text", props: { tag: "h1", content: { fr: [{ t: "text", v: "Bon " }, { t: "text", v: "jour", marks: ["bold"] }, { t: "text", v: " à toi" }] } }, animations: [run("r1", { trigger: "inView", split: "letters", stagger: { each: 30 } })] }]);
+    const h = html(site);
+    expect(h).toContain('aria-label="Bon jour à toi"');
+    expect((h.match(/class="at-piece"/g) ?? []).length).toBe(11);
+    expect((h.match(/class="at-word"/g) ?? []).length).toBe(4);
+    expect(h).toContain('<span class="at-word"><span class="at-piece" data-anim-target="" aria-hidden="true" style="--at-i:0;--at-n:11">B</span>');
+    expect(h).toContain("<strong>");
+    expect(h).toMatch(/<\/span> <span class="at-word">/);
+    const css = siteCss(site);
+    expect(css).toContain(".n-t .at-piece{animation:ak-r1 500ms linear 0ms 1 normal both;animation-play-state:paused;animation-delay:calc(0ms + var(--at-i,0)*30ms)}");
+    expect(css).toContain(".at-page .at-piece,.at-page .at-word{display:inline-block}");
+    expect(h).toMatch(/&quot;tg&quot;:&quot;pieces&quot;/);
+  });
+  it("découpage en mots : un span par mot, pas d'aria-label ; le plus fin l'emporte ; texte lié riche non découpé", () => {
+    const site = page([text("t", "Un deux trois", { animations: [run("r1", { split: "words" })] })]);
+    const h = html(site);
+    expect((h.match(/class="at-piece"/g) ?? []).length).toBe(3);
+    expect(h).not.toContain("at-word"); expect(h).not.toContain("aria-label");
+    const fine = page([text("t", "Un deux", { animations: [run("r1", { split: "words" }), run("r2", { split: "letters" })] })]);
+    expect((html(fine).match(/class="at-piece"/g) ?? []).length).toBe(6);
+    const bound: Node = { id: "t", type: "text", props: { tag: "div" }, bindings: { content: { source: "entry", path: "body" } }, animations: [run("r1", { split: "words" })] };
+    expect(html(page([bound]))).not.toContain('class="at-piece"');
+  });
+  it("dans l'éditeur, l'enveloppe d'une instance visée comme enfant est marquée elle aussi, et la racine du composant porte le rang", () => {
+    const cmp: ComponentDef = { id: "cmp", name: "Carte", scope: "site", props: [], root: { id: "cmp_root", type: "box", props: {} } };
+    const site: Site = { ...page([{ id: "p", type: "box", props: {}, animations: [run("r1", { target: { children: true }, stagger: { each: 50 } })], children: [{ id: "i1", type: "instance", props: { component: "cmp" } }, { id: "i2", type: "instance", props: { component: "cmp" } }] }]), components: [cmp] };
+    const h = renderToStaticMarkup(createElement(RenderPage, { ctx: { ...ctxOf(site, site.pages[0]!), editor: true } }));
+    expect(h).toContain('<div data-node="i2" data-instance="cmp" data-anim-target="" style="display:contents">');
+    expect(h).toContain('class="n-cmp_root" data-node="cmp_root" data-anim-target="" style="--at-i:1;--at-n:2"');
+    const pub = html(site);
+    expect(pub).not.toContain('data-instance="cmp"');
+    expect(pub).toContain('class="n-cmp_root" data-anim-target="" style="--at-i:0;--at-n:2"');
+  });
+  it("les règles éditeur, réduire les animations et sans script couvrent aussi les cibles", () => {
+    const site = page([text("t", "x", { animations: [run("r1", {})] })]);
+    const css = siteCss(site);
+    expect(css).toContain(".at-page[data-editor] [data-anim],.at-page[data-editor] [data-anim-target]{animation:none!important}");
+    expect(css).toMatch(/prefers-reduced-motion:reduce\)\{[^}]*\.at-page \[data-anim\],\.at-page \[data-anim-target\]\{animation:none!important\}/);
+    expect(html(site)).toContain("<noscript><style>.at-page [data-anim],.at-page [data-anim-target]{animation:none!important}</style></noscript>");
   });
 });

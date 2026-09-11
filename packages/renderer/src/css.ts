@@ -1,5 +1,5 @@
 import type { Asset, Breakpoint, ClassMap, ComponentDef, Node, SharedStyle, Site, StyleProps, StyleSet, StyleValue, Theme, ViewConfig, AnimationRun, Keyframe } from "@atelier/model";
-import { parseVariantKey, variantClass, walk } from "@atelier/model";
+import { parseVariantKey, variantClass, walk, animationTargetKind } from "@atelier/model";
 
 // ---------------------------------------------------------------- valeurs
 
@@ -73,7 +73,7 @@ export function themeCss(theme: Theme): string {
   }
   // Base minimale, indépendante de tout reset externe.
   // Base des éléments en `:where()` (spécificité nulle) : un style posé sur un nœud (`.n-<id>`) ou partagé gagne toujours, même sur un bouton ou un champ.
-  out.push(`html{scroll-behavior:smooth}@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}.at-page{margin:0;min-height:100%}:where(.at-page *,.at-page *::before,.at-page *::after){box-sizing:border-box}:where(.at-page h1,.at-page h2,.at-page h3,.at-page h4,.at-page h5,.at-page h6,.at-page p,.at-page ul,.at-page ol,.at-page blockquote,.at-page figure){margin:0}:where(.at-page ul,.at-page ol){padding-left:1.25em}:where(.at-page img,.at-page video){max-width:100%}:where(.at-page hr){border:0;border-top:1px solid var(--color-line,#ddd);width:100%;height:0;margin:0;flex:none}:where(.at-page button){font:inherit;cursor:pointer;border:0;background:none}:where(.at-page input,.at-page textarea,.at-page select){font:inherit}:where(.at-page input:not([type=checkbox]):not([type=radio]),.at-page textarea,.at-page select){width:100%;padding:.55em .75em;border:1px solid var(--color-line,#ddd);border-radius:var(--radius-sm,3px);background:var(--color-surface,#fff);color:inherit}:where(.at-page [data-form-success]){color:var(--color-accent,inherit);font-weight:500}:where(.at-page [data-form-error]){color:#b42318}.at-page [data-ix-hidden]{display:none!important}.at-page [data-marquee]{overflow:hidden}.at-page [data-marquee] .at-marquee-track{display:flex;width:max-content;gap:inherit;animation:at-marquee-left var(--at-marquee,20s) linear infinite}.at-page [data-marquee="right"] .at-marquee-track{animation-name:at-marquee-right}.at-page [data-marquee="up"] .at-marquee-track,.at-page [data-marquee="down"] .at-marquee-track{flex-direction:column;width:auto;height:max-content}.at-page [data-marquee="up"]{max-height:var(--at-marquee-height,12rem)}.at-page [data-marquee="down"]{max-height:var(--at-marquee-height,12rem)}.at-page [data-marquee="up"] .at-marquee-track{animation-name:at-marquee-up}.at-page [data-marquee="down"] .at-marquee-track{animation-name:at-marquee-down}.at-page [data-marquee] .at-marquee-copy{display:contents}.at-page [data-marquee-pause]:hover .at-marquee-track{animation-play-state:paused}@keyframes at-marquee-left{to{transform:translateX(-50%)}}@keyframes at-marquee-right{from{transform:translateX(-50%)}to{transform:translateX(0)}}@keyframes at-marquee-up{to{transform:translateY(-50%)}}@keyframes at-marquee-down{from{transform:translateY(-50%)}to{transform:translateY(0)}}.at-page[data-editor] [data-anim]{animation:none!important}@media (prefers-reduced-motion:reduce){.at-page [data-marquee] .at-marquee-track,.at-page [data-anim]{animation:none!important}}`);
+  out.push(`html{scroll-behavior:smooth}@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}.at-page{margin:0;min-height:100%}:where(.at-page *,.at-page *::before,.at-page *::after){box-sizing:border-box}:where(.at-page h1,.at-page h2,.at-page h3,.at-page h4,.at-page h5,.at-page h6,.at-page p,.at-page ul,.at-page ol,.at-page blockquote,.at-page figure){margin:0}:where(.at-page ul,.at-page ol){padding-left:1.25em}:where(.at-page img,.at-page video){max-width:100%}:where(.at-page hr){border:0;border-top:1px solid var(--color-line,#ddd);width:100%;height:0;margin:0;flex:none}:where(.at-page button){font:inherit;cursor:pointer;border:0;background:none}:where(.at-page input,.at-page textarea,.at-page select){font:inherit}:where(.at-page input:not([type=checkbox]):not([type=radio]),.at-page textarea,.at-page select){width:100%;padding:.55em .75em;border:1px solid var(--color-line,#ddd);border-radius:var(--radius-sm,3px);background:var(--color-surface,#fff);color:inherit}:where(.at-page [data-form-success]){color:var(--color-accent,inherit);font-weight:500}:where(.at-page [data-form-error]){color:#b42318}.at-page [data-ix-hidden]{display:none!important}.at-page [data-marquee]{overflow:hidden}.at-page [data-marquee] .at-marquee-track{display:flex;width:max-content;gap:inherit;animation:at-marquee-left var(--at-marquee,20s) linear infinite}.at-page [data-marquee="right"] .at-marquee-track{animation-name:at-marquee-right}.at-page [data-marquee="up"] .at-marquee-track,.at-page [data-marquee="down"] .at-marquee-track{flex-direction:column;width:auto;height:max-content}.at-page [data-marquee="up"]{max-height:var(--at-marquee-height,12rem)}.at-page [data-marquee="down"]{max-height:var(--at-marquee-height,12rem)}.at-page [data-marquee="up"] .at-marquee-track{animation-name:at-marquee-up}.at-page [data-marquee="down"] .at-marquee-track{animation-name:at-marquee-down}.at-page [data-marquee] .at-marquee-copy{display:contents}.at-page [data-marquee-pause]:hover .at-marquee-track{animation-play-state:paused}@keyframes at-marquee-left{to{transform:translateX(-50%)}}@keyframes at-marquee-right{from{transform:translateX(-50%)}to{transform:translateX(0)}}@keyframes at-marquee-up{to{transform:translateY(-50%)}}@keyframes at-marquee-down{from{transform:translateY(-50%)}to{transform:translateY(0)}}.at-page .at-piece,.at-page .at-word{display:inline-block}.at-page .at-word{white-space:nowrap}.at-page[data-editor] [data-anim],.at-page[data-editor] [data-anim-target]{animation:none!important}@media (prefers-reduced-motion:reduce){.at-page [data-marquee] .at-marquee-track,.at-page [data-anim],.at-page [data-anim-target]{animation:none!important}}`);
   return out.join("\n");
 }
 
@@ -219,22 +219,53 @@ export function animationValue(run: AnimationRun): string {
   const it = run.iterations === "infinite" ? "infinite" : String(run.iterations ?? 1);
   return `${keyframesName(run)} ${run.duration}ms ${run.easing ?? "ease"} ${run.delay ?? 0}ms ${it} ${run.direction ?? "normal"} ${run.fill ?? "both"}`;
 }
+/** Délai CSS d'un run : fixe, ou en `calc()` avec le rang de l'élément (`--at-i` parmi `--at-n`) quand plusieurs éléments sont décalés. */
+export function animationDelayCss(run: AnimationRun): string {
+  const dl = `${run.delay ?? 0}ms`;
+  const st = run.stagger;
+  const kind = animationTargetKind(run);
+  if (!st || (kind !== "children" && kind !== "pieces")) return dl;
+  if (st.from === "end") return `calc(${dl} + (var(--at-n,1) - 1 - var(--at-i,0))*${st.each}ms)`;
+  if (st.from === "center") return `calc(${dl} + abs(var(--at-i,0) - (var(--at-n,1) - 1)/2)*${st.each}ms)`;
+  return `calc(${dl} + var(--at-i,0)*${st.each}ms)`;
+}
+const staggered = (r: AnimationRun) => !!r.stagger && (animationTargetKind(r) === "children" || animationTargetKind(r) === "pieces");
 /**
  * Animations d'un nœud (section 8.4) : ses images-clés en ligne, la propriété `animation` pour les déclencheurs CSS
- * (chargement, entrée dans l'écran en pause jusqu'au script, survol), et la pause au survol.
+ * (chargement, entrée dans l'écran en pause jusqu'au script, survol), et la pause au survol. La règle est émise sur la
+ * cible du run : l'élément, ses enfants (`>*`), ses morceaux (`.at-piece`) ou un autre élément (`selOf`) ; un sélecteur libre
+ * n'est joué que par le script. Le décalage devient un `animation-delay` en `calc()`.
  */
-export function nodeAnimationsCss(node: Node, sel: string, site: Pick<Site, "animations">, assets?: Map<string, Asset>): string {
+export function nodeAnimationsCss(node: Node, sel: string, site: Pick<Site, "animations">, assets?: Map<string, Asset>, selOf: (id: string) => string = (id) => `.n-${id}`): string {
   const runs = node.animations ?? [];
   if (!runs.length) return "";
   const out: string[] = [];
   for (const r of runs) if (typeof r.animation !== "string") out.push(keyframesCss(keyframesName(r), r.animation.keyframes, assets));
-  const base = runs.filter((r) => r.trigger === "load" || r.trigger === "inView");
-  const hover = runs.filter((r) => r.trigger === "hover");
-  if (base.length) {
-    out.push(`${sel}{animation:${base.map(animationValue).join(",")};animation-play-state:${base.map((r) => (r.trigger === "inView" ? "paused" : "running")).join(",")}}`);
-    if (base.some((r) => r.pauseOnHover && r.trigger === "load")) out.push(`${sel}:hover{animation-play-state:${base.map((r) => (r.pauseOnHover || r.trigger === "inView" ? "paused" : "running")).join(",")}}`);
+  const targetSel = (r: AnimationRun): string | null => {
+    const k = animationTargetKind(r);
+    if (k === "self") return sel;
+    if (k === "children") return `${sel}>*`;
+    if (k === "pieces") return `${sel} .at-piece`;
+    if (k === "node" && r.target && "node" in r.target) return selOf(r.target.node);
+    return null;
+  };
+  const hoverSel = (r: AnimationRun): string => {
+    const k = animationTargetKind(r);
+    if (k === "children") return `${sel}:hover>*`;
+    if (k === "pieces") return `${sel}:hover .at-piece`;
+    if (k === "node" && r.target && "node" in r.target) return `.at-page:has(${sel}:hover) ${selOf(r.target.node)}`;
+    return `${sel}:hover`;
+  };
+  const groups = (list: AnimationRun[]) => { const m = new Map<string, AnimationRun[]>(); for (const r of list) { const t = targetSel(r); if (t === null) continue; m.set(t, [...(m.get(t) ?? []), r]); } return m; };
+  for (const [t, list] of groups(runs.filter((r) => r.trigger === "load" || r.trigger === "inView"))) {
+    const delays = list.some(staggered) ? `;animation-delay:${list.map(animationDelayCss).join(",")}` : "";
+    out.push(`${t}{animation:${list.map(animationValue).join(",")};animation-play-state:${list.map((r) => (r.trigger === "inView" ? "paused" : "running")).join(",")}${delays}}`);
+    if (list.some((r) => r.pauseOnHover && r.trigger === "load")) out.push(`${hoverSel(list[0]!)}{animation-play-state:${list.map((r) => (r.pauseOnHover || r.trigger === "inView" ? "paused" : "running")).join(",")}}`);
   }
-  if (hover.length) out.push(`${sel}:hover{animation:${hover.map(animationValue).join(",")}}`);
+  for (const [, list] of groups(runs.filter((r) => r.trigger === "hover"))) {
+    const delays = list.some(staggered) ? `;animation-delay:${list.map(animationDelayCss).join(",")}` : "";
+    out.push(`${hoverSel(list[0]!)}{animation:${list.map(animationValue).join(",")}${delays}}`);
+  }
   return out.join("\n");
 }
 
@@ -243,7 +274,7 @@ export function nodeCss(node: Node, breakpoints: Breakpoint[], assets?: Map<stri
   void _shared;
   const sel = `.${classes?.node.get(node.id) ?? `n-${node.id}`}`;
   const own = styleSetCss(sel, node.style ? rest : undefined, breakpoints, assets, node.hidden);
-  const anim = nodeAnimationsCss(node, sel, site ?? {}, assets);
+  const anim = nodeAnimationsCss(node, sel, site ?? {}, assets, (id) => `.${classes?.node.get(id) ?? `n-${id}`}`);
   if (node.type !== "collection") return [own, anim].filter(Boolean).join("\n");
   return [collectionViewCss(sel, node.props.view as ViewConfig | undefined, breakpoints), own, anim].filter(Boolean).join("\n");
 }

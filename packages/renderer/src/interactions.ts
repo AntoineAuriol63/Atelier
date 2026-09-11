@@ -1,5 +1,5 @@
 import type { AnimationRun, Interaction, Node, Target } from "@atelier/model";
-import { variantClass } from "@atelier/model";
+import { animationTargetKind, variantClass } from "@atelier/model";
 import { resolveHref, type RenderContext } from "./context";
 import { declarations } from "./css";
 
@@ -74,7 +74,10 @@ export function animationsAttr(node: Node, ctx: RenderContext): string | undefin
   if (!runs.length) return undefined;
   const wire = runs.map((r: AnimationRun) => {
     const kf = typeof r.animation === "string" ? ctx.site.animations?.find((a) => a.id === r.animation)?.keyframes ?? [] : r.animation.keyframes;
-    return { i: r.id, t: r.trigger, k: kf.map((k) => ({ o: k.at / 100, c: declarations(k.style, ctx.assets) })), d: r.duration, dl: r.delay ?? 0, e: r.easing ?? "ease", it: r.iterations ?? 1, dir: r.direction ?? "normal", f: r.fill ?? "both", once: r.once !== false, ph: !!r.pauseOnHover, r: r.range ?? [0, 1] };
+    // Cible (`tg`) : absente pour l'élément lui-même, "children", "pieces", ou `{ s }` un sélecteur (autre élément, ou libre : `js` = joué par le script même au chargement et au survol).
+    const kind = animationTargetKind(r);
+    const tg = kind === "self" ? undefined : kind === "children" || kind === "pieces" ? kind : kind === "node" && r.target && "node" in r.target ? { s: `.${ctx.classes?.node.get(r.target.node) ?? `n-${r.target.node}`}` } : r.target && "selector" in r.target ? { s: r.target.selector } : undefined;
+    return { i: r.id, t: r.trigger, k: kf.map((k) => ({ o: k.at / 100, c: declarations(k.style, ctx.assets) })), d: r.duration, dl: r.delay ?? 0, e: r.easing ?? "ease", it: r.iterations ?? 1, dir: r.direction ?? "normal", f: r.fill ?? "both", once: r.once !== false, ph: !!r.pauseOnHover, r: r.range ?? [0, 1], tg, st: r.stagger ? [r.stagger.each, r.stagger.from ?? "start"] : undefined, js: kind === "selector" ? 1 : undefined };
   });
   return JSON.stringify(wire);
 }
@@ -88,10 +91,25 @@ export function hasMotion(n: Node): boolean {
 export function hasInteractions(n: Node): boolean { return !!n.interactions?.length || (n.children ?? []).some(hasInteractions); }
 
 /**
+ * Lecture d'une animation (section 8.4), partagée par le script du site et par le bouton « Jouer » de l'éditeur :
+ * `window.__atelierPlay(el, a, extra)` anime les cibles du run `a` (données de `data-anim`) porté par `el` avec l'API Web
+ * Animations et rend la liste des animations créées ; le décalage donne à chaque cible son délai selon son rang.
+ */
+export const ANIMATION_PLAY_SCRIPT = `(function(){if(window.__atelierPlay)return;
+var toKf=function(k){return k.map(function(s){var o={offset:s.o};s.c.split(";").forEach(function(d){var i=d.indexOf(":");if(i>0){var p=d.slice(0,i).trim().replace(/-([a-z])/g,function(_,c){return c.toUpperCase();});o[p]=d.slice(i+1).trim();}});return o;});};
+var opts=function(a,extra){var o={duration:a.d,delay:a.dl,easing:a.e,iterations:a.it==="infinite"?Infinity:a.it,direction:a.dir,fill:a.f};for(var k in extra)o[k]=extra[k];return o;};
+var els=function(el,a){if(!a.tg)return[el];if(a.tg==="children")return Array.prototype.slice.call(el.children).map(function(c){return c.hasAttribute("data-instance")&&c.firstElementChild?c.firstElementChild:c;});if(a.tg==="pieces")return Array.prototype.slice.call(el.querySelectorAll(".at-piece"));return Array.prototype.slice.call(document.querySelectorAll(a.tg.s));};
+var rank=function(i,n,from){return from==="end"?n-1-i:from==="center"?Math.abs(i-(n-1)/2):i;};
+var delay=function(a,i,n){return a.dl+(a.st?rank(i,n,a.st[1])*a.st[0]:0);};
+window.__atelierAnim={toKf:toKf,opts:opts,els:els,delay:delay};
+window.__atelierPlay=function(el,a,extra){var list=els(el,a),out=[];list.forEach(function(t,i){try{var o=opts(a,extra||{});o.delay=delay(a,i,list.length);out.push(t.animate(toKf(a.k),o));}catch(e){}});return out;};
+})();`;
+
+/**
  * Script des interactions du site (D31) : lit `data-ix`, joue apparitions (IntersectionObserver), clics, survols, chargement.
  * Dans l'éditeur (`.at-page[data-editor]`) et avec « réduire les animations », l'état d'arrivée est posé sans transition et les clics sont ignorés.
  */
-export const INTERACTION_SCRIPT = `(function(){if(window.__atelierIx)return;window.__atelierIx=1;var root=document.querySelector(".at-page");var editor=!!(root&&root.hasAttribute("data-editor"));var reduce=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;var instant=editor||reduce;
+export const INTERACTION_SCRIPT = ANIMATION_PLAY_SCRIPT + `(function(){if(window.__atelierIx)return;window.__atelierIx=1;var root=document.querySelector(".at-page");var editor=!!(root&&root.hasAttribute("data-editor"));var reduce=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;var instant=editor||reduce;
 function targets(el,s){return s?Array.prototype.slice.call(document.querySelectorAll(s)):[el];}
 function setStyle(el,css,tr){if(tr&&!instant){el.style.transition=tr;}else{el.style.transition="none";}el.style.cssText+=";"+css;}
 function run(el,a,revert){targets(el,a.s).forEach(function(t){
@@ -114,20 +132,21 @@ document.querySelectorAll("[data-ix]").forEach(function(el){var list;try{list=JS
 /* Parallaxe : l'élément se décale selon sa position dans l'écran, à la vitesse donnée (0.1 = léger, 0.5 = marqué). */
 var px=Array.prototype.slice.call(document.querySelectorAll("[data-parallax]"));
 if(px.length&&!instant){var ticking=false;var move=function(){ticking=false;var vh=window.innerHeight;px.forEach(function(el){var r=el.getBoundingClientRect();var c=r.top+r.height/2-vh/2;el.style.transform="translate3d(0,"+Math.round(-c*parseFloat(el.getAttribute("data-parallax"))*100)/100+"px,0)";el.style.willChange="transform";});};window.addEventListener("scroll",function(){if(!ticking){ticking=true;requestAnimationFrame(move);}},{passive:true});window.addEventListener("resize",move);move();}
-/* Animations (section 8.4) : images-clés dans data-anim. CSS joue « chargement » et « survol » ; le script lance « entrée dans l'écran », « clic » et « défilement » avec l'API Web Animations. */
-var toKf=function(k){return k.map(function(s){var o={offset:s.o};s.c.split(";").forEach(function(d){var i=d.indexOf(":");if(i>0){var p=d.slice(0,i).trim().replace(/-([a-z])/g,function(_,c){return c.toUpperCase();});o[p]=d.slice(i+1).trim();}});return o;});};
-var animOpts=function(a,extra){var o={duration:a.d,delay:a.dl,easing:a.e,iterations:a.it==="infinite"?Infinity:a.it,direction:a.dir,fill:a.f};for(var k in extra)o[k]=extra[k];return o;};
-window.__atelierPlay=function(el,a){try{return el.animate(toKf(a.k),animOpts(a,{}));}catch(e){return null;}};
+/* Animations (section 8.4) : images-clés dans data-anim. CSS joue « chargement » et « survol » sur l'élément, ses enfants, ses morceaux ou un autre élément ; le script lance « entrée dans l'écran », « clic », « défilement », et tout ce qui vise un sélecteur libre (js), avec l'API Web Animations. */
+var A=window.__atelierAnim;
 if(!instant){document.querySelectorAll("[data-anim]").forEach(function(el){var runs;try{runs=JSON.parse(el.getAttribute("data-anim"));}catch(e){return;}
- var scripted=runs.filter(function(a){return a.t==="inView"||a.t==="click"||a.t==="scroll";});if(!scripted.length)return;
- var live={};var pauseAll=function(){for(var k in live)live[k].pause();};var playAll=function(){for(var k in live)if(live[k].playState==="paused"&&!live[k].__scroll)live[k].play();};
+ var scripted=runs.filter(function(a){return a.t==="inView"||a.t==="click"||a.t==="scroll"||a.js;});if(!scripted.length)return;
+ var live={};var each=function(fn){for(var k in live)live[k].forEach(fn);};var pauseAll=function(){each(function(an){an.pause();});};var playAll=function(){each(function(an){if(an.playState==="paused"&&!an.__scroll)an.play();});};
  if(runs.some(function(a){return a.ph&&a.t!=="load"&&a.t!=="hover";})){el.addEventListener("mouseenter",pauseAll);el.addEventListener("mouseleave",playAll);}
+ var cancel=function(a){(live[a.i]||[]).forEach(function(an){an.cancel();});delete live[a.i];};
  runs.forEach(function(a){
-  if(a.t==="click"){el.addEventListener("click",function(){var an=window.__atelierPlay(el,a);if(an)live[a.i]=an;});}
-  else if(a.t==="scroll"){var an=el.animate(toKf(a.k),{duration:1000,fill:"both",easing:"linear"});an.pause();an.__scroll=true;live[a.i]=an;var tick=false;var upd=function(){tick=false;var vh=window.innerHeight,r=el.getBoundingClientRect();var p=(vh-r.top)/(vh+r.height);var lo=a.r[0],hi=a.r[1];var q=hi>lo?(p-lo)/(hi-lo):p;q=Math.max(0,Math.min(1,q));an.currentTime=q*1000;};var onS=function(){if(!tick){tick=true;requestAnimationFrame(upd);}};window.addEventListener("scroll",onS,{passive:true});window.addEventListener("resize",onS);upd();}
+  if(a.t==="click"){el.addEventListener("click",function(){live[a.i]=window.__atelierPlay(el,a);});}
+  else if(a.t==="scroll"){var list=A.els(el,a).map(function(t){var an=t.animate(A.toKf(a.k),{duration:1000,fill:"both",easing:"linear"});an.pause();an.__scroll=true;return an;});live[a.i]=list;var tick=false;var upd=function(){tick=false;var vh=window.innerHeight,r=el.getBoundingClientRect();var p=(vh-r.top)/(vh+r.height);var lo=a.r[0],hi=a.r[1];var q=hi>lo?(p-lo)/(hi-lo):p;q=Math.max(0,Math.min(1,q));list.forEach(function(an){an.currentTime=q*1000;});};var onS=function(){if(!tick){tick=true;requestAnimationFrame(upd);}};window.addEventListener("scroll",onS,{passive:true});window.addEventListener("resize",onS);upd();}
+  else if(a.js&&a.t==="load"){live[a.i]=window.__atelierPlay(el,a);}
+  else if(a.js&&a.t==="hover"){el.addEventListener("mouseenter",function(){cancel(a);live[a.i]=window.__atelierPlay(el,a);});el.addEventListener("mouseleave",function(){cancel(a);});}
  });
  var inView=runs.filter(function(a){return a.t==="inView";});
- if(inView.length&&("IntersectionObserver" in window)){el.style.animation="none";var seen=false;var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){if(seen&&inView.every(function(a){return a.once;}))return;seen=true;inView.forEach(function(a){if(live[a.i])live[a.i].cancel();var an=window.__atelierPlay(el,a);if(an)live[a.i]=an;});if(inView.every(function(a){return a.once;}))io.unobserve(el);}else{inView.forEach(function(a){if(!a.once&&live[a.i]){live[a.i].cancel();delete live[a.i];}});}});},{threshold:0.15});io.observe(el);}
+ if(inView.length&&("IntersectionObserver" in window)){inView.forEach(function(a){A.els(el,a).forEach(function(t){t.style.animation="none";});});var seen=false;var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){if(seen&&inView.every(function(a){return a.once;}))return;seen=true;inView.forEach(function(a){cancel(a);live[a.i]=window.__atelierPlay(el,a);});if(inView.every(function(a){return a.once;}))io.unobserve(el);}else{inView.forEach(function(a){if(!a.once&&live[a.i])cancel(a);});}});},{threshold:0.15});io.observe(el);}
 });}
 /* Compteur : le nombre du texte défile de 0 à sa valeur quand il entre dans l'écran (la ponctuation autour est gardée). */
 var counters=Array.prototype.slice.call(document.querySelectorAll("[data-countup]"));

@@ -86,9 +86,47 @@ export function animationUsages(site: Site, id: Id): { node: Node; owner: string
   return out;
 }
 
-export function describeAnimation(run: AnimationRun, site: Pick<Site, "animations">): string {
+/** Sorte de cible d'un run : l'élément, ses enfants, ses morceaux (texte découpé), un autre élément, un sélecteur libre. */
+export type AnimationTargetKind = "self" | "children" | "pieces" | "node" | "selector";
+export function animationTargetKind(run: Pick<AnimationRun, "target" | "split">): AnimationTargetKind {
+  if (run.split) return "pieces";
+  const t = run.target;
+  if (!t || "self" in t) return "self";
+  if ("children" in t) return "children";
+  if ("node" in t) return "node";
+  return "selector";
+}
+export const STAGGER_FROM_LABELS: Record<NonNullable<NonNullable<AnimationRun["stagger"]>["from"]>, string> = { start: "Depuis le début", end: "Depuis la fin", center: "Depuis le centre" };
+export const SPLIT_LABELS: Record<NonNullable<AnimationRun["split"]>, string> = { words: "Par mots", letters: "Par lettres" };
+/** Rang d'un élément parmi `n` pour le décalage : son ordre depuis le début, depuis la fin, ou sa distance au centre. */
+export function staggerRank(i: number, n: number, from: "start" | "end" | "center" | undefined): number {
+  if (from === "end") return n - 1 - i;
+  if (from === "center") return Math.abs(i - (n - 1) / 2);
+  return i;
+}
+/** Délai effectif (ms) du i-ième élément animé parmi n : le délai du run plus le rang × `each`. */
+export function staggerDelay(run: Pick<AnimationRun, "delay" | "stagger">, i: number, n: number): number {
+  return (run.delay ?? 0) + (run.stagger ? staggerRank(i, n, run.stagger.from) * run.stagger.each : 0);
+}
+
+export function describeAnimation(run: AnimationRun, site: Pick<Site, "animations"> & Partial<Pick<Site, "pages" | "components">>): string {
   const preset = presetById(run.preset);
   const name = typeof run.animation === "string" ? (site.animations?.find((a) => a.id === run.animation)?.name ?? "Animation") : preset?.label ?? "Personnalisée";
   const loop = run.iterations === "infinite" ? " · en boucle" : run.iterations && run.iterations > 1 ? ` · ×${run.iterations}` : "";
-  return `${name} · ${TRIGGER_LABELS[run.trigger].toLowerCase()}${run.trigger === "scroll" ? "" : ` · ${run.duration} ms`}${loop}`;
+  const kind = animationTargetKind(run);
+  let target = "";
+  if (kind === "children") target = " · sur ses enfants";
+  else if (kind === "pieces") target = run.split === "letters" ? " · lettre par lettre" : " · mot par mot";
+  else if (kind === "node" && run.target && "node" in run.target) target = ` · sur « ${nodeNameIn(site, run.target.node) ?? run.target.node} »`;
+  else if (kind === "selector" && run.target && "selector" in run.target) target = ` · sur « ${run.target.selector} »`;
+  const plural = kind === "pieces" && run.split === "letters" ? "décalées" : "décalés";
+  const stagger = run.stagger && (kind === "children" || kind === "pieces") ? ` · ${plural} de ${run.stagger.each} ms${run.stagger.from === "end" ? " depuis la fin" : run.stagger.from === "center" ? " depuis le centre" : ""}` : "";
+  return `${name} · ${TRIGGER_LABELS[run.trigger].toLowerCase()}${run.trigger === "scroll" ? "" : ` · ${run.duration} ms`}${loop}${target}${stagger}`;
+}
+function nodeNameIn(site: Partial<Pick<Site, "pages" | "components">>, id: Id): string | undefined {
+  let found: Node | undefined;
+  const visit = (n: Node) => { if (found) return; if (n.id === id) { found = n; return; } n.children?.forEach(visit); };
+  site.pages?.forEach((p) => visit(p.root));
+  site.components?.forEach((c) => visit(c.root));
+  return found ? (found.name ?? found.type) : undefined;
 }

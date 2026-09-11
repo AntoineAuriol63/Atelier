@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Entry, Site } from "@atelier/model";
 import { serialize, isEmptyText } from "./preview/serialize";
 import { isAtelierMessage, type BlockPresetInfo, type FromPreview, type ToPreview } from "@/lib/preview-protocol";
-import { FORM_SCRIPT, INTERACTION_SCRIPT, RenderPage, applyInstantStates, assetMap, fontsHref, matchPath, memoryData, siteCss, type RenderContext } from "@atelier/renderer";
+import { ANIMATION_PLAY_SCRIPT, FORM_SCRIPT, INTERACTION_SCRIPT, RenderPage, applyInstantStates, assetMap, fontsHref, matchPath, memoryData, siteCss, type RenderContext } from "@atelier/renderer";
 
 type Props = { initialSite: Site; entries: Entry[]; path: string; mode?: string; editor: boolean };
 
@@ -33,6 +33,12 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     if (editor) return;
     const scripts = [INTERACTION_SCRIPT, FORM_SCRIPT].map((code) => { const el = document.createElement("script"); el.textContent = code; document.body.appendChild(el); return el; });
     return () => { scripts.forEach((el) => el.remove()); };
+  }, [editor]);
+  // Dans l'éditeur, seul l'outil de lecture d'une animation (« Jouer ») est injecté : le script du site ne tourne pas.
+  useEffect(() => {
+    if (!editor) return;
+    const el = document.createElement("script"); el.textContent = ANIMATION_PLAY_SCRIPT; document.body.appendChild(el);
+    return () => el.remove();
   }, [editor]);
   const [entriesState, setEntriesState] = useState(entries);
   const [modeState, setModeState] = useState(mode ?? initialSite.theme.defaultMode);
@@ -592,15 +598,13 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       if (m?.type === "atelier:zoom") { const z = Number((m as { scale?: number }).scale); uiScale = z > 0 && z < 1 ? Math.min(1 / z, 2.2) : 1; applyUiScale(); }
       if (m?.type === "atelier:mode" && m.mode) setModeState(m.mode);
       if (m?.type === "atelier:play") {
-        // Rejoue un run une fois (API Web Animations), même si le CSS de l'éditeur laisse les animations à l'arrêt.
+        // Rejoue un run une fois sur ses cibles (API Web Animations, via l'outil partagé avec le site), même si le CSS de l'éditeur laisse les animations à l'arrêt.
         const el = document.querySelector<HTMLElement>(`[data-node="${m.id}"]`);
-        let runs: { i: string; k: { o: number; c: string }[]; d: number; dl: number; e: string; it: number | "infinite"; dir: string; f: string }[] = [];
+        let runs: { i: string; it: number | "infinite" }[] = [];
         try { runs = JSON.parse(el?.getAttribute("data-anim") ?? "[]"); } catch { runs = []; }
         const a = runs.find((r) => r.i === m.run);
-        if (el && a) {
-          const kf = a.k.map((s) => { const o: Record<string, string | number> = { offset: s.o }; s.c.split(";").forEach((d) => { const i = d.indexOf(":"); if (i > 0) o[d.slice(0, i).trim().replace(/-([a-z])/g, (_, c: string) => c.toUpperCase())] = d.slice(i + 1).trim(); }); return o; });
-          try { el.animate(kf, { duration: a.d, delay: a.dl, easing: a.e, iterations: a.it === "infinite" ? 3 : a.it, direction: a.dir as PlaybackDirection, fill: "none" }); } catch { /* étapes invalides : rien à jouer */ }
-        }
+        const play = (window as unknown as { __atelierPlay?: (host: HTMLElement, run: unknown, extra: Record<string, unknown>) => unknown }).__atelierPlay;
+        if (el && a && play) play(el, a, { iterations: a.it === "infinite" ? 3 : a.it, fill: "none" });
       }
       if (m?.type === "atelier:grid") renderGrid(m as unknown as { show: boolean; columns: number; gutter: string; margin: string; maxWidth: string });
       if (m?.type === "atelier:highlight") {

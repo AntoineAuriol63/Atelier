@@ -3,8 +3,9 @@
 import { useState } from "react";
 import { BookmarkPlus, Play, Plus, Sparkles, Unlink2, X } from "lucide-react";
 import type { AnimationRun, CommitOptions, Keyframe, Node, Op, Site, StyleProps } from "@atelier/model";
-import { ANIMATION_PRESETS, ANIM_EASINGS, DIRECTION_LABELS, FILL_LABELS, TRIGGER_LABELS, animationUsages, describeAnimation, indexSite, keyframesOf, planAddAnimation, planDetachFromLibrary, planRemoveAnimation, planReveal, planSaveToLibrary, planUpdateAnimation, presetById, revealOf, runFromPreset } from "@atelier/model";
+import { ANIMATION_PRESETS, ANIM_EASINGS, DIRECTION_LABELS, FILL_LABELS, SPLIT_LABELS, STAGGER_FROM_LABELS, TRIGGER_LABELS, animationTargetKind, animationUsages, describeAnimation, indexSite, keyframesOf, planAddAnimation, planDetachFromLibrary, planRemoveAnimation, planReveal, planSaveToLibrary, planUpdateAnimation, presetById, revealOf, runFromPreset } from "@atelier/model";
 import { Button, Field, FieldGroup, Hint, IconButton, NumberInput, Section, Select, TextInput, Toggle, Eyebrow } from "@/ui";
+import { animationTargetOptions, targetFromValue, targetValue } from "@/lib/anim-targets";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
 
@@ -52,7 +53,7 @@ function StepEditor({ step, onChange, onRemove, canRemove }: { step: Keyframe; o
 }
 
 /** Animations d'un élément (section 8.4) : préréglages, déclencheur, réglages, étapes, bibliothèque du site, aperçu à la demande. */
-export function AnimationsPanel({ site, node, commit, onPlay }: { site: Site; node: Node; commit: Commit; onPlay?: (runId: string) => void }) {
+export function AnimationsPanel({ site, node, pageRoot, commit, onPlay }: { site: Site; node: Node; pageRoot: Node; commit: Commit; onPlay?: (runId: string) => void }) {
   const runs = node.animations ?? [];
   const [open, setOpen] = useState<string | null>(runs.length === 1 ? runs[0]!.id : null);
   const [preset, setPreset] = useState("fade-up");
@@ -67,6 +68,7 @@ export function AnimationsPanel({ site, node, commit, onPlay }: { site: Site; no
     commit({ op: "batch", ops: planAddAnimation(node, run), label: `Animation · ${p.label}` }, { label: `Animation · ${p.label}` });
     setOpen(run.id);
   };
+  const targetOptions = animationTargetOptions(site, pageRoot, node);
   const libraryOptions = (site.animations ?? []).map((a) => ({ value: `lib:${a.id}`, label: `Bibliothèque · ${a.name}` }));
   const presetOptions = [...ANIMATION_PRESETS.map((p) => ({ value: p.id, label: `${p.group} · ${p.label}` })), ...libraryOptions];
   const addFromChoice = () => {
@@ -78,7 +80,7 @@ export function AnimationsPanel({ site, node, commit, onPlay }: { site: Site; no
     add();
   };
   return (
-    <Section title="Animations" defaultOpen={runs.length > 0} hint="Des étapes (images-clés) jouées par un déclencheur : chargement, entrée dans l'écran, survol, clic, défilement. L'éditeur montre l'état de repos ; « Jouer » rejoue l'animation une fois dans l'aperçu ; le site publié et l'export les jouent pour de bon.">
+    <Section title="Animations" defaultOpen={runs.length > 0} hint="Des étapes (images-clés) jouées par un déclencheur : chargement, entrée dans l'écran, survol, clic, défilement ; sur l'élément, ses enfants, un autre élément ou les lettres d'un texte. L'éditeur montre l'état de repos ; « Jouer » rejoue l'animation une fois dans l'aperçu ; le site publié et l'export les jouent pour de bon.">
       {runs.length ? (
         <ul className="flex flex-col gap-1">
           {runs.map((run) => {
@@ -96,6 +98,10 @@ export function AnimationsPanel({ site, node, commit, onPlay }: { site: Site; no
                 {isOpen ? (
                   <FieldGroup>
                     <Field label="Déclencheur"><Select value={run.trigger} options={Object.entries(TRIGGER_LABELS).map(([value, label]) => ({ value, label }))} onValueChange={(v) => update(run.id, { trigger: v as AnimationRun["trigger"] }, "Déclencheur")} /></Field>
+                    {!run.split ? <Field label="Cible" hint="Ce que l'animation anime : cet élément, ses enfants (chacun décalé), un autre élément de la page (un bouton qui fait bouger un panneau), ou un sélecteur CSS"><Select value={targetValue(run)} options={targetOptions.some((o) => o.value === targetValue(run)) ? targetOptions : [...targetOptions, { value: targetValue(run), label: "Élément introuvable" }]} onValueChange={(v) => update(run.id, { target: targetFromValue(v, run.target), stagger: v === "children" ? run.stagger : undefined }, "Cible")} /></Field> : null}
+                    {run.target && "selector" in run.target ? <Field label="Sélecteur" hint="Joué par le script du site, pas dans l'éditeur"><TextInput mono value={run.target.selector} placeholder=".ma-classe" onValueChange={(v) => update(run.id, { target: { selector: v } }, "Sélecteur", `anim-sel:${run.id}`)} /></Field> : null}
+                    {node.type === "text" ? <Field label="Découper" hint="Chaque mot ou chaque lettre devient un morceau animé, chacun décalé"><Select value={run.split ?? ""} options={[{ value: "", label: "Non" }, ...Object.entries(SPLIT_LABELS).map(([value, label]) => ({ value, label }))]} onValueChange={(v) => update(run.id, { split: (v || undefined) as AnimationRun["split"], target: v ? undefined : run.target, stagger: v ? (run.stagger ?? { each: v === "letters" ? 30 : 80 }) : undefined }, "Découper")} /></Field> : null}
+                    {animationTargetKind(run) === "children" || animationTargetKind(run) === "pieces" ? <Field label="Décalage" hint="Délai en plus pour chaque élément suivant, compté depuis le début, la fin ou le centre"><div className="flex items-center gap-1"><NumberInput className="w-20" unit="ms" step={10} min={0} value={run.stagger?.each ?? 0} onValueChange={(v) => update(run.id, { stagger: v && v > 0 ? { each: v, from: run.stagger?.from } : undefined }, "Décalage", `anim-st:${run.id}`)} /><Select className="flex-1" value={run.stagger?.from ?? "start"} options={Object.entries(STAGGER_FROM_LABELS).map(([value, label]) => ({ value, label }))} onValueChange={(v) => update(run.id, { stagger: { each: run.stagger?.each ?? 80, from: v as NonNullable<AnimationRun["stagger"]>["from"] } }, "Décalage")} /></div></Field> : null}
                     {run.trigger !== "scroll" ? <Field label="Durée"><NumberInput unit="ms" step={50} min={0} value={run.duration} onValueChange={(v) => update(run.id, { duration: v === "" ? 0 : v }, "Durée", `anim-d:${run.id}`)} /></Field> : null}
                     {run.trigger !== "scroll" ? <Field label="Délai"><NumberInput unit="ms" step={50} min={0} value={run.delay ?? 0} onValueChange={(v) => update(run.id, { delay: v === "" ? 0 : v }, "Délai", `anim-dl:${run.id}`)} /></Field> : null}
                     {run.trigger !== "scroll" ? <Field label="Courbe"><Select value={run.easing ?? "ease"} options={ANIM_EASINGS.some((e) => e.value === (run.easing ?? "ease")) ? ANIM_EASINGS : [...ANIM_EASINGS, { value: run.easing ?? "ease", label: run.easing ?? "ease" }]} onValueChange={(v) => update(run.id, { easing: v }, "Courbe")} /></Field> : null}

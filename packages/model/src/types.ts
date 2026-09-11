@@ -197,7 +197,14 @@ export type AnimationRun = {
   once?: boolean;
   pauseOnHover?: boolean;
   range?: [number, number];
+  /** Ce que l'animation anime : l'élément (défaut), ses enfants directs, un autre élément de la page, ou un sélecteur CSS (script seulement). */
+  target?: AnimationTarget;
+  /** Texte : chaque mot ou chaque lettre devient un morceau animé (la cible est alors l'élément). */
+  split?: "words" | "letters";
+  /** Plusieurs éléments animés : `each` ms de délai en plus par rang, compté depuis le début (défaut), la fin ou le centre. */
+  stagger?: { each: number; from?: "start" | "end" | "center" };
 };
+export type AnimationTarget = { self: true } | { children: true } | { node: Id } | { selector: string };
 
 export type Interaction = {
   id: Id;

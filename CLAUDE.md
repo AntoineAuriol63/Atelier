@@ -19,6 +19,7 @@ Créateur de sites web designer-first, code-natif, sans verrou. Voir `docs/decis
 - `docs/fonctionnel.md` est l'état réel de l'outil, fonctionnel et technique : le mettre à jour à chaque évolution livrée (nouvelle capacité, nouvelle route, nouvelle variable, changement de comportement), dans la même session que le code. `docs/mise-en-ligne.md` décrit la mise en ligne réelle ; le tenir à jour à chaque changement d'infrastructure.
 
 - Le modèle de document (`docs/document-model.md`) est le contrat : toute modification passe par ce document d'abord, puis par `packages/model/src/types.ts` et `schema.ts`, avec un test.
+- Développement piloté par les tests (TDD, depuis le 11 septembre 2026) : pour toute évolution, écrire d'abord les tests qui échouent (modèle, rendu CSS/HTML, script du site dans un DOM simulé avec `// @vitest-environment happy-dom`, aides de l'éditeur dans `apps/editor/test`), puis le code qui les fait passer. Une attente fausse se corrige dans le test, jamais en affaiblissant le code. Lancer `npm run typecheck`, `npm test` et `npm run lint` à la racine avant de proposer un commit.
 - Le document ne se modifie que par opérations (`applyOp`), jamais par mutation directe. Toute opération doit être inversible (`invertOp`) et testée en aller-retour.
 - Le rendu ne dépend jamais de l'éditeur. `ctx.editor` n'ajoute que des attributs `data-*` et un script de sélection.
 - Interface en français. Les identifiants de code en anglais.
