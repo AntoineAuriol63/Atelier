@@ -596,7 +596,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
       </Panel>}
 
       <main ref={canvas} className="relative min-w-0 overflow-auto bg-app flex justify-center items-start p-3">
-        {editMode === "design" ? <div className="sticky top-2 z-30 self-start mx-auto rounded-md border border-accent bg-panel/95 px-3 py-1.5 text-xs font-semibold text-accent shadow-lg backdrop-blur" title="Les styles ajoutés maintenant s’appliquent à cette taille d’écran">Vous modifiez : {breakpoint}</div> : null}
+        {editMode === "design" ? <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 rounded-md border border-accent bg-panel/95 px-3 py-1.5 text-xs font-semibold text-accent shadow-lg backdrop-blur" title="Les styles ajoutés maintenant s’appliquent à cette taille d’écran">Vous modifiez : {breakpoint}</div> : null}
         {doc.error ? (
           <div role="alert" className={`fixed top-14 left-1/2 -translate-x-1/2 z-[60] max-w-[640px] flex items-center gap-2 rounded-md border px-3.5 py-2.5 text-sm font-medium shadow-2xl ${doc.status === "offline" ? "bg-warning text-warning-ink border-warning" : "bg-danger text-danger-ink border-danger"}`}>
             <AlertTriangle size={16} aria-hidden />
