@@ -5,16 +5,16 @@
   Les jetons vivent ici ; les composants dans src/ui.
 */
 @theme {
-  --color-app: #121316;          /* fond de la zone de canvas */
-  --color-panel: #1a1b1f;        /* panneaux latéraux et barre */
-  --color-surface: #232428;      /* champs, cartes */
-  --color-hover: #2a2b30;
-  --color-raised: #303138;
-  --color-line: #34353c;         /* séparateurs décoratifs */
-  --color-line-strong: #66676f;  /* limites des contrôles : ≥ 3:1 sur le panneau (WCAG 1.4.11) */
-  --color-ink: #e8e8ec;
-  --color-muted: #9c9da6;
-  --color-dim: #9a9ba4;          /* ≥ 4,5:1 même sur les fonds survolés et surélevés */
+  --color-app: #0f1013;          /* fond de la zone de canvas */
+  --color-panel: #191a1f;        /* panneaux latéraux et barre */
+  --color-surface: #26272d;      /* champs, cartes */
+  --color-hover: #303139;
+  --color-raised: #383a43;
+  --color-line: #3e4049;         /* séparateurs décoratifs */
+  --color-line-strong: #747680;  /* limites des contrôles : ≥ 3:1 sur le panneau (WCAG 1.4.11) */
+  --color-ink: #f2f2f5;
+  --color-muted: #b7b8c1;
+  --color-dim: #adaeb7;          /* ≥ 4,5:1 même sur les fonds survolés et surélevés */
   --color-accent: #6aa6ff;
   --color-accent-soft: rgba(106, 166, 255, 0.16);
   --color-accent-ink: #0b1220;
@@ -35,14 +35,14 @@
   --radius-sm: 4px;
   --radius-md: 6px;
 
-  --text-2xs: 10px;
-  --text-2xs--line-height: 14px;
-  --text-xs: 11px;
-  --text-xs--line-height: 16px;
-  --text-sm: 12px;
-  --text-sm--line-height: 18px;
-  --text-base: 13px;
-  --text-base--line-height: 20px;
+  --text-2xs: 11px;
+  --text-2xs--line-height: 15px;
+  --text-xs: 12px;
+  --text-xs--line-height: 17px;
+  --text-sm: 13px;
+  --text-sm--line-height: 19px;
+  --text-base: 14px;
+  --text-base--line-height: 21px;
 }
 
 :root { color-scheme: dark; }
@@ -68,3 +68,9 @@ body {
 
 /* Entrée des messages de confirmation (barre du haut). */
 @keyframes atelier-toast { from { opacity: 0; transform: translate(-50%, -8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+
+/* Les interactions restent confortables au clavier et pour les personnes sensibles au mouvement. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+}
