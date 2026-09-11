@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { AlertTriangle, CheckCircle2, Command as CommandIcon, Database as DatabaseIcon, ExternalLink, Info, FileText, Grid3x3, Layers, Moon, Palette, Plus, Puzzle, Redo2, Sparkles, Sun, Undo2, UploadCloud, X, Settings2, Maximize2, Minimize2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Command as CommandIcon, Database as DatabaseIcon, ExternalLink, Info, FileText, Grid3x3, Layers, Moon, Palette, Plus, Puzzle, Redo2, Sparkles, Sun, Undo2, UploadCloud, X, Settings2, Maximize2, Minimize2, Columns2 } from "lucide-react";
 import type { DropPosition, Entry, Node, Page, Site, StyleValue, Role } from "@atelier/model";
 import { BASE, breakpointForWidth, canInsertUnder, cloneWithNewIds, dataSourceFor, entryPath, fitHeadings as fitHeadingsInPage, indexSite, layoutGridAt, newId, planDetach, planDrop, planInsert, planMakeComponent, planMergePrev, planMove, planSlashInsert, planSplit, stylePath, templateOf, type ComponentPlan, type TextPlan, planReveal, REVEAL_LABEL, type RevealKind } from "@atelier/model";
 import type { Op } from "@atelier/model";
@@ -151,6 +151,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
   const toggleGrid = useCallback(() => setShowGrid((g) => { try { localStorage.setItem("atelier:grid", g ? "0" : "1"); } catch {} return !g; }), []);
   const [previewState, setPreviewState] = useState<string | null>(null);
   const [focusMode, setFocusMode] = useState(false);
+  const [compareMode, setCompareMode] = useState(false);
   const dragId = useRef<string | null>(null);
   const dragBlock = useRef<string | null>(null);
   const clipboard = useRef<Node | null>(null);
@@ -535,6 +536,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
           {scale < 1 ? <Badge title="Aperçu réduit pour tenir dans la zone">{Math.round(scale * 100)} %</Badge> : null}
           <IconButton label={showGrid ? "Masquer la grille de mise en page (⌃G)" : "Afficher la grille de mise en page (⌃G)"} icon={Grid3x3} active={showGrid} onClick={toggleGrid} />
           <IconButton label={focusMode ? "Quitter le mode concentration" : "Mode concentration : masquer les panneaux"} icon={focusMode ? Minimize2 : Maximize2} active={focusMode} onClick={() => setFocusMode((v) => !v)} />
+          {editMode === "design" ? <IconButton label={compareMode ? "Quitter la comparaison responsive" : "Comparer avec le mobile"} icon={Columns2} active={compareMode} onClick={() => setCompareMode((v) => !v)} /> : null}
           <Separator vertical />
           <div className="flex items-center gap-0.5">
             <IconButton label={`Annuler (${mod()}Z)`} icon={Undo2} disabled={!doc.canUndo} onClick={doc.undo} />
@@ -617,15 +619,19 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
             </div>
           ) : null}
         </div>
-        <div className="relative flex flex-col gap-1.5" style={{ width: width ? `${Math.min(width, measured || width)}px` : "100%", maxWidth: "100%" }}>
+        <div className={compareMode ? "relative w-full grid grid-cols-[minmax(0,1fr)_390px] items-start gap-4" : "relative flex flex-col gap-1.5"} style={compareMode ? undefined : { width: width ? `${Math.min(width, measured || width)}px` : "100%", maxWidth: "100%" }}>
           <div style={{ width: "100%", height: `calc(${frameHeight} * ${scale})`, overflow: "visible", marginTop: 0 }}>
             <div style={{ width: `${effective || measured}px`, height: frameHeight, transform: `scale(${scale})`, transformOrigin: "top left" }}>
               <iframe ref={frame} key={previewPath} src={`${previewPath}?editor=1&mode=${mode}`} title="Aperçu" className="bg-white rounded-xs shadow-[0_0_0_1px_var(--color-line-strong),0_12px_40px_rgba(0,0,0,.45)]" style={{ width: "100%", height: "100%" }} />
             </div>
           </div>
-          <div role="separator" aria-label="Redimensionner l'aperçu" title="Glisser pour changer la largeur" onPointerDown={startResize} className="absolute top-0 -right-2.5 w-2.5 h-full cursor-col-resize group">
+          {compareMode ? <aside className="relative flex flex-col gap-2">
+            <div className="flex items-center justify-between"><span className="text-xs font-semibold text-accent">Comparaison mobile · 390 px</span><Badge>lecture seule</Badge></div>
+            <iframe src={`${previewPath}?mode=${mode}`} title="Comparaison mobile" className="w-[390px] max-w-full bg-white rounded-xs shadow-[0_0_0_1px_var(--color-line-strong),0_12px_40px_rgba(0,0,0,.45)]" style={{ height: frameHeight }} />
+          </aside> : null}
+          {compareMode ? null : <div role="separator" aria-label="Redimensionner l'aperçu" title="Glisser pour changer la largeur" onPointerDown={startResize} className="absolute top-0 -right-2.5 w-2.5 h-full cursor-col-resize group">
             <div className="absolute top-1/2 -translate-y-1/2 left-0.5 w-1 h-12 rounded-full bg-line-strong group-hover:bg-accent" />
-          </div>
+          </div>}
         </div>
       </main>
 
