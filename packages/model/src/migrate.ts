@@ -1,38 +1,71 @@
-import type { Site } from "./types";
-import { REVEAL_FROM, type RevealKind } from "./interactions";
-import { presetById, runFromPreset } from "./animations";
+import type { Animation, Site, StyleProps, Track, TrackTarget, Trigger } from "./types";
+import { REVEAL_FROM, REVEAL_LABEL, type RevealKind } from "./interactions";
+import { presetById } from "./animations";
 
 /** Version du modèle de document. Toute évolution l'incrémente et ajoute une étape ci-dessous. */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 type Step = (doc: Record<string, unknown>) => Record<string, unknown>;
-type AnyNode = { style?: { base?: Record<string, unknown> }; interactions?: { id: string; trigger: { kind: string; options?: Record<string, unknown> }; actions: { kind: string; transition?: { duration?: number; delay?: number; easing?: string } }[] }[]; animations?: unknown[]; props?: Record<string, unknown>; children?: AnyNode[] };
+/** Forme des animations de la version 2 (« runs » sur le nœud), lue par la migration 2 → 3. */
+type LegacyKeyframe = { at: number; style: StyleProps };
+type LegacyRun = { id: string; animation: string | { keyframes: LegacyKeyframe[] }; preset?: string; trigger: "load" | "inView" | "hover" | "click" | "scroll"; duration: number; delay?: number; easing?: string; iterations?: number | "infinite"; direction?: string; once?: boolean; pauseOnHover?: boolean; range?: [number, number]; target?: { self?: true; children?: true; node?: string; selector?: string }; split?: "words" | "letters"; stagger?: { each: number; from?: "start" | "end" | "center" }; reverseOnLeave?: boolean; toggle?: boolean };
+type LegacyDef = { id: string; name: string; keyframes: LegacyKeyframe[] };
+type AnyNode = { style?: { base?: Record<string, unknown> }; interactions?: { id: string; trigger: { kind: string; options?: Record<string, unknown> }; actions: { kind: string; transition?: { duration?: number; delay?: number; easing?: string } }[] }[]; animations?: LegacyRun[]; triggers?: Trigger[]; props?: Record<string, unknown>; children?: AnyNode[] };
+const REST: StyleProps = { opacity: "1", transform: "none", filter: "none" };
 
-/** 1 → 2 : les apparitions (interaction `inView` + état de départ dans le style) deviennent des animations ; `marquee: nombre` devient `{ duration }`. */
-function toAnimations(n: AnyNode): void {
+/** 1 → 2 : les apparitions (interaction `inView` + état de départ dans le style) deviennent des runs ; `marquee: nombre` devient `{ duration }`. */
+function toRuns(n: AnyNode): void {
   const list = n.interactions ?? [];
   const reveal = list.find((i) => i.trigger.kind === "inView" && typeof i.trigger.options?.reveal === "string");
   if (reveal) {
     const kind = reveal.trigger.options!.reveal as RevealKind;
-    const preset = presetById(kind);
+    const from = REVEAL_FROM[kind];
     const tr = reveal.actions.find((a) => a.kind === "setStyle")?.transition;
-    if (preset) {
-      n.animations = [...(n.animations ?? []), runFromPreset(preset, { id: reveal.id, duration: tr?.duration ?? 700, delay: tr?.delay ?? 0, easing: tr?.easing ?? preset.easing, once: reveal.trigger.options?.once !== false })];
-      if (n.style?.base) { for (const k of Object.keys(REVEAL_FROM[kind] ?? {})) delete n.style.base[k]; if (!Object.keys(n.style.base).length) delete n.style.base; }
+    if (from) {
+      n.animations = [...(n.animations ?? []), { id: reveal.id, animation: { keyframes: [{ at: 0, style: from }, { at: 100, style: REST }] }, preset: kind, trigger: "inView", duration: tr?.duration ?? 700, delay: tr?.delay ?? 0, easing: tr?.easing ?? "cubic-bezier(.22,1,.36,1)", once: reveal.trigger.options?.once !== false }];
+      if (n.style?.base) { for (const k of Object.keys(from)) delete n.style.base[k]; if (!Object.keys(n.style.base).length) delete n.style.base; }
     }
     const rest = list.filter((i) => i !== reveal);
     if (rest.length) n.interactions = rest; else delete n.interactions;
   }
   if (n.props && typeof n.props.marquee === "number") n.props.marquee = { duration: n.props.marquee };
-  n.children?.forEach(toAnimations);
+  n.children?.forEach(toRuns);
+}
+
+/** 2 → 3 : chaque run devient une animation du site (ligne de temps en ms) et un déclencheur sur le nœud. */
+function toTriggers(n: AnyNode, defs: LegacyDef[], out: Animation[], counter: { n: number }): void {
+  for (const run of n.animations ?? []) {
+    const def = typeof run.animation === "string" ? defs.find((d) => d.id === run.animation) : undefined;
+    const kfs = typeof run.animation === "string" ? (def?.keyframes ?? []) : run.animation.keyframes;
+    const target: TrackTarget = run.split ? { trigger: true, split: run.split } : run.target?.children ? { trigger: true, children: true } : run.target?.node ? { node: run.target.node } : run.target?.selector ? { selector: run.target.selector } : { trigger: true };
+    const track: Track = { id: `tk_${run.id}`, target, ...(run.stagger ? { stagger: run.stagger } : {}), keyframes: kfs.map((k, i) => ({ at: Math.round((k.at / 100) * run.duration), style: structuredClone(k.style), ...(i && run.easing ? { easing: run.easing } : {}) })) };
+    counter.n += 1;
+    const name = def?.name ?? presetById(run.preset)?.label ?? (run.preset && run.preset in REVEAL_LABEL ? REVEAL_LABEL[run.preset as RevealKind] : undefined) ?? `Animation ${counter.n}`;
+    const animation: Animation = { id: `an_${run.id}`, name, duration: run.duration, tracks: [track], ...(run.preset ? { preset: run.preset } : {}), ...(run.iterations && run.iterations !== 1 ? { loop: run.iterations } : {}), ...(run.direction?.startsWith("alternate") ? { alternate: true } : {}) };
+    out.push(animation);
+    const trigger: Trigger = { id: run.id, on: run.trigger, animation: animation.id, ...(run.delay ? { delay: run.delay } : {}), ...(run.once === false ? { once: false } : {}), ...(run.reverseOnLeave ? { reverseOnLeave: true } : {}), ...(run.toggle ? { toggle: true } : {}), ...(run.range ? { range: run.range } : {}), ...(run.pauseOnHover ? { pauseOnHover: true } : {}) };
+    n.triggers = [...(n.triggers ?? []), trigger];
+  }
+  delete n.animations;
+  n.children?.forEach((c) => toTriggers(c, defs, out, counter));
 }
 
 /** Étapes de migration, indexées par la version qu'elles font quitter (1 → 2, 2 → 3…). */
 const STEPS: Record<number, Step> = {
   1: (doc) => {
     const d = structuredClone(doc) as Record<string, unknown> & { pages?: { root: AnyNode }[]; components?: { root: AnyNode }[] };
-    d.pages?.forEach((p) => toAnimations(p.root));
-    d.components?.forEach((c) => toAnimations(c.root));
+    d.pages?.forEach((p) => toRuns(p.root));
+    d.components?.forEach((c) => toRuns(c.root));
+    return d;
+  },
+  2: (doc) => {
+    const d = structuredClone(doc) as Record<string, unknown> & { pages?: { root: AnyNode }[]; components?: { root: AnyNode }[]; animations?: unknown[] };
+    const defs = (d.animations ?? []) as LegacyDef[];
+    const out: Animation[] = [];
+    const counter = { n: 0 };
+    d.pages?.forEach((p) => toTriggers(p.root, defs, out, counter));
+    d.components?.forEach((c) => toTriggers(c.root, defs, out, counter));
+    d.animations = out;
     return d;
   },
 };

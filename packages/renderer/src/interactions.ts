@@ -1,5 +1,5 @@
-import type { AnimationRun, Interaction, Node, Target } from "@atelier/model";
-import { animationTargetKind, easingCss, variantClass } from "@atelier/model";
+import type { Interaction, Node, Target, Trigger } from "@atelier/model";
+import { animationById, animationLength, easingCss, resolveTrackTarget, trackSpan, variantClass } from "@atelier/model";
 import { resolveHref, type RenderContext } from "./context";
 import { declarations } from "./css";
 
@@ -66,26 +66,37 @@ export function marqueeOf(node: Node): { duration: number; direction?: "left" | 
 }
 
 /**
- * Valeur de `data-anim` : les runs du nœud avec leurs images-clés recopiées (déclarations CSS résolues), pour le script
- * (entrée dans l'écran, clic, défilement, pause au survol) et pour le bouton « Jouer » de l'éditeur.
+ * Valeur de `data-anim` : les déclencheurs du nœud avec leurs animations recopiées (pistes, images-clés en déclarations CSS résolues),
+ * pour le script (entrée dans l'écran, clic, défilement, souris, retour, bascule, sélecteurs libres) et pour « Jouer » dans l'éditeur.
+ * Piste : `tg` absent (l'élément), "children", "pieces", ou `{ s, m? }` (sélecteur, avec `m` enfants ou morceaux) ; `st` décalage ;
+ * `s` début, `d` portée, `k` images `{ o, c, e }` (position 0-1, déclarations, courbe vers l'image suivante).
  */
-export function animationsAttr(node: Node, ctx: RenderContext): string | undefined {
-  const runs = node.animations ?? [];
-  if (!runs.length) return undefined;
-  const wire = runs.map((r: AnimationRun) => {
-    const kf = typeof r.animation === "string" ? ctx.site.animations?.find((a) => a.id === r.animation)?.keyframes ?? [] : r.animation.keyframes;
-    // Cible (`tg`) : absente pour l'élément lui-même, "children", "pieces", ou `{ s }` un sélecteur (autre élément, ou libre : `js` = joué par le script même au chargement et au survol).
-    const kind = animationTargetKind(r);
-    const tg = kind === "self" ? undefined : kind === "children" || kind === "pieces" ? kind : kind === "node" && r.target && "node" in r.target ? { s: `.${ctx.classes?.node.get(r.target.node) ?? `n-${r.target.node}`}` } : r.target && "selector" in r.target ? { s: r.target.selector } : undefined;
-    // `rv` : revient en arrière au départ de la souris ; `tog` : un clic sur deux rembobine ; `js` : joué par le script même au chargement et au survol.
-    return { i: r.id, t: r.trigger, k: kf.map((k) => ({ o: k.at / 100, c: declarations(k.style, ctx.assets) })), d: r.duration, dl: r.delay ?? 0, e: easingCss(r.easing, r.duration), it: r.iterations ?? 1, dir: r.direction ?? "normal", f: r.fill ?? "both", once: r.once !== false, ph: !!r.pauseOnHover, r: r.range ?? [0, 1], tg, st: r.stagger ? [r.stagger.each, r.stagger.from ?? "start"] : undefined, rv: r.reverseOnLeave ? 1 : undefined, tog: r.toggle ? 1 : undefined, js: kind === "selector" || (r.trigger === "hover" && r.reverseOnLeave) ? 1 : undefined };
+export function animationsAttr(node: Node, ctx: RenderContext, triggers: Trigger[] = node.triggers ?? []): string | undefined {
+  if (!triggers.length) return undefined;
+  const selOf = (id: string) => `.${ctx.classes?.node.get(id) ?? `n-${id}`}`;
+  const wire = triggers.flatMap((t) => {
+    const a = animationById(ctx.site, t.animation);
+    if (!a) return [];
+    let js = t.on === "hover" && t.reverseOnLeave ? 1 : undefined;
+    const tr = a.tracks.filter((k) => k.keyframes.length >= 2).map((track) => {
+      const r = resolveTrackTarget(track.target, node.id);
+      let tg: unknown;
+      if ("selector" in r) { tg = { s: r.selector }; js = 1; }
+      else if (r.node === node.id) tg = r.children ? "children" : r.split ? "pieces" : undefined;
+      else tg = { s: selOf(r.node), ...(r.children ? { m: "children" } : r.split ? { m: "pieces" } : {}) };
+      const kfs = [...track.keyframes].sort((x, y) => x.at - y.at);
+      const { start, end } = trackSpan(track);
+      const span = end - start || 1;
+      return { tg, st: track.stagger ? [track.stagger.each, track.stagger.from ?? "start"] : undefined, s: start, d: end - start, k: kfs.map((k, i) => ({ o: Number(((k.at - start) / span).toFixed(4)), c: declarations(k.style, ctx.assets), e: kfs[i + 1]?.easing ? easingCss(kfs[i + 1]!.easing, kfs[i + 1]!.at - k.at) : undefined })) };
+    });
+    return [{ i: t.id, t: t.on, dl: t.delay ?? 0, once: t.once !== false, ph: !!t.pauseOnHover, rv: t.reverseOnLeave ? 1 : undefined, tog: t.toggle ? 1 : undefined, r: t.range ?? [0, 1], ax: t.axis ?? "y", dur: animationLength(a), loop: a.loop ?? 1, alt: !!a.alternate, tr, js }];
   });
-  return JSON.stringify(wire);
+  return wire.length ? JSON.stringify(wire) : undefined;
 }
 
 /** Vrai si la page contient un effet joué par le script (animations, parallaxe, compteur, carrousel automatique). */
 export function hasMotion(n: Node): boolean {
-  const own = !!n.animations?.length || (typeof n.props.parallax === "number" && n.props.parallax !== 0) || !!n.props.countUp || (n.type === "collection" && !!(n.props.view as { autoplay?: number } | undefined)?.autoplay);
+  const own = !!n.triggers?.length || (typeof n.props.parallax === "number" && n.props.parallax !== 0) || !!n.props.countUp || (n.type === "collection" && !!(n.props.view as { autoplay?: number } | undefined)?.autoplay);
   return own || (n.children ?? []).some(hasMotion);
 }
 
@@ -97,13 +108,15 @@ export function hasInteractions(n: Node): boolean { return !!n.interactions?.len
  * Animations et rend la liste des animations créées ; le décalage donne à chaque cible son délai selon son rang.
  */
 export const ANIMATION_PLAY_SCRIPT = `(function(){if(window.__atelierPlay)return;
-var toKf=function(k){return k.map(function(s){var o={offset:s.o};s.c.split(";").forEach(function(d){var i=d.indexOf(":");if(i>0){var p=d.slice(0,i).trim().replace(/-([a-z])/g,function(_,c){return c.toUpperCase();});o[p]=d.slice(i+1).trim();}});return o;});};
-var opts=function(a,extra){var o={duration:a.d,delay:a.dl,easing:a.e,iterations:a.it==="infinite"?Infinity:a.it,direction:a.dir,fill:a.f};for(var k in extra)o[k]=extra[k];return o;};
-var els=function(el,a){if(!a.tg)return[el];if(a.tg==="children")return Array.prototype.slice.call(el.children).map(function(c){return c.hasAttribute("data-instance")&&c.firstElementChild?c.firstElementChild:c;});if(a.tg==="pieces")return Array.prototype.slice.call(el.querySelectorAll(".at-piece"));return Array.prototype.slice.call(document.querySelectorAll(a.tg.s));};
+var toKf=function(k){return k.map(function(s){var o={offset:s.o};if(s.e)o.easing=s.e;s.c.split(";").forEach(function(d){var i=d.indexOf(":");if(i>0){var p=d.slice(0,i).trim().replace(/-([a-z])/g,function(_,c){return c.toUpperCase();});o[p]=d.slice(i+1).trim();}});return o;});};
+var kids=function(el){return Array.prototype.slice.call(el.children).map(function(c){return c.hasAttribute("data-instance")&&c.firstElementChild?c.firstElementChild:c;});};
+var pieces=function(el){return Array.prototype.slice.call(el.querySelectorAll(".at-piece"));};
+var els=function(el,tr){var tg=tr.tg;if(!tg)return[el];if(tg==="children")return kids(el);if(tg==="pieces")return pieces(el);var base=Array.prototype.slice.call(document.querySelectorAll(tg.s));if(tg.m==="children")return base.reduce(function(o,b){return o.concat(kids(b));},[]);if(tg.m==="pieces")return base.reduce(function(o,b){return o.concat(pieces(b));},[]);return base;};
 var rank=function(i,n,from){return from==="end"?n-1-i:from==="center"?Math.abs(i-(n-1)/2):i;};
-var delay=function(a,i,n){return a.dl+(a.st?rank(i,n,a.st[1])*a.st[0]:0);};
-window.__atelierAnim={toKf:toKf,opts:opts,els:els,delay:delay};
-window.__atelierPlay=function(el,a,extra){var list=els(el,a),out=[];list.forEach(function(t,i){try{var o=opts(a,extra||{});o.delay=delay(a,i,list.length);out.push(t.animate(toKf(a.k),o));}catch(e){}});return out;};
+var delay=function(a,tr,i,n){return a.dl+tr.s+(tr.st?rank(i,n,tr.st[1])*tr.st[0]:0);};
+var opts=function(a,tr,extra){var o={duration:tr.d,easing:"ease",iterations:a.loop==="infinite"?Infinity:a.loop,direction:a.alt?"alternate":"normal",fill:"both"};for(var k in extra)o[k]=extra[k];return o;};
+window.__atelierAnim={toKf:toKf,els:els,delay:delay,opts:opts};
+window.__atelierPlay=function(el,a,extra){var out=[];a.tr.forEach(function(tr){var list=els(el,tr);list.forEach(function(t,i){try{var o=opts(a,tr,extra||{});o.delay=delay(a,tr,i,list.length);out.push(t.animate(toKf(tr.k),o));}catch(e){}});});return out;};
 })();`;
 
 /**
@@ -133,21 +146,23 @@ document.querySelectorAll("[data-ix]").forEach(function(el){var list;try{list=JS
 /* Parallaxe : l'élément se décale selon sa position dans l'écran, à la vitesse donnée (0.1 = léger, 0.5 = marqué). */
 var px=Array.prototype.slice.call(document.querySelectorAll("[data-parallax]"));
 if(px.length&&!instant){var ticking=false;var move=function(){ticking=false;var vh=window.innerHeight;px.forEach(function(el){var r=el.getBoundingClientRect();var c=r.top+r.height/2-vh/2;el.style.transform="translate3d(0,"+Math.round(-c*parseFloat(el.getAttribute("data-parallax"))*100)/100+"px,0)";el.style.willChange="transform";});};window.addEventListener("scroll",function(){if(!ticking){ticking=true;requestAnimationFrame(move);}},{passive:true});window.addEventListener("resize",move);move();}
-/* Animations (section 8.4) : images-clés dans data-anim. CSS joue « chargement » et « survol » sur l'élément, ses enfants, ses morceaux ou un autre élément ; le script lance « entrée dans l'écran », « clic », « défilement », et tout ce qui vise un sélecteur libre (js), avec l'API Web Animations. */
+/* Animations (section 8.4) : déclencheurs et pistes dans data-anim. CSS joue « chargement » et « survol » ; le script lance « entrée dans l'écran », « clic », « défilement », « souris », le retour, la bascule et les sélecteurs libres (js) avec l'API Web Animations. */
 var A=window.__atelierAnim;
 if(!instant){document.querySelectorAll("[data-anim]").forEach(function(el){var runs;try{runs=JSON.parse(el.getAttribute("data-anim"));}catch(e){return;}
- var scripted=runs.filter(function(a){return a.t==="inView"||a.t==="click"||a.t==="scroll"||a.js;});if(!scripted.length)return;
- var live={};var each=function(fn){for(var k in live)live[k].forEach(fn);};var pauseAll=function(){each(function(an){an.pause();});};var playAll=function(){each(function(an){if(an.playState==="paused"&&!an.__scroll)an.play();});};
+ var scripted=runs.filter(function(a){return a.t==="inView"||a.t==="click"||a.t==="scroll"||a.t==="pointer"||a.js;});if(!scripted.length)return;
+ var live={};var each=function(fn){for(var k in live)live[k].forEach(fn);};var pauseAll=function(){each(function(an){an.pause();});};var playAll=function(){each(function(an){if(an.playState==="paused"&&!an.__scrub)an.play();});};
  if(runs.some(function(a){return a.ph&&a.t!=="load"&&a.t!=="hover";})){el.addEventListener("mouseenter",pauseAll);el.addEventListener("mouseleave",playAll);}
  var cancel=function(a){(live[a.i]||[]).forEach(function(an){an.cancel();});delete live[a.i];};
+ var scrub=function(a){var list=[];a.tr.forEach(function(tr){A.els(el,tr).forEach(function(t,i){var an=t.animate(A.toKf(tr.k),{duration:tr.d,delay:A.delay(a,tr,i,1),easing:"ease",fill:"both"});an.pause();an.__scrub=true;list.push(an);});});live[a.i]=list;return function(q){list.forEach(function(an){an.currentTime=Math.max(0,Math.min(1,q))*a.dur;});};};
  runs.forEach(function(a){
-  if(a.t==="click"){el.addEventListener("click",function(){if(a.tog&&live[a.i]&&live[a.i].length){live[a.i].forEach(function(an){an.reverse();});}else{live[a.i]=window.__atelierPlay(el,a,a.tog?{fill:a.f==="none"?"forwards":a.f}:{});}});}
-  else if(a.t==="scroll"){var list=A.els(el,a).map(function(t){var an=t.animate(A.toKf(a.k),{duration:1000,fill:"both",easing:"linear"});an.pause();an.__scroll=true;return an;});live[a.i]=list;var tick=false;var upd=function(){tick=false;var vh=window.innerHeight,r=el.getBoundingClientRect();var p=(vh-r.top)/(vh+r.height);var lo=a.r[0],hi=a.r[1];var q=hi>lo?(p-lo)/(hi-lo):p;q=Math.max(0,Math.min(1,q));list.forEach(function(an){an.currentTime=q*1000;});};var onS=function(){if(!tick){tick=true;requestAnimationFrame(upd);}};window.addEventListener("scroll",onS,{passive:true});window.addEventListener("resize",onS);upd();}
+  if(a.t==="click"){el.addEventListener("click",function(){if(a.tog&&live[a.i]&&live[a.i].length){live[a.i].forEach(function(an){an.reverse();});}else{live[a.i]=window.__atelierPlay(el,a);}});}
+  else if(a.t==="scroll"){var set=scrub(a);var tick=false;var upd=function(){tick=false;var vh=window.innerHeight,r=el.getBoundingClientRect();var p=(vh-r.top)/(vh+r.height);var lo=a.r[0],hi=a.r[1];set(hi>lo?(p-lo)/(hi-lo):p);};var onS=function(){if(!tick){tick=true;requestAnimationFrame(upd);}};window.addEventListener("scroll",onS,{passive:true});window.addEventListener("resize",onS);upd();}
+  else if(a.t==="pointer"){var setP=scrub(a);window.addEventListener("mousemove",function(ev){setP(a.ax==="x"?ev.clientX/window.innerWidth:ev.clientY/window.innerHeight);},{passive:true});}
   else if(a.js&&a.t==="load"){live[a.i]=window.__atelierPlay(el,a);}
-  else if(a.js&&a.t==="hover"){el.addEventListener("mouseenter",function(){if(a.rv&&live[a.i]&&live[a.i].length){live[a.i].forEach(function(an){if(an.playbackRate<0)an.reverse();});}else{cancel(a);live[a.i]=window.__atelierPlay(el,a,a.rv?{fill:a.f==="none"?"forwards":a.f}:{});}});el.addEventListener("mouseleave",function(){if(a.rv){(live[a.i]||[]).forEach(function(an){if(an.playbackRate>0)an.reverse();});}else{cancel(a);}});}
+  else if(a.js&&a.t==="hover"){el.addEventListener("mouseenter",function(){if(a.rv&&live[a.i]&&live[a.i].length){live[a.i].forEach(function(an){if(an.playbackRate<0)an.reverse();});}else{cancel(a);live[a.i]=window.__atelierPlay(el,a);}});el.addEventListener("mouseleave",function(){if(a.rv){(live[a.i]||[]).forEach(function(an){if(an.playbackRate>0)an.reverse();});}else{cancel(a);}});}
  });
  var inView=runs.filter(function(a){return a.t==="inView";});
- if(inView.length&&("IntersectionObserver" in window)){inView.forEach(function(a){A.els(el,a).forEach(function(t){t.style.animation="none";});});var seen=false;var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){if(seen&&inView.every(function(a){return a.once;}))return;seen=true;inView.forEach(function(a){cancel(a);live[a.i]=window.__atelierPlay(el,a);});if(inView.every(function(a){return a.once;}))io.unobserve(el);}else{inView.forEach(function(a){if(!a.once&&live[a.i])cancel(a);});}});},{threshold:0.15});io.observe(el);}
+ if(inView.length&&("IntersectionObserver" in window)){inView.forEach(function(a){a.tr.forEach(function(tr){A.els(el,tr).forEach(function(t){t.style.animation="none";});});});var seen=false;var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){if(seen&&inView.every(function(a){return a.once;}))return;seen=true;inView.forEach(function(a){cancel(a);live[a.i]=window.__atelierPlay(el,a);});if(inView.every(function(a){return a.once;}))io.unobserve(el);}else{inView.forEach(function(a){if(!a.once&&live[a.i])cancel(a);});}});},{threshold:0.15});io.observe(el);}
 });}
 /* Compteur : le nombre du texte défile de 0 à sa valeur quand il entre dans l'écran (la ponctuation autour est gardée). */
 var counters=Array.prototype.slice.call(document.querySelectorAll("[data-countup]"));

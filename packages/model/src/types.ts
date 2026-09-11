@@ -181,34 +181,35 @@ export type Action =
 
 // ---------------------------------------------------------------- Animations (section 8.4)
 
-export type Keyframe = { at: number; style: StyleProps };
-export type AnimationDef = { id: Id; name: string; keyframes: Keyframe[] };
-export type AnimationRun = {
+/** Section 8.4 : lignes de temps. Une image-clé (en ms) ne porte que ce qui change ; `easing` est la courbe pour l'atteindre depuis la précédente (CSS ou `spring(raideur, amortissement)`). */
+export type Keyframe = { at: number; style: StyleProps; easing?: string };
+export type SplitMode = "words" | "letters";
+/** Ce qu'une piste anime : l'élément du déclencheur (relatif), un élément précis, ou un sélecteur ; `children` vise les enfants directs, `split` les mots ou lettres d'un texte. */
+export type TrackTarget = { trigger: true; children?: true; split?: SplitMode } | { node: Id; children?: true; split?: SplitMode } | { selector: string };
+export type Stagger = { each: number; from?: "start" | "end" | "center" };
+export type Track = { id: Id; target: TrackTarget; stagger?: Stagger; keyframes: Keyframe[] };
+export type Animation = {
   id: Id;
-  animation: Id | { keyframes: Keyframe[] };
-  preset?: string;
-  trigger: "load" | "inView" | "hover" | "click" | "scroll";
+  name: string;
   duration: number;
-  delay?: number;
-  easing?: string;
-  iterations?: number | "infinite";
-  direction?: "normal" | "reverse" | "alternate" | "alternate-reverse";
-  fill?: "none" | "forwards" | "backwards" | "both";
-  once?: boolean;
-  pauseOnHover?: boolean;
-  range?: [number, number];
-  /** Ce que l'animation anime : l'élément (défaut), ses enfants directs, un autre élément de la page, ou un sélecteur CSS (script seulement). */
-  target?: AnimationTarget;
-  /** Texte : chaque mot ou chaque lettre devient un morceau animé (la cible est alors l'élément). */
-  split?: "words" | "letters";
-  /** Plusieurs éléments animés : `each` ms de délai en plus par rang, compté depuis le début (défaut), la fin ou le centre. */
-  stagger?: { each: number; from?: "start" | "end" | "center" };
-  /** Survol : au départ de la souris, l'animation revient en arrière au lieu de se couper (joué par le script). */
-  reverseOnLeave?: boolean;
-  /** Clic : un clic joue, le suivant revient en arrière (joué par le script). */
-  toggle?: boolean;
+  tracks: Track[];
+  loop?: number | "infinite";
+  alternate?: boolean;
+  preset?: string;
 };
-export type AnimationTarget = { self: true } | { children: true } | { node: Id } | { selector: string };
+export type TriggerOn = "load" | "inView" | "hover" | "click" | "scroll" | "pointer";
+export type Trigger = {
+  id: Id;
+  on: TriggerOn;
+  animation: Id;
+  delay?: number;
+  once?: boolean;
+  reverseOnLeave?: boolean;
+  toggle?: boolean;
+  range?: [number, number];
+  axis?: "x" | "y";
+  pauseOnHover?: boolean;
+};
 
 export type Interaction = {
   id: Id;
@@ -257,7 +258,7 @@ export type Node = {
   children?: Node[];
   bindings?: Record<string, Binding>;
   interactions?: Interaction[];
-  animations?: AnimationRun[];
+  triggers?: Trigger[];
   locked?: boolean;
   hidden?: { [breakpoint: string]: boolean };
   source?: SourceRef;
@@ -326,6 +327,7 @@ export type Page = {
   seo?: PageSeo;
   state?: PageState;
   locales?: Locale[];
+  triggers?: Trigger[];
   source?: SourceRef;
 };
 
@@ -372,7 +374,7 @@ export type SiteSettings = {
 };
 
 export type Site = {
-  schemaVersion: 2;
+  schemaVersion: 3;
   id: Id;
   name: string;
   settings: SiteSettings;
@@ -384,7 +386,7 @@ export type Site = {
   pages: Page[];
   assets: Asset[];
   redirects: Redirect[];
-  animations?: AnimationDef[];
+  animations: Animation[];
 };
 
 // ---------------------------------------------------------------- Opérations

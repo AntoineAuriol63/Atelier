@@ -5,7 +5,8 @@
  */
 import type { Entry, Inline, Node, Site, StyleProps } from "./types";
 import { planHiddenAtLoad, toggleInteraction, type RevealKind } from "./interactions";
-import { presetById, runFromPreset } from "./animations";
+import { animationFromPreset, presetById } from "./animations";
+import type { Animation } from "./types";
 
 const fr = (text: string): Record<string, Inline[]> => ({ fr: [{ t: "text", v: text }] });
 const T = (id: string, tag: string, content: string, extra: Partial<Node> = {}): Node => ({ id, type: "text", props: { tag, content: fr(content) }, ...extra });
@@ -14,7 +15,12 @@ const IMG = (id: string, asset: string, ratio: string, extra: Partial<Node> = {}
 const BTN = (id: string, label: string, href: Node["props"]["href"], shared = "rs_button", extra: Partial<Node> = {}): Node => ({ id, type: "link", name: label, props: { tag: "a", href }, style: { shared: [shared] }, children: [T(`${id}_t`, "span", label)], ...extra });
 const bind = (id: string, tag: string, field: string, source: "item" | "entry" = "item", extra: Partial<Node> = {}): Node => ({ id, type: "text", props: { tag, content: fr(field) }, bindings: { content: { source, path: field } }, ...extra });
 /** Apparition : état de départ dans le style, interaction à l'entrée dans l'écran. */
-const reveal = (node: Node, kind: RevealKind, delay = 0, duration = 800): Node => ({ ...node, animations: [...(node.animations ?? []), runFromPreset(presetById(kind)!, { id: `ix_${node.id}`, delay, duration })] });
+const RESTAURANT_ANIMATIONS: Animation[] = [];
+const reveal = (node: Node, kind: RevealKind, delay = 0, duration = 800): Node => {
+  const animation = animationFromPreset(presetById(kind)!, { id: `an_${node.id}`, duration, trackId: `tk_${node.id}` });
+  RESTAURANT_ANIMATIONS.push(animation);
+  return { ...node, triggers: [...(node.triggers ?? []), { id: `ix_${node.id}`, on: "inView", animation: animation.id, ...(delay ? { delay } : {}) }] };
+};
 const tok = (t: string) => ({ token: t });
 const section = (id: string, name: string, base: StyleProps, children: Node[], extra: Partial<Node> = {}): Node => B(id, name, "section", base, children, { ...extra, style: { shared: ["rs_section"], ...(extra.style ?? {}) } });
 const container = (id: string, base: StyleProps, children: Node[], extra: Partial<Node> = {}): Node => B(id, "Contenu", "div", base, children, { ...extra, style: { shared: ["rs_container"], ...(extra.style ?? {}) } });
@@ -137,7 +143,7 @@ function hiddenAtLoad(node: Node): Node {
 }
 
 export const restaurantSite: Site = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   id: "site_aurele",
   name: "Maison Aurèle",
   settings: {
@@ -228,6 +234,7 @@ export const restaurantSite: Site = {
       ],
     },
   ],
+  animations: RESTAURANT_ANIMATIONS,
   pages: [
     {
       id: "rp_home", name: { fr: "Accueil" }, path: "/", kind: "static",

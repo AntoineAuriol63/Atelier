@@ -1,5 +1,5 @@
-import type { Asset, Breakpoint, ClassMap, ComponentDef, Node, SharedStyle, Site, StyleProps, StyleSet, StyleValue, Theme, ViewConfig, AnimationRun, Keyframe } from "@atelier/model";
-import { parseVariantKey, variantClass, walk, animationTargetKind, easingCss } from "@atelier/model";
+import type { Animation, Asset, Breakpoint, ClassMap, ComponentDef, Node, SharedStyle, Site, StyleProps, StyleSet, StyleValue, Theme, Track, Trigger, ViewConfig } from "@atelier/model";
+import { animationById, easingCss, parseVariantKey, resolveTrackTarget, trackSpan, variantClass, walk } from "@atelier/model";
 
 // ---------------------------------------------------------------- valeurs
 
@@ -209,73 +209,80 @@ export function collectionViewCss(selector: string, view: ViewConfig | undefined
   return out.join("\n");
 }
 
-/** Nom CSS des images-clés d'un run : celles de la bibliothèque (`an-<id>`) ou les siennes (`ak-<id du run>`). */
-export const keyframesName = (run: AnimationRun) => (typeof run.animation === "string" ? `an-${run.animation}` : `ak-${run.id}`);
-export function keyframesCss(name: string, keyframes: Keyframe[], assets?: Map<string, Asset>): string {
-  return `@keyframes ${name}{${keyframes.map((k) => `${k.at}%{${declarations(k.style, assets)}}`).join("")}}`;
+/** Nom CSS des images-clés d'une piste d'une animation. */
+export const trackKeyframesName = (animationId: string, trackId: string) => `at-${animationId}-${trackId}`;
+const pct = (x: number) => String(Number(x.toFixed(2)));
+/** Bloc `@keyframes` d'une piste : positions en % de sa portée, courbe d'un segment posée sur l'image qui l'ouvre. Vide sous deux images-clés. */
+export function trackKeyframesCss(animation: Animation, track: Track, assets?: Map<string, Asset>): string {
+  if (track.keyframes.length < 2) return "";
+  const kfs = [...track.keyframes].sort((a, b) => a.at - b.at);
+  const { start, end } = trackSpan(track);
+  const span = end - start || 1;
+  const blocks = kfs.map((k, i) => {
+    const next = kfs[i + 1];
+    const tf = next?.easing ? `animation-timing-function:${easingCss(next.easing, next.at - k.at)}` : "";
+    return `${pct(((k.at - start) / span) * 100)}%{${[declarations(k.style, assets), tf].filter(Boolean).join(";")}}`;
+  });
+  return `@keyframes ${trackKeyframesName(animation.id, track.id)}{${blocks.join("")}}`;
 }
-/** Valeur `animation` CSS d'un run (durée, courbe, délai, répétitions, sens, remplissage). */
-export function animationValue(run: AnimationRun): string {
-  const it = run.iterations === "infinite" ? "infinite" : String(run.iterations ?? 1);
-  return `${keyframesName(run)} ${run.duration}ms ${easingCss(run.easing, run.duration)} ${run.delay ?? 0}ms ${it} ${run.direction ?? "normal"} ${run.fill ?? "both"}`;
+type Entry = { trigger: Trigger; animation: Animation; track: Track; base: number; tsel: string; hsel: string; multi: boolean };
+/** Valeur `animation` d'une piste lancée par un déclencheur : portée, courbe de base, délai (déclencheur + début de portée), répétitions, sens, remplissage `both`. */
+export function trackAnimationValue(e: Entry): string {
+  const { start, end } = trackSpan(e.track);
+  const it = e.animation.loop === "infinite" ? "infinite" : String(e.animation.loop ?? 1);
+  return `${trackKeyframesName(e.animation.id, e.track.id)} ${end - start}ms ease ${e.base}ms ${it} ${e.animation.alternate ? "alternate" : "normal"} both`;
 }
-/** Délai CSS d'un run : fixe, ou en `calc()` avec le rang de l'élément (`--at-i` parmi `--at-n`) quand plusieurs éléments sont décalés. */
-export function animationDelayCss(run: AnimationRun): string {
-  const dl = `${run.delay ?? 0}ms`;
-  const st = run.stagger;
-  const kind = animationTargetKind(run);
-  if (!st || (kind !== "children" && kind !== "pieces")) return dl;
+/** Délai CSS d'une piste : fixe, ou en `calc()` avec le rang de l'élément (`--at-i` parmi `--at-n`) quand plusieurs éléments sont décalés. */
+export function trackDelayCss(e: Entry): string {
+  const dl = `${e.base}ms`;
+  const st = e.track.stagger;
+  if (!st || !e.multi) return dl;
   if (st.from === "end") return `calc(${dl} + (var(--at-n,1) - 1 - var(--at-i,0))*${st.each}ms)`;
   if (st.from === "center") return `calc(${dl} + abs(var(--at-i,0) - (var(--at-n,1) - 1)/2)*${st.each}ms)`;
   return `calc(${dl} + var(--at-i,0)*${st.each}ms)`;
 }
-const staggered = (r: AnimationRun) => !!r.stagger && (animationTargetKind(r) === "children" || animationTargetKind(r) === "pieces");
 /**
- * Animations d'un nœud (section 8.4) : ses images-clés en ligne, la propriété `animation` pour les déclencheurs CSS
- * (chargement, entrée dans l'écran en pause jusqu'au script, survol), et la pause au survol. La règle est émise sur la
- * cible du run : l'élément, ses enfants (`>*`), ses morceaux (`.at-piece`) ou un autre élément (`selOf`) ; un sélecteur libre
- * n'est joué que par le script. Le décalage devient un `animation-delay` en `calc()`.
+ * Animations lancées par les déclencheurs d'un nœud (section 8.4) : pour chaque piste, la propriété `animation` sur la cible résolue
+ * (l'élément, ses enfants `>*`, ses morceaux `.at-piece`, un autre élément `selOf`), pour les déclencheurs CSS : chargement (en cours),
+ * entrée dans l'écran (en pause jusqu'au script), survol sans retour (`:hover`, ou `:has()` pour une autre cible), et la pause au survol.
+ * Une piste à sélecteur libre, un survol qui revient, le clic, le défilement et la souris sont joués par le script.
  */
-export function nodeAnimationsCss(node: Node, sel: string, site: Pick<Site, "animations">, assets?: Map<string, Asset>, selOf: (id: string) => string = (id) => `.n-${id}`): string {
-  const runs = node.animations ?? [];
-  if (!runs.length) return "";
-  const out: string[] = [];
-  for (const r of runs) if (typeof r.animation !== "string") out.push(keyframesCss(keyframesName(r), r.animation.keyframes, assets));
-  const targetSel = (r: AnimationRun): string | null => {
-    const k = animationTargetKind(r);
-    if (k === "self") return sel;
-    if (k === "children") return `${sel}>*`;
-    if (k === "pieces") return `${sel} .at-piece`;
-    if (k === "node" && r.target && "node" in r.target) return selOf(r.target.node);
-    return null;
-  };
-  const hoverSel = (r: AnimationRun): string => {
-    const k = animationTargetKind(r);
-    if (k === "children") return `${sel}:hover>*`;
-    if (k === "pieces") return `${sel}:hover .at-piece`;
-    if (k === "node" && r.target && "node" in r.target) return `.at-page:has(${sel}:hover) ${selOf(r.target.node)}`;
-    return `${sel}:hover`;
-  };
-  const groups = (list: AnimationRun[]) => { const m = new Map<string, AnimationRun[]>(); for (const r of list) { const t = targetSel(r); if (t === null) continue; m.set(t, [...(m.get(t) ?? []), r]); } return m; };
-  for (const [t, list] of groups(runs.filter((r) => r.trigger === "load" || r.trigger === "inView"))) {
-    const delays = list.some(staggered) ? `;animation-delay:${list.map(animationDelayCss).join(",")}` : "";
-    out.push(`${t}{animation:${list.map(animationValue).join(",")};animation-play-state:${list.map((r) => (r.trigger === "inView" ? "paused" : "running")).join(",")}${delays}}`);
-    if (list.some((r) => r.pauseOnHover && r.trigger === "load")) out.push(`${hoverSel(list[0]!)}{animation-play-state:${list.map((r) => (r.pauseOnHover || r.trigger === "inView" ? "paused" : "running")).join(",")}}`);
+export function nodeAnimationsCss(node: Node, sel: string, site: Pick<Site, "animations">, assets?: Map<string, Asset>, selOf: (id: string) => string = (id) => `.n-${id}`, triggers: Trigger[] = node.triggers ?? []): string {
+  if (!triggers.length) return "";
+  const entries: Entry[] = [];
+  for (const trigger of triggers) {
+    const animation = animationById(site, trigger.animation);
+    if (!animation) continue;
+    for (const track of animation.tracks) {
+      if (track.keyframes.length < 2) continue;
+      const r = resolveTrackTarget(track.target, node.id);
+      if ("selector" in r) continue;
+      const own = r.node === node.id;
+      const baseSel = own ? sel : selOf(r.node);
+      const tsel = r.children ? `${baseSel}>*` : r.split ? `${baseSel} .at-piece` : baseSel;
+      const hsel = own ? (r.children ? `${sel}:hover>*` : r.split ? `${sel}:hover .at-piece` : `${sel}:hover`) : `.at-page:has(${sel}:hover) ${tsel}`;
+      entries.push({ trigger, animation, track, base: (trigger.delay ?? 0) + trackSpan(track).start, tsel, hsel, multi: !!(r.children || r.split) });
+    }
   }
-  // Un survol qui revient en arrière au départ de la souris est joué par le script (reverse()), pas en CSS.
-  for (const [, list] of groups(runs.filter((r) => r.trigger === "hover" && !r.reverseOnLeave))) {
-    const delays = list.some(staggered) ? `;animation-delay:${list.map(animationDelayCss).join(",")}` : "";
-    out.push(`${hoverSel(list[0]!)}{animation:${list.map(animationValue).join(",")}${delays}}`);
+  const out: string[] = [];
+  const groups = (list: Entry[]) => { const m = new Map<string, Entry[]>(); for (const e of list) m.set(e.tsel, [...(m.get(e.tsel) ?? []), e]); return m; };
+  const delays = (list: Entry[]) => (list.some((e) => e.track.stagger && e.multi) ? `;animation-delay:${list.map(trackDelayCss).join(",")}` : "");
+  for (const [t, list] of groups(entries.filter((e) => e.trigger.on === "load" || e.trigger.on === "inView"))) {
+    out.push(`${t}{animation:${list.map(trackAnimationValue).join(",")};animation-play-state:${list.map((e) => (e.trigger.on === "inView" ? "paused" : "running")).join(",")}${delays(list)}}`);
+    if (list.some((e) => e.trigger.pauseOnHover && e.trigger.on === "load")) out.push(`${list[0]!.hsel}{animation-play-state:${list.map((e) => (e.trigger.pauseOnHover || e.trigger.on === "inView" ? "paused" : "running")).join(",")}}`);
+  }
+  for (const [, list] of groups(entries.filter((e) => e.trigger.on === "hover" && !e.trigger.reverseOnLeave))) {
+    out.push(`${list[0]!.hsel}{animation:${list.map(trackAnimationValue).join(",")}${delays(list)}}`);
   }
   return out.join("\n");
 }
 
-export function nodeCss(node: Node, breakpoints: Breakpoint[], assets?: Map<string, Asset>, classes?: ClassMap, site?: Pick<Site, "animations">): string {
+export function nodeCss(node: Node, breakpoints: Breakpoint[], assets?: Map<string, Asset>, classes?: ClassMap, site?: Pick<Site, "animations">, extraTriggers: Trigger[] = []): string {
   const { shared: _shared, ...rest } = node.style ?? {};
   void _shared;
   const sel = `.${classes?.node.get(node.id) ?? `n-${node.id}`}`;
   const own = styleSetCss(sel, node.style ? rest : undefined, breakpoints, assets, node.hidden);
-  const anim = nodeAnimationsCss(node, sel, site ?? {}, assets, (id) => `.${classes?.node.get(id) ?? `n-${id}`}`);
+  const anim = nodeAnimationsCss(node, sel, site ?? { animations: [] }, assets, (id) => `.${classes?.node.get(id) ?? `n-${id}`}`, [...(node.triggers ?? []), ...extraTriggers]);
   if (node.type !== "collection") return [own, anim].filter(Boolean).join("\n");
   return [collectionViewCss(sel, node.props.view as ViewConfig | undefined, breakpoints), own, anim].filter(Boolean).join("\n");
 }
@@ -290,12 +297,13 @@ export function siteCss(site: Site, opts: { pageId?: string; classes?: ClassMap 
   const out: string[] = [themeCss(site.theme), sharedStylesCss(site, assets, opts.classes)];
   // Une page ne reçoit que son CSS (et celui des composants) : le reste du site n'a rien à faire dans sa réponse.
   const pages = opts.pageId ? site.pages.filter((p) => p.id === opts.pageId) : site.pages;
-  const roots = [...pages.map((p) => p.root), ...site.components.map((c) => c.root)];
-  // Images-clés de la bibliothèque du site, une fois chacune.
-  for (const def of site.animations ?? []) out.push(keyframesCss(`an-${def.id}`, def.keyframes, assets));
-  for (const root of roots) {
+  const roots: { root: Node; triggers?: Trigger[] }[] = [...pages.map((p) => ({ root: p.root, triggers: p.triggers })), ...site.components.map((c) => ({ root: c.root }))];
+  // Images-clés de chaque piste de chaque animation du site, une fois chacune.
+  for (const a of site.animations) for (const t of a.tracks) { const k = trackKeyframesCss(a, t, assets); if (k) out.push(k); }
+  for (const { root, triggers } of roots) {
     walk(root, (n) => {
-      const css = nodeCss(n, site.settings.breakpoints, assets, opts.classes, site);
+      // Les déclencheurs de page sont portés par la racine.
+      const css = nodeCss(n, site.settings.breakpoints, assets, opts.classes, site, n === root ? triggers ?? [] : []);
       if (css) out.push(css);
       // Contenu vide d'une collection
       const view = n.type === "collection" ? (n.props as { view?: { empty?: Node[] } }).view : undefined;

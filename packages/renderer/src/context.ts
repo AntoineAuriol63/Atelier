@@ -7,6 +7,8 @@ export type DataProvider = {
   entry?(database: Database, id: string): Entry | undefined;
 };
 
+export type AnimTargets = { targets: Set<string>; children: Set<string>; split: Map<string, "words" | "letters"> };
+
 export type RenderContext = {
   site: Site;
   page: Page;
@@ -25,8 +27,8 @@ export type RenderContext = {
   inLink?: boolean;
   /** Posé par un parent dont une animation vise ses enfants : l'enfant `of` est le i-ième de n, il porte `--at-i`/`--at-n` et `data-anim-target`. */
   animChild?: { of: string; i: number; n: number };
-  /** Éléments visés par une animation d'un autre élément (`target.node`) : ils portent `data-anim-target`. Calculé par `RenderPage`. */
-  animTargets?: Set<string>;
+  /** Ce que les animations de la page visent (calculé par `RenderPage`) : éléments cibles d'un autre élément (`data-anim-target`), éléments dont les enfants sont animés (numérotés), textes découpés. */
+  animTargets?: AnimTargets;
   assets: Map<string, Asset>;
   /** Préfixe des URLs (ex. "/preview") */
   basePath?: string;

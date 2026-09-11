@@ -1,5 +1,5 @@
-import type { AnimationRun, Id, Interaction, Node, Op, StyleProps, Target } from "./types";
-import { presetById, runFromPreset } from "./animations";
+import type { Animation, Id, Interaction, Node, Op, Site, StyleProps, Target, Trigger } from "./types";
+import { animationById, animationUsages, planApplyPreset, planRemoveTrigger, presetById } from "./animations";
 import { newId } from "./ids";
 
 /** Effets d'apparition prêts à l'emploi (D31) : état de départ posé sur le nœud, arrivée jouée quand il entre dans l'écran. */
@@ -21,26 +21,28 @@ export const EASINGS: { value: string; label: string }[] = [
 
 export type RevealOptions = { kind: RevealKind; duration?: number; delay?: number; easing?: string; repeat?: boolean };
 
-/** L'apparition d'un nœud : le run `inView` issu d'un préréglage d'apparition. */
-export function revealOf(node: Node): { run: AnimationRun; options: RevealOptions } | undefined {
-  const run = (node.animations ?? []).find((r) => r.trigger === "inView" && !!r.preset && r.preset in REVEAL_LABEL);
-  if (!run) return undefined;
-  return { run, options: { kind: run.preset as RevealKind, duration: run.duration, delay: run.delay, easing: run.easing, repeat: run.once === false } };
+/** L'apparition d'un nœud : le déclencheur `inView` dont l'animation vient d'un préréglage d'apparition. */
+export function revealOf(site: Site, node: Node): { trigger: Trigger; animation: Animation; options: RevealOptions } | undefined {
+  for (const t of node.triggers ?? []) {
+    if (t.on !== "inView") continue;
+    const a = animationById(site, t.animation);
+    if (a?.preset && a.preset in REVEAL_LABEL) return { trigger: t, animation: a, options: { kind: a.preset as RevealKind, duration: a.duration, delay: t.delay, easing: a.tracks[0]?.keyframes[1]?.easing, repeat: t.once === false } };
+  }
+  return undefined;
 }
-
-/** Pose (ou remplace) l'apparition d'un nœud : une animation `inView`, rien dans le style. */
-export function planReveal(node: Node, o: RevealOptions): Op[] {
-  const current = revealOf(node);
+/** Pose (ou remplace) l'apparition d'un nœud : une animation du site et un déclencheur `inView`, rien dans le style. */
+export function planReveal(site: Site, node: Node, o: RevealOptions): Op[] {
+  const current = revealOf(site, node);
   const preset = presetById(o.kind)!;
-  const run = runFromPreset(preset, { id: current?.run.id, duration: o.duration ?? 700, delay: o.delay ?? 0, easing: o.easing ?? preset.easing, once: !o.repeat });
-  const others = (node.animations ?? []).filter((r) => r.id !== current?.run.id);
-  return [{ op: "node.set", id: node.id, path: "animations", value: [...others, run] }];
+  const ownAnimation = current && animationUsages(site, current.animation.id).length <= 1;
+  return planApplyPreset(site, node, preset, { replaceTriggerId: current?.trigger.id, triggerId: current?.trigger.id, animationId: ownAnimation ? current.animation.id : undefined, duration: o.duration, trigger: { delay: o.delay || undefined, once: o.repeat ? false : undefined } });
 }
-export function planRemoveReveal(node: Node): Op[] {
-  const current = revealOf(node);
+export function planRemoveReveal(site: Site, node: Node): Op[] {
+  const current = revealOf(site, node);
   if (!current) return [];
-  const rest = (node.animations ?? []).filter((r) => r.id !== current.run.id);
-  return [{ op: "node.set", id: node.id, path: "animations", value: rest.length ? rest : undefined }];
+  const ops = planRemoveTrigger(node, current.trigger.id);
+  if (animationUsages(site, current.animation.id).length <= 1) ops.push({ op: "site.set", path: "animations", value: site.animations.filter((a) => a.id !== current.animation.id) });
+  return ops;
 }
 
 /** Autres interactions simples : au clic ou au survol, afficher/masquer une cible, changer sa variante, aller quelque part. */

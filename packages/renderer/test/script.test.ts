@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { AnimationRun, Node, Site } from "@atelier/model";
+import type { Node, Site } from "@atelier/model";
 import { sampleSite } from "@atelier/model";
 import { INTERACTION_SCRIPT, RenderPage, assetMap, memoryData, type RenderContext } from "../src";
 
@@ -20,9 +20,13 @@ const observed = () => ios.flatMap((o) => o.observed);
 /** Fait entrer (ou sortir) un élément de l'écran pour tous les observateurs qui le suivent. */
 const enter = (el: Element, isIntersecting = true) => ios.forEach((o) => { if (o.observed.includes(el)) o.cb([{ target: el, isIntersecting }]); });
 
-const page = (children: Node[]): Site => ({ ...sampleSite, pages: [{ ...sampleSite.pages[0]!, root: { id: "r", type: "box", props: {}, children } }] });
-const run = (id: string, patch: Partial<AnimationRun>): AnimationRun => ({ id, animation: { keyframes: [{ at: 0, style: { opacity: "0" } }, { at: 100, style: { opacity: "1" } }] }, trigger: "load", duration: 500, easing: "linear", ...patch });
+type Tr = import("@atelier/model").Trigger; type An = import("@atelier/model").Animation; type Tk = import("@atelier/model").Track;
+const page = (children: Node[], animations: An[]): Site => ({ ...sampleSite, animations, pages: [{ ...sampleSite.pages[0]!, root: { id: "r", type: "box", props: {}, children } }] });
+const tk = (id: string, extra: Partial<Tk> = {}, keyframes: Tk["keyframes"] = [{ at: 0, style: { opacity: "0" } }, { at: 500, style: { opacity: "1" } }]): Tk => ({ id, target: { trigger: true }, keyframes, ...extra });
+const an = (id: string, tracks: Tk[], extra: Partial<An> = {}): An => ({ id, name: id, duration: Math.max(...tracks.flatMap((t) => t.keyframes.map((k) => k.at))), tracks, ...extra });
+const tr = (id: string, on: Tr["on"], animation: string, extra: Partial<Tr> = {}): Tr => ({ id, on, animation, ...extra });
 const text = (id: string, v: string): Node => ({ id, type: "text", props: { tag: "p", content: { fr: [{ t: "text", v }] } } });
+const box = (id: string, triggers: Tr[], children?: Node[]): Node => ({ id, type: "box", props: {}, triggers, children });
 
 function mount(site: Site) {
   const ctx: RenderContext = { site, page: site.pages[0]!, params: {}, locale: "fr", data: memoryData([]), assets: assetMap(site), basePath: "" };
@@ -47,7 +51,7 @@ beforeEach(() => {
 
 describe("script du site : cibles et décalage", () => {
   it("entrée dans l'écran sur les enfants : un animate par enfant, délai croissant, l'hôte n'est pas animé", () => {
-    mount(page([{ id: "p", type: "box", props: {}, animations: [run("r1", { trigger: "inView", delay: 100, target: { children: true }, stagger: { each: 80 } })], children: [text("a", "A"), text("b", "B"), text("c", "C")] }]));
+    mount(page([box("p", [tr("r1", "inView", "an_c", { delay: 100 })], [text("a", "A"), text("b", "B"), text("c", "C")])], [an("an_c", [tk("t", { target: { trigger: true, children: true }, stagger: { each: 80 } })])]));
     const host = document.querySelector(".n-p")!;
     expect(observed()).toContain(host);
     enter(host);
@@ -55,27 +59,27 @@ describe("script du site : cibles et décalage", () => {
     expect((document.querySelector(".n-a") as HTMLElement).style.animation).toBe("none");
   });
   it("décalage depuis la fin et le centre", () => {
-    mount(page([{ id: "p", type: "box", props: {}, animations: [run("r1", { trigger: "inView", target: { children: true }, stagger: { each: 10, from: "end" } })], children: [text("a", "A"), text("b", "B"), text("c", "C")] }, { id: "q", type: "box", props: {}, animations: [run("r2", { trigger: "inView", target: { children: true }, stagger: { each: 10, from: "center" } })], children: [text("d", "D"), text("e", "E"), text("f", "F")] }]));
+    mount(page([box("p", [tr("r1", "inView", "an_e")], [text("a", "A"), text("b", "B"), text("c", "C")]), box("q", [tr("r2", "inView", "an_m")], [text("d", "D"), text("e", "E"), text("f", "F")])], [an("an_e", [tk("t", { target: { trigger: true, children: true }, stagger: { each: 10, from: "end" } })]), an("an_m", [tk("t", { target: { trigger: true, children: true }, stagger: { each: 10, from: "center" } })])]));
     enter(document.querySelector(".n-p")!); enter(document.querySelector(".n-q")!);
     expect(calls.map((c) => [c.el.className, c.delay])).toEqual([["n-a", 20], ["n-b", 10], ["n-c", 0], ["n-d", 10], ["n-e", 0], ["n-f", 10]]);
   });
-  it("clic sur un bouton qui anime un autre élément, et un sélecteur libre", () => {
-    mount(page([{ id: "btn", type: "box", props: {}, animations: [run("r1", { trigger: "click", target: { node: "panel" } }), run("r2", { trigger: "click", target: { selector: ".n-other" } })] }, { id: "panel", type: "box", props: {} }, { id: "other", type: "box", props: {} }]));
+  it("une animation à deux pistes : chaque piste part à son début, un clic anime un autre élément et un sélecteur", () => {
+    mount(page([box("btn", [tr("r1", "click", "an_two")]), box("panel", []), box("other", [])], [an("an_two", [tk("t1", { target: { node: "panel" } }), tk("t2", { target: { selector: ".n-other" } }, [{ at: 300, style: { opacity: "0" } }, { at: 900, style: { opacity: "1" } }])])]));
     (document.querySelector(".n-btn") as HTMLElement).click();
-    expect(calls.map((c) => c.el.className).sort()).toEqual(["n-other", "n-panel"]);
+    expect(calls.map((c) => [c.el.className, c.delay, c.duration]).sort()).toEqual([["n-other", 300, 600], ["n-panel", 0, 500]]);
   });
   it("morceaux d'un texte découpé : un animate par lettre, décalés", () => {
-    mount(page([{ id: "t", type: "text", props: { tag: "p", content: { fr: [{ t: "text", v: "ab cd" }] } }, animations: [run("r1", { trigger: "inView", split: "letters", stagger: { each: 30 } })] }]));
+    mount(page([{ id: "t", type: "text", props: { tag: "p", content: { fr: [{ t: "text", v: "ab cd" }] } }, triggers: [tr("r1", "inView", "an_l")] }], [an("an_l", [tk("t", { target: { trigger: true, split: "letters" }, stagger: { each: 30 } })])]));
     enter(document.querySelector(".n-t")!);
     expect(calls.map((c) => [c.el.textContent, c.delay])).toEqual([["a", 0], ["b", 30], ["c", 60], ["d", 90]]);
   });
   it("survol d'une cible libre : joué par le script à l'entrée de la souris", () => {
-    mount(page([{ id: "btn", type: "box", props: {}, animations: [run("r1", { trigger: "hover", target: { selector: ".n-far" } })] }, { id: "far", type: "box", props: {} }]));
+    mount(page([box("btn", [tr("r1", "hover", "an_s")]), box("far", [])], [an("an_s", [tk("t", { target: { selector: ".n-far" } })])]));
     document.querySelector(".n-btn")!.dispatchEvent(new Event("mouseenter"));
     expect(calls.map((c) => c.el.className)).toEqual(["n-far"]);
   });
-  it("« Jouer » de l'éditeur : __atelierPlay anime les cibles avec le décalage", () => {
-    mount(page([{ id: "p", type: "box", props: {}, animations: [run("r1", { target: { children: true }, stagger: { each: 40 } })], children: [text("a", "A"), text("b", "B")] }]));
+  it("« Jouer » de l'éditeur : __atelierPlay anime toutes les pistes avec le décalage", () => {
+    mount(page([box("p", [tr("r1", "load", "an_p")], [text("a", "A"), text("b", "B")])], [an("an_p", [tk("t", { target: { trigger: true, children: true }, stagger: { each: 40 } })])]));
     const host = document.querySelector<HTMLElement>(".n-p")!;
     const a = (JSON.parse(host.getAttribute("data-anim")!) as { i: string }[])[0]!;
     const play = (window as unknown as { __atelierPlay: (el: Element, a: unknown, extra?: Record<string, unknown>) => unknown[] }).__atelierPlay;
@@ -84,34 +88,34 @@ describe("script du site : cibles et décalage", () => {
     expect(out).toHaveLength(2);
     expect(calls.map((c) => [c.el.className, c.delay])).toEqual([["n-a", 0], ["n-b", 40]]);
   });
+  it("défilement : les pistes sont créées en pause et la position de défilement fixe le temps courant sur toute la ligne de temps", () => {
+    (window as unknown as { innerHeight: number }).innerHeight = 800;
+    mount(page([box("b", [tr("r1", "scroll", "an_sc")])], [an("an_sc", [tk("t1"), tk("t2", {}, [{ at: 500, style: { opacity: "1" } }, { at: 1500, style: { opacity: "0" } }])])]));
+    expect(calls).toHaveLength(2);
+    expect(handles.map((h) => h.currentTime)).toEqual([1500, 1500]);
+  });
 });
 
 describe("script du site : retour et bascule", () => {
-  const box = (id: string, runs: AnimationRun[]): Node => ({ id, type: "box", props: {}, animations: runs });
   it("survol qui revient : joue à l'entrée, rembobine à la sortie, repart en avant à l'entrée suivante", () => {
-    mount(page([box("b", [run("r1", { trigger: "hover", reverseOnLeave: true })])]));
+    mount(page([box("b", [tr("r1", "hover", "an_h", { reverseOnLeave: true })])], [an("an_h", [tk("t")])]));
     const el = document.querySelector(".n-b")!;
     el.dispatchEvent(new Event("mouseenter"));
     expect(calls).toHaveLength(1);
-    const an = handles[0]!;
+    const h = handles[0]!;
     el.dispatchEvent(new Event("mouseleave"));
-    expect(an.reversed).toBe(1); expect(an.playbackRate).toBe(-1);
+    expect(h.reversed).toBe(1); expect(h.playbackRate).toBe(-1);
     el.dispatchEvent(new Event("mouseenter"));
-    expect(calls).toHaveLength(1); expect(an.reversed).toBe(2); expect(an.playbackRate).toBe(1);
-    el.dispatchEvent(new Event("mouseleave"));
-    expect(an.reversed).toBe(3);
+    expect(calls).toHaveLength(1); expect(h.reversed).toBe(2); expect(h.playbackRate).toBe(1);
   });
-  it("clic qui bascule : un clic joue, le suivant rembobine, le troisième rejoue en avant", () => {
-    mount(page([box("b", [run("r1", { trigger: "click", toggle: true })])]));
+  it("clic qui bascule : un clic joue, le suivant rembobine, le troisième rejoue en avant ; sans bascule, chaque clic rejoue", () => {
+    mount(page([box("b", [tr("r1", "click", "an_t", { toggle: true })]), box("c", [tr("r2", "click", "an_t")])], [an("an_t", [tk("t")])]));
     const el = document.querySelector<HTMLElement>(".n-b")!;
     el.click(); expect(calls).toHaveLength(1);
     el.click(); expect(calls).toHaveLength(1); expect(handles[0]!.reversed).toBe(1);
-    el.click(); expect(calls).toHaveLength(1); expect(handles[0]!.reversed).toBe(2); expect(handles[0]!.playbackRate).toBe(1);
-  });
-  it("clic sans bascule : chaque clic rejoue", () => {
-    mount(page([box("b", [run("r1", { trigger: "click" })])]));
-    const el = document.querySelector<HTMLElement>(".n-b")!;
-    el.click(); el.click();
-    expect(calls).toHaveLength(2);
+    el.click(); expect(handles[0]!.reversed).toBe(2); expect(handles[0]!.playbackRate).toBe(1);
+    const c = document.querySelector<HTMLElement>(".n-c")!;
+    c.click(); c.click();
+    expect(calls).toHaveLength(3);
   });
 });

@@ -1,4 +1,4 @@
-import type { AnimationDef, AnimationRun, Id, Keyframe, Node, Op, Site, StyleProps } from "./types";
+import type { Animation, Id, Keyframe, Node, Op, Page, Site, Stagger, SplitMode, StyleProps, Track, TrackTarget, Trigger, TriggerOn } from "./types";
 import { newId } from "./ids";
 
 /** Courbes proposées dans l'interface (la valeur est du CSS). */
@@ -6,18 +6,18 @@ export const ANIM_EASINGS: { value: string; label: string }[] = [
   { value: "cubic-bezier(.22,1,.36,1)", label: "Doux (sortie)" }, { value: "ease-out", label: "Sortie" }, { value: "ease-in-out", label: "Entrée-sortie" }, { value: "ease-in", label: "Entrée" },
   { value: "linear", label: "Linéaire" }, { value: "cubic-bezier(.34,1.56,.64,1)", label: "Rebond" }, { value: "steps(4)", label: "Par paliers" },
 ];
-export const TRIGGER_LABELS: Record<AnimationRun["trigger"], string> = { load: "Au chargement", inView: "À l'entrée dans l'écran", hover: "Au survol", click: "Au clic", scroll: "Au défilement" };
-export const DIRECTION_LABELS: Record<NonNullable<AnimationRun["direction"]>, string> = { normal: "Normal", reverse: "À l'envers", alternate: "Aller-retour", "alternate-reverse": "Retour-aller" };
-export const FILL_LABELS: Record<NonNullable<AnimationRun["fill"]>, string> = { none: "Revient à l'état de repos", forwards: "Reste sur la dernière étape", backwards: "Commence sur la première étape", both: "Première étape avant, dernière après" };
+export const TRIGGER_LABELS: Record<TriggerOn, string> = { load: "Au chargement", inView: "À l'entrée dans l'écran", hover: "Au survol", click: "Au clic", scroll: "Au défilement", pointer: "À la souris" };
 
+/** Préréglage : une animation complète à cible relative, et le déclencheur qui va avec. */
 export type AnimationPreset = {
-  id: string; label: string; group: "Apparition" | "Continue" | "Attention";
-  keyframes: Keyframe[];
-  trigger: AnimationRun["trigger"]; duration: number; easing?: string; iterations?: number | "infinite"; direction?: AnimationRun["direction"]; fill?: AnimationRun["fill"];
+  id: string; label: string; group: "Apparition" | "Survol" | "Continue" | "Attention";
+  on: TriggerOn; duration: number; keyframes: Keyframe[]; loop?: number | "infinite"; alternate?: boolean; trigger?: Partial<Trigger>;
 };
+const SOFT = "cubic-bezier(.22,1,.36,1)";
 const rest: StyleProps = { opacity: "1", transform: "none", filter: "none" };
-const appear = (id: string, label: string, from: StyleProps): AnimationPreset => ({ id, label, group: "Apparition", keyframes: [{ at: 0, style: from }, { at: 100, style: rest }], trigger: "inView", duration: 700, easing: "cubic-bezier(.22,1,.36,1)", fill: "both" });
-/** Animations prêtes à l'emploi : apparitions (jouées à l'entrée dans l'écran), continues (en boucle dès le chargement), attention (au clic ou au survol). */
+const appear = (id: string, label: string, from: StyleProps): AnimationPreset => ({ id, label, group: "Apparition", on: "inView", duration: 700, keyframes: [{ at: 0, style: from }, { at: 700, style: rest, easing: SOFT }] });
+const loop = (id: string, label: string, duration: number, keyframes: [number, StyleProps][], easing = "ease-in-out", alternate?: boolean): AnimationPreset => ({ id, label, group: "Continue", on: "load", duration, loop: "infinite", alternate, keyframes: keyframes.map(([pct, style], i) => ({ at: Math.round((pct / 100) * duration), style, ...(i ? { easing } : {}) })) });
+/** Animations prêtes à l'emploi : apparitions (à l'entrée dans l'écran), survol, continues (en boucle dès le chargement), attention (au clic). */
 export const ANIMATION_PRESETS: AnimationPreset[] = [
   appear("fade", "Fondu", { opacity: "0" }),
   appear("fade-up", "Fondu en montant", { opacity: "0", transform: "translateY(28px)" }),
@@ -26,87 +26,165 @@ export const ANIMATION_PRESETS: AnimationPreset[] = [
   appear("slide-right", "Glissé depuis la gauche", { opacity: "0", transform: "translateX(-40px)" }),
   appear("zoom", "Zoom", { opacity: "0", transform: "scale(0.92)" }),
   appear("blur", "Netteté", { opacity: "0", filter: "blur(12px)" }),
-  { id: "float", label: "Flottement", group: "Continue", keyframes: [{ at: 0, style: { transform: "translateY(0)" } }, { at: 50, style: { transform: "translateY(-10px)" } }, { at: 100, style: { transform: "translateY(0)" } }], trigger: "load", duration: 3000, easing: "ease-in-out", iterations: "infinite" },
-  { id: "pulse", label: "Pulsation", group: "Continue", keyframes: [{ at: 0, style: { transform: "scale(1)" } }, { at: 50, style: { transform: "scale(1.05)" } }, { at: 100, style: { transform: "scale(1)" } }], trigger: "load", duration: 1600, easing: "ease-in-out", iterations: "infinite" },
-  { id: "spin", label: "Rotation continue", group: "Continue", keyframes: [{ at: 0, style: { transform: "rotate(0deg)" } }, { at: 100, style: { transform: "rotate(360deg)" } }], trigger: "load", duration: 8000, easing: "linear", iterations: "infinite" },
-  { id: "blink", label: "Clignotement", group: "Continue", keyframes: [{ at: 0, style: { opacity: "1" } }, { at: 50, style: { opacity: "0.3" } }, { at: 100, style: { opacity: "1" } }], trigger: "load", duration: 1400, easing: "ease-in-out", iterations: "infinite" },
-  { id: "sway", label: "Balancement", group: "Continue", keyframes: [{ at: 0, style: { transform: "rotate(-3deg)" } }, { at: 100, style: { transform: "rotate(3deg)" } }], trigger: "load", duration: 2000, easing: "ease-in-out", iterations: "infinite", direction: "alternate" },
-  { id: "shake", label: "Secousse", group: "Attention", keyframes: [{ at: 0, style: { transform: "translateX(0)" } }, { at: 25, style: { transform: "translateX(-6px)" } }, { at: 75, style: { transform: "translateX(6px)" } }, { at: 100, style: { transform: "translateX(0)" } }], trigger: "click", duration: 400, easing: "ease-in-out" },
-  { id: "bounce", label: "Rebond", group: "Attention", keyframes: [{ at: 0, style: { transform: "translateY(0)" } }, { at: 40, style: { transform: "translateY(-14px)" } }, { at: 70, style: { transform: "translateY(0)" } }, { at: 85, style: { transform: "translateY(-6px)" } }, { at: 100, style: { transform: "translateY(0)" } }], trigger: "click", duration: 600, easing: "ease-out" },
-  { id: "grow", label: "Grossissement", group: "Attention", keyframes: [{ at: 0, style: { transform: "scale(1)" } }, { at: 100, style: { transform: "scale(1.06)" } }], trigger: "hover", duration: 250, easing: "ease-out", fill: "forwards" },
-  { id: "custom", label: "Personnalisée (deux étapes vides)", group: "Attention", keyframes: [{ at: 0, style: {} }, { at: 100, style: {} }], trigger: "load", duration: 1000, easing: "ease-in-out" },
+  { id: "grow", label: "Grossir", group: "Survol", on: "hover", duration: 250, keyframes: [{ at: 0, style: { transform: "scale(1)" } }, { at: 250, style: { transform: "scale(1.06)" }, easing: "ease-out" }], trigger: { reverseOnLeave: true } },
+  { id: "lift", label: "Soulever", group: "Survol", on: "hover", duration: 250, keyframes: [{ at: 0, style: { transform: "translateY(0)" } }, { at: 250, style: { transform: "translateY(-4px)" }, easing: "ease-out" }], trigger: { reverseOnLeave: true } },
+  { id: "brighten", label: "Éclaircir", group: "Survol", on: "hover", duration: 200, keyframes: [{ at: 0, style: { filter: "brightness(1)" } }, { at: 200, style: { filter: "brightness(1.15)" }, easing: "ease-out" }], trigger: { reverseOnLeave: true } },
+  loop("float", "Flottement", 3000, [[0, { transform: "translateY(0)" }], [50, { transform: "translateY(-10px)" }], [100, { transform: "translateY(0)" }]]),
+  loop("pulse", "Pulsation", 1600, [[0, { transform: "scale(1)" }], [50, { transform: "scale(1.05)" }], [100, { transform: "scale(1)" }]]),
+  loop("spin", "Rotation continue", 8000, [[0, { transform: "rotate(0deg)" }], [100, { transform: "rotate(360deg)" }]], "linear"),
+  loop("blink", "Clignotement", 1400, [[0, { opacity: "1" }], [50, { opacity: "0.3" }], [100, { opacity: "1" }]]),
+  loop("sway", "Balancement", 2000, [[0, { transform: "rotate(-3deg)" }], [100, { transform: "rotate(3deg)" }]], "ease-in-out", true),
+  { id: "shake", label: "Secousse", group: "Attention", on: "click", duration: 400, keyframes: [{ at: 0, style: { transform: "translateX(0)" } }, { at: 100, style: { transform: "translateX(-6px)" }, easing: "ease-in-out" }, { at: 300, style: { transform: "translateX(6px)" }, easing: "ease-in-out" }, { at: 400, style: { transform: "translateX(0)" }, easing: "ease-in-out" }] },
+  { id: "bounce", label: "Rebond", group: "Attention", on: "click", duration: 600, keyframes: [{ at: 0, style: { transform: "translateY(0)" } }, { at: 240, style: { transform: "translateY(-14px)" }, easing: "ease-out" }, { at: 420, style: { transform: "translateY(0)" }, easing: "ease-in" }, { at: 510, style: { transform: "translateY(-6px)" }, easing: "ease-out" }, { at: 600, style: { transform: "translateY(0)" }, easing: "ease-in" }] },
+  { id: "custom", label: "Vide (à composer)", group: "Attention", on: "load", duration: 600, keyframes: [{ at: 0, style: {} }, { at: 600, style: {}, easing: "ease-in-out" }] },
 ];
 export const presetById = (id: string | undefined): AnimationPreset | undefined => ANIMATION_PRESETS.find((p) => p.id === id);
 
-/** Construit un run à partir d'un préréglage (étapes recopiées en ligne : le nœud ne dépend de rien). */
-export function runFromPreset(preset: AnimationPreset, overrides: Partial<AnimationRun> = {}): AnimationRun {
-  const { id: _id, label: _l, group: _g, keyframes, ...rest2 } = preset;
-  return { id: newId(), animation: { keyframes: structuredClone(keyframes) }, preset: preset.id, ...rest2, ...overrides };
+/** Une animation à partir d'un préréglage ; `duration` met les images-clés à l'échelle ; la piste vise l'élément du déclencheur (`target` pour ses enfants, ses lettres…). */
+export function animationFromPreset(preset: AnimationPreset, overrides: Partial<Omit<Animation, "tracks">> & { target?: TrackTarget; stagger?: Stagger; trackId?: Id } = {}): Animation {
+  const { target, stagger, trackId, ...rest2 } = overrides;
+  const scale = overrides.duration && preset.duration ? overrides.duration / preset.duration : 1;
+  const keyframes = preset.keyframes.map((k) => ({ ...k, at: Math.round(k.at * scale), style: structuredClone(k.style) }));
+  const base: Animation = { id: newId(), name: preset.label, duration: preset.duration, preset: preset.id, tracks: [] };
+  if (preset.loop) base.loop = preset.loop;
+  if (preset.alternate) base.alternate = true;
+  const merged = { ...base, ...Object.fromEntries(Object.entries(rest2).filter(([, v]) => v !== undefined)) } as Animation;
+  merged.tracks = [{ id: trackId ?? newId(), target: target ?? { trigger: true }, ...(stagger ? { stagger } : {}), keyframes }];
+  return merged;
+}
+/** Le déclencheur qui va avec un préréglage. */
+export function triggerFromPreset(preset: AnimationPreset, animationId: Id, overrides: Partial<Trigger> = {}): Trigger {
+  const t: Trigger = { id: newId(), on: preset.on, animation: animationId, ...preset.trigger };
+  for (const [k, v] of Object.entries(overrides)) if (v !== undefined) (t as unknown as Record<string, unknown>)[k] = v;
+  return t;
 }
 
-/** Les étapes d'un run, qu'elles soient en ligne ou dans la bibliothèque du site. */
-export function keyframesOf(run: AnimationRun, site: Pick<Site, "animations">): Keyframe[] {
-  if (typeof run.animation === "string") return site.animations?.find((a) => a.id === run.animation)?.keyframes ?? [];
-  return run.animation.keyframes;
-}
+export const animationById = (site: Pick<Site, "animations">, id: Id): Animation | undefined => site.animations.find((a) => a.id === id);
 
-export function planAddAnimation(node: Node, run: AnimationRun): Op[] {
-  return [{ op: "node.set", id: node.id, path: "animations", value: [...(node.animations ?? []), run] }];
+// ---------------------------------------------------------------- déclencheurs (sur un nœud)
+
+export function planAddTrigger(node: Node, trigger: Trigger): Op[] {
+  return [{ op: "node.set", id: node.id, path: "triggers", value: [...(node.triggers ?? []), trigger] }];
 }
-export function planUpdateAnimation(node: Node, id: Id, patch: Partial<AnimationRun>): Op[] {
-  const list = (node.animations ?? []).map((r) => (r.id === id ? { ...r, ...patch } : r));
-  return [{ op: "node.set", id: node.id, path: "animations", value: list }];
+export function planUpdateTrigger(node: Node, id: Id, patch: Partial<Trigger>): Op[] {
+  return [{ op: "node.set", id: node.id, path: "triggers", value: (node.triggers ?? []).map((t) => (t.id === id ? { ...t, ...patch } : t)) }];
 }
-export function planRemoveAnimation(node: Node, id: Id): Op[] {
-  const list = (node.animations ?? []).filter((r) => r.id !== id);
-  return [{ op: "node.set", id: node.id, path: "animations", value: list.length ? list : undefined }];
+export function planRemoveTrigger(node: Node, id: Id): Op[] {
+  const list = (node.triggers ?? []).filter((t) => t.id !== id);
+  return [{ op: "node.set", id: node.id, path: "triggers", value: list.length ? list : undefined }];
 }
-/** Copie les étapes en ligne d'un run dans la bibliothèque du site et fait pointer le run dessus. */
-export function planSaveToLibrary(site: Site, node: Node, runId: Id, name: string): Op[] {
-  const run = (node.animations ?? []).find((r) => r.id === runId);
-  if (!run || typeof run.animation === "string") return [];
-  const def: AnimationDef = { id: newId(), name, keyframes: structuredClone(run.animation.keyframes) };
+/**
+ * Pose un préréglage sur un élément : l'animation dans le site, le déclencheur sur l'élément. `replaceTriggerId` remplace un
+ * déclencheur existant (et retire son animation si plus rien d'autre ne l'utilise).
+ */
+export function planApplyPreset(site: Site, node: Node, preset: AnimationPreset, o: { animationId?: Id; triggerId?: Id; replaceTriggerId?: Id; target?: TrackTarget; stagger?: Stagger; duration?: number; trigger?: Partial<Trigger> } = {}): Op[] {
+  const animation = animationFromPreset(preset, { id: o.animationId, duration: o.duration, target: o.target, stagger: o.stagger });
+  const trigger = triggerFromPreset(preset, animation.id, { ...(o.triggerId ? { id: o.triggerId } : {}), ...o.trigger });
+  const old = o.replaceTriggerId ? (node.triggers ?? []).find((t) => t.id === o.replaceTriggerId) : undefined;
+  const others = (node.triggers ?? []).filter((t) => t.id !== o.replaceTriggerId);
+  const orphan = old && animationUsages(site, old.animation).length <= 1 ? old.animation : undefined;
   return [
-    { op: "site.set", path: "animations", value: [...(site.animations ?? []), def] },
-    ...planUpdateAnimation(node, runId, { animation: def.id }),
+    { op: "site.set", path: "animations", value: [...site.animations.filter((a) => a.id !== orphan && a.id !== animation.id), animation] },
+    { op: "node.set", id: node.id, path: "triggers", value: [...others, trigger] },
   ];
 }
-/** Détache un run de la bibliothèque : ses étapes redeviennent propres au nœud. */
-export function planDetachFromLibrary(site: Site, node: Node, runId: Id): Op[] {
-  const run = (node.animations ?? []).find((r) => r.id === runId);
-  if (!run || typeof run.animation !== "string") return [];
-  return planUpdateAnimation(node, runId, { animation: { keyframes: structuredClone(keyframesOf(run, site)) } });
+
+// ---------------------------------------------------------------- animations (dans le site)
+
+export function planAddAnimation(site: Site, animation: Animation): Op[] {
+  return [{ op: "site.set", path: "animations", value: [...site.animations, animation] }];
 }
-/** Où une animation de la bibliothèque sert (pages et composants). */
-export function animationUsages(site: Site, id: Id): { node: Node; owner: string }[] {
-  const out: { node: Node; owner: string }[] = [];
-  const visit = (n: Node, owner: string) => { if (n.animations?.some((r) => r.animation === id)) out.push({ node: n, owner }); n.children?.forEach((c) => visit(c, owner)); };
-  site.pages.forEach((p) => visit(p.root, p.id));
+export function planUpdateAnimation(site: Site, id: Id, patch: Partial<Animation>): Op[] {
+  return [{ op: "site.set", path: "animations", value: site.animations.map((a) => (a.id === id ? { ...a, ...patch } : a)) }];
+}
+/** Retire une animation et tous les déclencheurs qui la lançaient (éléments des pages et des composants, pages). */
+export function planRemoveAnimation(site: Site, id: Id): Op[] {
+  const ops: Op[] = [];
+  for (const u of animationUsages(site, id)) {
+    if (u.node) ops.push(...planRemoveTrigger(u.node, u.trigger.id));
+    else if (u.page) { const i = site.pages.indexOf(u.page); const list = (u.page.triggers ?? []).filter((t) => t.id !== u.trigger.id); ops.push({ op: "site.set", path: `pages.${i}.triggers`, value: list.length ? list : undefined }); }
+  }
+  ops.push({ op: "site.set", path: "animations", value: site.animations.filter((a) => a.id !== id) });
+  return ops;
+}
+/** Où une animation est lancée : déclencheurs des éléments (pages, composants) et des pages. */
+export function animationUsages(site: Site, id: Id): { node?: Node; page?: Page; trigger: Trigger; owner: string }[] {
+  const out: { node?: Node; page?: Page; trigger: Trigger; owner: string }[] = [];
+  const visit = (n: Node, owner: string) => { for (const t of n.triggers ?? []) if (t.animation === id) out.push({ node: n, trigger: t, owner }); n.children?.forEach((c) => visit(c, owner)); };
+  site.pages.forEach((p) => { for (const t of p.triggers ?? []) if (t.animation === id) out.push({ page: p, trigger: t, owner: p.id }); visit(p.root, p.id); });
   site.components.forEach((c) => visit(c.root, c.id));
   return out;
 }
 
-/** Sorte de cible d'un run : l'élément, ses enfants, ses morceaux (texte découpé), un autre élément, un sélecteur libre. */
-export type AnimationTargetKind = "self" | "children" | "pieces" | "node" | "selector";
-export function animationTargetKind(run: Pick<AnimationRun, "target" | "split">): AnimationTargetKind {
-  if (run.split) return "pieces";
-  const t = run.target;
-  if (!t || "self" in t) return "self";
-  if ("children" in t) return "children";
-  if ("node" in t) return "node";
-  return "selector";
+// ---------------------------------------------------------------- pistes et images-clés
+
+/** Longueur effective d'une animation : sa durée, ou la fin de sa piste la plus longue si elle dépasse. */
+export const animationLength = (a: Animation): number => Math.max(a.duration, ...a.tracks.map((t) => trackSpan(t).end));
+/** Portée d'une piste : de sa première à sa dernière image-clé. */
+export function trackSpan(track: Track): { start: number; end: number } {
+  const ats = track.keyframes.map((k) => k.at);
+  return ats.length ? { start: Math.min(...ats), end: Math.max(...ats) } : { start: 0, end: 0 };
 }
-export const STAGGER_FROM_LABELS: Record<NonNullable<NonNullable<AnimationRun["stagger"]>["from"]>, string> = { start: "Depuis le début", end: "Depuis la fin", center: "Depuis le centre" };
-export const SPLIT_LABELS: Record<NonNullable<AnimationRun["split"]>, string> = { words: "Par mots", letters: "Par lettres" };
+export const keyframeAt = (track: Track, at: number): Keyframe | undefined => track.keyframes.find((k) => k.at === at);
+const withTrack = (site: Site, animationId: Id, trackId: Id, fn: (t: Track) => Track): Op[] => {
+  const a = animationById(site, animationId);
+  if (!a) return [];
+  const tracks = a.tracks.map((t) => (t.id === trackId ? fn(t) : t));
+  const end = Math.max(0, ...tracks.map((t) => trackSpan(t).end));
+  return planUpdateAnimation(site, animationId, { tracks, duration: Math.max(a.duration, end) });
+};
+/** Pose une image-clé à `at` (créée si absente, fusionnée sinon) ; la durée de l'animation s'allonge si besoin. */
+export function planSetKeyframe(site: Site, animationId: Id, trackId: Id, at: number, style: StyleProps, easing?: string): Op[] {
+  return withTrack(site, animationId, trackId, (t) => {
+    const cur = keyframeAt(t, at);
+    const e = easing ?? cur?.easing;
+    const next: Keyframe = { at, style: { ...(cur?.style ?? {}), ...style }, ...(e ? { easing: e } : {}) };
+    return { ...t, keyframes: [...t.keyframes.filter((k) => k.at !== at), next].sort((a, b) => a.at - b.at) };
+  });
+}
+export function planRemoveKeyframe(site: Site, animationId: Id, trackId: Id, at: number): Op[] {
+  return withTrack(site, animationId, trackId, (t) => ({ ...t, keyframes: t.keyframes.filter((k) => k.at !== at) }));
+}
+export function planMoveKeyframe(site: Site, animationId: Id, trackId: Id, from: number, to: number): Op[] {
+  return withTrack(site, animationId, trackId, (t) => ({ ...t, keyframes: t.keyframes.filter((k) => k.at !== to).map((k) => (k.at === from ? { ...k, at: to } : k)).sort((a, b) => a.at - b.at) }));
+}
+export function planAddTrack(site: Site, animationId: Id, track: Track): Op[] {
+  const a = animationById(site, animationId);
+  if (!a) return [];
+  return planUpdateAnimation(site, animationId, { tracks: [...a.tracks, track], duration: Math.max(a.duration, trackSpan(track).end) });
+}
+export function planRemoveTrack(site: Site, animationId: Id, trackId: Id): Op[] {
+  const a = animationById(site, animationId);
+  if (!a) return [];
+  return planUpdateAnimation(site, animationId, { tracks: a.tracks.filter((t) => t.id !== trackId) });
+}
+
+// ---------------------------------------------------------------- cibles et décalage
+
+/** Cible d'une piste ramenée à un élément concret, par rapport à l'élément qui porte le déclencheur. */
+export function resolveTrackTarget(target: TrackTarget, triggerNode: Id): { node: Id; children?: true; split?: SplitMode } | { selector: string } {
+  if ("selector" in target) return { selector: target.selector };
+  const base = "trigger" in target ? triggerNode : target.node;
+  return { node: base, ...(target.children ? { children: true as const } : {}), ...(target.split ? { split: target.split } : {}) };
+}
+export type TrackTargetKind = "element" | "children" | "pieces" | "selector";
+export function trackTargetKind(target: TrackTarget): TrackTargetKind {
+  if ("selector" in target) return "selector";
+  if (target.split) return "pieces";
+  if (target.children) return "children";
+  return "element";
+}
+export const STAGGER_FROM_LABELS: Record<NonNullable<Stagger["from"]>, string> = { start: "Depuis le début", end: "Depuis la fin", center: "Depuis le centre" };
+export const SPLIT_LABELS: Record<SplitMode, string> = { words: "Par mots", letters: "Par lettres" };
 /** Rang d'un élément parmi `n` pour le décalage : son ordre depuis le début, depuis la fin, ou sa distance au centre. */
-export function staggerRank(i: number, n: number, from: "start" | "end" | "center" | undefined): number {
+export function staggerRank(i: number, n: number, from: Stagger["from"]): number {
   if (from === "end") return n - 1 - i;
   if (from === "center") return Math.abs(i - (n - 1) / 2);
   return i;
 }
-/** Délai effectif (ms) du i-ième élément animé parmi n : le délai du run plus le rang × `each`. */
-export function staggerDelay(run: Pick<AnimationRun, "delay" | "stagger">, i: number, n: number): number {
-  return (run.delay ?? 0) + (run.stagger ? staggerRank(i, n, run.stagger.from) * run.stagger.each : 0);
+/** Délai effectif (ms) du i-ième élément parmi n : le délai de base plus le rang × `each`. */
+export function staggerDelay(stagger: Stagger | undefined, delay: number, i: number, n: number): number {
+  return delay + (stagger ? staggerRank(i, n, stagger.from) * stagger.each : 0);
 }
 
 // ---------------------------------------------------------------- ressorts
@@ -149,26 +227,16 @@ export function easingCss(easing: string | undefined, duration: number): string 
   return `linear(${springSamples(sp.stiffness, sp.damping, duration, n).join(",")})`;
 }
 
-export function describeAnimation(run: AnimationRun, site: Pick<Site, "animations"> & Partial<Pick<Site, "pages" | "components">>): string {
-  const preset = presetById(run.preset);
-  const name = typeof run.animation === "string" ? (site.animations?.find((a) => a.id === run.animation)?.name ?? "Animation") : preset?.label ?? "Personnalisée";
-  const loop = run.iterations === "infinite" ? " · en boucle" : run.iterations && run.iterations > 1 ? ` · ×${run.iterations}` : "";
-  const kind = animationTargetKind(run);
-  let target = "";
-  if (kind === "children") target = " · sur ses enfants";
-  else if (kind === "pieces") target = run.split === "letters" ? " · lettre par lettre" : " · mot par mot";
-  else if (kind === "node" && run.target && "node" in run.target) target = ` · sur « ${nodeNameIn(site, run.target.node) ?? run.target.node} »`;
-  else if (kind === "selector" && run.target && "selector" in run.target) target = ` · sur « ${run.target.selector} »`;
-  const plural = kind === "pieces" && run.split === "letters" ? "décalées" : "décalés";
-  const stagger = run.stagger && (kind === "children" || kind === "pieces") ? ` · ${plural} de ${run.stagger.each} ms${run.stagger.from === "end" ? " depuis la fin" : run.stagger.from === "center" ? " depuis le centre" : ""}` : "";
-  const back = run.trigger === "hover" && run.reverseOnLeave ? " · revient au départ de la souris" : run.trigger === "click" && run.toggle ? " · bascule à chaque clic" : "";
-  const spring = parseSpring(run.easing) ? " · ressort" : "";
-  return `${name} · ${TRIGGER_LABELS[run.trigger].toLowerCase()}${run.trigger === "scroll" ? "" : ` · ${run.duration} ms`}${spring}${loop}${target}${stagger}${back}`;
+const fmtMs = (ms: number) => `${ms.toLocaleString("fr-FR").replace(/[\u202f\u00a0 ]/g, "\u202f")} ms`;
+/** « Arrivée du héros · 2 pistes · 1 200 ms · en boucle » */
+export function describeAnimation(a: Animation): string {
+  const n = a.tracks.length;
+  const loopTxt = a.loop === "infinite" ? " · en boucle" : a.loop && a.loop > 1 ? ` · ×${a.loop}` : "";
+  return `${a.name} · ${n} piste${n > 1 ? "s" : ""} · ${fmtMs(animationLength(a))}${loopTxt}`;
 }
-function nodeNameIn(site: Partial<Pick<Site, "pages" | "components">>, id: Id): string | undefined {
-  let found: Node | undefined;
-  const visit = (n: Node) => { if (found) return; if (n.id === id) { found = n; return; } n.children?.forEach(visit); };
-  site.pages?.forEach((p) => visit(p.root));
-  site.components?.forEach((c) => visit(c.root));
-  return found ? (found.name ?? found.type) : undefined;
+/** « À l'entrée dans l'écran · Arrivée du héros · +100 ms » */
+export function describeTrigger(t: Trigger, site: Pick<Site, "animations">): string {
+  const a = animationById(site, t.animation);
+  const extra = [t.delay ? `+${t.delay} ms` : "", t.on === "hover" && t.reverseOnLeave ? "revient au départ de la souris" : "", t.on === "click" && t.toggle ? "bascule à chaque clic" : "", t.on === "inView" && t.once === false ? "à chaque passage" : ""].filter(Boolean);
+  return [TRIGGER_LABELS[t.on], a?.name ?? "animation manquante", ...extra].join(" · ");
 }

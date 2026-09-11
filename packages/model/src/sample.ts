@@ -20,7 +20,7 @@ const button = (id: string, label: string, href: Node["props"]["href"], variant:
 });
 
 export const sampleSite: Site = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   id: "site_marie",
   name: "Marie Lambert, photographe",
   settings: {
@@ -125,6 +125,7 @@ export const sampleSite: Site = {
       ],
     },
   ],
+  animations: [],
   pages: [
     {
       id: "p_home", name: { fr: "Accueil" }, path: "/", kind: "static",

@@ -15,7 +15,7 @@ export function blankSite(id: string, name: string): Site {
   const headerCmp = { id: newId(), name: "En-tête", scope: "site" as const, props: [], root: header };
   const footerCmp = { id: newId(), name: "Pied de page", scope: "site" as const, props: [], root: footer };
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     id,
     name,
     settings: { ...structuredClone(sampleSite.settings), subdomain: undefined, seo: { titleSuffix: { [locale]: ` · ${name}` } } },
@@ -29,7 +29,8 @@ export function blankSite(id: string, name: string): Site {
     components: [headerCmp, footerCmp],
     codeComponents: [],
     databases: [],
-    pages: [{
+    animations: [],
+  pages: [{
       id: homeId, name: { [locale]: "Accueil" }, path: "/", kind: "static",
       root: { id: newId(), type: "box", name: "Page", props: { tag: "div" }, children: [
         { id: newId(), type: "instance", name: "En-tête", props: { component: headerCmp.id } },

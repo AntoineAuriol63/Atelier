@@ -82,17 +82,22 @@ export const interaction = z.object({
   source: sourceRef.optional(),
 });
 
-const keyframe = z.object({ at: z.number().min(0).max(100), style: z.record(z.string(), styleValue) });
-export const animationDef = z.object({ id, name: z.string(), keyframes: z.array(keyframe) });
-export const animationRun = z.object({
-  id, animation: z.union([id, z.object({ keyframes: z.array(keyframe) })]), preset: z.string().optional(),
-  trigger: z.enum(["load", "inView", "hover", "click", "scroll"]), duration: z.number().min(0), delay: z.number().optional(), easing: z.string().optional(),
-  iterations: z.union([z.number().positive(), z.literal("infinite")]).optional(), direction: z.enum(["normal", "reverse", "alternate", "alternate-reverse"]).optional(),
-  fill: z.enum(["none", "forwards", "backwards", "both"]).optional(), once: z.boolean().optional(), pauseOnHover: z.boolean().optional(), range: z.tuple([z.number(), z.number()]).optional(),
-  target: z.union([z.object({ self: z.literal(true) }), z.object({ children: z.literal(true) }), z.object({ node: id }), z.object({ selector: z.string() })]).optional(),
-  split: z.enum(["words", "letters"]).optional(),
-  stagger: z.object({ each: z.number().min(0), from: z.enum(["start", "end", "center"]).optional() }).optional(),
-  reverseOnLeave: z.boolean().optional(), toggle: z.boolean().optional(),
+const keyframe = z.object({ at: z.number().min(0), style: z.record(z.string(), styleValue), easing: z.string().optional() });
+const splitMode = z.enum(["words", "letters"]);
+const trackTarget = z.union([
+  z.object({ trigger: z.literal(true), children: z.literal(true).optional(), split: splitMode.optional() }),
+  z.object({ node: id, children: z.literal(true).optional(), split: splitMode.optional() }),
+  z.object({ selector: z.string() }),
+]);
+const stagger = z.object({ each: z.number().min(0), from: z.enum(["start", "end", "center"]).optional() });
+export const track = z.object({ id, target: trackTarget, stagger: stagger.optional(), keyframes: z.array(keyframe) });
+export const animation = z.object({
+  id, name: z.string(), duration: z.number().min(0), tracks: z.array(track),
+  loop: z.union([z.number().positive(), z.literal("infinite")]).optional(), alternate: z.boolean().optional(), preset: z.string().optional(),
+});
+export const trigger = z.object({
+  id, on: z.enum(["load", "inView", "hover", "click", "scroll", "pointer"]), animation: id, delay: z.number().optional(), once: z.boolean().optional(),
+  reverseOnLeave: z.boolean().optional(), toggle: z.boolean().optional(), range: z.tuple([z.number(), z.number()]).optional(), axis: z.enum(["x", "y"]).optional(), pauseOnHover: z.boolean().optional(),
 });
 
 export const node: z.ZodType<Node> = z.lazy(() =>
@@ -105,7 +110,7 @@ export const node: z.ZodType<Node> = z.lazy(() =>
     children: z.array(node).optional(),
     bindings: z.record(z.string(), binding).optional(),
     interactions: z.array(interaction).optional(),
-    animations: z.array(animationRun).optional(),
+    triggers: z.array(trigger).optional(),
     locked: z.boolean().optional(),
     hidden: z.record(z.string(), z.boolean()).optional(),
     source: sourceRef.optional(),
@@ -218,6 +223,7 @@ export const page = z.object({
   seo: pageSeo.optional(),
   state: z.record(z.string(), z.object({ type: z.enum(["boolean", "number", "text"]), initial: z.unknown() })).optional(),
   locales: z.array(locale).optional(),
+  triggers: z.array(trigger).optional(),
   source: sourceRef.optional(),
 });
 
@@ -246,7 +252,7 @@ export const entry = z.object({
 });
 
 export const site = z.object({
-  schemaVersion: z.literal(2),
+  schemaVersion: z.literal(3),
   id,
   name: z.string(),
   settings: z.object({
@@ -279,7 +285,7 @@ export const site = z.object({
   pages: z.array(page),
   assets: z.array(asset),
   redirects: z.array(z.object({ from: z.string(), to: z.string(), permanent: z.boolean() })),
-  animations: z.array(animationDef).optional(),
+  animations: z.array(animation),
 });
 
 /** Opérations (section 9 du modèle). `prev` est accepté mais ignoré côté serveur. */

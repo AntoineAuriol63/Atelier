@@ -1,9 +1,9 @@
 import type { ComponentDef, Inline, Mark, Node, Overrides, Page, Site, ViewConfig } from "@atelier/model";
-import { animationTargetKind, applyOverrides, variantClasses } from "@atelier/model";
+import { animationById, applyOverrides, resolveTrackTarget, variantClasses } from "@atelier/model";
 import { createElement, Fragment, type ReactNode } from "react";
 import { nodeClassName } from "./css";
 import { INTERACTION_SCRIPT, animationsAttr, hasInteractions, hasMotion, interactionsAttr, marqueeOf } from "./interactions";
-import { findComponent, findDatabase, localized, resolveBinding, resolveHref, type RenderContext } from "./context";
+import { findComponent, findDatabase, localized, resolveBinding, resolveHref, type AnimTargets, type RenderContext } from "./context";
 
 const BOX_TAGS = new Set(["div", "section", "header", "footer", "nav", "article", "aside", "main", "figure", "figcaption", "span"]);
 const TEXT_TAGS = new Set(["p", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "span", "label", "div", "figcaption", "li"]);
@@ -33,7 +33,7 @@ function attrs(node: Node, ctx: RenderContext, extra: Record<string, unknown> = 
   if (anim) a["data-anim"] = anim;
   // Cible d'une animation portée par un autre élément (section 8.4) : marquée, et numérotée pour le décalage.
   const mark = ctx.animChild?.of === node.id ? ctx.animChild : undefined;
-  if (mark || ctx.animTargets?.has(node.id)) a["data-anim-target"] = "";
+  if (mark || ctx.animTargets?.targets.has(node.id)) a["data-anim-target"] = "";
   if (mark) a.style = { ...((extra.style as Record<string, unknown> | undefined) ?? {}), "--at-i": mark.i, "--at-n": mark.n };
   if (node.props.countUp) a["data-countup"] = "";
   if (node.props.anchor) a.id = String(node.props.anchor);
@@ -74,10 +74,9 @@ function wrapMarks(text: ReactNode, marks: Mark[] | undefined, key: string): Rea
 
 // ---------------------------------------------------------------- texte découpé (section 8.4)
 
-/** Découpage le plus fin demandé par les animations d'un texte : lettres, mots, ou rien. */
-export function splitOf(node: Node): "words" | "letters" | undefined {
-  const modes = (node.animations ?? []).map((r) => r.split).filter(Boolean);
-  return modes.includes("letters") ? "letters" : modes.includes("words") ? "words" : undefined;
+/** Découpage le plus fin demandé par les pistes qui visent un texte : lettres, mots, ou rien. */
+export function splitOf(node: Node, ctx: RenderContext): "words" | "letters" | undefined {
+  return ctx.animTargets?.split.get(node.id);
 }
 let segmenter: { segment: (s: string) => Iterable<{ segment: string }> } | null | undefined;
 function graphemes(word: string): string[] {
@@ -127,10 +126,20 @@ function renderSplit(list: Inline[] | undefined, ctx: RenderContext, mode: "word
   });
 }
 
-/** Éléments visés par une animation d'un autre élément (`target.node`), sur la page et dans les composants. */
-export function collectAnimTargets(site: Site, page: Page): Set<string> {
-  const out = new Set<string>();
-  const visit = (n: Node) => { for (const r of n.animations ?? []) if (r.target && "node" in r.target && !r.split) out.add(r.target.node); n.children?.forEach(visit); };
+/** Ce que visent les animations de la page (déclencheurs des éléments, des composants et de la page) : cibles d'un autre élément, parents dont les enfants sont animés, textes découpés. */
+export function collectAnimTargets(site: Site, page: Page): AnimTargets {
+  const out: AnimTargets = { targets: new Set(), children: new Set(), split: new Map() };
+  const take = (host: string, triggers: import("@atelier/model").Trigger[] | undefined) => {
+    for (const t of triggers ?? []) for (const track of animationById(site, t.animation)?.tracks ?? []) {
+      const r = resolveTrackTarget(track.target, host);
+      if ("selector" in r) continue;
+      if (r.children) out.children.add(r.node);
+      else if (r.split) { const cur = out.split.get(r.node); if (r.split === "letters" || !cur) out.split.set(r.node, r.split); }
+      else if (r.node !== host) out.targets.add(r.node);
+    }
+  };
+  const visit = (n: Node) => { take(n.id, n.triggers); n.children?.forEach(visit); };
+  take(page.root.id, page.triggers);
   visit(page.root);
   site.components.forEach((c) => visit(c.root));
   return out;
@@ -140,7 +149,7 @@ export function collectAnimTargets(site: Site, page: Page): Set<string> {
 
 export function RenderNode({ node, ctx }: { node: Node; ctx: RenderContext }): ReactNode {
   // Une animation qui vise « ses enfants » : chaque enfant est numéroté (décalage) et marqué comme cible.
-  const staggerKids = !!node.animations?.some((r) => animationTargetKind(r) === "children");
+  const staggerKids = !!ctx.animTargets?.children.has(node.id);
   const kidCtx = (c: Node, i: number, n: number): RenderContext => (staggerKids ? { ...ctx, animChild: { of: c.id, i, n } } : ctx);
   const children = () => node.children?.map((c, i, all) => createElement(RenderNode, { key: keyOf(c), node: c, ctx: kidCtx(c, i, all.length) }));
 
@@ -159,7 +168,7 @@ export function RenderNode({ node, ctx }: { node: Node; ctx: RenderContext }): R
       const bound = node.bindings?.content ? resolveBinding(node.bindings.content, ctx) : undefined;
       // Un champ « texte long » est une suite de nœuds : ils se rendent dans une boîte, avec la classe du texte lié.
       if (Array.isArray(bound)) return createElement("div", attrs(node, ctx, { "data-richtext": true }), (bound as Node[]).map((c) => createElement(RenderNode, { key: c.id, node: c, ctx })));
-      const split = splitOf(node);
+      const split = splitOf(node, ctx);
       const inlines = bound !== undefined && bound !== null ? [{ t: "text" as const, v: String(bound) }] : localized<Inline[]>(node.props.content, ctx);
       if (split && inlines?.length) {
         // Texte découpé (section 8.4) : mots ou lettres en spans ; en lettres, le texte complet passe en aria-label.
@@ -291,10 +300,12 @@ function hasForm(n: Node): boolean { return n.type === "form" || (n.children ?? 
 export function RenderPage({ ctx: given, mode }: { ctx: RenderContext; mode?: string }): ReactNode {
   const page: Page = given.page;
   const ctx: RenderContext = given.animTargets ? given : { ...given, animTargets: collectAnimTargets(given.site, page) };
+  // Les déclencheurs de page sont portés par la racine.
+  const root: Node = page.triggers?.length ? { ...page.root, triggers: [...(page.root.triggers ?? []), ...page.triggers] } : page.root;
   const withForm = hasForm(page.root) || ctx.site.components.some((c) => hasForm(c.root));
-  const withIx = hasInteractions(page.root) || ctx.site.components.some((c) => hasInteractions(c.root)) || hasMotion(page.root) || ctx.site.components.some((c) => hasMotion(c.root));
+  const withIx = hasInteractions(page.root) || ctx.site.components.some((c) => hasInteractions(c.root)) || hasMotion(root) || ctx.site.components.some((c) => hasMotion(c.root));
   return createElement("div", { className: "at-page", "data-mode": mode ?? ctx.site.theme.defaultMode, lang: ctx.locale, "data-editor": ctx.editor ? "" : undefined },
-    createElement(RenderNode, { node: page.root, ctx }),
+    createElement(RenderNode, { node: root, ctx }),
     withForm && !ctx.editor && !ctx.deferScripts ? createElement("script", { dangerouslySetInnerHTML: { __html: FORM_SCRIPT } }) : null,
     // Dans l'éditeur, pas de script (React ne l'exécuterait pas au rendu suivant) : `applyInstantStates` pose l'état d'arrivée après chaque rendu.
     withIx && !ctx.editor && !ctx.deferScripts ? createElement("script", { dangerouslySetInnerHTML: { __html: INTERACTION_SCRIPT } }) : null,

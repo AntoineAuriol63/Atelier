@@ -372,44 +372,51 @@ Un nœud peut avoir `hidden` conditionnel via `bindings: { "visible": { source: 
 
 ### 8.4 Animations
 
-Une animation est une suite d'**étapes** (des images-clés, comme en CSS) jouée sur un élément par un **déclencheur**. Elle vit soit dans la bibliothèque du site (`site.animations`, réutilisable, nommée), soit en ligne sur le nœud.
+Cadrage : `docs/cadrage-animation.md`. Une **animation** est une ligne de temps nommée, rangée dans le site, faite de **pistes** (une par élément animé) portant des **images-clés** en millisecondes. Un **déclencheur**, posé sur un élément ou sur une page, lance une animation. Une animation peut être lancée par plusieurs déclencheurs ; un élément peut porter plusieurs déclencheurs.
 
 ```ts
-type Keyframe = { at: number; style: StyleProps };          // at : position de 0 à 100
-type AnimationDef = { id: Id; name: string; keyframes: Keyframe[] };
-type AnimationRun = {
-  id: Id;
-  animation: Id | { keyframes: Keyframe[] };                // bibliothèque, ou étapes propres au nœud
-  preset?: string;                                          // sorte d'origine (fade-up, float, spin…), pour l'interface
-  trigger: "load" | "inView" | "hover" | "click" | "scroll";
-  duration: number;                                         // ms (pour scroll : sans effet, la position pilote)
-  delay?: number;                                           // ms
-  easing?: string;                                          // courbe CSS
-  iterations?: number | "infinite";                         // défaut 1
-  direction?: "normal" | "reverse" | "alternate" | "alternate-reverse";
-  fill?: "none" | "forwards" | "backwards" | "both";        // défaut both
-  once?: boolean;                                           // inView : une seule fois (défaut vrai) ; sinon rejouée à chaque entrée
-  pauseOnHover?: boolean;                                   // en pause tant que la souris est dessus
-  range?: [number, number];                                 // scroll : fraction de la traversée de l'écran où l'animation va de 0 à 100 % (défaut [0, 1])
-  target?: { self: true } | { children: true } | { node: Id } | { selector: string };   // ce que l'animation anime (défaut : l'élément lui-même)
-  split?: "words" | "letters";                              // texte : chaque mot ou chaque lettre est un morceau animé (la cible est alors l'élément)
-  stagger?: { each: number; from?: "start" | "end" | "center" };   // plusieurs éléments animés : `each` ms de délai en plus par rang, compté depuis le début (défaut), la fin ou le centre
-  reverseOnLeave?: boolean;                                 // hover : au départ de la souris, l'animation revient en arrière au lieu de se couper
-  toggle?: boolean;                                         // click : un clic joue, le suivant revient en arrière
+type Keyframe = { at: number; style: StyleProps; easing?: string };   // at en ms ; easing : courbe pour atteindre cette image depuis la précédente (CSS, ou spring(raideur, amortissement))
+type TrackTarget =
+  | { trigger: true; children?: true; split?: "words" | "letters" }   // l'élément qui porte le déclencheur (relatif), ou ses enfants directs (les cartes d'une vue), ou ses mots / lettres
+  | { node: Id; children?: true; split?: "words" | "letters" }        // un élément précis de la page
+  | { selector: string };                                             // libre, joué par le script seulement
+type Track = { id: Id; target: TrackTarget; stagger?: { each: number; from?: "start" | "end" | "center" }; keyframes: Keyframe[] };
+type Animation = {
+  id: Id; name: string;
+  duration: number;                          // ms : longueur de la ligne de temps (au moins la dernière image-clé)
+  tracks: Track[];
+  loop?: number | "infinite";                // rejouer N fois ou sans fin (défaut : une fois)
+  alternate?: boolean;                       // en boucle : aller-retour
+  preset?: string;                           // préréglage d'origine, pour l'interface
 };
-Node.animations?: AnimationRun[];
-Site.animations?: AnimationDef[];
+type Trigger = {
+  id: Id;
+  on: "load" | "inView" | "hover" | "click" | "scroll" | "pointer";
+  animation: Id;
+  delay?: number;                            // ms
+  once?: boolean;                            // inView : une fois (défaut) ou à chaque passage
+  reverseOnLeave?: boolean;                  // hover : revient en arrière au départ de la souris
+  toggle?: boolean;                          // click : un clic sur deux rembobine
+  range?: [number, number];                  // scroll : part de la traversée de l'écran qui parcourt la ligne de temps (défaut [0, 1])
+  axis?: "x" | "y";                          // pointer : la position de la souris parcourt la ligne de temps (défaut y)
+  pauseOnHover?: boolean;
+};
+Node.triggers?: Trigger[];
+Page.triggers?: Trigger[];                   // déclencheurs de page : l'élément porteur est la racine de la page
+Site.animations: Animation[];
 ```
 
-Rendu (`packages/renderer`) : chaque animation devient un bloc `@keyframes` dans la feuille de style (`an-<id>` pour la bibliothèque, `ak-<id de run>` en ligne) ; un déclencheur `load` est une simple propriété `animation` CSS (sans script) ; `hover` une règle `:hover` ; `inView` la même propriété **en pause** (`animation-play-state: paused`, remplissage `both`, donc l'élément montre sa première étape) que le script lance à l'entrée dans l'écran et remet à zéro à la sortie si `once` est faux ; `click` et `scroll` sont joués par le script avec l'API Web Animations (le script lit `data-anim`, où les étapes sont recopiées), la position de défilement pilotant le temps courant pour `scroll`. `pauseOnHover` met l'animation en pause au survol. Dans l'éditeur (`.at-page[data-editor]`), aucune animation ne joue : on voit l'état de repos, et le bouton « Jouer » de l'inspecteur la rejoue une fois sur demande. Avec « réduire les animations » et sans script, l'élément est simplement à son état de repos. L'état de repos d'un élément est son style ordinaire : une apparition ne modifie plus `style.base` (l'ancienne écriture, interaction `inView` + `opacity: 0` posé dans le style, est convertie à la lecture par la migration 1 → 2).
+Règles :
 
-**Cible, découpage, décalage.** Une animation portée par un élément peut animer autre chose que lui : ses enfants directs (`children` ; pour une vue, ses cartes), un autre élément de la page (`node`, par son identifiant : un bouton qui fait bouger un panneau), ou un sélecteur CSS libre (`selector`). Un texte peut être **découpé** (`split`) : chaque mot, ou chaque lettre, devient un morceau animé. Quand plusieurs éléments sont animés (enfants, morceaux), le **décalage** (`stagger`) ajoute `each` ms de délai par rang ; le rang se compte depuis le début (`start`, défaut), la fin (`end` : le dernier part en premier) ou le centre (`center` : du milieu vers les bords). Rendu : la règle CSS est émise sur la cible (`.n-hôte>*` pour les enfants, `.n-cible` pour un autre élément, `.n-hôte .at-piece` pour les morceaux ; au survol d'une autre cible, `.at-page:has(.n-hôte:hover) .n-cible`) ; un sélecteur libre n'est joué que par le script. Chaque élément animé qui n'est pas le porteur reçoit `data-anim-target`, et les règles « rien dans l'éditeur », « réduire les animations » et sans script s'appuient sur `[data-anim]` et `[data-anim-target]`. Pour le décalage, chaque élément animé porte `--at-i` (son ordre) et `--at-n` (leur nombre), et le délai s'écrit `calc(délai + rang × each)`, le rang valant `i` (début), `n − 1 − i` (fin) ou `|i − (n − 1) / 2|` (centre) ; le script fait le même calcul. Le découpage rend le texte en morceaux `<span class="at-piece">` (mots) ; en lettres, chaque mot est un `<span class="at-word">` de lettres, pour que les lignes se coupent entre les mots ; les espaces restent hors des morceaux, les marques (gras, liens…) sont conservées, le découpage le plus fin parmi les animations du texte l'emporte, et en lettres l'élément porte `aria-label` avec le texte complet (les morceaux sont `aria-hidden`). Un texte lié à un champ « texte long » ne se découpe pas.
+- Une image-clé ne contient que les propriétés qui changent ; la première image-clé d'une piste peut être vide (elle vaut l'état de repos). Une piste a au moins deux images-clés pour être rendue. `at` est en millisecondes ; une piste va de sa première à sa dernière image-clé (sa **portée**), et la ligne de temps de l'animation les contient toutes.
+- En attendant sa portée, l'élément montre la première image ; après, il reste sur la dernière (remplissage `both`, sans réglage). Une apparition finit donc par l'état de repos, et un survol reste grossi tant que la souris est là.
+- Les cibles relatives (`trigger`) rendent une animation réutilisable sur d'autres éléments et d'autres pages, et sont les seules que porte un préréglage ; une cible `node` attache l'animation à une page. `children` vise les enfants directs (pour une vue, ses cartes), `split` les mots ou les lettres d'un texte.
+- Décalage (`stagger`) : quand la piste vise plusieurs éléments, chacun part `each` ms plus tard par rang, compté depuis le début (`start`, défaut), la fin (`end`) ou le centre (`center` : `|i − (n − 1) / 2|`).
+- Les interactions d'état (afficher, masquer, changer de variante) restent dans `Node.interactions` ; le bandeau (`props.marquee: { duration, direction: "left" | "right" | "up" | "down", pauseOnHover }`), la parallaxe (`props.parallax`) et le compteur (`props.countUp`) restent des propriétés.
 
-**Retour et bascule.** Au survol, `reverseOnLeave` fait revenir l'animation en arrière quand la souris part (au lieu de la couper net) ; au clic, `toggle` fait qu'un clic joue et que le suivant revient en arrière. Ces deux comportements sont joués par le script (API Web Animations, `reverse()`), pas en CSS : sans script, l'élément reste au repos.
+Rendu (`packages/renderer`) : chaque piste de chaque animation devient un bloc `@keyframes at-<animation>-<piste>` (positions en % de sa portée, courbe d'un segment posée en `animation-timing-function` sur l'image qui l'ouvre, ressort échantillonné en `linear(…)` sur la durée du segment). Pour chaque déclencheur, la règle est émise sur la cible résolue (`.n-hôte`, `.n-hôte>*`, `.n-hôte .at-piece`, `.n-cible`, `.at-page:has(.n-hôte:hover) .n-cible` au survol d'un autre élément) : `animation: at-… <portée>ms … <délai + début de portée>ms <répétitions> <sens> both`, avec `animation-delay` en `calc()` et `--at-i`/`--at-n` sur les éléments quand il y a décalage. `load` et `hover` sans retour sont en CSS pur ; `inView` est en pause (`animation-play-state: paused`) jusqu'au script ; `click`, `scroll` (la position de défilement parcourt la ligne de temps), `pointer` (la souris la parcourt), le retour au départ de la souris (`reverse()`), la bascule au clic, et toute piste à sélecteur libre sont joués par le script avec l'API Web Animations, qui lit `data-anim` (déclencheurs et pistes recopiés, déclarations résolues). Les éléments animés qui ne sont pas le porteur reçoivent `data-anim-target` ; les règles « rien dans l'éditeur » (`.at-page[data-editor]`), « réduire les animations » et `<noscript>` s'appuient sur `[data-anim]` et `[data-anim-target]`. Un texte découpé se rend en `<span class="at-piece">` par mot, ou par lettre dans un `<span class="at-word">` par mot ; espaces hors des morceaux, marques conservées, `aria-label` en lettres ; un texte lié à un champ « texte long » ne se découpe pas. Dans l'éditeur, aucune animation ne joue d'elle-même : le mode Animation montre l'état à la tête de lecture, « Jouer » rejoue une animation sur ses cibles. Une animation ne pose rien dans `style` : la retirer laisse l'élément tel quel.
 
-**Ressorts.** `easing` accepte, en plus des courbes CSS, `spring(raideur, amortissement)` (masse 1, par exemple `spring(170, 26)`). Le rendu échantillonne la réponse du ressort sur la durée du run et l'écrit en `linear(…)`, la courbe CSS par points, comprise en CSS comme par l'API Web Animations ; la durée d'un run à ressort est par défaut son temps de stabilisation (`springDuration`), que l'éditeur pose quand on choisit ou règle le ressort, et qu'on peut changer ensuite (la courbe est alors étirée ou coupée). Un amortissement faible fait dépasser la cible (rebond), un amortissement fort l'atteint sans dépasser.
-
-Les cas particuliers d'avant sont des animations comme les autres : une **apparition** est un run `inView` avec une des étapes prêtes à l'emploi (fondu, fondu en montant…) ; un **bandeau défilant** reste une propriété de boîte, `marquee: { duration, direction: "left" | "right" | "up" | "down", pauseOnHover }`, parce qu'il change aussi la structure (les enfants sont dupliqués dans une piste) ; la **parallaxe** (`props.parallax`) et le **compteur** (`props.countUp`) restent des propriétés simples. Une animation ne pose aucune valeur dans `style` : la supprimer rend l'élément exactement tel qu'il est stylé.
+Migration 2 → 3 : chaque ancien `AnimationRun` d'un nœud devient une animation du site (images-clés de % en ms sur la durée du run, courbe du run posée sur chaque segment, `iterations` → `loop`, `direction` alternée → `alternate`, cible et découpage → cible de piste relative, décalage conservé) et un déclencheur sur le nœud (même identifiant que le run) ; un run qui renvoyait à la bibliothèque reçoit sa propre copie, nommée comme l'entrée de bibliothèque, et la bibliothèque d'avant disparaît. Migration 1 → 2 (inchangée) : les apparitions écrites en interactions deviennent des runs, puis passent par 2 → 3.
 
 ## 9. Opérations
 
@@ -448,11 +455,12 @@ type Page = {
   seo?: PageSeo;                  // titre, description, image, index, canonical ; composables avec {champ}
   state?: PageState;
   locales?: Locale[];             // sous-ensemble si la page n'existe pas dans toutes les langues
+  triggers?: Trigger[];           // déclencheurs de page (section 8.4)
   source?: SourceRef;
 };
 
 type Site = {
-  schemaVersion: 1;
+  schemaVersion: 3;
   id: Id;
   name: string;
   settings: {
@@ -468,6 +476,7 @@ type Site = {
   codeComponents: CodeComponent[];
   databases: Database[];
   pages: Page[];
+  animations: Animation[];      // lignes de temps du site (section 8.4)
   assets: Asset[];
   redirects: { from: string; to: string; permanent: boolean }[];   // `from` exact ou préfixe `/dossier/*`, `to` chemin ou adresse, `*` reprend le reste (D39)
 };
