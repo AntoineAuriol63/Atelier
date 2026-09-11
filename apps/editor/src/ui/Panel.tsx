@@ -22,7 +22,7 @@ export function Eyebrow({ children, className, as: Tag = "span", title }: { chil
 /** En-tête de panneau ou de zone : titre en capitales espacées. */
 export function PanelHeading({ children, actions, className, as: Tag = "h2" }: { children: ReactNode; actions?: ReactNode; className?: string; /** Niveau de titre : la structure du document suit les zones de l'éditeur. */ as?: "h2" | "h3" | "span" }) {
   return (
-    <div className={cx("flex items-center justify-between px-3 h-8 shrink-0", className)}>
+    <div className={cx("flex items-center justify-between px-3 h-9 shrink-0 border-b border-line", className)}>
       <Eyebrow as={Tag}>{children}</Eyebrow>
       {actions}
     </div>
@@ -51,15 +51,15 @@ export function Section({ title, children, defaultOpen = true, actions, classNam
   }, [title]);
   return (
     <section className={cx("border-b border-line", className)} data-section={title}>
-      <div className="flex items-center h-8 pr-2">
-        <h3 className="contents m-0 text-xs font-medium"><button type="button" onClick={() => setOpen((o) => !o)} className="flex-1 flex items-center gap-1.5 h-full pl-2 text-xs font-medium text-ink hover:bg-hover/60" aria-expanded={open}>
+      <div className="flex items-center h-9 pr-2 bg-panel">
+        <h3 className="contents m-0 text-xs font-medium"><button type="button" onClick={() => setOpen((o) => !o)} className="flex-1 flex items-center gap-2 h-full pl-3 text-xs font-medium text-ink hover:bg-hover/80 rounded-sm" aria-expanded={open}>
           <ChevronRight size={12} className={cx("text-dim transition-transform", open && "rotate-90")} aria-hidden />
           {title}
           {hint ? <Tooltip text={hint}><span className="inline-flex" tabIndex={-1}><Info size={11} className="text-dim ml-0.5" aria-hidden /></span></Tooltip> : null}
         </button></h3>
         {actions}
       </div>
-      {open ? <div className="px-3 pb-3 flex flex-col gap-2">{hint ? <p className="text-xs text-dim leading-snug -mt-1">{hint}</p> : null}{children}</div> : null}
+      {open ? <div className="px-3 pb-4 pt-1 flex flex-col gap-2.5">{hint ? <p className="text-xs text-dim leading-snug -mt-1">{hint}</p> : null}{children}</div> : null}
     </section>
   );
 }
