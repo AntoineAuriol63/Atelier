@@ -11,7 +11,7 @@ export function privateAddress(address: string): boolean {
   const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(ip);
   if (mapped) return privateAddress(mapped[1]!);
   if (isIP(ip) !== 4) return false;
-  const [a, b] = ip.split(".").map(Number);
+  const [a = -1, b = -1] = ip.split(".").map(Number);
   return a === 0 || a === 10 || a === 127 || a >= 224 ||
     (a === 100 && b >= 64 && b <= 127) ||
     (a === 169 && b === 254) ||
