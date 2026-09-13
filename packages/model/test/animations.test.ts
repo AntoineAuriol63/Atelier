@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ANIMATION_PRESETS, BASE, animationById, animationFromPreset, animationUsages, applyOps, describeAnimation, describeTrigger, easingCss, isPresetIntact, keyframeAt, keyframeStyleAt, migrate, parseSpring, planAddTrack, planAddTrigger, planApplyPreset, planRemoveAnimation, planRemoveKeyframe, planRemoveKeyframes, planRemoveTrack, planQuickAnimation, planQuickDetail, planRemoveTrigger, planRemoveTriggerWithAnimation, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUnsetKeyframeProp, planUpdateAnimation, planUpdateTrack, planUpdateTrigger, presetById, quickAnimation, resolveTrackTarget, sampleSite, schema, shiftDelta, springDuration, springEasing, springSamples, staggerDelay, staggerRank, trackSpan, trackTargetFor, withTargetKind, type Animation, type Node, type Site, type Trigger } from "../src";
+import { ANIMATION_PRESETS, BASE, animationById, animationFromPreset, animationUsages, applyOps, describeAnimation, describeTrigger, easingCss, isPresetIntact, keyframeAt, keyframeStyleAt, migrate, parseSpring, planAddPageTrigger, planAddTrack, planAddTrigger, planApplyPreset, planRemoveAnimation, planRemoveKeyframe, planRemoveKeyframes, planRemovePageTriggerWithAnimation, planRemoveTrack, planQuickAnimation, planQuickDetail, planRemoveTrigger, planRemoveTriggerWithAnimation, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUnsetKeyframeProp, planUpdateAnimation, planUpdatePageTrigger, planUpdateTrack, planUpdateTrigger, presetById, quickAnimation, resolveTrackTarget, sampleSite, schema, shiftDelta, springDuration, springEasing, springSamples, staggerDelay, staggerRank, trackSpan, trackTargetFor, withTargetKind, type Animation, type Node, type Site, type Trigger } from "../src";
 const siteSchema = schema.site;
 
 const node = (site: Site, id: string): Node => { let out: Node | undefined; const dfs = (n: Node) => { if (n.id === id) out = n; n.children?.forEach(dfs); }; site.pages.forEach((p) => dfs(p.root)); return out!; };
@@ -270,6 +270,24 @@ describe("animations : choix rapides (préréglages en un geste)", () => {
     expect(site.animations).toHaveLength(1);
     ({ site } = applyOps(site, planRemoveTriggerWithAnimation(site, find(site, "qk_title"), "tr_share")));
     expect(site.animations).toHaveLength(0);
+    expect(siteSchema.safeParse(site).success).toBe(true);
+  });
+});
+
+describe("animations : déclencheurs de page", () => {
+  it("ajouter, régler et retirer un déclencheur de page ; son animation part avec lui si plus rien ne la lance", () => {
+    const a = animationFromPreset(presetById("fade")!, { id: "an_page" });
+    let site: Site = { ...sampleSite, animations: [a] };
+    const pageId = site.pages[0]!.id;
+    ({ site } = applyOps(site, planAddPageTrigger(site, pageId, { id: "pg_tr", on: "scroll", animation: "an_page" })));
+    expect(site.pages[0]!.triggers).toEqual([{ id: "pg_tr", on: "scroll", animation: "an_page" }]);
+    expect(animationUsages(site, "an_page").map((u) => u.page?.id)).toEqual([pageId]);
+    ({ site } = applyOps(site, planUpdatePageTrigger(site, pageId, "pg_tr", { range: [0.2, 0.8] })));
+    expect(site.pages[0]!.triggers![0]).toMatchObject({ range: [0.2, 0.8] });
+    ({ site } = applyOps(site, planRemovePageTriggerWithAnimation(site, pageId, "pg_tr")));
+    expect(site.pages[0]!.triggers).toBeUndefined();
+    expect(site.animations).toEqual([]);
+    expect(planUpdatePageTrigger(site, "inconnue", "pg_tr", {})).toEqual([]);
     expect(siteSchema.safeParse(site).success).toBe(true);
   });
 });

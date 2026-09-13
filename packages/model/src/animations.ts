@@ -99,6 +99,29 @@ export function planRemoveTriggerWithAnimation(site: Site, node: Node, triggerId
   return ops;
 }
 
+// ---------------------------------------------------------------- déclencheurs de page (portés par la racine au rendu)
+
+const pageTriggersOp = (site: Site, pageId: Id, fn: (list: Trigger[]) => Trigger[]): Op[] => {
+  const i = site.pages.findIndex((p) => p.id === pageId);
+  if (i < 0) return [];
+  const list = fn(site.pages[i]!.triggers ?? []);
+  return [{ op: "site.set", path: `pages.${i}.triggers`, value: list.length ? list : undefined }];
+};
+export function planAddPageTrigger(site: Site, pageId: Id, trigger: Trigger): Op[] {
+  return pageTriggersOp(site, pageId, (list) => [...list, trigger]);
+}
+export function planUpdatePageTrigger(site: Site, pageId: Id, id: Id, patch: Partial<Trigger>): Op[] {
+  return pageTriggersOp(site, pageId, (list) => list.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+}
+/** Retire un déclencheur de page et, si plus rien ne la lance, son animation. */
+export function planRemovePageTriggerWithAnimation(site: Site, pageId: Id, id: Id): Op[] {
+  const t = site.pages.find((p) => p.id === pageId)?.triggers?.find((x) => x.id === id);
+  if (!t) return [];
+  const ops = pageTriggersOp(site, pageId, (list) => list.filter((x) => x.id !== id));
+  if (animationUsages(site, t.animation).length <= 1) ops.push({ op: "site.set", path: "animations", value: site.animations.filter((a) => a.id !== t.animation) });
+  return ops;
+}
+
 // ---------------------------------------------------------------- choix rapides (cadrage § 4.2 et § 4.3)
 
 const sameStyle = (a: StyleProps, b: StyleProps) => { const keys = new Set([...Object.keys(a), ...Object.keys(b)]); return [...keys].every((k) => JSON.stringify(a[k]) === JSON.stringify(b[k])); };

@@ -70,6 +70,7 @@ export function marqueeOf(node: Node): { duration: number; direction?: "left" | 
  * pour le script (entrée dans l'écran, clic, défilement, souris, retour, bascule, sélecteurs libres) et pour « Jouer » dans l'éditeur.
  * Piste : `tg` absent (l'élément), "children", "pieces", ou `{ s, m? }` (sélecteur, avec `m` enfants ou morceaux) ; `st` décalage ;
  * `s` début, `d` portée, `k` images `{ o, c, e }` (position 0-1, déclarations, courbe vers l'image suivante).
+ * Déclencheur : `pg` quand il appartient à la page (au défilement, la progression de toute la page parcourt la ligne de temps).
  */
 export function animationsAttr(node: Node, ctx: RenderContext, triggers: Trigger[] = node.triggers ?? []): string | undefined {
   if (!triggers.length) return undefined;
@@ -89,7 +90,9 @@ export function animationsAttr(node: Node, ctx: RenderContext, triggers: Trigger
       const span = end - start || 1;
       return { tg, st: track.stagger ? [track.stagger.each, track.stagger.from ?? "start"] : undefined, s: start, d: end - start, k: kfs.map((k, i) => ({ o: Number(((k.at - start) / span).toFixed(4)), c: declarations(k.style, ctx.assets), e: kfs[i + 1]?.easing ? easingCss(kfs[i + 1]!.easing, kfs[i + 1]!.at - k.at) : undefined })) };
     });
-    return [{ i: t.id, t: t.on, dl: t.delay ?? 0, once: t.once !== false, ph: !!t.pauseOnHover, rv: t.reverseOnLeave ? 1 : undefined, tog: t.toggle ? 1 : undefined, r: t.range ?? [0, 1], ax: t.axis ?? "y", dur: animationLength(a), loop: a.loop ?? 1, alt: !!a.alternate, tr, js }];
+    // Déclencheur de page (porté par la racine) : au défilement, c'est la progression de toute la page qui parcourt la ligne de temps.
+    const pg = node.id === ctx.page.root.id && ctx.page.triggers?.some((x) => x.id === t.id) ? 1 : undefined;
+    return [{ i: t.id, t: t.on, pg, dl: t.delay ?? 0, once: t.once !== false, ph: !!t.pauseOnHover, rv: t.reverseOnLeave ? 1 : undefined, tog: t.toggle ? 1 : undefined, r: t.range ?? [0, 1], ax: t.axis ?? "y", dur: animationLength(a), loop: a.loop ?? 1, alt: !!a.alternate, tr, js }];
   });
   return wire.length ? JSON.stringify(wire) : undefined;
 }
@@ -154,10 +157,10 @@ if(!instant){document.querySelectorAll("[data-anim]").forEach(function(el){var r
  var live={};var each=function(fn){for(var k in live)live[k].forEach(fn);};var pauseAll=function(){each(function(an){an.pause();});};var playAll=function(){each(function(an){if(an.playState==="paused"&&!an.__scrub)an.play();});};
  if(runs.some(function(a){return a.ph&&a.t!=="load"&&a.t!=="hover";})){el.addEventListener("mouseenter",pauseAll);el.addEventListener("mouseleave",playAll);}
  var cancel=function(a){(live[a.i]||[]).forEach(function(an){an.cancel();});delete live[a.i];};
- var scrub=function(a){var list=[];a.tr.forEach(function(tr){A.els(el,tr).forEach(function(t,i){var an=t.animate(A.toKf(tr.k),{duration:tr.d,delay:A.delay(a,tr,i,1),easing:"ease",fill:"both"});an.pause();an.__scrub=true;list.push(an);});});live[a.i]=list;return function(q){list.forEach(function(an){an.currentTime=Math.max(0,Math.min(1,q))*a.dur;});};};
+ var scrub=function(a){var list=[];var once={dl:0,loop:1,alt:false};a.tr.forEach(function(tr){var ts=A.els(el,tr);ts.forEach(function(t,i){var o=A.opts(once,tr,{fill:"both"});o.delay=A.delay(once,tr,i,ts.length);var an=t.animate(A.toKf(tr.k),o);an.pause();an.__scrub=true;list.push(an);});});live[a.i]=list;return function(q){list.forEach(function(an){an.currentTime=Math.max(0,Math.min(1,q))*a.dur;});};};
  runs.forEach(function(a){
   if(a.t==="click"){el.addEventListener("click",function(){if(a.tog&&live[a.i]&&live[a.i].length){live[a.i].forEach(function(an){an.reverse();});}else{live[a.i]=window.__atelierPlay(el,a);}});}
-  else if(a.t==="scroll"){var set=scrub(a);var tick=false;var upd=function(){tick=false;var vh=window.innerHeight,r=el.getBoundingClientRect();var p=(vh-r.top)/(vh+r.height);var lo=a.r[0],hi=a.r[1];set(hi>lo?(p-lo)/(hi-lo):p);};var onS=function(){if(!tick){tick=true;requestAnimationFrame(upd);}};window.addEventListener("scroll",onS,{passive:true});window.addEventListener("resize",onS);upd();}
+  else if(a.t==="scroll"){var set=scrub(a);var tick=false;var upd=function(){tick=false;var vh=window.innerHeight,r=el.getBoundingClientRect(),de=document.documentElement;var p=a.pg?(window.scrollY||de.scrollTop||0)/Math.max(1,de.scrollHeight-vh):(vh-r.top)/(vh+r.height);var lo=a.r[0],hi=a.r[1];set(hi>lo?(p-lo)/(hi-lo):p);};var onS=function(){if(!tick){tick=true;requestAnimationFrame(upd);}};window.addEventListener("scroll",onS,{passive:true});window.addEventListener("resize",onS);upd();}
   else if(a.t==="pointer"){var setP=scrub(a);window.addEventListener("mousemove",function(ev){setP(a.ax==="x"?ev.clientX/window.innerWidth:ev.clientY/window.innerHeight);},{passive:true});}
   else if(a.js&&a.t==="load"){live[a.i]=window.__atelierPlay(el,a);}
   else if(a.js&&a.t==="hover"){el.addEventListener("mouseenter",function(){if(a.rv&&live[a.i]&&live[a.i].length){live[a.i].forEach(function(an){if(an.playbackRate<0)an.reverse();});}else{cancel(a);live[a.i]=window.__atelierPlay(el,a);}});el.addEventListener("mouseleave",function(){if(a.rv){(live[a.i]||[]).forEach(function(an){if(an.playbackRate>0)an.reverse();});}else{cancel(a);}});}

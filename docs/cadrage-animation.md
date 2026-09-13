@@ -119,7 +119,7 @@ Chaque étape : contrat d'abord, tests rouges, code, vérification dans l'édite
 3. ✅ (13 sept.) **Mode Animation, lecture** : le mode dans la barre, le panneau à droite, liste des déclencheurs, bibliothèque, lecteur et ligne de temps en lecture seule, canevas à la tête de lecture, calques marqués. Travail en cours repris tel quel (commit `7b48979`), puis complété : branchement dans l'éditeur, aperçu à la tête de lecture extrait et testé, calques, courbes du script alignées sur le CSS (voir le journal de la feuille de route du 13 sept.).
 4. ✅ (13 sept.) **Mode Animation, édition** : images-clés par les panneaux Design en mode image-clé, ajout de piste, glisser et dupliquer, courbes et ressorts par segment, décalage et découpage par piste, réglages des déclencheurs.
 5. ✅ (13 sept.) **Préréglages** : bibliothèque de préréglages sous forme d'animations complètes ; section simplifiée en Écriture et en Design ; palette.
-6. **Déclencheurs avancés** : défilement (plage), souris (axe), déclencheurs de page, effets continus rassemblés dans le panneau.
+6. ✅ (13 sept.) **Déclencheurs avancés** : défilement (plage), souris (axe), déclencheurs de page, effets continus rassemblés dans le panneau.
 7. **Nettoyage et documents** : retrait de l'ancienne section, `docs/fonctionnel.md`, `docs/document-model.md` § 8.4 réécrit, feuille de route, audit d'usage.
 
 Ordre de grandeur : trois à quatre sessions de travail. Les étapes 1 et 2 sont invisibles pour l'utilisateur mais rendent l'étape 3 sûre (les documents existants continuent d'être rendus à l'identique).

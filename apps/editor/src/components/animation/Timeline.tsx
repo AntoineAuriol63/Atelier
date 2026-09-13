@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Copy, Diamond, Pause, Play, Plus, Repeat, SkipBack, Snail, Trash2, X } from "lucide-react";
-import type { Animation, CommitOptions, Node, Op, Site, Track } from "@atelier/model";
+import type { Animation, CommitOptions, Node, Op, Site, Track, Trigger } from "@atelier/model";
 import { STAGGER_FROM_LABELS, animationLength, describeAnimation, indexSite, keyframeAt, newId, planAddTrack, planRemoveKeyframes, planRemoveTrack, planSetKeyframeEasing, planShiftKeyframes, planUpdateAnimation, planUpdateTrack, resolveTrackTarget, shiftDelta, trackSpan, trackTargetFor, withTargetKind } from "@atelier/model";
 import { Badge, Button, Hint, IconButton, NumberInput, PanelHeading, Select, TextInput, Toggle } from "@/ui";
 import { canAddTrack, formatTime, rulerTicks, snapTime, targetKindOf, targetKindOptions, trackLabel, type TargetKind } from "@/lib/timeline";
@@ -18,6 +18,8 @@ const LOOPS = [{ value: "1", label: "Une fois" }, { value: "2", label: "2 fois" 
 
 export type TimelineProps = {
   site: Site; getSite: () => Site; animation: Animation; hostId: string;
+  /** Le déclencheur qui lance l'animation ouverte, et s'il appartient à la page (défilement de la page). */
+  trigger?: Trigger; pageLevel?: boolean;
   /** Élément sélectionné dans l'aperçu ou les calques (pour « Ajouter une piste » et pour suivre la piste de l'élément). */
   selected: Node | null;
   bp: string; mode?: string;
@@ -30,7 +32,7 @@ export type TimelineProps = {
  * ⌥-glisser : dupliquer ; Suppr : retirer ; clic sur la portée : toute la piste) ; réglages de la piste (cible, décalage) ; puis l'image-clé
  * à la tête de lecture (courbe du segment, dupliquer, supprimer) et les panneaux Design en mode image-clé.
  */
-export function Timeline({ site, getSite, animation, hostId, selected, bp, mode, commit, scrub, onClose, onSelect }: TimelineProps) {
+export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel, selected, bp, mode, commit, scrub, onClose, onSelect }: TimelineProps) {
   const length = Math.max(1, animationLength(animation));
   const [playhead, setPlayhead] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -148,6 +150,8 @@ export function Timeline({ site, getSite, animation, hostId, selected, bp, mode,
         <IconButton size="sm" label="Ralenti (vitesse ½)" icon={Snail} active={slow} onClick={() => setSlow((s) => !s)} />
         <span className="ml-auto text-xs tabular-nums text-muted" aria-live="off">{formatTime(playhead)} / {formatTime(length)}</span>
       </div>
+      {trigger?.on === "scroll" ? <Hint>{`Au défilement ${pageLevel ? "de la page" : "de l'élément"}, la position entre ${Math.round((trigger.range?.[0] ?? 0) * 100)} % et ${Math.round((trigger.range?.[1] ?? 1) * 100)} % parcourt cette ligne de temps : la tête de lecture montre l'état à chaque position.`}</Hint>
+        : trigger?.on === "pointer" ? <Hint>{`La position ${trigger.axis === "x" ? "horizontale" : "verticale"} de la souris dans la fenêtre parcourt cette ligne de temps : la tête de lecture montre l'état à chaque position.`}</Hint> : null}
 
       <div className="grid grid-cols-[96px_1fr] gap-x-2 text-xs" onKeyDown={onTimelineKey}>
         <span />

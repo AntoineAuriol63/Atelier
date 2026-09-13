@@ -94,6 +94,23 @@ describe("script du site : cibles et décalage", () => {
     expect(calls).toHaveLength(2);
     expect(handles.map((h) => h.currentTime)).toEqual([1500, 1500]);
   });
+  it("défilement : courbes comme en CSS et décalage selon le rang réel (depuis la fin), sans délai de déclencheur", () => {
+    (window as unknown as { innerHeight: number }).innerHeight = 800;
+    mount(page([box("p", [tr("r1", "scroll", "an_st", { delay: 500 })], [text("a", "A"), text("b", "B"), text("c", "C")])], [an("an_st", [tk("t", { target: { trigger: true, children: true }, stagger: { each: 40, from: "end" } })])]));
+    expect(calls.map((c) => [c.el.className, c.delay, c.easing])).toEqual([["n-a", 80, "linear"], ["n-b", 40, "linear"], ["n-c", 0, "linear"]]);
+  });
+  it("déclencheur de page au défilement : la progression du défilement de toute la page parcourt la ligne de temps", () => {
+    (window as unknown as { innerHeight: number }).innerHeight = 800;
+    Object.defineProperty(document.documentElement, "scrollHeight", { configurable: true, get: () => 2000 });
+    Object.defineProperty(window, "scrollY", { configurable: true, get: () => 600 });
+    const site = page([box("bar", [])], [an("an_pg", [tk("t", { target: { node: "bar" } }, [{ at: 0, style: { transform: "scaleX(0)" } }, { at: 1000, style: { transform: "scaleX(1)" } }])])]);
+    site.pages[0] = { ...site.pages[0]!, triggers: [tr("pg1", "scroll", "an_pg")] };
+    mount(site);
+    expect(calls.map((c) => c.el.className)).toEqual(["n-bar"]);
+    expect(handles[0]!.currentTime).toBe(500);
+    delete (document.documentElement as unknown as Record<string, unknown>).scrollHeight;
+    delete (window as unknown as Record<string, unknown>).scrollY;
+  });
   it("courbes : comme en CSS, une courbe par segment (ease par défaut) et une progression linéaire sur la piste", () => {
     const kfs = [{ at: 0, style: { opacity: "0" } }, { at: 250, style: { opacity: "0.5" }, easing: "ease-in" }, { at: 500, style: { opacity: "1" } }];
     mount(page([box("c", [tr("r1", "inView", "an_e")])], [an("an_e", [tk("t", {}, kfs)])]));

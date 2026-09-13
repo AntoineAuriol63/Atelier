@@ -414,8 +414,8 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
   const layerMarks = useMemo(() => {
     if (editMode !== "animate") return undefined;
     const anim = openTl ? animationById(site, openTl.animationId) : undefined;
-    return { triggers: triggerHosts(treeRoot), animated: anim && openTl ? animatedNodes(anim, openTl.hostId) : new Set<string>() };
-  }, [editMode, treeRoot, openTl, site]);
+    return { triggers: triggerHosts(treeRoot, treeRoot === page.root ? page : undefined), animated: anim && openTl ? animatedNodes(anim, openTl.hostId) : new Set<string>() };
+  }, [editMode, treeRoot, openTl, site, page]);
   useEffect(() => {
     type KeyLike = { key: string; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey?: boolean; preventDefault: () => void; fromPreview?: boolean };
     const onKey = (e: KeyLike) => {
@@ -684,7 +684,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
 
       {focusMode ? null : <Panel side="right">
         {editMode === "animate" ? (
-          <div className="flex-1 overflow-auto"><AnimationModePanel site={site} node={selectedLoc?.node ?? null} commit={doc.commit} getSite={doc.getSite} bp={activeBp} mode={mode} open={openTl} onOpen={openAnimation} scrub={scrub} onSelect={select} /></div>
+          <div className="flex-1 overflow-auto"><AnimationModePanel site={site} node={selectedLoc?.node ?? null} commit={doc.commit} page={page} getSite={doc.getSite} bp={activeBp} mode={mode} open={openTl} onOpen={openAnimation} scrub={scrub} onSelect={select} /></div>
         ) : selectedLoc ? (
           <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} onPlay={(id, run) => post({ type: "atelier:play", id, run })} site={site} loc={selectedLoc} dataSource={dataSource} activeBp={activeBp} mode={mode} editMode={editMode} onSwitchMode={switchMode} onOpenAnimation={writer ? undefined : (triggerId) => animateNode(selectedLoc.node, triggerId)} onGoToBreakpoint={goToBreakpoint} onPreviewState={setPreviewState} onEditInPreview={() => post({ type: "atelier:edit-text", id: selectedLoc.node.id })} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }} onMakeComponent={makeComponent} onDetach={detachInstance} notify={notify} commit={doc.commit} onDeleted={() => { select(selectedLoc.parent?.id ?? null); notify(`${nodeLabel(selectedLoc.node)} supprimé`, "info", { label: "Annuler", run: () => doc.undo() }); }} /></div>
         ) : (

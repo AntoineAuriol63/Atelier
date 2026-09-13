@@ -1,4 +1,4 @@
-import type { Animation, Node, Site, Track, TrackTarget } from "@atelier/model";
+import type { Animation, Node, Page, Site, Track, TrackTarget, Trigger } from "@atelier/model";
 import { animationById, indexSite, resolveTrackTarget } from "@atelier/model";
 import { nodeLabel } from "@/components/node-icons";
 
@@ -6,20 +6,33 @@ import { nodeLabel } from "@/components/node-icons";
 export type OpenTimeline = { animationId: string; hostId: string; triggerId: string } | null;
 
 /**
- * L'animation ouverte reste-t-elle jouable ? L'hôte existe encore, porte ce déclencheur, qui lance toujours cette animation.
+ * Le déclencheur d'une animation ouverte : sur l'hôte lui-même, ou sur la page dont l'hôte est la racine (déclencheur de page).
+ * `page` est rendu pour un déclencheur de page.
+ */
+export function openTrigger(site: Site, open: OpenTimeline): { trigger: Trigger; page?: Page } | undefined {
+  if (!open) return undefined;
+  const own = indexSite(site).get(open.hostId)?.node.triggers?.find((t) => t.id === open.triggerId);
+  if (own) return { trigger: own };
+  const page = site.pages.find((p) => p.root.id === open.hostId);
+  const onPage = page?.triggers?.find((t) => t.id === open.triggerId);
+  return page && onPage ? { trigger: onPage, page } : undefined;
+}
+
+/**
+ * L'animation ouverte reste-t-elle jouable ? L'hôte existe encore et porte ce déclencheur (ou sa page, s'il en est la racine), qui lance toujours cette animation.
  * Sinon `null` : après annuler, retirer le déclencheur ou supprimer l'élément, la ligne de temps se referme d'elle-même.
  */
 export function validOpenTimeline(site: Site, open: OpenTimeline): OpenTimeline {
   if (!open || !animationById(site, open.animationId)) return null;
-  const host = indexSite(site).get(open.hostId)?.node;
-  return host?.triggers?.some((t) => t.id === open.triggerId && t.animation === open.animationId) ? open : null;
+  return openTrigger(site, open)?.trigger.animation === open.animationId ? open : null;
 }
 
-/** Les éléments qui portent au moins un déclencheur sous une racine (éclair dans les calques). */
-export function triggerHosts(root: Node): Set<string> {
+/** Les éléments qui portent au moins un déclencheur sous une racine (éclair dans les calques) ; la racine aussi si sa page en porte. */
+export function triggerHosts(root: Node, page?: Pick<Page, "triggers">): Set<string> {
   const out = new Set<string>();
   const visit = (n: Node) => { if (n.triggers?.length) out.add(n.id); n.children?.forEach(visit); };
   visit(root);
+  if (page?.triggers?.length) out.add(root.id);
   return out;
 }
 

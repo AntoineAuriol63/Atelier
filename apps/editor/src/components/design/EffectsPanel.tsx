@@ -1,10 +1,10 @@
 "use client";
-import { marqueeOf } from "@atelier/renderer";
 
 import type { CommitOptions, Node, Op, Site } from "@atelier/model";
-import { Hint, NumberInput, Section, Select, TextInput, Toggle } from "@/ui";
+import { Hint, NumberInput, Section, Select, TextInput } from "@/ui";
 import { PropRow, TokenSelect } from "@/ui/controls";
 import type { StyleApi } from "./useStyle";
+import { ContinuousEffects } from "../animation/ContinuousEffects";
 
 const EASINGS = [{ value: "ease", label: "Naturel" }, { value: "linear", label: "Linéaire" }, { value: "ease-in", label: "Entrée" }, { value: "ease-out", label: "Sortie" }, { value: "ease-in-out", label: "Entrée-sortie" }, { value: "cubic-bezier(.2,.8,.2,1)", label: "Doux" }];
 const CURSORS = [{ value: "auto", label: "Auto" }, { value: "pointer", label: "Main" }, { value: "default", label: "Flèche" }, { value: "text", label: "Texte" }, { value: "move", label: "Déplacer" }, { value: "not-allowed", label: "Interdit" }, { value: "grab", label: "Saisir" }, { value: "zoom-in", label: "Zoom" }];
@@ -110,13 +110,7 @@ export function EffectsPanel({ site, style, node, commit, defaultOpen = false }:
       {node && commit && !animating ? (
         <>
           <div className="h-px bg-line my-1" />
-          <PropRow label="Parallaxe" sourceTitle="Propriété de l'élément (props.parallax)" source={typeof node.props.parallax === "number" ? { kind: "local" } : undefined} onReset={typeof node.props.parallax === "number" ? () => commit({ op: "node.set", id: node.id, path: "props.parallax", value: undefined }, { label: "Parallaxe" }) : undefined}><NumberInput className="w-24" step={0.05} min={-1} max={1} value={typeof node.props.parallax === "number" ? node.props.parallax : ""} placeholder="aucune" onValueChange={(n) => commit({ op: "node.set", id: node.id, path: "props.parallax", value: n === "" || n === 0 ? undefined : n }, { coalesceKey: `parallax:${node.id}`, label: "Parallaxe" })} /></PropRow>
-          {node.type === "box" ? (() => { const mq = marqueeOf(node); const setMq = (patch: Partial<NonNullable<ReturnType<typeof marqueeOf>>> | null, label: string) => commit({ op: "node.set", id: node.id, path: "props.marquee", value: patch === null ? undefined : { duration: 20, ...(mq ?? {}), ...patch } }, { label }); return (<>
-            <PropRow label="Bandeau" sourceTitle="Propriété de l'élément (props.marquee)" source={mq ? { kind: "local" } : undefined} onReset={mq ? () => setMq(null, "Bandeau défilant") : undefined}><NumberInput className="w-24" unit="s" step={1} min={2} value={mq ? mq.duration : ""} placeholder="non" onValueChange={(n) => (n === "" || n === 0 ? setMq(null, "Bandeau défilant") : setMq({ duration: n }, "Bandeau défilant"))} /></PropRow>
-            {mq ? <PropRow label="Sens" sourceTitle="Sens du défilement"><Select className="flex-1" value={mq.direction ?? "left"} options={[{ value: "left", label: "Vers la gauche" }, { value: "right", label: "Vers la droite" }, { value: "up", label: "Vers le haut" }, { value: "down", label: "Vers le bas" }]} onValueChange={(v) => setMq({ direction: v as "left" | "right" | "up" | "down" }, "Sens du bandeau")} /></PropRow> : null}
-            {mq ? <PropRow label="Survol" sourceTitle="Pause au survol"><Toggle checked={!!mq.pauseOnHover} label={mq.pauseOnHover ? "en pause" : "continue"} onChange={(b) => setMq({ pauseOnHover: b || undefined }, "Pause du bandeau")} /></PropRow> : null}
-          </>); })() : null}
-          <Hint>Parallaxe : l&apos;élément se déplace moins vite (0,1 léger, 0,3 marqué) ou plus vite (négatif) que la page au défilement. Bandeau : le contenu de la boîte défile en boucle (durée d&apos;un tour, sens, pause au survol) ; pour le haut et le bas, la hauteur de la boîte fait la fenêtre. Les deux se jouent sur le site publié et dans l&apos;aperçu « Voir », pas dans l&apos;éditeur.</Hint>
+          <ContinuousEffects node={node} commit={commit} only={["parallax", "marquee"]} />
         </>
       ) : null}
     </Section>

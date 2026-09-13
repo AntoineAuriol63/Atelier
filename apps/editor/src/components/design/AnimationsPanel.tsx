@@ -3,8 +3,9 @@
 import { Film, Play, X } from "lucide-react";
 import type { CommitOptions, Node, Op, Site } from "@atelier/model";
 import { animationById, describeTrigger, isPresetIntact, planRemoveTriggerWithAnimation } from "@atelier/model";
-import { Badge, Field, Hint, IconButton, Section, Toggle } from "@/ui";
+import { Badge, Hint, IconButton, Section } from "@/ui";
 import { QuickAnimations } from "../animation/QuickAnimations";
+import { ContinuousEffects } from "../animation/ContinuousEffects";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
 
@@ -35,7 +36,7 @@ export function AnimationsPanel({ site, node, commit, onPlay, onOpenAnimation }:
           })}
         </ul>
       ) : null}
-      {node.type === "text" ? <Field label="Compteur" hint="Le nombre du texte défile de 0 à sa valeur quand il entre dans l'écran (« 12 ans » compte jusqu'à 12)"><Toggle checked={!!node.props.countUp} label={node.props.countUp ? "animé" : "fixe"} onChange={(b) => commit({ op: "node.set", id: node.id, path: "props.countUp", value: b || undefined }, { label: b ? "Compteur animé" : "Compteur fixe" })} /></Field> : null}
+      {node.type === "text" ? <div className="pt-2"><ContinuousEffects node={node} commit={commit} only={["countUp"]} hint={false} /></div> : null}
       {triggers.length ? <Hint>Quand, délai, rejouer, retour au départ de la souris… se règlent dans le mode Animation.</Hint> : null}
     </Section>
   );
