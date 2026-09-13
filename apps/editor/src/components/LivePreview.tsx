@@ -5,6 +5,7 @@ import type { Entry, Site } from "@atelier/model";
 import { serialize, isEmptyText } from "./preview/serialize";
 import { isAtelierMessage, type BlockPresetInfo, type EditMode, type FromPreview, type ToPreview } from "@/lib/preview-protocol";
 import { applyScrub, type ScrubAt } from "@/lib/scrub";
+import { revealForTest } from "@/lib/test-on-site";
 import { ANIMATION_PLAY_SCRIPT, FORM_SCRIPT, INTERACTION_SCRIPT, RenderPage, applyInstantStates, assetMap, fontsHref, matchPath, memoryData, siteCss, type RenderContext } from "@atelier/renderer";
 
 type Props = { initialSite: Site; entries: Entry[]; path: string; mode?: string; editor: boolean };
@@ -39,7 +40,10 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
   useEffect(() => {
     if (editor) return;
     const scripts = [INTERACTION_SCRIPT, FORM_SCRIPT].map((code) => { const el = document.createElement("script"); el.textContent = code; document.body.appendChild(el); return el; });
-    return () => { scripts.forEach((el) => el.remove()); };
+    // « Tester sur le site » (?voir=id) : une fois les scripts en place, l'élément arrive à l'écran comme pour un visiteur.
+    const voir = new URLSearchParams(window.location.search).get("voir");
+    const timer = voir ? window.setTimeout(() => revealForTest(document, voir), 400) : 0;
+    return () => { window.clearTimeout(timer); scripts.forEach((el) => el.remove()); };
   }, [editor]);
   // Dans l'éditeur, seul l'outil de lecture d'une animation (« Jouer ») est injecté : le script du site ne tourne pas.
   useEffect(() => {

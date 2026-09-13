@@ -31,6 +31,8 @@ type Props = {
   picking?: boolean;
   /** Repère des éléments de la piste active dans l'aperçu. */
   showTargets?: (ids: string[], label?: string) => void;
+  /** Ouvre l'onglet Aperçu sur un élément (« Tester sur le site »). */
+  onTestOnSite?: (nodeId?: string) => void;
 };
 
 /**
@@ -38,7 +40,7 @@ type Props = {
  * les déclencheurs de la page (sans sélection ou sur sa racine), la bibliothèque, puis la ligne de temps de l'animation ouverte
  * (`Timeline` : pistes, images-clés, tête de lecture, édition par les panneaux Design).
  */
-export function AnimationModePanel({ site, node, commit, page, getSite, bp, mode, open, onOpen, scrub, onSelect, onPick, picking, showTargets }: Props) {
+export function AnimationModePanel({ site, node, commit, page, getSite, bp, mode, open, onOpen, scrub, onSelect, onPick, picking, showTargets, onTestOnSite }: Props) {
   const anim = open ? animationById(site, open.animationId) : undefined;
   const opened = openTrigger(site, open);
   const run = (ops: Op[], label: string, coalesceKey?: string) => { if (ops.length) commit({ op: "batch", ops, label }, { label, coalesceKey }); };
@@ -84,7 +86,7 @@ export function AnimationModePanel({ site, node, commit, page, getSite, bp, mode
     <div className="flex flex-col gap-3 p-3">
       {timelineOpen ? null : <HowItWorks />}
       {/* Une animation ouverte passe devant : c'est la surface de travail ; choisir un autre élément ne la déplace plus. */}
-      {timelineOpen ? <Timeline key={`${open!.triggerId}:${anim!.id}`} site={site} getSite={getSite} animation={anim!} hostId={open!.hostId} trigger={opened!.trigger} pageLevel={!!opened!.page} selected={node} bp={bp} mode={mode} commit={commit} scrub={scrub} onClose={() => { setCreated(null); onOpen(null); }} onSelect={onSelect} focusName={created === open!.triggerId} onPick={onPick} picking={picking} showTargets={showTargets} /> : null}
+      {timelineOpen ? <Timeline key={`${open!.triggerId}:${anim!.id}`} site={site} getSite={getSite} animation={anim!} hostId={open!.hostId} trigger={opened!.trigger} pageLevel={!!opened!.page} selected={node} bp={bp} mode={mode} commit={commit} scrub={scrub} onClose={() => { setCreated(null); onOpen(null); }} onSelect={onSelect} focusName={created === open!.triggerId} onPick={onPick} picking={picking} showTargets={showTargets} onTestOnSite={onTestOnSite ? () => onTestOnSite(open!.hostId) : undefined} /> : null}
 
       {node ? (
         timelineOpen

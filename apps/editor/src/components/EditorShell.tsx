@@ -24,6 +24,7 @@ import type { AssetUsage } from "@/lib/asset-usage";
 import { isAtelierMessage, type EditMode, type FromPreview, type ToPreview } from "@/lib/preview-protocol";
 import { animatedNodes, triggerHosts, validOpenTimeline, type OpenTimeline } from "@/lib/timeline";
 import { selectionPath } from "@/lib/selection";
+import { testOnSiteUrl } from "@/lib/test-on-site";
 import { AnimationModePanel } from "./animation/AnimationModePanel";
 import { PublishDialog } from "@/components/PublishDialog";
 import { DataPanel } from "@/components/data/DataPanel";
@@ -270,6 +271,8 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
   const previewEntry = templateEntries.find((e) => e.id === previewEntryByPage[page.id]) ?? templateEntries[0];
   const previewBase = `/preview/${site.id}`;
   const previewPath = template && previewEntry ? `${previewBase}${entryPath(template.database, previewEntry) ?? ""}` : page.kind === "template" ? `${previewBase}/__template/${page.id}` : `${previewBase}${page.path === "/" ? "" : page.path}`;
+  /** « Tester sur le site » : l'onglet Aperçu, où l'élément arrive à l'écran comme pour un visiteur (audit n°5 · R4). */
+  const testOnSite = useCallback((nodeId?: string) => { window.open(testOnSiteUrl(previewPath, nodeId), "_blank"); }, [previewPath]);
   const dataSource = useMemo(() => (selected ? dataSourceFor(site, index, page, selected) : undefined), [site, index, page, selected]);
 
   /** Supprimer une base : ses entrées partent (sans retour), ses pages modèles redeviennent fixes, ses vues restent à reconfigurer. */
@@ -688,7 +691,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
 
       <main ref={canvas} className="relative min-w-0 overflow-auto bg-app flex justify-center items-start p-3">
         {editMode === "design" ? <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 rounded-md border border-accent bg-panel/95 px-3 py-1.5 text-xs font-semibold text-accent shadow-lg backdrop-blur" title="Les styles ajoutés maintenant s’appliquent à cette taille d’écran">Vous modifiez : {breakpoint}</div> : null}
-        {picking ? <div role="status" className="absolute top-3 left-1/2 -translate-x-1/2 z-30 rounded-md border border-accent bg-accent text-accent-ink px-3 py-1.5 text-xs font-semibold shadow-lg">Cliquez l&apos;élément à animer dans l&apos;aperçu ou les calques · Échap pour annuler</div> : null}
+        {picking ? <div role="status" className="absolute top-3 left-1/2 -translate-x-1/2 z-30 rounded-md border border-accent bg-accent text-accent-ink px-3 py-1.5 text-xs font-semibold shadow-lg">Cliquez l&apos;élément à animer dans le canevas ou les calques · Échap pour annuler</div> : null}
         {doc.error ? (
           <div role="alert" className={`fixed top-14 left-1/2 -translate-x-1/2 z-[60] max-w-[640px] flex items-center gap-2 rounded-md border px-3.5 py-2.5 text-sm font-medium shadow-2xl ${doc.status === "offline" ? "bg-warning text-warning-ink border-warning" : "bg-danger text-danger-ink border-danger"}`}>
             <AlertTriangle size={16} aria-hidden />
@@ -735,9 +738,9 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
         ) : null}
         {selectionTrail.length > 1 ? <Breadcrumb label="Chemin de la sélection" items={selectionTrail} onSelect={selectOrPick} className="shrink-0" /> : null}
         {editMode === "animate" ? (
-          <div className="flex-1 overflow-auto"><AnimationModePanel site={site} node={selectedLoc?.node ?? null} commit={doc.commit} page={page} getSite={doc.getSite} bp={activeBp} mode={mode} open={openTl} onOpen={openAnimation} scrub={scrub} onSelect={select} onPick={setPick} picking={picking} showTargets={showTargets} /></div>
+          <div className="flex-1 overflow-auto"><AnimationModePanel site={site} node={selectedLoc?.node ?? null} commit={doc.commit} page={page} getSite={doc.getSite} bp={activeBp} mode={mode} open={openTl} onOpen={openAnimation} scrub={scrub} onSelect={select} onPick={setPick} picking={picking} showTargets={showTargets} onTestOnSite={testOnSite} /></div>
         ) : selectedLoc ? (
-          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} onPlay={(id, trigger) => post({ type: "atelier:play", id, trigger })} site={site} loc={selectedLoc} dataSource={dataSource} activeBp={activeBp} mode={mode} editMode={editMode} onSwitchMode={switchMode} onOpenAnimation={writer ? undefined : (triggerId) => animateNode(selectedLoc.node, triggerId)} onGoToBreakpoint={goToBreakpoint} onPreviewState={setPreviewState} onEditInPreview={() => post({ type: "atelier:edit-text", id: selectedLoc.node.id })} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }} onMakeComponent={makeComponent} onDetach={detachInstance} notify={notify} commit={doc.commit} onDeleted={() => { select(selectedLoc.parent?.id ?? null); notify(`${nodeLabel(selectedLoc.node)} supprimé`, "info", { label: "Annuler", run: () => doc.undo() }); }} /></div>
+          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} onPlay={(id, trigger) => post({ type: "atelier:play", id, trigger })} site={site} loc={selectedLoc} dataSource={dataSource} activeBp={activeBp} mode={mode} editMode={editMode} onSwitchMode={switchMode} onOpenAnimation={writer ? undefined : (triggerId) => animateNode(selectedLoc.node, triggerId)} onTestOnSite={() => testOnSite(selectedLoc.node.id)} onGoToBreakpoint={goToBreakpoint} onPreviewState={setPreviewState} onEditInPreview={() => post({ type: "atelier:edit-text", id: selectedLoc.node.id })} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }} onMakeComponent={makeComponent} onDetach={detachInstance} notify={notify} commit={doc.commit} onDeleted={() => { select(selectedLoc.parent?.id ?? null); notify(`${nodeLabel(selectedLoc.node)} supprimé`, "info", { label: "Annuler", run: () => doc.undo() }); }} /></div>
         ) : (
           <div className="p-3 flex flex-col gap-2">
             <PanelHeading className="px-0">Sélection</PanelHeading>

@@ -48,7 +48,7 @@ export function ContinuousEffects({ node, commit, only, hint = true }: { node: N
           <NumberInput className="w-24" unit="s" min={1} step={1} value={view.autoplay ?? ""} placeholder="manuel" onValueChange={(n) => set("props.view.autoplay", n === "" ? undefined : n, "Défilement automatique")} />
         </PropRow>
       ) : null}
-      {hint && (show("parallax") || (show("marquee") && node.type === "box")) ? <Hint>Parallaxe : l&apos;élément se déplace moins vite (0,1 léger, 0,3 marqué) ou plus vite (négatif) que la page au défilement.{node.type === "box" ? <> Bandeau : le contenu de la boîte défile en boucle (durée d&apos;un tour, sens, pause au survol) ; pour le haut et le bas, la hauteur de la boîte fait la fenêtre.</> : null} Ces effets se jouent sur le site publié et dans l&apos;aperçu « Voir », pas dans l&apos;éditeur.</Hint> : null}
+      {hint && (show("parallax") || (show("marquee") && node.type === "box")) ? <Hint>Parallaxe : l&apos;élément se déplace moins vite (0,1 léger, 0,3 marqué) ou plus vite (négatif) que la page au défilement.{node.type === "box" ? <> Bandeau : le contenu de la boîte défile en boucle (durée d&apos;un tour, sens, pause au survol) ; pour le haut et le bas, la hauteur de la boîte fait la fenêtre.</> : null} Ces effets se jouent sur le site publié et dans l&apos;onglet Aperçu (« Tester sur le site »), pas dans le canevas de l&apos;éditeur.</Hint> : null}
     </>
   );
 }

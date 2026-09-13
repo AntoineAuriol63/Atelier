@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useRef } from "react";
-import { Film, Play } from "lucide-react";
+import { ExternalLink, Film, Play } from "lucide-react";
 import type { CommitOptions, Node, Op, QuickGroup, Site } from "@atelier/model";
 import { ANIMATION_PRESETS, planQuickAnimation, planQuickDetail, planQuickSpeed, quickAnimation, quickSpeed, type QuickSpeed } from "@atelier/model";
 import { Button, Field, FieldGroup, IconButton, Select, Toggle } from "@/ui";
@@ -22,7 +22,7 @@ const QUICK: { group: QuickGroup; label: string; none: string; hint: string }[] 
  * continu) et, pour une apparition, « lettre par lettre » (texte) ou « les enfants un à un » (boîte à plusieurs enfants, vue).
  * Une animation retouchée dans le mode Animation s'affiche « Personnalisée » : choisir un préréglage la remplace.
  */
-export function QuickAnimations({ site, node, commit, onOpenAnimation, onPlay }: { site: Site; node: Node; commit: Commit; onOpenAnimation?: () => void; onPlay?: (triggerId: string) => void }) {
+export function QuickAnimations({ site, node, commit, onOpenAnimation, onPlay, onTestOnSite }: { site: Site; node: Node; commit: Commit; onOpenAnimation?: () => void; onPlay?: (triggerId: string) => void; onTestOnSite?: () => void }) {
   // Aperçu immédiat : après un choix, l'animation de la famille est jouée une fois dans l'aperçu (cadrage : « on doit voir ce qu'on règle »).
   const pending = useRef<QuickGroup | null>(null);
   const playRef = useRef(onPlay);
@@ -71,7 +71,11 @@ export function QuickAnimations({ site, node, commit, onOpenAnimation, onPlay }:
           </Fragment>
         );
       })}
-      {onOpenAnimation ? <Button size="sm" variant="ghost" icon={Film} className="self-start" onClick={onOpenAnimation}>Ouvrir dans le mode Animation</Button> : null}
+      <div className="flex flex-wrap items-center gap-1">
+        {/* Le canevas joue l'animation ; le vrai déclenchement (entrée dans l'écran, survol) se vérifie sur le site (audit n°5 · R4). */}
+        {onTestOnSite && node.triggers?.length ? <Button size="sm" variant="ghost" icon={ExternalLink} onClick={onTestOnSite} title="Ouvre l'onglet Aperçu : l'élément arrive à l'écran et ses animations se jouent comme pour un visiteur">Tester sur le site</Button> : null}
+        {onOpenAnimation ? <Button size="sm" variant="ghost" icon={Film} onClick={onOpenAnimation}>Ouvrir dans le mode Animation</Button> : null}
+      </div>
     </FieldGroup>
   );
 }

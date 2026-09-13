@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Copy, Crosshair, Diamond, Pause, Play, Plus, Repeat, SkipBack, Snail, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Copy, Crosshair, Diamond, ExternalLink, Pause, Play, Plus, Repeat, SkipBack, Snail, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { Animation, CommitOptions, Node, Op, Site, Track, Trigger } from "@atelier/model";
 import { ANIMATION_PRESETS, STAGGER_FROM_LABELS, animationById, animationLength, describeAnimation, indexSite, keyframeAt, newId, planAddTrack, planFillTrackFromPreset, planScaleAnimation, planRemoveKeyframes, planRemoveTrack, planSetKeyframeEasing, planShiftKeyframes, planUpdateAnimation, planUpdateTrack, resolveTrackTarget, shiftDelta, trackSpan, trackTargetFor, withTargetKind } from "@atelier/model";
 import { Badge, Button, Eyebrow, Hint, IconButton, NumberInput, PanelHeading, Select, TextInput, Toggle } from "@/ui";
@@ -34,6 +34,8 @@ export type TimelineProps = {
   picking?: boolean;
   /** Montre dans l'aperçu les éléments de la piste active (contour pointillé et nom). */
   showTargets?: (ids: string[], label?: string) => void;
+  /** « Tester sur le site » : l'onglet Aperçu, où l'élément qui lance l'animation arrive à l'écran. */
+  onTestOnSite?: () => void;
 };
 
 /**
@@ -42,7 +44,7 @@ export type TimelineProps = {
  * ⌥-glisser : dupliquer ; Suppr : retirer ; clic sur la portée : toute la piste) ; réglages de la piste (cible, décalage) ; puis l'image-clé
  * à la tête de lecture (courbe du segment, dupliquer, supprimer) et les panneaux Design en mode image-clé.
  */
-export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel, selected, bp, mode, commit, scrub, onClose, onSelect, focusName, onPick, picking, showTargets }: TimelineProps) {
+export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel, selected, bp, mode, commit, scrub, onClose, onSelect, focusName, onPick, picking, showTargets, onTestOnSite }: TimelineProps) {
   const length = Math.max(1, animationLength(animation));
   const [playhead, setPlayhead] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -202,7 +204,13 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
         <IconButton size="sm" label="Fermer la ligne de temps" icon={X} onClick={onClose} />
       </div>
       {/* Ce qui va se passer sur le site, en une phrase (audit n°5 · R2) : se relit à chaque réglage. */}
-      {trigger ? <p className="-mt-1 text-xs text-muted leading-snug" data-anim-summary="">{summarizeAnimation(site, trigger, hostId, pageLevel)}</p> : null}
+      {trigger ? (
+        <p className="-mt-1 text-xs text-muted leading-snug">
+          <span data-anim-summary="">{summarizeAnimation(site, trigger, hostId, pageLevel)}</span>
+          {/* Le canevas montre la ligne de temps ; le vrai déclenchement (écran, défilement, survol, clic) se vérifie sur le site. */}
+          {onTestOnSite ? <> <button type="button" className="inline-flex items-center gap-0.5 text-accent hover:underline whitespace-nowrap" title="Ouvre l'onglet Aperçu : l'élément arrive à l'écran et l'animation se joue comme pour un visiteur" onClick={onTestOnSite}>Tester sur le site<ExternalLink size={11} aria-hidden /></button></> : null}
+        </p>
+      ) : null}
       <div className="grid grid-cols-[auto_1fr_auto] items-center gap-1.5">
         {/* Durée = vitesse (audit n°5 · R1) : la changer ralentit ou accélère toute l'animation, images-clés et décalages compris. */}
         <NumberInput className="w-[92px]" unit="ms" min={100} step={100} value={length} title="Durée : la changer ralentit ou accélère toute l'animation (images-clés et décalages suivent)" onValueChange={(n) => { if (n === "" || n === length) return; run(planScaleAnimation(getSite(), animation.id, Math.max(100, n)), "Durée de l'animation", `anim-dur:${animation.id}`); setPlayhead((p) => Math.round((p * Math.max(100, n)) / length)); }} />

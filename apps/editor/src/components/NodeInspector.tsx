@@ -63,6 +63,8 @@ type Props = {
   onSwitchMode?: (m: "write" | "design" | "animate") => void;
   /** Ouvre le mode Animation sur cet élément (sur l'animation d'un déclencheur si `triggerId`). Absent pour un rédacteur : pas de section Animation. */
   onOpenAnimation?: (triggerId?: string) => void;
+  /** « Tester sur le site » : l'onglet Aperçu, où cet élément arrive à l'écran. */
+  onTestOnSite?: () => void;
   commit: (op: Op, opts?: CommitOptions) => void;
   onDeleted: () => void;
 };
@@ -86,7 +88,7 @@ function plainText(content: unknown, locale: string): { text: string; rich: bool
   return { text: list.map((s) => (s.t === "text" ? s.v : s.t === "break" ? "\n" : "")).join(""), rich };
 }
 
-export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBreakpoint, onPreviewState, onEditInPreview, onPlay, onEnterComponent, onMakeComponent, onDetach, notify, editMode = "design", onSwitchMode, onOpenAnimation, commit, onDeleted }: Props) {
+export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBreakpoint, onPreviewState, onEditInPreview, onPlay, onEnterComponent, onMakeComponent, onDetach, notify, editMode = "design", onSwitchMode, onOpenAnimation, onTestOnSite, commit, onDeleted }: Props) {
   const node: Node = loc.node;
   const locale = site.settings.defaultLocale;
   const [state, setStateRaw] = useState<string | undefined>(undefined);
@@ -286,14 +288,14 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
       <TypographyPanel site={site} style={style} mode={mode} defaultOpen={node.type === "text" || node.type === "link"} />
       <AppearancePanel site={site} style={style} mode={mode} />
       <EffectsPanel site={site} style={style} node={sharedDef ? undefined : node} commit={commit} />
-      {!sharedDef ? <AnimationsPanel site={site} node={node} commit={commit} onPlay={onPlay ? (triggerId) => onPlay(node.id, triggerId) : undefined} onOpenAnimation={onOpenAnimation} /> : null}
+      {!sharedDef ? <AnimationsPanel site={site} node={node} commit={commit} onPlay={onPlay ? (triggerId) => onPlay(node.id, triggerId) : undefined} onOpenAnimation={onOpenAnimation} onTestOnSite={onTestOnSite} /> : null}
       {!sharedDef ? <InteractionsPanel site={site} node={node} pageRoot={pageRoot} commit={commit} /> : null}
 
         </>
       )}
       {editMode === "write" && !sharedDef && onOpenAnimation ? (
         <Section title="Animation" defaultOpen={!!node.triggers?.length} hint="Faire arriver l'élément, le faire réagir au survol ou bouger en continu, en un choix.">
-          <QuickAnimations site={site} node={node} commit={commit} onPlay={onPlay ? (triggerId) => onPlay(node.id, triggerId) : undefined} onOpenAnimation={() => onOpenAnimation()} />
+          <QuickAnimations site={site} node={node} commit={commit} onPlay={onPlay ? (triggerId) => onPlay(node.id, triggerId) : undefined} onOpenAnimation={() => onOpenAnimation()} onTestOnSite={onTestOnSite} />
         </Section>
       ) : null}
       {!sharedDef && editMode === "design" ? <SharedStylesPanel site={site} node={node} commit={commit} onEdit={setEditingShared} /> : null}
