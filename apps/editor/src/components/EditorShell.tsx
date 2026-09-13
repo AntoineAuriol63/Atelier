@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { AlertTriangle, CheckCircle2, Command as CommandIcon, Database as DatabaseIcon, ExternalLink, Info, FileText, Grid3x3, Layers, Moon, Palette, Plus, Puzzle, Redo2, Sparkles, Sun, Undo2, UploadCloud, X, Settings2, Maximize2, Minimize2, Columns2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Command as CommandIcon, Database as DatabaseIcon, ExternalLink, Info, FileText, Grid3x3, Layers, Moon, Palette, Plus, Puzzle, Redo2, Sparkles, Sun, Undo2, UploadCloud, X, Settings2, Maximize2, Minimize2, Columns2, Zap } from "lucide-react";
 import type { DropPosition, Entry, Node, Page, Site, StyleValue, Role } from "@atelier/model";
-import { BASE, breakpointForWidth, canInsertUnder, cloneWithNewIds, dataSourceFor, entryPath, fitHeadings as fitHeadingsInPage, indexSite, layoutGridAt, newId, planDetach, planDrop, planInsert, planMakeComponent, planMergePrev, planMove, planSlashInsert, planSplit, stylePath, templateOf, type ComponentPlan, type TextPlan, planReveal, REVEAL_LABEL, type RevealKind } from "@atelier/model";
+import { animationById, BASE, breakpointForWidth, canInsertUnder, cloneWithNewIds, dataSourceFor, entryPath, fitHeadings as fitHeadingsInPage, indexSite, layoutGridAt, newId, planDetach, planDrop, planInsert, planMakeComponent, planMergePrev, planMove, planSlashInsert, planSplit, stylePath, templateOf, type ComponentPlan, type TextPlan, planReveal, REVEAL_LABEL, type RevealKind } from "@atelier/model";
 import type { Op } from "@atelier/model";
 import { valueToCss } from "@atelier/renderer";
 import type { Inline } from "@atelier/model";
@@ -21,7 +21,9 @@ import { CommandPalette, type Command } from "./CommandPalette";
 import { allPresets } from "@/lib/blocks";
 import { ImagesIcon, MediaLibraryProvider, openMediaLibrary } from "@/components/MediaLibrary";
 import type { AssetUsage } from "@/lib/asset-usage";
-import { isAtelierMessage, type FromPreview, type ToPreview } from "@/lib/preview-protocol";
+import { isAtelierMessage, type EditMode, type FromPreview, type ToPreview } from "@/lib/preview-protocol";
+import { animatedNodes, triggerHosts, validOpenTimeline, type OpenTimeline } from "@/lib/timeline";
+import { AnimationModePanel } from "./animation/AnimationModePanel";
 import { PublishDialog } from "@/components/PublishDialog";
 import { DataPanel } from "@/components/data/DataPanel";
 import { DatabaseTable } from "@/components/data/DatabaseTable";
@@ -35,8 +37,7 @@ const PRESETS: { id: string; label: string; width: number | null }[] = [
   { id: "tablet", label: "Tablette", width: 900 },
   { id: "mobile", label: "Mobile", width: 390 },
 ];
-const MODES = [{ id: "write", label: "Écriture", hint: "Écrire et organiser le contenu, comme dans un document" }, { id: "design", label: "Design", hint: "Régler la disposition et le style de chaque élément" }, { id: "code", label: "Code", hint: "Bientôt" }];
-type EditMode = "write" | "design";
+const MODES = [{ id: "write", label: "Écriture", hint: "Écrire et organiser le contenu, comme dans un document" }, { id: "design", label: "Design", hint: "Régler la disposition et le style de chaque élément" }, { id: "animate", label: "Animation", hint: "Déclencheurs et lignes de temps : voir l'état exact à chaque instant" }, { id: "code", label: "Code", hint: "Bientôt" }];
 const MIN_WIDTH = 320;
 const MAX_WIDTH = 4000;
 
@@ -54,6 +55,8 @@ function Layer(p: {
   openMap: Record<string, boolean>; setOpen: (id: string, open: boolean) => void;
   editing: string | null; onEditStart: (id: string) => void; onRename: (id: string, name: string | null | undefined) => void;
   drop: DropState; onDragStart: (id: string) => void; onDragOver: (id: string, pos: DropPosition) => void; onDragEnd: () => void; onDropOn: (id: string, pos: DropPosition) => void;
+  /** Mode Animation : éléments animés par l'animation ouverte (point) et éléments qui portent un déclencheur (éclair). */
+  marks?: { animated: Set<string>; triggers: Set<string> };
 }) {
   const { node, depth } = p;
   const kids = node.children ?? [];
@@ -61,6 +64,14 @@ function Layer(p: {
   const canInside = kids.length > 0 || ["box", "list", "listItem", "link", "form", "item", "slot"].includes(node.type);
   const indicator: DropIndicator = p.drop?.id === node.id ? p.drop.position : null;
   const refusal = p.drop?.id === node.id ? p.drop.refusal ?? null : null;
+  const animated = !!p.marks?.animated.has(node.id);
+  const triggered = !!p.marks?.triggers.has(node.id);
+  const marks = animated || triggered ? (
+    <span className={`${node.type === "instance" ? "ml-1" : "ml-auto"} flex items-center gap-1 pl-1 text-accent`}>
+      {animated ? <span role="img" aria-label="Animé par l'animation ouverte" title="Animé par l'animation ouverte" className="w-1.5 h-1.5 rounded-full bg-accent" /> : null}
+      {triggered ? <span role="img" aria-label="Porte un déclencheur" title="Porte un déclencheur" className="inline-flex"><Zap size={11} aria-hidden /></span> : null}
+    </span>
+  ) : null;
   return (
     <div role="group">
       <TreeRow
@@ -81,7 +92,7 @@ function Layer(p: {
         draggable={depth > 0}
         drop={indicator}
         refusal={refusal}
-        trailing={node.type === "instance" && p.onEnterComponent ? <button type="button" onClick={(e) => { e.stopPropagation(); p.onEnterComponent!(String(node.props.component)); }} className="h-5 px-1.5 rounded-xs text-2xs text-accent hover:bg-accent-soft opacity-60 group-hover:opacity-100 focus-visible:opacity-100" title="Ouvrir le composant pour modifier son contenu">Ouvrir</button> : undefined}
+        trailing={<>{marks}{node.type === "instance" && p.onEnterComponent ? <button type="button" onClick={(e) => { e.stopPropagation(); p.onEnterComponent!(String(node.props.component)); }} className="h-5 px-1.5 rounded-xs text-2xs text-accent hover:bg-accent-soft opacity-60 group-hover:opacity-100 focus-visible:opacity-100" title="Ouvrir le composant pour modifier son contenu">Ouvrir</button> : null}</>}
         onDragStart={(e) => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", node.id); p.onDragStart(node.id); }}
         onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); e.dataTransfer.dropEffect = "move"; p.onDragOver(node.id, dropPositionFor(e, canInside)); }}
         onDragLeave={(e) => { e.stopPropagation(); }}
@@ -181,6 +192,27 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
 
   void previewKey;
   const post = useCallback((msg: ToPreview) => frame.current?.contentWindow?.postMessage(msg, window.location.origin), []);
+
+  // --- mode Animation : l'animation ouverte dans la ligne de temps, rattachée à la page où elle a été ouverte.
+  // Elle se referme d'elle-même si l'on change de page ou si son déclencheur disparaît (annuler, retirer, supprimer l'élément).
+  const [timeline, setTimeline] = useState<{ page: string; open: OpenTimeline }>({ page: "", open: null });
+  const openTl = useMemo(() => (timeline.page === page.id ? validOpenTimeline(site, timeline.open) : null), [timeline, page.id, site]);
+  /** Ouvre une animation (ou referme la ligne de temps) et sélectionne son hôte ; s'il est sur une autre page, on y va. */
+  const openAnimation = useCallback((o: OpenTimeline) => {
+    const owner = o ? index.get(o.hostId)?.owner : undefined;
+    const target = owner && "page" in owner ? owner.page : page.id;
+    if (target !== page.id) { setPageId(target); setFrameReady(false); }
+    setTimeline({ page: target, open: o });
+    if (o) select(o.hostId);
+  }, [index, page.id, setPageId, select]);
+  // L'aperçu montre l'instant de la tête de lecture ; la valeur est gardée pour la reposer quand l'aperçu se recharge.
+  const scrubTime = useRef<number | null>(null);
+  const scrub = useCallback((time: number | null) => {
+    scrubTime.current = time;
+    if (time === null || !openTl) post({ type: "atelier:scrub-stop" });
+    else post({ type: "atelier:scrub", id: openTl.hostId, trigger: openTl.triggerId, time });
+  }, [openTl, post]);
+  useEffect(() => { if (frameReady && openTl && scrubTime.current !== null) post({ type: "atelier:scrub", id: openTl.hostId, trigger: openTl.triggerId, time: scrubTime.current }); }, [frameReady, openTl, post]);
 
 
   // Entrées de la version publiée (id → date) : le tableau compte ce qui est publié ici mais pas encore en ligne.
@@ -371,6 +403,11 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
 
   // --- raccourcis clavier (fenêtre et aperçu)
   const treeRoot = editingComponent ? site.components.find((c) => c.id === editingComponent)?.root ?? page.root : page.root;
+  const layerMarks = useMemo(() => {
+    if (editMode !== "animate") return undefined;
+    const anim = openTl ? animationById(site, openTl.animationId) : undefined;
+    return { triggers: triggerHosts(treeRoot), animated: anim && openTl ? animatedNodes(anim, openTl.hostId) : new Set<string>() };
+  }, [editMode, treeRoot, openTl, site]);
   useEffect(() => {
     type KeyLike = { key: string; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey?: boolean; preventDefault: () => void; fromPreview?: boolean };
     const onKey = (e: KeyLike) => {
@@ -477,7 +514,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
       ...(writer ? [] : [{ id: "settings", group: "Site", label: "Réglages du site… (adresse, référencement, 404, redirections, code, export, partage)", icon: Settings2, keywords: "réglages sous-domaine seo favicon redirection export partage", run: () => { setPublishTab("settings"); setPublishOpen(true); } }]),
       { id: "preview", group: "Affichage", label: "Ouvrir l'aperçu dans un nouvel onglet", icon: ExternalLink, run: () => window.open(previewPath, "_blank") },
       { id: "mode:write", group: "Affichage", label: "Mode Écriture", run: () => switchMode("write") },
-      ...(writer ? [] : [{ id: "mode:design", group: "Affichage", label: "Mode Design", run: () => switchMode("design") }]),
+      ...(writer ? [] : [{ id: "mode:design", group: "Affichage", label: "Mode Design", run: () => switchMode("design") }, { id: "mode:animate", group: "Affichage", label: "Mode Animation", icon: Zap, keywords: "animation ligne de temps déclencheur images-clés", run: () => switchMode("animate") }]),
       { id: "grid", group: "Affichage", label: showGrid ? "Masquer la grille de mise en page" : "Afficher la grille de mise en page", keys: "⌃G", icon: Grid3x3, run: toggleGrid },
       ...site.theme.modes.map((m) => ({ id: `mode:${m.id}`, group: "Affichage", label: `Aperçu en mode ${m.name.toLowerCase()}`, icon: m.id === "dark" ? Moon : Sun, run: () => setMode(m.id) })),
       ...PRESETS.map((p) => ({ id: `width:${p.id}`, group: "Affichage", label: `Largeur ${p.label.toLowerCase()}`, run: () => { setPreset(p.id); setCustomWidth(null); } })),
@@ -513,7 +550,8 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
 
   return (
     <ConfirmProvider><MediaLibraryProvider site={site} entries={ents.entries} commit={doc.commit} saveEntry={ents.save} onGoTo={goToUsage} readOnly={writer}>
-    <div className={`h-full grid grid-rows-[48px_1fr] ${focusMode ? "grid-cols-[1fr]" : "grid-cols-[300px_1fr_360px]"}`}>
+    {/* En mode Animation, la colonne de droite s'élargit en poussant le canevas quand une ligne de temps est ouverte (cadrage § 4.1). */}
+    <div className={`h-full grid grid-rows-[48px_1fr] ${focusMode ? "grid-cols-[1fr]" : editMode === "animate" && openTl ? "grid-cols-[300px_1fr_440px]" : "grid-cols-[300px_1fr_360px]"}`}>
       <header className="flex items-center gap-2 px-3 border-b border-line bg-panel" style={{ gridColumn: "1 / -1" }}>
         <Link href="/" className="font-semibold text-base tracking-tight text-ink hover:text-accent" title="Retour à vos sites">{PRODUCT_NAME}</Link>
         <Separator vertical />
@@ -527,7 +565,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
             {templateEntries.length ? <Select className="max-w-[220px]" value={previewEntry?.id ?? ""} options={templateEntries.map((e) => ({ value: e.id, label: String(e.values[template.database.titleField] ?? "") || "Sans titre" }))} onValueChange={(id) => { setPreviewEntryByPage((m) => ({ ...m, [page.id]: id })); select(null); setFrameReady(false); }} /> : <Badge tone="warning" title="Sans entrée publiée, la page s'affiche avec ses textes de repli">Aucune entrée publiée dans {template.database.name[locale] ?? template.database.slug}</Badge>}
           </div>
         ) : null}
-        <div className="ml-4"><Tabs variant="pill" label="Mode" tabs={MODES.map((m) => ({ ...m, disabled: m.id === "code" || (writer && m.id !== "write"), hint: writer && m.id === "design" ? "Réservé aux éditeurs du site" : m.hint }))} value={editMode} onChange={(m) => switchMode(m as EditMode)} /></div>
+        <div className="ml-4"><Tabs variant="pill" label="Mode" tabs={MODES.map((m) => ({ ...m, disabled: m.id === "code" || (writer && m.id !== "write"), hint: writer && (m.id === "design" || m.id === "animate") ? "Réservé aux éditeurs du site" : m.hint }))} value={editMode} onChange={(m) => switchMode(m as EditMode)} /></div>
 
         <div className="ml-auto flex items-center gap-2">
           <Tabs variant="pill" label="Largeur de l'aperçu" tabs={PRESETS.map((x) => ({ id: x.id, label: x.label }))} value={customWidth === null ? preset : ""} onChange={(id) => { setPreset(id); setCustomWidth(null); }} />
@@ -573,7 +611,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
                 node={treeRoot} depth={0} selected={selected} onSelect={select} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }}
                 openMap={openMap} setOpen={setOpen}
                 editing={editing} onEditStart={setEditing} onRename={rename}
-                drop={drop}
+                drop={drop} marks={layerMarks}
                 onDragStart={(id) => { dragId.current = id; select(id); }}
                 onDragOver={(id, position) => {
                   if (!((dragId.current && dragId.current !== id) || dragBlock.current)) return;
@@ -636,8 +674,10 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
       </main>
 
       {focusMode ? null : <Panel side="right">
-        {selectedLoc ? (
-          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} onPlay={(id, run) => post({ type: "atelier:play", id, run })} site={site} loc={selectedLoc} dataSource={dataSource} activeBp={activeBp} mode={mode} editMode={editMode} onSwitchMode={switchMode} onGoToBreakpoint={goToBreakpoint} onPreviewState={setPreviewState} onEditInPreview={() => post({ type: "atelier:edit-text", id: selectedLoc.node.id })} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }} onMakeComponent={makeComponent} onDetach={detachInstance} notify={notify} commit={doc.commit} onDeleted={() => { select(selectedLoc.parent?.id ?? null); notify(`${nodeLabel(selectedLoc.node)} supprimé`, "info", { label: "Annuler", run: () => doc.undo() }); }} /></div>
+        {editMode === "animate" ? (
+          <div className="flex-1 overflow-auto"><AnimationModePanel site={site} node={selectedLoc?.node ?? null} commit={doc.commit} open={openTl} onOpen={openAnimation} scrub={scrub} onSelect={select} /></div>
+        ) : selectedLoc ? (
+          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} onPlay={(id, run) => post({ type: "atelier:play", id, run })} site={site} loc={selectedLoc} dataSource={dataSource} activeBp={activeBp} mode={mode} editMode={editMode} onSwitchMode={switchMode} onOpenAnimation={writer ? undefined : (triggerId) => { const t = selectedLoc.node.triggers?.find((x) => x.id === triggerId); if (!t) return; switchMode("animate"); openAnimation({ animationId: t.animation, hostId: selectedLoc.node.id, triggerId }); }} onGoToBreakpoint={goToBreakpoint} onPreviewState={setPreviewState} onEditInPreview={() => post({ type: "atelier:edit-text", id: selectedLoc.node.id })} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }} onMakeComponent={makeComponent} onDetach={detachInstance} notify={notify} commit={doc.commit} onDeleted={() => { select(selectedLoc.parent?.id ?? null); notify(`${nodeLabel(selectedLoc.node)} supprimé`, "info", { label: "Annuler", run: () => doc.undo() }); }} /></div>
         ) : (
           <div className="p-3 flex flex-col gap-2">
             <PanelHeading className="px-0">Sélection</PanelHeading>

@@ -1,6 +1,27 @@
-import type { Animation, Site, Track } from "@atelier/model";
-import { indexSite, resolveTrackTarget } from "@atelier/model";
+import type { Animation, Node, Site, Track } from "@atelier/model";
+import { animationById, indexSite, resolveTrackTarget } from "@atelier/model";
 import { nodeLabel } from "@/components/node-icons";
+
+/** L'animation ouverte dans la ligne de temps : elle se joue depuis un hôte (l'élément qui porte le déclencheur). */
+export type OpenTimeline = { animationId: string; hostId: string; triggerId: string } | null;
+
+/**
+ * L'animation ouverte reste-t-elle jouable ? L'hôte existe encore, porte ce déclencheur, qui lance toujours cette animation.
+ * Sinon `null` : après annuler, retirer le déclencheur ou supprimer l'élément, la ligne de temps se referme d'elle-même.
+ */
+export function validOpenTimeline(site: Site, open: OpenTimeline): OpenTimeline {
+  if (!open || !animationById(site, open.animationId)) return null;
+  const host = indexSite(site).get(open.hostId)?.node;
+  return host?.triggers?.some((t) => t.id === open.triggerId && t.animation === open.animationId) ? open : null;
+}
+
+/** Les éléments qui portent au moins un déclencheur sous une racine (éclair dans les calques). */
+export function triggerHosts(root: Node): Set<string> {
+  const out = new Set<string>();
+  const visit = (n: Node) => { if (n.triggers?.length) out.add(n.id); n.children?.forEach(visit); };
+  visit(root);
+  return out;
+}
 
 /** Graduations de la règle : un pas lisible (100, 250, 500 ms, 1 s…), au plus douze intervalles. */
 export function rulerTicks(length: number): number[] {

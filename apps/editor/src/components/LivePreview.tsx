@@ -3,12 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Entry, Site } from "@atelier/model";
 import { serialize, isEmptyText } from "./preview/serialize";
-import { isAtelierMessage, type BlockPresetInfo, type FromPreview, type ToPreview } from "@/lib/preview-protocol";
+import { isAtelierMessage, type BlockPresetInfo, type EditMode, type FromPreview, type ToPreview } from "@/lib/preview-protocol";
+import { applyScrub, type ScrubAt } from "@/lib/scrub";
 import { ANIMATION_PLAY_SCRIPT, FORM_SCRIPT, INTERACTION_SCRIPT, RenderPage, applyInstantStates, assetMap, fontsHref, matchPath, memoryData, siteCss, type RenderContext } from "@atelier/renderer";
 
 type Props = { initialSite: Site; entries: Entry[]; path: string; mode?: string; editor: boolean };
-
-type EditMode = "write" | "design";
 
 const ACCENT = "var(--atelier-ui-accent, #6aa6ff)";
 
@@ -26,40 +25,14 @@ function PageCss({ site, pageId }: { site: Site; pageId: string }) {
  * Aperçu vivant : rendu côté serveur au premier chargement, puis mis à jour par l'éditeur
  * (message `atelier:site`) sans rechargement. En mode éditeur, gère la sélection, le glisser,
  * l'édition du texte (simple en Design, riche en Écriture), les barres flottantes et le menu « / ».
+ * En mode Animation : sélection seulement, et l'état de l'animation ouverte à la tête de lecture (`lib/scrub.ts`).
  */
-type ScrubTools = { els: (el: Element, tr: unknown) => Element[]; toKf: (k: unknown) => Keyframe[]; delay: (a: unknown, tr: unknown, i: number, n: number) => number };
-type WireTrigger = { i: string; dl: number; tr: { d: number; k: unknown }[] };
-let scrubStore: { key: string; anims: Animation[] } | null = null;
-/** Pose (ou repose) l'état d'une animation à un instant : les pistes du déclencheur sont jouées en pause sur leurs cibles et mises au temps voulu. */
-function applyScrub(m: { id: string; trigger: string; time: number } | null): void {
-  const A = (window as unknown as { __atelierAnim?: ScrubTools }).__atelierAnim;
-  if (!m || !A) { scrubStore?.anims.forEach((a) => a.cancel()); scrubStore = null; return; }
-  const el = document.querySelector<HTMLElement>(`[data-node="${m.id}"]`);
-  if (!el) return;
-  const raw = el.getAttribute("data-anim") ?? "";
-  const key = `${m.id}:${m.trigger}:${raw}`;
-  const alive = scrubStore && scrubStore.key === key && scrubStore.anims.every((a) => ((a.effect as KeyframeEffect | null)?.target as Element | null)?.isConnected);
-  if (!alive) {
-    scrubStore?.anims.forEach((a) => a.cancel());
-    let runs: WireTrigger[] = [];
-    try { runs = JSON.parse(raw) as WireTrigger[]; } catch { runs = []; }
-    const a = runs.find((r) => r.i === m.trigger);
-    if (!a) { scrubStore = null; return; }
-    const anims: Animation[] = [];
-    for (const tr of a.tr) {
-      const list = A.els(el, tr);
-      list.forEach((t, i) => { try { const an = t.animate(A.toKf(tr.k), { duration: tr.d, delay: A.delay({ ...a, dl: 0 }, tr, i, list.length), easing: "ease", fill: "both" }); an.pause(); anims.push(an); } catch { /* étapes invalides */ } });
-    }
-    scrubStore = { key, anims };
-  }
-  scrubStore.anims.forEach((a) => { a.currentTime = m.time; });
-}
-
 export function LivePreview({ initialSite, entries, path, mode, editor }: Props) {
   const [site, setSite] = useState(initialSite);
+  // Mode Animation : dernier instant montré, reposé après chaque rendu (les éléments ont pu être recréés, les pistes modifiées).
+  const lastScrub = useRef<ScrubAt | null>(null);
   // Après chaque rendu, l'état d'arrivée des apparitions est posé sans transition : sinon un élément qui reçoit une apparition disparaîtrait de l'aperçu.
-  // Et si le mode Animation montre un instant précis, il est reposé (les éléments ont pu être recréés).
-  useEffect(() => { if (editor) { applyInstantStates(document); if (lastScrub.current) applyScrub(lastScrub.current); } });
+  useEffect(() => { if (editor) { applyInstantStates(document); if (lastScrub.current) applyScrub(document, lastScrub.current); } });
   // Aperçu hors éditeur : les scripts du site (interactions, formulaires) sont injectés après l'hydratation, pas dans le HTML serveur.
   useEffect(() => {
     if (editor) return;
@@ -72,8 +45,6 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     const el = document.createElement("script"); el.textContent = ANIMATION_PLAY_SCRIPT; document.body.appendChild(el);
     return () => el.remove();
   }, [editor]);
-  // Mode Animation : pistes du déclencheur jouées en pause, positionnées à la tête de lecture (API Web Animations, via l'outil du site).
-  const lastScrub = useRef<{ id: string; trigger: string; time: number } | null>(null);
   const [entriesState, setEntriesState] = useState(entries);
   const [modeState, setModeState] = useState(mode ?? initialSite.theme.defaultMode);
   const data = useMemo(() => memoryData(entriesState), [entriesState]);
@@ -488,6 +459,8 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       if (!el || e.button !== 0) return;
       // Mode Écriture : cliquer un texte y place directement le curseur.
       if (editMode === "write" && textNodes.has(idOf(el))) { startEdit(el); return; }
+      // Mode Animation : l'aperçu montre un instant, on y sélectionne seulement (aucun déplacement sur le canevas en v1, cadrage § 4.1).
+      if (editMode === "animate") return;
       if (idOf(el) === selectedId.current && !isRoot(el)) press = { x: e.clientX, y: e.clientY, el };
     };
     const onMouseMove = (e: MouseEvent) => {
@@ -563,7 +536,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     const onDblClick = (e: MouseEvent) => {
       if ((e.target as Element).closest?.("[data-atelier-ui]")) return;
       const el = nodeOf(e.target);
-      if (!el || !textNodes.has(idOf(el))) return;
+      if (!el || !textNodes.has(idOf(el)) || editMode === "animate") return;
       e.preventDefault();
       startEdit(el, "all");
     };
@@ -631,8 +604,8 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       if (m?.type === "atelier:editmode" && m.editMode) { editMode = m.editMode; if (editing) endEdit(true); hideBlockBar(); clear(hovered); hovered = null; }
       if (m?.type === "atelier:zoom") { const z = Number((m as { scale?: number }).scale); uiScale = z > 0 && z < 1 ? Math.min(1 / z, 2.2) : 1; applyUiScale(); }
       if (m?.type === "atelier:mode" && m.mode) setModeState(m.mode);
-      if (m?.type === "atelier:scrub") { lastScrub.current = { id: m.id, trigger: m.trigger, time: m.time }; applyScrub(lastScrub.current); }
-      if (m?.type === "atelier:scrub-stop") { lastScrub.current = null; applyScrub(null); }
+      if (m?.type === "atelier:scrub") { lastScrub.current = { id: m.id, trigger: m.trigger, time: m.time }; applyScrub(document, lastScrub.current); }
+      if (m?.type === "atelier:scrub-stop") { lastScrub.current = null; applyScrub(document, null); }
       if (m?.type === "atelier:play") {
         // Rejoue un run une fois sur ses cibles (API Web Animations, via l'outil partagé avec le site), même si le CSS de l'éditeur laisse les animations à l'arrêt.
         const el = document.querySelector<HTMLElement>(`[data-node="${m.id}"]`);

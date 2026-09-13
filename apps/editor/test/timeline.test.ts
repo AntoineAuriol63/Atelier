@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import type { Animation, Node, Site } from "@atelier/model";
+import type { Node, Site } from "@atelier/model";
 import { sampleSite } from "@atelier/model";
-import { animatedNodes, formatTime, nextAnimationName, rulerTicks, trackLabel } from "../src/lib/timeline";
+import { animatedNodes, formatTime, nextAnimationName, rulerTicks, trackLabel, triggerHosts, validOpenTimeline } from "../src/lib/timeline";
 
 const text = (id: string, name?: string): Node => ({ id, type: "text", name, props: { tag: "p", content: { fr: [{ t: "text", v: id }] } } });
 const root: Node = { id: "root", type: "box", props: {}, children: [{ id: "card", type: "box", name: "Carte", props: {}, children: [text("inner")] }, text("txt_b", "Titre")] };
@@ -34,5 +34,20 @@ describe("ligne de temps", () => {
   it("propose un nom libre pour une nouvelle animation", () => {
     expect(nextAnimationName(site)).toBe("Animation 3");
     expect(nextAnimationName({ ...site, animations: [] })).toBe("Animation 1");
+  });
+  it("liste les éléments qui portent un déclencheur, pour l'éclair des calques", () => {
+    const tree: Node = { ...root, triggers: [{ id: "g0", on: "load", animation: "an_2" }], children: [{ ...root.children![0]!, triggers: [{ id: "g1", on: "inView", animation: "an_1" }] }, root.children![1]!] };
+    expect([...triggerHosts(tree)].sort()).toEqual(["card", "root"]);
+    expect(triggerHosts(root).size).toBe(0);
+  });
+  it("garde l'animation ouverte tant que son déclencheur existe encore sur l'hôte et la lance toujours", () => {
+    const withTrigger: Site = { ...site, pages: [{ ...site.pages[0]!, root: { ...root, children: [{ ...root.children![0]!, triggers: [{ id: "g1", on: "inView", animation: "an_1" }] }, root.children![1]!] } }] };
+    const open = { animationId: "an_1", hostId: "card", triggerId: "g1" };
+    expect(validOpenTimeline(withTrigger, open)).toBe(open);
+    expect(validOpenTimeline(withTrigger, null)).toBeNull();
+    expect(validOpenTimeline(site, open)).toBeNull();
+    expect(validOpenTimeline(withTrigger, { ...open, animationId: "an_2" })).toBeNull();
+    expect(validOpenTimeline({ ...withTrigger, animations: [site.animations[1]!] }, open)).toBeNull();
+    expect(validOpenTimeline(withTrigger, { ...open, hostId: "ailleurs" })).toBeNull();
   });
 });

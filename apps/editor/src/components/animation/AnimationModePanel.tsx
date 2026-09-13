@@ -5,12 +5,10 @@ import { Diamond, Pause, Play, Plus, Repeat, SkipBack, Snail, X } from "lucide-r
 import type { Animation, CommitOptions, Node, Op, Site, Trigger, TriggerOn } from "@atelier/model";
 import { ANIMATION_PRESETS, TRIGGER_LABELS, animationById, animationLength, animationUsages, describeAnimation, describeTrigger, newId, planAddAnimation, planAddTrigger, planApplyPreset, planRemoveTrigger, planUpdateAnimation, planUpdateTrigger, presetById } from "@atelier/model";
 import { Badge, Button, Field, Hint, IconButton, NumberInput, PanelHeading, Select, TextInput, Toggle, Eyebrow } from "@/ui";
-import { formatTime, nextAnimationName, rulerTicks, trackLabel } from "@/lib/timeline";
+import { formatTime, nextAnimationName, rulerTicks, trackLabel, type OpenTimeline } from "@/lib/timeline";
 import { nodeLabel } from "../node-icons";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
-/** L'animation ouverte dans la ligne de temps : elle se joue depuis un hôte (l'élément qui porte le déclencheur). */
-export type OpenTimeline = { animationId: string; hostId: string; triggerId: string } | null;
 
 type Props = {
   site: Site; node: Node | null; commit: Commit;
@@ -112,7 +110,7 @@ export function AnimationModePanel({ site, node, commit, open, onOpen, scrub, on
           </ul>
         ) : null}
       </section>
-      {anim && open ? <Timeline key={anim.id} site={site} animation={anim} hostId={open.hostId} commit={commit} scrub={scrub} onClose={() => onOpen(null)} onSelect={onSelect} /> : null}
+      {anim && open ? <Timeline key={`${open.triggerId}:${anim.id}`} site={site} animation={anim} hostId={open.hostId} commit={commit} scrub={scrub} onClose={() => onOpen(null)} onSelect={onSelect} /> : null}
     </div>
   );
 }
@@ -125,8 +123,10 @@ function Timeline({ site, animation, hostId, commit, scrub, onClose, onSelect }:
   const [loop, setLoop] = useState(animation.loop === "infinite");
   const [slow, setSlow] = useState(false);
   const [selected, setSelected] = useState<{ track: string; at: number } | null>(null);
-  const scrubRef = useRef(scrub); scrubRef.current = scrub;
+  const scrubRef = useRef(scrub);
   const rail = useRef<HTMLDivElement>(null);
+  // Toujours la dernière fonction de l'éditeur, sans relancer les effets qui la lisent (la ref se met à jour après le rendu, pas pendant).
+  useEffect(() => { scrubRef.current = scrub; });
 
   // Lecture : la tête avance au rythme réel (ou au ralenti), boucle ou s'arrête à la fin.
   useEffect(() => {
