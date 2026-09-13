@@ -4,7 +4,8 @@ export type EditMode = "write" | "design" | "animate";
 
 /** Ce que l'éditeur (parent) envoie à l'aperçu (iframe). Une seule origine : la nôtre. */
 export type ToPreview =
-  | { type: "atelier:play"; id: string; run: string }
+  /** « Jouer » : rejoue une fois l'animation du déclencheur `trigger` porté par l'élément `id`. */
+  | { type: "atelier:play"; id: string; trigger: string }
   /** Mode Animation : montre l'état à `time` ms de la ligne de temps du déclencheur `trigger` porté par l'élément `id` (pistes jouées en pause). */
   | { type: "atelier:scrub"; id: string; trigger: string; time: number }
   | { type: "atelier:scrub-stop" }

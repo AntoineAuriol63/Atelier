@@ -1,5 +1,5 @@
 import type { Animation, Node, Page, Site, Track, TrackTarget, Trigger } from "@atelier/model";
-import { animationById, indexSite, resolveTrackTarget } from "@atelier/model";
+import { animationById, animationUsages, indexSite, resolveTrackTarget } from "@atelier/model";
 import { nodeLabel } from "@/components/node-icons";
 
 /** L'animation ouverte dans la ligne de temps : elle se joue depuis un hôte (l'élément qui porte le déclencheur). */
@@ -90,6 +90,22 @@ export function canAddTrack(site: Site, animation: Animation, hostId: string, no
   const taken = animation.tracks.some((t) => { const r = resolveTrackTarget(t.target, hostId); return !("selector" in r) && r.node === nodeId && !r.children && !r.split; });
   if (taken) { const n = index.get(nodeId)!.node; return { ok: false, reason: `« ${nodeLabel(n)} » a déjà sa piste` }; }
   return { ok: true };
+}
+
+/**
+ * Libellé d'une animation dans une liste : « Fondu en montant · Titre · Accueil (+2) », « Barre · page Accueil », « … · inutilisée ».
+ * Les animations issues des préréglages portent souvent le même nom : l'élément et la page qui les lancent les distinguent.
+ */
+export function animationLabel(site: Site, a: Animation): string {
+  const uses = animationUsages(site, a.id);
+  const first = uses[0];
+  if (!first) return `${a.name} · inutilisée`;
+  const locale = site.settings.defaultLocale;
+  const pageName = (id: string) => { const p = site.pages.find((x) => x.id === id); return p ? p.name[locale] ?? p.path : undefined; };
+  const more = uses.length > 1 ? ` (+${uses.length - 1})` : "";
+  if (first.page) return `${a.name} · page ${pageName(first.page.id)}${more}`;
+  const where = pageName(first.owner) ?? `composant ${site.components.find((c) => c.id === first.owner)?.name ?? first.owner}`;
+  return `${a.name} · ${first.node ? nodeLabel(first.node) : "?"} · ${where}${more}`;
 }
 
 /** « Animation 3 » : le premier nom libre. */

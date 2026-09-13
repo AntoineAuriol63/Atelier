@@ -382,7 +382,7 @@ export function springSamples(stiffness: number, damping: number, duration: numb
   for (let i = 0; i < n; i++) out.push(i === 0 ? 0 : i === n - 1 ? 1 : Math.round(springAt(stiffness, damping, (duration / 1000) * (i / (n - 1))) * 10000) / 10000);
   return out;
 }
-/** Courbe CSS d'un run : un ressort devient `linear(…)` échantillonné sur sa durée ; le reste passe tel quel (`ease` par défaut). */
+/** Courbe CSS d'un segment : un ressort devient `linear(…)` échantillonné sur sa durée ; le reste passe tel quel (`ease` par défaut). */
 export function easingCss(easing: string | undefined, duration: number): string {
   const sp = parseSpring(easing);
   if (!sp) return easing ?? "ease";

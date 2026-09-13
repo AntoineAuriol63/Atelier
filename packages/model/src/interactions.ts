@@ -1,8 +1,7 @@
-import type { Animation, Id, Interaction, Node, Op, Site, StyleProps, Target, Trigger } from "./types";
-import { animationById, animationUsages, planApplyPreset, planRemoveTrigger, presetById } from "./animations";
+import type { Id, Interaction, Node, Op, StyleProps, Target } from "./types";
 import { newId } from "./ids";
 
-/** Effets d'apparition prêts à l'emploi (D31) : état de départ posé sur le nœud, arrivée jouée quand il entre dans l'écran. */
+/** Apparitions de l'ancien format (D31, interactions `inView` → `reveal`) : ce qu'il faut pour les convertir en animations (migration 1 → 2 → 3). Les apparitions se posent aujourd'hui par les choix rapides (`planQuickAnimation`). */
 export type RevealKind = "fade" | "fade-up" | "fade-down" | "slide-left" | "slide-right" | "zoom" | "blur";
 export const REVEAL_LABEL: Record<RevealKind, string> = { fade: "Fondu", "fade-up": "Fondu en montant", "fade-down": "Fondu en descendant", "slide-left": "Glissé depuis la droite", "slide-right": "Glissé depuis la gauche", zoom: "Zoom", blur: "Netteté" };
 export const REVEAL_FROM: Record<RevealKind, StyleProps> = {
@@ -14,37 +13,6 @@ export const REVEAL_FROM: Record<RevealKind, StyleProps> = {
   zoom: { opacity: "0", transform: "scale(0.92)" },
   blur: { opacity: "0", filter: "blur(12px)" },
 };
-const REVEAL_TO: StyleProps = { opacity: "1", transform: "none", filter: "none" };
-export const EASINGS: { value: string; label: string }[] = [
-  { value: "cubic-bezier(.22,1,.36,1)", label: "Doux (sortie)" }, { value: "ease-out", label: "Sortie" }, { value: "ease-in-out", label: "Entrée-sortie" }, { value: "linear", label: "Linéaire" }, { value: "cubic-bezier(.34,1.56,.64,1)", label: "Rebond" },
-];
-
-export type RevealOptions = { kind: RevealKind; duration?: number; delay?: number; easing?: string; repeat?: boolean };
-
-/** L'apparition d'un nœud : le déclencheur `inView` dont l'animation vient d'un préréglage d'apparition. */
-export function revealOf(site: Site, node: Node): { trigger: Trigger; animation: Animation; options: RevealOptions } | undefined {
-  for (const t of node.triggers ?? []) {
-    if (t.on !== "inView") continue;
-    const a = animationById(site, t.animation);
-    if (a?.preset && a.preset in REVEAL_LABEL) return { trigger: t, animation: a, options: { kind: a.preset as RevealKind, duration: a.duration, delay: t.delay, easing: a.tracks[0]?.keyframes[1]?.easing, repeat: t.once === false } };
-  }
-  return undefined;
-}
-/** Pose (ou remplace) l'apparition d'un nœud : une animation du site et un déclencheur `inView`, rien dans le style. */
-export function planReveal(site: Site, node: Node, o: RevealOptions): Op[] {
-  const current = revealOf(site, node);
-  const preset = presetById(o.kind)!;
-  const ownAnimation = current && animationUsages(site, current.animation.id).length <= 1;
-  return planApplyPreset(site, node, preset, { replaceTriggerId: current?.trigger.id, triggerId: current?.trigger.id, animationId: ownAnimation ? current.animation.id : undefined, duration: o.duration, trigger: { delay: o.delay || undefined, once: o.repeat ? false : undefined } });
-}
-export function planRemoveReveal(site: Site, node: Node): Op[] {
-  const current = revealOf(site, node);
-  if (!current) return [];
-  const ops = planRemoveTrigger(node, current.trigger.id);
-  if (animationUsages(site, current.animation.id).length <= 1) ops.push({ op: "site.set", path: "animations", value: site.animations.filter((a) => a.id !== current.animation.id) });
-  return ops;
-}
-
 /** Autres interactions simples : au clic ou au survol, afficher/masquer une cible, changer sa variante, aller quelque part. */
 export function toggleInteraction(trigger: "click" | "hover", target: Target, mode: "toggle" | "show" | "hide" = "toggle", id: Id = newId()): Interaction {
   return { id, trigger: { kind: trigger }, actions: [{ kind: mode, target, transition: { duration: 250, easing: "ease-out" } }] };

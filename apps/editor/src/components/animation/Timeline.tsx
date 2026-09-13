@@ -196,7 +196,12 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
           <Button size="sm" icon={Plus} disabled={!canAdd.ok} onClick={addTrack} title={canAdd.ok ? "Animer aussi l'élément sélectionné dans cette ligne de temps" : canAdd.reason}>{canAdd.ok && selected ? `Ajouter « ${nodeLabel(selected)} »` : "Ajouter un élément"}</Button>
           {!canAdd.ok ? <span className="text-2xs text-dim truncate" title={canAdd.reason}>{canAdd.reason}</span> : null}
         </div>
+        {selected && selected.id !== hostId && selected.triggers?.length && animation.tracks.some((t) => nodeOfTrack(t)?.id === selected.id) ? (
+          <><span /><span className="text-2xs text-warning" title="Ses propres déclencheurs se jouent en plus de cette ligne de temps">« {nodeLabel(selected)} » a aussi ses propres animations ({selected.triggers.map((t) => site.animations.find((a) => a.id === t.animation)?.name ?? "?").join(", ")}) : elles se joueront en plus.</span></>
+        ) : null}
       </div>
+
+      {!animation.tracks.length ? <Hint>Aucune piste : sélectionnez dans l&apos;aperçu ou les calques un élément à animer (l&apos;élément du déclencheur compris), puis « Ajouter ».</Hint> : null}
 
       {track ? <TrackSettings key={track.id} site={site} getSite={getSite} animation={animation} track={track} node={trackNode} hostId={hostId} run={run} onRemoved={() => { setPicked(null); setSelection(new Set()); }} /> : null}
 
@@ -208,6 +213,12 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
               <IconButton size="sm" label="Supprimer l'image-clé" icon={Trash2} onClick={() => { run(planRemoveKeyframes(getSite(), animation.id, [{ track: track.id, at }]), "Retirer l'image-clé"); setSelection(new Set()); }} />
             </div>
           ) : undefined}>{kfHere ? `◆ Image-clé à ${at} ms` : `Instant ${at} ms`}</PanelHeading>
+          {kfHere ? (
+            <div className="grid grid-cols-[80px_1fr] items-center gap-1.5">
+              <span className="text-xs text-muted" title="Temps exact de l'image-clé ; une image-clé déjà à ce temps est remplacée">Temps</span>
+              <NumberInput className="w-[110px]" unit="ms" min={0} step={10} value={at} onValueChange={(n) => { if (n === "") return; const d = snapTime(n) - at; if (!d) return; run(planShiftKeyframes(getSite(), animation.id, [{ track: track.id, at }], d), "Déplacer l'image-clé"); setPlayhead(Math.max(0, at + d)); setSelection(new Set([keyOf({ track: track.id, at: Math.max(0, at + d) })])); }} />
+            </div>
+          ) : null}
           {kfHere && prevKf ? (
             <div className="grid grid-cols-[80px_1fr] items-start gap-1.5">
               <span className="text-xs text-muted pt-1.5" title="Courbe pour atteindre cette image-clé depuis la précédente">Courbe</span>
@@ -243,6 +254,8 @@ function TrackSettings({ site, getSite, animation, track, node, hostId, run, onR
       <PanelHeading className="px-0" actions={<IconButton size="sm" tone="danger" label="Retirer la piste" icon={Trash2} onClick={() => { run(planRemoveTrack(getSite(), animation.id, track.id), "Retirer la piste"); onRemoved(); }} />}>{`Piste · ${trackLabel(track, hostId, site)}`}</PanelHeading>
       {kind === "selector" ? <Hint>Sélecteur libre : {"selector" in track.target ? track.target.selector : ""}</Hint> : (
         <div className="grid grid-cols-[80px_1fr] items-center gap-1.5">
+          <span className="text-xs text-muted" title="Temps de la première image-clé : changer le départ décale toute la piste">Départ</span>
+          <NumberInput className="w-[110px]" unit="ms" min={0} step={10} value={trackSpan(track).start} onValueChange={(n) => { if (n === "") return; const d = snapTime(n) - trackSpan(track).start; if (d) run(planShiftKeyframes(getSite(), animation.id, track.keyframes.map((k) => ({ track: track.id, at: k.at })), d), "Décaler la piste"); }} />
           <span className="text-xs text-muted">Anime</span>
           <Select value={kind} options={targetKindOptions(node)} onValueChange={(v) => setKind(v as TargetKind)} />
           {multi ? (

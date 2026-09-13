@@ -607,12 +607,12 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       if (m?.type === "atelier:scrub") { lastScrub.current = { id: m.id, trigger: m.trigger, time: m.time }; applyScrub(document, lastScrub.current); }
       if (m?.type === "atelier:scrub-stop") { lastScrub.current = null; applyScrub(document, null); }
       if (m?.type === "atelier:play") {
-        // Rejoue un run une fois sur ses cibles (API Web Animations, via l'outil partagé avec le site), même si le CSS de l'éditeur laisse les animations à l'arrêt.
+        // Rejoue une fois l'animation d'un déclencheur sur ses cibles (API Web Animations, via l'outil partagé avec le site), même si le CSS de l'éditeur laisse les animations à l'arrêt.
         const el = document.querySelector<HTMLElement>(`[data-node="${m.id}"]`);
-        let runs: { i: string; loop: number | "infinite" }[] = [];
-        try { runs = JSON.parse(el?.getAttribute("data-anim") ?? "[]"); } catch { runs = []; }
-        const a = runs.find((r) => r.i === m.run);
-        const play = (window as unknown as { __atelierPlay?: (host: HTMLElement, run: unknown, extra: Record<string, unknown>) => unknown }).__atelierPlay;
+        let triggers: { i: string; loop: number | "infinite" }[] = [];
+        try { triggers = JSON.parse(el?.getAttribute("data-anim") ?? "[]"); } catch { triggers = []; }
+        const a = triggers.find((r) => r.i === m.trigger);
+        const play = (window as unknown as { __atelierPlay?: (host: HTMLElement, trigger: unknown, extra: Record<string, unknown>) => unknown }).__atelierPlay;
         if (el && a && play) play(el, a, { iterations: a.loop === "infinite" ? 3 : a.loop, fill: "none" });
       }
       if (m?.type === "atelier:grid") renderGrid(m as unknown as { show: boolean; columns: number; gutter: string; margin: string; maxWidth: string });

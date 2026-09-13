@@ -7,12 +7,12 @@
 export type ScrubAt = { id: string; trigger: string; time: number };
 
 type WireTrack = { d: number; s: number; k: unknown };
-type WireRun = { i: string; dl: number; loop: number | "infinite"; alt: boolean; tr: WireTrack[] };
+type WireTrigger = { i: string; dl: number; loop: number | "infinite"; alt: boolean; tr: WireTrack[] };
 type AnimTools = {
   els: (host: Element, tr: WireTrack) => Element[];
   toKf: (k: unknown) => Keyframe[];
-  delay: (run: WireRun, tr: WireTrack, i: number, n: number) => number;
-  opts: (run: WireRun, tr: WireTrack, extra: KeyframeAnimationOptions) => KeyframeAnimationOptions;
+  delay: (run: WireTrigger, tr: WireTrack, i: number, n: number) => number;
+  opts: (run: WireTrigger, tr: WireTrack, extra: KeyframeAnimationOptions) => KeyframeAnimationOptions;
 };
 
 // Un seul aperçu par fenêtre : les animations en pause de l'instant montré, et ce qui les a produites.
@@ -36,11 +36,11 @@ export function applyScrub(doc: Document, at: ScrubAt | null): void {
   let current = store && store.key === key && store.anims.every((a) => targetOf(a)?.isConnected) ? store : null;
   if (!current) {
     stop();
-    let runs: WireRun[] = [];
-    try { runs = JSON.parse(raw || "[]") as WireRun[]; } catch { runs = []; }
-    const run = runs.find((r) => r.i === at.trigger);
+    let triggers: WireTrigger[] = [];
+    try { triggers = JSON.parse(raw || "[]") as WireTrigger[]; } catch { triggers = []; }
+    const run = triggers.find((r) => r.i === at.trigger);
     if (!run) return;
-    const once: WireRun = { ...run, dl: 0, loop: 1, alt: false };
+    const once: WireTrigger = { ...run, dl: 0, loop: 1, alt: false };
     const anims: Animation[] = [];
     for (const tr of run.tr) {
       const list = tools.els(host, tr);

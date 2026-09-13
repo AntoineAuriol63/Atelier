@@ -4,8 +4,8 @@ import { useState } from "react";
 import { Plus, X } from "lucide-react";
 import type { Animation, CommitOptions, Node, Op, Page, Site, Trigger, TriggerOn } from "@atelier/model";
 import { ANIMATION_PRESETS, TRIGGER_LABELS, animationById, animationFromPreset, animationUsages, describeAnimation, describeTrigger, newId, planAddAnimation, planAddPageTrigger, planAddTrigger, planRemovePageTriggerWithAnimation, planRemoveTriggerWithAnimation, planUpdatePageTrigger, planUpdateTrigger, presetById, triggerFromPreset } from "@atelier/model";
-import { Button, Eyebrow, Field, Hint, IconButton, NumberInput, PanelHeading, Select, Toggle } from "@/ui";
-import { nextAnimationName, openTrigger, type OpenTimeline } from "@/lib/timeline";
+import { Button, Eyebrow, Field, Hint, IconButton, NumberInput, PanelHeading, Section, Select, Toggle } from "@/ui";
+import { animationLabel, nextAnimationName, openTrigger, type OpenTimeline } from "@/lib/timeline";
 import { Timeline } from "./Timeline";
 import { ContinuousEffects } from "./ContinuousEffects";
 import { nodeLabel } from "../node-icons";
@@ -54,10 +54,9 @@ export function AnimationModePanel({ site, node, commit, page, getSite, bp, mode
       ) : <Hint>Sélectionnez un élément dans l&apos;aperçu ou dans les calques pour voir ce qui le déclenche, ou ouvrez une animation du site ci-dessous.</Hint>}
 
       {node ? (
-        <section className="flex flex-col gap-1.5" aria-label="Effets continus">
-          <PanelHeading className="px-0">Effets continus</PanelHeading>
-          <ContinuousEffects node={node} commit={commit} />
-        </section>
+        <Section title="Effets continus" defaultOpen={false} className="-mx-3 border-t" hint="Parallaxe, bandeau, compteur, carrousel automatique : des propriétés de l'élément qui bougent en continu, sans ligne de temps.">
+          <div className="flex flex-col gap-1.5"><ContinuousEffects node={node} commit={commit} /></div>
+        </Section>
       ) : null}
 
       {onPageRoot ? (
@@ -79,7 +78,8 @@ export function AnimationModePanel({ site, node, commit, page, getSite, bp, mode
             {site.animations.map((a) => {
               const u = animationUsages(site, a.id)[0];
               const hostId = u?.node?.id ?? u?.page?.root.id;
-              return <li key={a.id}><button type="button" disabled={!hostId} title={hostId ? describeAnimation(a) : "Aucun déclencheur ne la lance : ajoutez-en un sur un élément"} className="w-full text-left text-xs truncate rounded-sm px-1.5 py-1 hover:bg-surface disabled:opacity-50" onClick={() => u && hostId && onOpen({ animationId: a.id, hostId, triggerId: u.trigger.id })}>{describeAnimation(a)}</button></li>;
+              const label = animationLabel(site, a);
+              return <li key={a.id}><button type="button" disabled={!hostId} title={hostId ? `${label} · ${describeAnimation(a)}` : "Aucun déclencheur ne la lance : ajoutez-en un sur un élément"} className="w-full text-left text-xs truncate rounded-sm px-1.5 py-1 hover:bg-surface disabled:opacity-50" onClick={() => u && hostId && onOpen({ animationId: a.id, hostId, triggerId: u.trigger.id })}>{label}</button></li>;
             })}
           </ul>
         </section>
@@ -159,7 +159,8 @@ function AddTrigger({ site, ons, defaultOn = "inView", onAdd }: { site: Site; on
     } else if (what.startsWith("anim:")) {
       onAdd([], { id: newId(), on, animation: what.slice(5) }, "Ajouter un déclencheur");
     } else {
-      const a: Animation = { id: newId(), name: nextAnimationName(site), duration: 1000, tracks: [{ id: newId(), target: { trigger: true }, keyframes: [{ at: 0, style: {} }, { at: 1000, style: {}, easing: "ease-in-out" }] }] };
+      // Sans piste : on ajoute ensuite les éléments à animer (l'élément porteur compris, s'il doit bouger).
+      const a: Animation = { id: newId(), name: nextAnimationName(site), duration: 1000, tracks: [] };
       onAdd(planAddAnimation(site, a), { id: newId(), on, animation: a.id }, "Nouvelle animation");
     }
   };

@@ -53,7 +53,7 @@ type Props = {
   onPreviewState: (state: string | null) => void;
   onEditInPreview?: () => void;
   /** Rejoue une animation une fois dans l'aperçu. */
-  onPlay?: (nodeId: string, runId: string) => void;
+  onPlay?: (nodeId: string, triggerId: string) => void;
   onEnterComponent?: (componentId: string) => void;
   /** Faire de l'élément un composant du site (nom choisi), ou détacher une instance. */
   onMakeComponent?: (name: string) => void;
@@ -278,7 +278,7 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
       <TypographyPanel site={site} style={style} mode={mode} defaultOpen={node.type === "text" || node.type === "link"} />
       <AppearancePanel site={site} style={style} mode={mode} />
       <EffectsPanel site={site} style={style} node={sharedDef ? undefined : node} commit={commit} />
-      {!sharedDef ? <AnimationsPanel site={site} node={node} commit={commit} onPlay={onPlay ? (runId) => onPlay(node.id, runId) : undefined} onOpenAnimation={onOpenAnimation} /> : null}
+      {!sharedDef ? <AnimationsPanel site={site} node={node} commit={commit} onPlay={onPlay ? (triggerId) => onPlay(node.id, triggerId) : undefined} onOpenAnimation={onOpenAnimation} /> : null}
       {!sharedDef ? <InteractionsPanel site={site} node={node} pageRoot={pageRoot} commit={commit} /> : null}
 
         </>

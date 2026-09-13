@@ -1,5 +1,6 @@
 "use client";
 
+import { animationLabel } from "@/lib/timeline";
 import { useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import type { Animation, CommitOptions, Op, Site, StyleValue, Theme, SharedStyle } from "@atelier/model";
@@ -174,7 +175,7 @@ function SharedStylesSection({ site, commit }: { site: Site; commit: Commit }) {
   );
 }
 
-/** Les animations de la bibliothèque du site : renommer, voir les usages, supprimer (les éléments qui s'en servaient récupèrent les étapes en ligne). */
+/** Les animations du site : renommer, voir où elles sont lancées (élément et page au survol), supprimer avec leurs déclencheurs. */
 function AnimationsLibrarySection({ site, commit }: { site: Site; commit: Commit }) {
   const list = site.animations;
   const remove = async (a: Animation) => {
@@ -191,7 +192,7 @@ function AnimationsLibrarySection({ site, commit }: { site: Site; commit: Commit
             const n = animationUsages(site, a.id).length;
             return (
               <li key={a.id} className="grid grid-cols-[1fr_auto_24px] items-center gap-1">
-                <TextInput value={a.name} aria-label="Nom de l'animation" title={describeAnimation(a)} onValueChange={(v) => commit({ op: "site.set", path: `animations.${i}.name`, value: v || a.name }, { label: "Renommer l'animation", coalesceKey: `anim-name:${a.id}` })} />
+                <TextInput value={a.name} aria-label="Nom de l'animation" title={`${animationLabel(site, a)} · ${describeAnimation(a)}`} onValueChange={(v) => commit({ op: "site.set", path: `animations.${i}.name`, value: v || a.name }, { label: "Renommer l'animation", coalesceKey: `anim-name:${a.id}` })} />
                 <Badge title={`${describeAnimation(a)} · ${n ? `${n} déclencheur${n > 1 ? "s" : ""}` : "inutilisée"}`}>{n}</Badge>
                 <IconButton size="sm" tone="danger" label={`Supprimer l'animation « ${a.name} »`} icon={Trash2} onClick={() => void remove(a)} />
               </li>

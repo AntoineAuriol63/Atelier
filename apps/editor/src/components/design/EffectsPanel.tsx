@@ -4,6 +4,7 @@ import type { CommitOptions, Node, Op, Site } from "@atelier/model";
 import { Hint, NumberInput, Section, Select, TextInput } from "@/ui";
 import { PropRow, TokenSelect } from "@/ui/controls";
 import type { StyleApi } from "./useStyle";
+import { composeFilter, composeTransform, parseFilter, parseTransform } from "@/lib/effects-css";
 import { ContinuousEffects } from "../animation/ContinuousEffects";
 
 const EASINGS = [{ value: "ease", label: "Naturel" }, { value: "linear", label: "Linéaire" }, { value: "ease-in", label: "Entrée" }, { value: "ease-out", label: "Sortie" }, { value: "ease-in-out", label: "Entrée-sortie" }, { value: "cubic-bezier(.2,.8,.2,1)", label: "Doux" }];
@@ -11,48 +12,6 @@ const CURSORS = [{ value: "auto", label: "Auto" }, { value: "pointer", label: "M
 
 function str(v: unknown): string | undefined { return typeof v === "string" ? v : undefined; }
 
-/** Décompose une transformation simple (rotate/scale/translate) ; sinon, on édite le texte brut. */
-function parseTransform(v: string | undefined): { rotate: number; scale: number; x: number; y: number; raw: boolean } {
-  const out = { rotate: 0, scale: 1, x: 0, y: 0, raw: false };
-  if (!v || v === "none") return out;
-  let rest = v;
-  const take = (re: RegExp, fn: (m: RegExpMatchArray) => void) => { const m = rest.match(re); if (m) { fn(m); rest = rest.replace(m[0], ""); } };
-  take(/rotate\((-?[\d.]+)deg\)/, (m) => { out.rotate = Number(m[1]); });
-  take(/scale\((-?[\d.]+)\)/, (m) => { out.scale = Number(m[1]); });
-  take(/translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/, (m) => { out.x = Number(m[1]); out.y = Number(m[2]); });
-  if (rest.trim()) out.raw = true;
-  return out;
-}
-function composeTransform(t: { rotate: number; scale: number; x: number; y: number }): string | undefined {
-  const parts: string[] = [];
-  if (t.x || t.y) parts.push(`translate(${t.x}px, ${t.y}px)`);
-  if (t.rotate) parts.push(`rotate(${t.rotate}deg)`);
-  if (t.scale !== 1) parts.push(`scale(${t.scale})`);
-  return parts.length ? parts.join(" ") : undefined;
-}
-type Filter = { blur: number; brightness: number; contrast: number; saturate: number; grayscale: number; raw: boolean };
-function parseFilter(v: string | undefined): Filter {
-  const out: Filter = { blur: 0, brightness: 100, contrast: 100, saturate: 100, grayscale: 0, raw: false };
-  if (!v || v === "none") return out;
-  let rest = v;
-  const take = (re: RegExp, fn: (m: RegExpMatchArray) => void) => { const m = rest.match(re); if (m) { fn(m); rest = rest.replace(m[0], ""); } };
-  take(/blur\((\d*\.?\d+)px\)/, (m) => { out.blur = Number(m[1]); });
-  take(/brightness\((\d*\.?\d+)%\)/, (m) => { out.brightness = Number(m[1]); });
-  take(/contrast\((\d*\.?\d+)%\)/, (m) => { out.contrast = Number(m[1]); });
-  take(/saturate\((\d*\.?\d+)%\)/, (m) => { out.saturate = Number(m[1]); });
-  take(/grayscale\((\d*\.?\d+)%\)/, (m) => { out.grayscale = Number(m[1]); });
-  if (rest.trim()) out.raw = true;
-  return out;
-}
-function composeFilter(f: Filter): string | undefined {
-  const parts: string[] = [];
-  if (f.blur) parts.push(`blur(${f.blur}px)`);
-  if (f.brightness !== 100) parts.push(`brightness(${f.brightness}%)`);
-  if (f.contrast !== 100) parts.push(`contrast(${f.contrast}%)`);
-  if (f.saturate !== 100) parts.push(`saturate(${f.saturate}%)`);
-  if (f.grayscale) parts.push(`grayscale(${f.grayscale}%)`);
-  return parts.length ? parts.join(" ") : undefined;
-}
 function parseTransition(v: string | undefined): { prop: string; ms: number; easing: string } {
   const m = v?.match(/^([\w-]+)\s+([\d.]+)(ms|s)\s*([\w-]+(?:\([^)]*\))?)?$/);
   if (!m) return { prop: "all", ms: 200, easing: "ease" };
@@ -67,7 +26,7 @@ export function EffectsPanel({ site, style, node, commit, defaultOpen = false }:
     <PropRow key={`${prop}:${label}`} prop={prop} label={label} source={s.source(prop)} sourceTitle={s.title(prop)} onReset={() => s.reset(prop)} wide={wide}>{children}</PropRow>
   );
   const tf = parseTransform(str(s.value("transform")));
-  const setTf = (patch: Partial<typeof tf>) => s.set("transform", composeTransform({ ...tf, ...patch }));
+  const setTf = (patch: Partial<typeof tf>) => s.set("transform", composeTransform({ ...tf, ...patch }, animating ? "none" : undefined));
   const tr = parseTransition(str(s.value("transition")));
   const hasTransition = s.value("transition") !== undefined;
   const setTr = (patch: Partial<typeof tr>) => { const n = { ...tr, ...patch }; s.set("transition", `${n.prop} ${n.ms}ms ${n.easing}`, false); };
@@ -93,7 +52,7 @@ export function EffectsPanel({ site, style, node, commit, defaultOpen = false }:
       ))}
       {(() => {
         const fl = parseFilter(str(s.value("filter")));
-        const setFl = (patch: Partial<typeof fl>) => s.set("filter", composeFilter({ ...fl, ...patch }));
+        const setFl = (patch: Partial<typeof fl>) => s.set("filter", composeFilter({ ...fl, ...patch }, animating ? "none" : undefined));
         if (fl.raw) return row("filter", "Filtre", <div className="flex items-center gap-1 flex-1 min-w-0"><TextInput mono className="flex-1 min-w-0" value={str(s.value("filter")) ?? ""} onValueChange={(v) => s.set("filter", v || undefined)} /><TokenSelect site={site} onPick={(t) => s.set("filter", t)} /></div>);
         return (
           <>
@@ -106,7 +65,7 @@ export function EffectsPanel({ site, style, node, commit, defaultOpen = false }:
         );
       })()}
       {animating ? null : row("cursor", "Curseur", <Select className="flex-1" value={str(s.value("cursor")) ?? ""} placeholder="Auto" options={CURSORS} onValueChange={(v) => s.set("cursor", v || undefined, false)} />)}
-      {animating ? null : <Hint>Pour animer un changement au survol (couleur, taille…), réglez une transition ici : elle s&apos;applique au passage d&apos;un état à l&apos;autre. Les apparitions au défilement se règlent dans « Interactions ».</Hint>}
+      {animating ? null : <Hint>Pour animer un changement au survol (couleur, taille…), réglez une transition ici : elle s&apos;applique au passage d&apos;un état à l&apos;autre. Les apparitions et les animations se règlent dans la section Animations et dans le mode Animation.</Hint>}
       {node && commit && !animating ? (
         <>
           <div className="h-px bg-line my-1" />

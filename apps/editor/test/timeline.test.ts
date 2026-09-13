@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { Animation, Node, Site } from "@atelier/model";
 import { sampleSite } from "@atelier/model";
-import { animatedNodes, canAddTrack, openTrigger, formatTime, nextAnimationName, rulerTicks, snapTime, targetKindOf, targetKindOptions, trackLabel, triggerHosts, validOpenTimeline } from "../src/lib/timeline";
+import { animatedNodes, animationLabel, canAddTrack, openTrigger, formatTime, nextAnimationName, rulerTicks, snapTime, targetKindOf, targetKindOptions, trackLabel, triggerHosts, validOpenTimeline } from "../src/lib/timeline";
 
 const text = (id: string, name?: string): Node => ({ id, type: "text", name, props: { tag: "p", content: { fr: [{ t: "text", v: id }] } } });
 const root: Node = { id: "root", type: "box", props: {}, children: [{ id: "card", type: "box", name: "Carte", props: {}, children: [text("inner")] }, text("txt_b", "Titre")] };
@@ -34,6 +34,13 @@ describe("ligne de temps", () => {
   it("propose un nom libre pour une nouvelle animation", () => {
     expect(nextAnimationName(site)).toBe("Animation 3");
     expect(nextAnimationName({ ...site, animations: [] })).toBe("Animation 1");
+  });
+  it("libellé d'une animation dans la bibliothèque : son nom, l'élément qui la lance et sa page, pour distinguer les homonymes", () => {
+    const withUses: Site = { ...site, pages: [{ ...site.pages[0]!, triggers: [{ id: "pg1", on: "scroll", animation: "an_2" }], root: { ...root, children: [{ ...root.children![0]!, triggers: [{ id: "g1", on: "inView", animation: "an_1" }, { id: "g2", on: "hover", animation: "an_1" }] }, root.children![1]!] } }] };
+    const pageName = withUses.pages[0]!.name.fr;
+    expect(animationLabel(withUses, withUses.animations[0]!)).toBe(`Arrivée · Carte · ${pageName} (+1)`);
+    expect(animationLabel(withUses, withUses.animations[1]!)).toBe(`Animation 2 · page ${pageName}`);
+    expect(animationLabel(site, site.animations[0]!)).toBe("Arrivée · inutilisée");
   });
   it("liste les éléments qui portent un déclencheur, pour l'éclair des calques", () => {
     const tree: Node = { ...root, triggers: [{ id: "g0", on: "load", animation: "an_2" }], children: [{ ...root.children![0]!, triggers: [{ id: "g1", on: "inView", animation: "an_1" }] }, root.children![1]!] };
