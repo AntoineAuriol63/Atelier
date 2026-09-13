@@ -31,8 +31,10 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
   const [site, setSite] = useState(initialSite);
   // Mode Animation : dernier instant montré, reposé après chaque rendu (les éléments ont pu être recréés, les pistes modifiées).
   const lastScrub = useRef<ScrubAt | null>(null);
+  // Mode Animation : repère des éléments de la piste active (fonction posée par l'effet de l'éditeur, qui tient la couche d'interface).
+  const renderAnimTargets = useRef<(() => void) | null>(null);
   // Après chaque rendu, l'état d'arrivée des apparitions est posé sans transition : sinon un élément qui reçoit une apparition disparaîtrait de l'aperçu.
-  useEffect(() => { if (editor) { applyInstantStates(document); if (lastScrub.current) applyScrub(document, lastScrub.current); } });
+  useEffect(() => { if (editor) { applyInstantStates(document); if (lastScrub.current) applyScrub(document, lastScrub.current); renderAnimTargets.current?.(); } });
   // Aperçu hors éditeur : les scripts du site (interactions, formulaires) sont injectés après l'hydratation, pas dans le HTML serveur.
   useEffect(() => {
     if (editor) return;
@@ -119,6 +121,30 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     const sizeGrid = () => { gridLayer.style.height = `${Math.max(document.documentElement.scrollHeight, document.body.scrollHeight)}px`; };
     const gridObserver = new ResizeObserver(sizeGrid);
     gridObserver.observe(document.documentElement);
+    // Repère de la piste active (mode Animation) : un cadre pointillé et le nom de la piste autour de chaque élément visé, hors du flux de la page.
+    let animTargets: { ids: string[]; label?: string } = { ids: [] };
+    const targetBoxes: HTMLElement[] = [];
+    const renderTargets = () => {
+      targetBoxes.splice(0).forEach((b) => b.remove());
+      for (const id of animTargets.ids) {
+        const el = document.querySelector<HTMLElement>(`[data-node="${id}"]`);
+        // Une instance de composant est enveloppée en `display: contents` : son premier enfant porte la boîte.
+        const box = el && (el.getBoundingClientRect().width || !el.firstElementChild ? el : (el.firstElementChild as HTMLElement));
+        if (!box) continue;
+        const r = box.getBoundingClientRect();
+        const frame = layer(`position:absolute;pointer-events:none;z-index:2147483646;left:${r.left + window.scrollX - 3}px;top:${r.top + window.scrollY - 3}px;width:${r.width + 6}px;height:${r.height + 6}px;border:1.5px dashed var(--atelier-ui-accent,#6aa6ff);border-radius:4px;box-sizing:border-box`);
+        if (animTargets.label) {
+          const tag = document.createElement("span");
+          tag.textContent = `◆ ${animTargets.label}`;
+          tag.style.cssText = `position:absolute;left:-1px;bottom:100%;margin-bottom:2px;font:600 11px/16px system-ui,sans-serif;padding:0 5px;border-radius:3px;white-space:nowrap;background:var(--atelier-ui-accent,#6aa6ff);color:var(--atelier-ui-accent-ink,#0b1220);transform-origin:bottom left;transform:scale(${uiScale})`;
+          frame.appendChild(tag);
+        }
+        targetBoxes.push(frame);
+      }
+    };
+    renderAnimTargets.current = renderTargets;
+    const onResizeTargets = () => { if (animTargets.ids.length) renderTargets(); };
+    window.addEventListener("resize", onResizeTargets);
     const renderGrid = (g: { show: boolean; columns: number; gutter: string; margin: string; maxWidth: string }) => {
       if (!g.show) { gridLayer.style.display = "none"; return; }
       gridLayer.style.display = "block";
@@ -604,7 +630,8 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       if (m?.type === "atelier:editmode" && m.editMode) { editMode = m.editMode; if (editing) endEdit(true); hideBlockBar(); clear(hovered); hovered = null; }
       if (m?.type === "atelier:zoom") { const z = Number((m as { scale?: number }).scale); uiScale = z > 0 && z < 1 ? Math.min(1 / z, 2.2) : 1; applyUiScale(); }
       if (m?.type === "atelier:mode" && m.mode) setModeState(m.mode);
-      if (m?.type === "atelier:scrub") { lastScrub.current = { id: m.id, trigger: m.trigger, time: m.time }; applyScrub(document, lastScrub.current); }
+      if (m?.type === "atelier:scrub") { lastScrub.current = { id: m.id, trigger: m.trigger, time: m.time }; applyScrub(document, lastScrub.current); if (animTargets.ids.length) renderTargets(); }
+      if (m?.type === "atelier:anim-targets") { animTargets = { ids: Array.isArray(m.ids) ? m.ids : [], label: m.label }; renderTargets(); }
       if (m?.type === "atelier:scrub-stop") { lastScrub.current = null; applyScrub(document, null); }
       if (m?.type === "atelier:play") {
         // Rejoue une fois l'animation d'un déclencheur sur ses cibles (API Web Animations, via l'outil partagé avec le site), même si le CSS de l'éditeur laisse les animations à l'arrêt.
@@ -666,6 +693,9 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       document.documentElement.removeEventListener("mouseleave", onLeaveDoc);
       window.removeEventListener("message", onMessage);
       gridObserver.disconnect();
+      window.removeEventListener("resize", onResizeTargets);
+      renderAnimTargets.current = null;
+      targetBoxes.splice(0).forEach((b) => b.remove());
       [indicator, gridLayer, blockBar, selBar, slashMenu, grip, style].forEach((n) => n.remove());
     };
   }, [editor]);

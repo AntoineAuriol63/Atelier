@@ -12,7 +12,7 @@ import Link from "next/link";
 import { PRODUCT_NAME } from "@/lib/product";
 import { mod } from "@/lib/keys";
 import type { BlockPreset } from "@/lib/blocks";
-import { Badge, Button, Hint, IconButton, NumberInput, Panel, PanelHeading, Separator, Tabs, TreeRow, type DropIndicator, Select, ConfirmProvider, askConfirm, Eyebrow } from "@/ui";
+import { Badge, Breadcrumb, Button, Hint, IconButton, NumberInput, Panel, PanelHeading, Separator, Tabs, TreeRow, type DropIndicator, Select, ConfirmProvider, askConfirm, Eyebrow } from "@/ui";
 import { NodeInspector } from "./NodeInspector";
 import { AddPanel } from "./AddPanel";
 import { ThemePanel } from "./ThemePanel";
@@ -23,6 +23,7 @@ import { ImagesIcon, MediaLibraryProvider, openMediaLibrary } from "@/components
 import type { AssetUsage } from "@/lib/asset-usage";
 import { isAtelierMessage, type EditMode, type FromPreview, type ToPreview } from "@/lib/preview-protocol";
 import { animatedNodes, triggerHosts, validOpenTimeline, type OpenTimeline } from "@/lib/timeline";
+import { selectionPath } from "@/lib/selection";
 import { AnimationModePanel } from "./animation/AnimationModePanel";
 import { PublishDialog } from "@/components/PublishDialog";
 import { DataPanel } from "@/components/data/DataPanel";
@@ -213,6 +214,26 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
     if (t) openAnimation({ animationId: t.animation, hostId: node.id, triggerId: t.id });
     else select(node.id);
   }, [writer, switchMode, openAnimation, select]);
+  // Pioche de la ligne de temps : le prochain élément cliqué (aperçu, calques, fil d'Ariane) devient une piste, sans changer la sélection.
+  const pickRef = useRef<((id: string) => void) | null>(null);
+  const [picking, setPicking] = useState(false);
+  const selectedRef = useRef<string | null>(null);
+  useEffect(() => { selectedRef.current = selected; }, [selected]);
+  const setPick = useCallback((handler: ((id: string) => void) | null) => { pickRef.current = handler; setPicking(!!handler); }, []);
+  /** Remet l'élément à la pioche s'il y en a une ; l'aperçu retrouve alors le contour de la sélection. Rend faux sinon. */
+  const consumePick = useCallback((id: string) => {
+    const handler = pickRef.current;
+    if (!handler) return false;
+    setPick(null);
+    handler(id);
+    post({ type: "atelier:highlight", id: selectedRef.current });
+    return true;
+  }, [setPick, post]);
+  const selectOrPick = useCallback((id: string) => { if (!consumePick(id)) select(id); }, [consumePick, select]);
+  // Repère de la piste active dans l'aperçu, reposé quand l'aperçu se recharge.
+  const targetsRef = useRef<{ ids: string[]; label?: string }>({ ids: [] });
+  const showTargets = useCallback((ids: string[], label?: string) => { targetsRef.current = { ids, label }; post({ type: "atelier:anim-targets", ids, label }); }, [post]);
+  useEffect(() => { if (frameReady && targetsRef.current.ids.length) post({ type: "atelier:anim-targets", ...targetsRef.current }); }, [frameReady, post]);
   // L'aperçu montre l'instant de la tête de lecture ; la valeur est gardée pour la reposer quand l'aperçu se recharge.
   const scrubTime = useRef<number | null>(null);
   const scrub = useCallback((time: number | null) => {
@@ -353,6 +374,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
     const onMsg = (e: MessageEvent) => {
       if (!isAtelierMessage(e)) return;
       const m = e.data as FromPreview;
+      if (m.type === "atelier:select" && m.id && pickRef.current) { consumePick(m.id); return; }
       if (m.type === "atelier:select" && m.id) {
         select(m.id);
         const n = index.get(m.id)?.node;
@@ -377,7 +399,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
     };
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
-  }, [moveNode, select, dropBlock, setNodeContent, splitNode, mergePrev, slashInsert, switchMode, doc, index, site, locale, page.id, notify]);
+  }, [moveNode, select, dropBlock, setNodeContent, splitNode, mergePrev, slashInsert, switchMode, doc, index, site, locale, page.id, notify, consumePick]);
 
   useEffect(() => { if (frameReady) post({ type: "atelier:site", site, containers: [...index.values()].filter((l) => ["box", "list", "listItem", "link", "form", "item", "slot"].includes(l.node.type)).map((l) => l.node.id), links: [...index.values()].filter((l) => l.node.type === "link" || (editMode === "write" && l.node.type === "collection")).map((l) => l.node.id), textNodes: textNodeIds, editMode, blocks: blockInfos, pages: site.pages.filter((p) => p.kind === "static").map((p) => ({ path: p.path, name: p.name[locale] ?? p.path })) }); }, [site, index, textNodeIds, frameReady, post, editMode, blockInfos, locale]);
   // Les entrées voyagent à part, et seulement celles des bases que la page utilise (vues et modèle) : le message ne pèse plus le site entier.
@@ -410,6 +432,8 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
   }, [site, activeBpForGrid, showGrid, frameReady, post, editMode]);
 
   // --- raccourcis clavier (fenêtre et aperçu)
+  // Fil d'Ariane de la sélection, en haut du panneau de droite : remonter vers un conteneur d'un clic.
+  const selectionTrail = useMemo(() => (selected ? selectionPath(site, selected) : []), [site, selected]);
   const treeRoot = editingComponent ? site.components.find((c) => c.id === editingComponent)?.root ?? page.root : page.root;
   const layerMarks = useMemo(() => {
     if (editMode !== "animate") return undefined;
@@ -427,7 +451,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
       if (paletteOpen) return;
       if (meta && e.key.toLowerCase() === "z") { e.preventDefault(); if (e.shiftKey) doc.redo(); else doc.undo(); return; }
       const loc = selected ? index.get(selected) : undefined;
-      if (e.key === "Escape") { select(null); return; }
+      if (e.key === "Escape") { if (pickRef.current) { setPick(null); return; } select(null); return; }
       if (!loc) return;
       // Supprimer, les flèches et Entrée ne pilotent les calques que depuis l'espace de travail (calques, aperçu, rien de focalisé) :
       // sur un bouton ou un onglet focalisé, ces touches gardent leur sens natif.
@@ -467,7 +491,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
     window.addEventListener("keydown", onWindowKey);
     window.addEventListener("message", onMsg);
     return () => { window.removeEventListener("keydown", onWindowKey); window.removeEventListener("message", onMsg); };
-  }, [doc, selected, index, openMap, select, paletteOpen, page.root, notify, toggleGrid, editMode, post, locale]);
+  }, [doc, selected, index, openMap, select, paletteOpen, page.root, notify, toggleGrid, editMode, post, locale, setPick]);
 
   // --- largeur de l'aperçu : préréglage, valeur libre, poignée, point de rupture actif
   useEffect(() => {
@@ -617,7 +641,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
                 </div>
               ) : null}
               <Layer
-                node={treeRoot} depth={0} selected={selected} onSelect={select} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }}
+                node={treeRoot} depth={0} selected={selected} onSelect={selectOrPick} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }}
                 openMap={openMap} setOpen={setOpen}
                 editing={editing} onEditStart={setEditing} onRename={rename}
                 drop={drop} marks={layerMarks}
@@ -646,6 +670,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
 
       <main ref={canvas} className="relative min-w-0 overflow-auto bg-app flex justify-center items-start p-3">
         {editMode === "design" ? <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 rounded-md border border-accent bg-panel/95 px-3 py-1.5 text-xs font-semibold text-accent shadow-lg backdrop-blur" title="Les styles ajoutés maintenant s’appliquent à cette taille d’écran">Vous modifiez : {breakpoint}</div> : null}
+        {picking ? <div role="status" className="absolute top-3 left-1/2 -translate-x-1/2 z-30 rounded-md border border-accent bg-accent text-accent-ink px-3 py-1.5 text-xs font-semibold shadow-lg">Cliquez l&apos;élément à animer dans l&apos;aperçu ou les calques · Échap pour annuler</div> : null}
         {doc.error ? (
           <div role="alert" className={`fixed top-14 left-1/2 -translate-x-1/2 z-[60] max-w-[640px] flex items-center gap-2 rounded-md border px-3.5 py-2.5 text-sm font-medium shadow-2xl ${doc.status === "offline" ? "bg-warning text-warning-ink border-warning" : "bg-danger text-danger-ink border-danger"}`}>
             <AlertTriangle size={16} aria-hidden />
@@ -683,8 +708,9 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
       </main>
 
       {focusMode ? null : <Panel side="right">
+        {selectionTrail.length > 1 ? <Breadcrumb label="Chemin de la sélection" items={selectionTrail} onSelect={selectOrPick} className="shrink-0" /> : null}
         {editMode === "animate" ? (
-          <div className="flex-1 overflow-auto"><AnimationModePanel site={site} node={selectedLoc?.node ?? null} commit={doc.commit} page={page} getSite={doc.getSite} bp={activeBp} mode={mode} open={openTl} onOpen={openAnimation} scrub={scrub} onSelect={select} /></div>
+          <div className="flex-1 overflow-auto"><AnimationModePanel site={site} node={selectedLoc?.node ?? null} commit={doc.commit} page={page} getSite={doc.getSite} bp={activeBp} mode={mode} open={openTl} onOpen={openAnimation} scrub={scrub} onSelect={select} onPick={setPick} picking={picking} showTargets={showTargets} /></div>
         ) : selectedLoc ? (
           <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} onPlay={(id, trigger) => post({ type: "atelier:play", id, trigger })} site={site} loc={selectedLoc} dataSource={dataSource} activeBp={activeBp} mode={mode} editMode={editMode} onSwitchMode={switchMode} onOpenAnimation={writer ? undefined : (triggerId) => animateNode(selectedLoc.node, triggerId)} onGoToBreakpoint={goToBreakpoint} onPreviewState={setPreviewState} onEditInPreview={() => post({ type: "atelier:edit-text", id: selectedLoc.node.id })} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }} onMakeComponent={makeComponent} onDetach={detachInstance} notify={notify} commit={doc.commit} onDeleted={() => { select(selectedLoc.parent?.id ?? null); notify(`${nodeLabel(selectedLoc.node)} supprimé`, "info", { label: "Annuler", run: () => doc.undo() }); }} /></div>
         ) : (

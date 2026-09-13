@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ANIMATION_PRESETS, BASE, animationById, animationFromPreset, animationUsages, applyOps, describeAnimation, describeTrigger, easingCss, isPresetIntact, keyframeAt, keyframeStyleAt, migrate, parseSpring, planAddPageTrigger, planAddTrack, planAddTrigger, planApplyPreset, planRemoveAnimation, planRemoveKeyframe, planRemoveKeyframes, planRemovePageTriggerWithAnimation, planRemoveTrack, planQuickAnimation, planQuickDetail, planRemoveTrigger, planRemoveTriggerWithAnimation, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUnsetKeyframeProp, planUpdateAnimation, planUpdatePageTrigger, planUpdateTrack, planUpdateTrigger, presetById, quickAnimation, resolveTrackTarget, sampleSite, schema, shiftDelta, springDuration, springEasing, springSamples, staggerDelay, staggerRank, trackSpan, trackTargetFor, withTargetKind, type Animation, type Node, type Site, type Trigger } from "../src";
+import { ANIMATION_PRESETS, BASE, animationById, animationFromPreset, animationUsages, applyOps, describeAnimation, describeTrigger, duplicateQuickTriggers, easingCss, isPresetIntact, keyframeAt, keyframeStyleAt, migrate, parseSpring, planAddPageTrigger, planFillTrackFromPreset, planAddTrack, planAddTrigger, planApplyPreset, planRemoveAnimation, planRemoveKeyframe, planRemoveKeyframes, planRemovePageTriggerWithAnimation, planRemoveTrack, planQuickAnimation, planQuickDetail, planRemoveTrigger, planRemoveTriggerWithAnimation, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUnsetKeyframeProp, planUpdateAnimation, planUpdatePageTrigger, planUpdateTrack, planUpdateTrigger, presetById, quickAnimation, resolveTrackTarget, sampleSite, schema, shiftDelta, springDuration, springEasing, springSamples, staggerDelay, staggerRank, trackSpan, trackTargetFor, withTargetKind, type Animation, type Node, type Site, type Trigger } from "../src";
 const siteSchema = schema.site;
 
 const node = (site: Site, id: string): Node => { let out: Node | undefined; const dfs = (n: Node) => { if (n.id === id) out = n; n.children?.forEach(dfs); }; site.pages.forEach((p) => dfs(p.root)); return out!; };
@@ -289,5 +289,28 @@ describe("animations : déclencheurs de page", () => {
     expect(site.animations).toEqual([]);
     expect(planUpdatePageTrigger(site, "inconnue", "pg_tr", {})).toEqual([]);
     expect(siteSchema.safeParse(site).success).toBe(true);
+  });
+});
+
+describe("animations : suites de l'audit d'usage", () => {
+  it("remplir une piste avec un préréglage : ses images-clés posées à partir du départ de la piste, la durée suit", () => {
+    const a = anim("an_fill", [{ id: "tk_fill", target: { node: "hero_p" }, keyframes: [{ at: 150, style: {} }] }], { duration: 600 });
+    let site: Site = { ...sampleSite, animations: [a] };
+    ({ site } = applyOps(site, planFillTrackFromPreset(site, "an_fill", "tk_fill", presetById("fade-up")!)));
+    const t = animationById(site, "an_fill")!.tracks[0]!;
+    expect(t.keyframes).toEqual([{ at: 150, style: { opacity: "0", transform: "translateY(28px)" } }, { at: 850, style: { opacity: "1", transform: "none", filter: "none" }, easing: "cubic-bezier(.22,1,.36,1)" }]);
+    expect(t.target).toEqual({ node: "hero_p" });
+    expect(animationById(site, "an_fill")!.duration).toBe(850);
+    expect(planFillTrackFromPreset(site, "an_fill", "inconnue", presetById("zoom")!)).toEqual([]);
+    expect(siteSchema.safeParse(site).success).toBe(true);
+  });
+  it("repère un deuxième choix rapide de la même famille sur un élément (posé par une autre voie)", () => {
+    const a1 = animationFromPreset(presetById("fade")!, { id: "an_d1" });
+    const a2 = animationFromPreset(presetById("zoom")!, { id: "an_d2" });
+    const a3 = animationFromPreset(presetById("grow")!, { id: "an_d3" });
+    const n: Node = { id: "dup_n", type: "box", props: {}, triggers: [{ id: "tr_d1", on: "inView", animation: "an_d1" }, { id: "tr_d3", on: "hover", animation: "an_d3" }, { id: "tr_d2", on: "inView", animation: "an_d2" }] };
+    const site: Site = { ...sampleSite, animations: [a1, a2, a3] };
+    expect([...duplicateQuickTriggers(site, n)]).toEqual(["tr_d2"]);
+    expect(duplicateQuickTriggers(site, { ...n, triggers: n.triggers!.slice(0, 2) }).size).toBe(0);
   });
 });

@@ -154,6 +154,17 @@ export function quickAnimation(site: Site, node: Node, group: QuickGroup): { tri
   }
   return undefined;
 }
+/** Déclencheurs qui répètent une famille de choix rapide déjà présente sur l'élément (le premier compte, les suivants se jouent en plus). */
+export function duplicateQuickTriggers(site: Site, node: Node): Set<Id> {
+  const seen = new Set<string>();
+  const out = new Set<Id>();
+  for (const t of node.triggers ?? []) {
+    const group = presetById(animationById(site, t.animation)?.preset)?.group;
+    if (!group || group === "Attention") continue;
+    if (seen.has(group)) out.add(t.id); else seen.add(group);
+  }
+  return out;
+}
 /** Pose (ou remplace, ou retire avec `""`) le préréglage d'une famille sur l'élément seul ; le détail (lettres, enfants) et le délai sont gardés. */
 export function planQuickAnimation(site: Site, node: Node, group: QuickGroup, presetId: string): Op[] {
   const current = quickAnimation(site, node, group);
@@ -302,6 +313,13 @@ export function planShiftKeyframes(site: Site, animationId: Id, keys: { track: I
   });
   const end = Math.max(0, ...tracks.map((t) => trackSpan(t).end));
   return planUpdateAnimation(site, animationId, { tracks, duration: Math.max(a.duration, end) });
+}
+/** Remplit une piste avec les images-clés d'un préréglage, posées à partir du départ de la piste (sa cible et son décalage restent). */
+export function planFillTrackFromPreset(site: Site, animationId: Id, trackId: Id, preset: AnimationPreset): Op[] {
+  const track = animationById(site, animationId)?.tracks.find((t) => t.id === trackId);
+  if (!track) return [];
+  const start = trackSpan(track).start;
+  return withTrack(site, animationId, trackId, (t) => ({ ...t, keyframes: preset.keyframes.map((k) => ({ ...k, at: start + k.at, style: structuredClone(k.style) })) }));
 }
 /** Règle une piste (cible, décalage) ; une clé à `undefined` est retirée. */
 export function planUpdateTrack(site: Site, animationId: Id, trackId: Id, patch: Partial<Pick<Track, "target" | "stagger">>): Op[] {

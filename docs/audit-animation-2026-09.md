@@ -16,7 +16,7 @@ Corrigé pendant l'audit (dans le même lot que l'étape 7) :
 6. La bibliothèque listait 59 animations dont une majorité « Fondu en montant » : chacune porte maintenant l'élément et la page qui la lancent.
 7. « Effets continus » s'intercalait entre les déclencheurs et la ligne de temps : section repliable, fermée par défaut.
 
-Ce qui coince encore, par ordre d'importance (à décider) :
+Ce qui coinçait encore, par ordre d'importance (**tous traités le 13 septembre, voir « Reprise » en fin de document**) :
 
 8. **Le panneau change de contexte quand on choisit un élément à ajouter.** Pour ajouter le titre à une ligne de temps, on le sélectionne dans l'aperçu : le haut du panneau affiche alors *ses* déclencheurs et la ligne de temps descend (plus de 300 px dans le scénario 2). Pistes : replier les déclencheurs de l'élément tant qu'une ligne de temps est ouverte, ou garder la ligne de temps en haut du panneau.
 9. **Quatre réglages par élément** pour un mouvement simple (opacité et décalage au départ, puis à l'arrivée). Piste : « Remplir la piste avec un préréglage » (Fondu en montant, Zoom…) qui pose ses images-clés à partir du départ de la piste, à retoucher ensuite.
@@ -50,3 +50,15 @@ Sans sélection, section « Page · Accueil » : Au défilement, Nouvelle animat
 ## Ce qui a très bien marché
 
 Le geste « se placer, régler, l'image-clé existe » ; l'aperçu exact à la tête de lecture, lettres décalées comprises ; les pastilles ◆ ◇ ○ ; le glisser et le ⌥-glisser d'images-clés ; le ressort avec son temps de stabilisation et « Caler le segment » ; la fermeture automatique de la ligne de temps après ⌘Z ou un retrait ; l'ouverture d'une animation d'une autre page qui y emmène ; les marges liées écrites en une fois dans l'image-clé.
+
+## Reprise du 13 septembre 2026 : points 8 à 13, et créer une animation
+
+Recommandations retenues par Antoine, mises en œuvre et vérifiées sur la même copie des données :
+
+- **Créer une animation** (question d'Antoine : « je choisis Nouvelle animation vide, mais ensuite comment je la modifie, la renomme ? ») : l'option était en bas d'une liste de plus de soixante entrées et la ligne de temps s'ouvrait tout en bas du panneau. Désormais « Nouvelle animation (à composer) » est en tête et choisie par défaut ; la ligne de temps s'ouvre en haut du panneau, nom sélectionné (on tape, Entrée), rappel du déclencheur, guide en trois étapes tant qu'il n'y a pas de piste.
+- **8, contexte du panneau** : quand une ligne de temps est ouverte, elle passe devant ; les déclencheurs de l'élément et de la page se replient sous elle. Et **pioche** : « Choisir un élément », bandeau sur l'aperçu, clic dans l'aperçu, les calques ou le fil d'Ariane, Échap pour annuler ; la sélection ne change pas. Vérifié : « Arrivée du héros » composée sur le titre, le texte et les boutons sans quitter la sélection de la colonne.
+- **9, quatre réglages par élément** : « Remplir avec » un préréglage sur la piste (ses images-clés à partir du départ), puis « Départ » ; trois pistes composées en neuf gestes (choisir, remplir, départ).
+- **10, conteneurs** : fil d'Ariane de la sélection en haut du panneau de droite, dans tous les modes ; il sert aussi de pioche.
+- **11, homonymes** : un texte sans nom est désigné par un extrait (« Titre 1 « Le goût de l'Auvergne… » »), dans les calques, le fil d'Ariane, les pistes et la bibliothèque.
+- **12, repère dans l'aperçu** : cadre pointillé et nom autour de l'élément de la piste active ; l'avertissement « a aussi ses propres animations » suit la piste active (avec la pioche, l'élément n'est plus sélectionné).
+- **13, doublons** : badge « en double » sur le deuxième déclencheur d'une même famille (apparition, survol, continu), en Design et dans le mode Animation.

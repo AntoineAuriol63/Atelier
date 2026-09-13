@@ -9,3 +9,4 @@ export * from "./Tooltip";
 export * from "./Dialog";
 export * from "./Confirm";
 export * from "./Toggle";
+export * from "./Breadcrumb";

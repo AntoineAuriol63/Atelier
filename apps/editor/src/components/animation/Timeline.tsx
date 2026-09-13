@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Copy, Diamond, Pause, Play, Plus, Repeat, SkipBack, Snail, Trash2, X } from "lucide-react";
+import { Copy, Crosshair, Diamond, Pause, Play, Plus, Repeat, SkipBack, Snail, Trash2, X } from "lucide-react";
 import type { Animation, CommitOptions, Node, Op, Site, Track, Trigger } from "@atelier/model";
-import { STAGGER_FROM_LABELS, animationLength, describeAnimation, indexSite, keyframeAt, newId, planAddTrack, planRemoveKeyframes, planRemoveTrack, planSetKeyframeEasing, planShiftKeyframes, planUpdateAnimation, planUpdateTrack, resolveTrackTarget, shiftDelta, trackSpan, trackTargetFor, withTargetKind } from "@atelier/model";
-import { Badge, Button, Hint, IconButton, NumberInput, PanelHeading, Select, TextInput, Toggle } from "@/ui";
+import { ANIMATION_PRESETS, STAGGER_FROM_LABELS, TRIGGER_LABELS, animationById, animationLength, describeAnimation, indexSite, keyframeAt, newId, planAddTrack, planFillTrackFromPreset, planRemoveKeyframes, planRemoveTrack, planSetKeyframeEasing, planShiftKeyframes, planUpdateAnimation, planUpdateTrack, resolveTrackTarget, shiftDelta, trackSpan, trackTargetFor, withTargetKind } from "@atelier/model";
+import { Badge, Button, Eyebrow, Hint, IconButton, NumberInput, PanelHeading, Select, TextInput, Toggle } from "@/ui";
 import { canAddTrack, formatTime, rulerTicks, snapTime, targetKindOf, targetKindOptions, trackLabel, type TargetKind } from "@/lib/timeline";
 import { AppearancePanel, EffectsPanel, SizePanel, SpacingPanel, TypographyPanel, useKeyframeStyle } from "../design";
 import { nodeLabel } from "../node-icons";
@@ -14,6 +14,8 @@ type Commit = (op: Op, opts?: CommitOptions) => void;
 type Key = { track: string; at: number };
 const keyOf = (k: Key) => `${k.track}@${k.at}`;
 const parseKey = (s: string): Key => { const i = s.lastIndexOf("@"); return { track: s.slice(0, i), at: Number(s.slice(i + 1)) }; };
+/** Préréglages proposés pour remplir une piste (leurs images-clés seulement : répétitions et déclencheur restent ceux de l'animation). */
+const FILL_PRESETS = ANIMATION_PRESETS.filter((p) => p.id !== "custom").map((p) => ({ value: p.id, label: `${p.group} · ${p.label}` }));
 const LOOPS = [{ value: "1", label: "Une fois" }, { value: "2", label: "2 fois" }, { value: "3", label: "3 fois" }, { value: "infinite", label: "En boucle" }];
 
 export type TimelineProps = {
@@ -24,6 +26,13 @@ export type TimelineProps = {
   selected: Node | null;
   bp: string; mode?: string;
   commit: Commit; scrub: (t: number | null) => void; onClose: () => void; onSelect: (id: string) => void;
+  /** Juste créée : le nom est mis en édition pour la nommer tout de suite. */
+  focusName?: boolean;
+  /** Mode « pioche » : le prochain élément cliqué dans l'aperçu, les calques ou le fil d'Ariane est remis à `handler` au lieu d'être sélectionné (`null` annule). */
+  onPick?: (handler: ((id: string) => void) | null) => void;
+  picking?: boolean;
+  /** Montre dans l'aperçu les éléments de la piste active (contour pointillé et nom). */
+  showTargets?: (ids: string[], label?: string) => void;
 };
 
 /**
@@ -32,7 +41,7 @@ export type TimelineProps = {
  * ⌥-glisser : dupliquer ; Suppr : retirer ; clic sur la portée : toute la piste) ; réglages de la piste (cible, décalage) ; puis l'image-clé
  * à la tête de lecture (courbe du segment, dupliquer, supprimer) et les panneaux Design en mode image-clé.
  */
-export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel, selected, bp, mode, commit, scrub, onClose, onSelect }: TimelineProps) {
+export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel, selected, bp, mode, commit, scrub, onClose, onSelect, focusName, onPick, picking, showTargets }: TimelineProps) {
   const length = Math.max(1, animationLength(animation));
   const [playhead, setPlayhead] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -43,9 +52,23 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
   // Piste choisie à la main (clic sur son nom, sur une image-clé) ; elle cède la place à la piste de l'élément dès qu'on en sélectionne un autre.
   const [picked, setPicked] = useState<{ track: string; forNode: string | null } | null>(null);
   const scrubRef = useRef(scrub);
+  const pickRef = useRef(onPick);
+  const targetsRef = useRef(showTargets);
   const rail = useRef<HTMLDivElement>(null);
-  // Toujours la dernière fonction de l'éditeur, sans relancer les effets qui la lisent (la ref se met à jour après le rendu, pas pendant).
-  useEffect(() => { scrubRef.current = scrub; });
+  const root = useRef<HTMLElement>(null);
+  const [pickMsg, setPickMsg] = useState<string | null>(null);
+  // Toujours les dernières fonctions de l'éditeur, sans relancer les effets qui les lisent (les refs se mettent à jour après le rendu, pas pendant).
+  useEffect(() => { scrubRef.current = scrub; pickRef.current = onPick; targetsRef.current = showTargets; });
+  // À l'ouverture : la ligne de temps vient à l'écran ; juste créée, son nom est prêt à être tapé.
+  const focused = useRef(false);
+  useEffect(() => {
+    if (focused.current) return;
+    focused.current = true;
+    root.current?.scrollIntoView({ block: "nearest" });
+    if (focusName) { const input = root.current?.querySelector<HTMLInputElement>("input[data-anim-name]"); input?.focus(); input?.select(); }
+  }, [focusName]);
+  // Quitter la ligne de temps annule la pioche et retire le repère de l'aperçu.
+  useEffect(() => () => { pickRef.current?.(null); targetsRef.current?.([]); }, []);
 
   // Lecture : la tête avance au rythme réel (ou au ralenti), boucle ou s'arrête à la fin.
   useEffect(() => {
@@ -118,26 +141,42 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
   const update = (patch: Partial<Animation>, label: string, coalesceKey?: string) => run(planUpdateAnimation(getSite(), animation.id, patch), label, coalesceKey);
   const tracksEnd = Math.max(0, ...animation.tracks.map((t) => trackSpan(t).end));
   const canAdd = canAddTrack(site, animation, hostId, selected?.id);
-  const addTrack = () => {
-    if (!selected || !canAdd.ok) return;
-    const t: Track = { id: newId(), target: trackTargetFor(hostId, selected.id), keyframes: [{ at: 0, style: {} }] };
-    run(planAddTrack(getSite(), animation.id, t), `Ajouter une piste · ${nodeLabel(selected)}`);
-    setPicked({ track: t.id, forNode: selected.id });
+  /** Ajoute une piste pour un élément (sélectionné, ou pris à la pioche) : elle devient la piste active. */
+  const addTrackFor = (nodeId: string) => {
+    const current = getSite();
+    const a = animationById(current, animation.id);
+    if (!a) return;
+    const ok = canAddTrack(current, a, hostId, nodeId);
+    if (!ok.ok) { setPickMsg(ok.reason); return; }
+    setPickMsg(null);
+    const t: Track = { id: newId(), target: trackTargetFor(hostId, nodeId), keyframes: [{ at: 0, style: {} }] };
+    const n = indexSite(current).get(nodeId)?.node;
+    run(planAddTrack(current, animation.id, t), `Ajouter une piste · ${n ? nodeLabel(n) : nodeId}`);
+    setPicked({ track: t.id, forNode: selected?.id ?? null });
   };
+  const addTrack = () => { if (selected && canAdd.ok) addTrackFor(selected.id); };
+  const startPick = () => { setPickMsg(null); onPick?.((id) => addTrackFor(id)); };
 
   const ticks = rulerTicks(length);
   const kfHere = track ? keyframeAt(track, at) : undefined;
   const sorted = track ? [...track.keyframes].sort((a, b) => a.at - b.at) : [];
   const prevKf = kfHere ? [...sorted].reverse().find((k) => k.at < at) : undefined;
   const trackNode = track ? nodeOfTrack(track) : undefined;
+  // Repère dans l'aperçu : les éléments de la piste active.
+  const targetId = trackNode?.id;
+  const targetLabel = track ? trackLabel(track, hostId, site) : undefined;
+  useEffect(() => { targetsRef.current?.(targetId ? [targetId] : [], targetLabel); }, [targetId, targetLabel]);
+  const hostNode = index.get(hostId)?.node;
 
   return (
-    <section className="flex flex-col gap-2" aria-label="Ligne de temps">
+    <section ref={root} className="flex flex-col gap-2 scroll-mt-2" aria-label="Ligne de temps">
       <div className="flex items-center gap-1">
-        <TextInput className="flex-1" value={animation.name} aria-label="Nom de l'animation" onValueChange={(v) => update({ name: v || animation.name }, "Renommer l'animation", `anim-name:${animation.id}`)} />
+        <Eyebrow as="span">Animation</Eyebrow>
+        <TextInput className="flex-1" value={animation.name} aria-label="Nom de l'animation" data-anim-name="" title="Nom de l'animation (Entrée pour valider)" onValueChange={(v) => update({ name: v || animation.name }, "Renommer l'animation", `anim-name:${animation.id}`)} />
         <Badge title={describeAnimation(animation)}>{formatTime(length)}</Badge>
         <IconButton size="sm" label="Fermer la ligne de temps" icon={X} onClick={onClose} />
       </div>
+      {trigger ? <span className="-mt-1 text-2xs text-muted truncate" title="Ce qui lance cette animation (réglages dans « Déclencheurs »)">{TRIGGER_LABELS[trigger.on]}{trigger.delay ? ` · +${trigger.delay} ms` : ""} · {pageLevel ? "sur la page" : `sur « ${hostNode ? nodeLabel(hostNode) : hostId} »`}</span> : null}
       <div className="grid grid-cols-[auto_1fr_auto] items-center gap-1.5">
         <NumberInput className="w-[92px]" unit="ms" min={Math.max(100, tracksEnd)} step={100} value={animation.duration} title="Durée de la ligne de temps (au moins la dernière image-clé)" onValueChange={(n) => update({ duration: Math.max(n === "" ? 0 : n, tracksEnd, 100) }, "Durée de l'animation", `anim-dur:${animation.id}`)} />
         <Select value={String(animation.loop ?? 1)} options={LOOPS} onValueChange={(v) => update({ loop: v === "1" ? undefined : v === "infinite" ? "infinite" : Number(v), ...(v === "1" ? { alternate: undefined } : {}) }, "Répétitions")} />
@@ -192,16 +231,19 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
           );
         })}
         <span />
-        <div className="flex items-center gap-1 pt-1">
-          <Button size="sm" icon={Plus} disabled={!canAdd.ok} onClick={addTrack} title={canAdd.ok ? "Animer aussi l'élément sélectionné dans cette ligne de temps" : canAdd.reason}>{canAdd.ok && selected ? `Ajouter « ${nodeLabel(selected)} »` : "Ajouter un élément"}</Button>
-          {!canAdd.ok ? <span className="text-2xs text-dim truncate" title={canAdd.reason}>{canAdd.reason}</span> : null}
+        <div className="flex flex-wrap items-center gap-1 pt-1">
+          {onPick ? <Button size="sm" icon={Crosshair} active={picking} onClick={() => (picking ? onPick(null) : startPick())} title="Cliquez ensuite l'élément à animer dans l'aperçu, les calques ou le fil d'Ariane, sans changer la sélection">{picking ? "Cliquez un élément… (Échap)" : "Choisir un élément"}</Button> : null}
+          {canAdd.ok && selected ? <Button size="sm" variant="ghost" icon={Plus} onClick={addTrack} title="Animer l'élément sélectionné dans cette ligne de temps">{`Ajouter « ${nodeLabel(selected)} »`}</Button> : null}
+          {pickMsg ? <span className="text-2xs text-warning truncate" title={pickMsg}>{pickMsg}</span> : null}
         </div>
-        {selected && selected.id !== hostId && selected.triggers?.length && animation.tracks.some((t) => nodeOfTrack(t)?.id === selected.id) ? (
-          <><span /><span className="text-2xs text-warning" title="Ses propres déclencheurs se jouent en plus de cette ligne de temps">« {nodeLabel(selected)} » a aussi ses propres animations ({selected.triggers.map((t) => site.animations.find((a) => a.id === t.animation)?.name ?? "?").join(", ")}) : elles se joueront en plus.</span></>
-        ) : null}
       </div>
 
-      {!animation.tracks.length ? <Hint>Aucune piste : sélectionnez dans l&apos;aperçu ou les calques un élément à animer (l&apos;élément du déclencheur compris), puis « Ajouter ».</Hint> : null}
+      {!animation.tracks.length ? (
+        <Hint>
+          <span className="block font-medium text-ink">Composer cette animation</span>
+          1. Nommez-la ci-dessus. 2. « Choisir un élément », puis cliquez l&apos;élément à animer (l&apos;élément du déclencheur compris). 3. Sur sa piste, « Remplir avec » un préréglage, ou placez la tête de lecture et réglez ses propriétés : les images-clés se créent.
+        </Hint>
+      ) : null}
 
       {track ? <TrackSettings key={track.id} site={site} getSite={getSite} animation={animation} track={track} node={trackNode} hostId={hostId} run={run} onRemoved={() => { setPicked(null); setSelection(new Set()); }} /> : null}
 
@@ -269,7 +311,12 @@ function TrackSettings({ site, getSite, animation, track, node, hostId, run, onR
           ) : null}
         </div>
       )}
-      {track.keyframes.length < 2 ? <Hint>Une piste se joue à partir de deux images-clés : placez la tête plus loin et réglez une propriété.</Hint> : null}
+      <div className="grid grid-cols-[80px_1fr] items-center gap-1.5">
+        <span className="text-xs text-muted" title="Remplace les images-clés de la piste par celles d'un préréglage, à partir de son départ">Remplir avec</span>
+        <Select value="" placeholder="un préréglage…" options={FILL_PRESETS} onValueChange={(v) => { const preset = ANIMATION_PRESETS.find((p) => p.id === v); if (preset) run(planFillTrackFromPreset(getSite(), animation.id, track.id, preset), `Remplir la piste · ${preset.label}`); }} />
+      </div>
+      {node && node.id !== hostId && node.triggers?.length ? <span className="text-2xs text-warning" title="Ses propres déclencheurs se jouent en plus de cette ligne de temps">« {nodeLabel(node)} » a aussi ses propres animations ({node.triggers.map((t) => site.animations.find((a) => a.id === t.animation)?.name ?? "?").join(", ")}) : elles se joueront en plus.</span> : null}
+      {track.keyframes.length < 2 ? <Hint>Une piste se joue à partir de deux images-clés : « Remplir avec » un préréglage, ou placez la tête plus loin et réglez une propriété.</Hint> : null}
     </section>
   );
 }
