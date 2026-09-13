@@ -90,6 +90,66 @@ export function planApplyPreset(site: Site, node: Node, preset: AnimationPreset,
   ];
 }
 
+/** Retire un déclencheur et, si plus rien ne la lance, son animation. */
+export function planRemoveTriggerWithAnimation(site: Site, node: Node, triggerId: Id): Op[] {
+  const t = (node.triggers ?? []).find((x) => x.id === triggerId);
+  if (!t) return [];
+  const ops = planRemoveTrigger(node, triggerId);
+  if (animationUsages(site, t.animation).length <= 1) ops.push({ op: "site.set", path: "animations", value: site.animations.filter((a) => a.id !== t.animation) });
+  return ops;
+}
+
+// ---------------------------------------------------------------- choix rapides (cadrage § 4.2 et § 4.3)
+
+const sameStyle = (a: StyleProps, b: StyleProps) => { const keys = new Set([...Object.keys(a), ...Object.keys(b)]); return [...keys].every((k) => JSON.stringify(a[k]) === JSON.stringify(b[k])); };
+/**
+ * L'animation est-elle encore son préréglage ? Une seule piste à cible relative (l'élément, ses enfants ou ses morceaux, décalage libre),
+ * les images-clés du préréglage aux mêmes proportions (mise à l'échelle permise), mêmes styles, courbes, répétitions et aller-retour.
+ * Retouchée à la main dans le mode Animation, elle devient « personnalisée » ; annuler la retouche la rend à son préréglage.
+ */
+export function isPresetIntact(a: Animation): boolean {
+  const p = presetById(a.preset);
+  const t = a.tracks[0];
+  if (!p || a.tracks.length !== 1 || !t || !("trigger" in t.target)) return false;
+  if ((a.loop ?? 1) !== (p.loop ?? 1) || !!a.alternate !== !!p.alternate) return false;
+  const kfs = [...t.keyframes].sort((x, y) => x.at - y.at);
+  if (kfs.length !== p.keyframes.length) return false;
+  const scale = p.duration ? (kfs[kfs.length - 1]?.at ?? 0) / p.duration : 1;
+  return kfs.every((k, i) => { const q = p.keyframes[i]!; return Math.abs(k.at - Math.round(q.at * scale)) <= 1 && sameStyle(k.style, q.style) && (k.easing ?? undefined) === (q.easing ?? undefined); });
+}
+export type QuickGroup = AnimationPreset["group"];
+export type QuickDetail = "one" | "letters" | "children";
+/** Le choix rapide d'une famille (apparition, survol, continu…) posé sur un élément : son déclencheur, son préréglage, s'il est intact, et son détail. */
+export function quickAnimation(site: Site, node: Node, group: QuickGroup): { trigger: Trigger; animation: Animation; preset: AnimationPreset; intact: boolean; detail: QuickDetail } | undefined {
+  for (const trigger of node.triggers ?? []) {
+    const animation = animationById(site, trigger.animation);
+    const preset = presetById(animation?.preset);
+    if (!animation || !preset || preset.group !== group) continue;
+    const target = animation.tracks[0]?.target;
+    const detail: QuickDetail = target && !("selector" in target) && target.split ? "letters" : target && !("selector" in target) && target.children ? "children" : "one";
+    return { trigger, animation, preset, intact: isPresetIntact(animation), detail };
+  }
+  return undefined;
+}
+/** Pose (ou remplace, ou retire avec `""`) le préréglage d'une famille sur l'élément seul ; le détail (lettres, enfants) et le délai sont gardés. */
+export function planQuickAnimation(site: Site, node: Node, group: QuickGroup, presetId: string): Op[] {
+  const current = quickAnimation(site, node, group);
+  if (!presetId) return current ? planRemoveTriggerWithAnimation(site, node, current.trigger.id) : [];
+  const preset = presetById(presetId);
+  if (!preset || preset.group !== group) return [];
+  const track = current?.animation.tracks[0];
+  const relative = track && "trigger" in track.target ? track : undefined;
+  return planApplyPreset(site, node, preset, { replaceTriggerId: current?.trigger.id, triggerId: current?.trigger.id, target: relative?.target, stagger: relative?.stagger, trigger: current?.trigger.delay ? { delay: current.trigger.delay } : undefined });
+}
+/** Détail d'un choix rapide : d'un bloc, lettre par lettre (30 ms), ou enfant par enfant (100 ms). La ligne de temps n'est pas touchée. */
+export function planQuickDetail(site: Site, node: Node, group: QuickGroup, detail: QuickDetail): Op[] {
+  const current = quickAnimation(site, node, group);
+  const track = current?.animation.tracks[0];
+  if (!current || !track) return [];
+  const target = withTargetKind(track.target, detail === "one" ? "element" : detail);
+  return planUpdateTrack(site, current.animation.id, track.id, { target, stagger: detail === "letters" ? { each: 30 } : detail === "children" ? { each: 100 } : undefined });
+}
+
 // ---------------------------------------------------------------- animations (dans le site)
 
 export function planAddAnimation(site: Site, animation: Animation): Op[] {

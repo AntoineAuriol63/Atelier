@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Plus, X } from "lucide-react";
 import type { Animation, CommitOptions, Node, Op, Site, Trigger, TriggerOn } from "@atelier/model";
-import { ANIMATION_PRESETS, TRIGGER_LABELS, animationById, animationUsages, describeAnimation, describeTrigger, newId, planAddAnimation, planAddTrigger, planApplyPreset, planRemoveTrigger, planUpdateTrigger, presetById } from "@atelier/model";
+import { ANIMATION_PRESETS, TRIGGER_LABELS, animationById, animationUsages, describeAnimation, describeTrigger, newId, planAddAnimation, planAddTrigger, planApplyPreset, planRemoveTriggerWithAnimation, planUpdateTrigger, presetById } from "@atelier/model";
 import { Button, Field, Hint, IconButton, NumberInput, PanelHeading, Select, Toggle, Eyebrow } from "@/ui";
 import { nextAnimationName, type OpenTimeline } from "@/lib/timeline";
 import { Timeline } from "./Timeline";
@@ -54,9 +54,7 @@ export function AnimationModePanel({ site, node, commit, getSite, bp, mode, open
   };
   const removeTrigger = (t: Trigger) => {
     if (!node) return;
-    const ops = planRemoveTrigger(node, t.id);
-    if (animationUsages(site, t.animation).length <= 1) ops.push({ op: "site.set", path: "animations", value: site.animations.filter((a) => a.id !== t.animation) });
-    commit({ op: "batch", ops, label: "Retirer le déclencheur" }, { label: "Retirer le déclencheur" });
+    commit({ op: "batch", ops: planRemoveTriggerWithAnimation(site, node, t.id), label: "Retirer le déclencheur" }, { label: "Retirer le déclencheur" });
     if (open?.triggerId === t.id) onOpen(null);
   };
   const update = (t: Trigger, patch: Partial<Trigger>, label: string, coalesceKey?: string) => { if (node) commit({ op: "batch", ops: planUpdateTrigger(node, t.id, patch), label }, { label, coalesceKey }); };

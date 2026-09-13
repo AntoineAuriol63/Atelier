@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ANIMATION_PRESETS, BASE, animationById, animationFromPreset, animationUsages, applyOps, describeAnimation, describeTrigger, easingCss, keyframeAt, keyframeStyleAt, migrate, parseSpring, planAddTrack, planAddTrigger, planApplyPreset, planRemoveAnimation, planRemoveKeyframe, planRemoveKeyframes, planRemoveTrack, planRemoveTrigger, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUnsetKeyframeProp, planUpdateAnimation, planUpdateTrack, planUpdateTrigger, presetById, resolveTrackTarget, sampleSite, schema, shiftDelta, springDuration, springEasing, springSamples, staggerDelay, staggerRank, trackSpan, trackTargetFor, withTargetKind, type Animation, type Node, type Site, type Trigger } from "../src";
+import { ANIMATION_PRESETS, BASE, animationById, animationFromPreset, animationUsages, applyOps, describeAnimation, describeTrigger, easingCss, isPresetIntact, keyframeAt, keyframeStyleAt, migrate, parseSpring, planAddTrack, planAddTrigger, planApplyPreset, planRemoveAnimation, planRemoveKeyframe, planRemoveKeyframes, planRemoveTrack, planQuickAnimation, planQuickDetail, planRemoveTrigger, planRemoveTriggerWithAnimation, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUnsetKeyframeProp, planUpdateAnimation, planUpdateTrack, planUpdateTrigger, presetById, quickAnimation, resolveTrackTarget, sampleSite, schema, shiftDelta, springDuration, springEasing, springSamples, staggerDelay, staggerRank, trackSpan, trackTargetFor, withTargetKind, type Animation, type Node, type Site, type Trigger } from "../src";
 const siteSchema = schema.site;
 
 const node = (site: Site, id: string): Node => { let out: Node | undefined; const dfs = (n: Node) => { if (n.id === id) out = n; n.children?.forEach(dfs); }; site.pages.forEach((p) => dfs(p.root)); return out!; };
@@ -217,6 +217,59 @@ describe("animations : édition dans le mode Animation", () => {
     expect("stagger" in track(site)).toBe(false);
     expect(trackTargetFor("host", "host")).toEqual({ trigger: true });
     expect(trackTargetFor("host", "other")).toEqual({ node: "other" });
+    expect(siteSchema.safeParse(site).success).toBe(true);
+  });
+});
+
+describe("animations : choix rapides (préréglages en un geste)", () => {
+  const card: Node = { id: "qk_card", type: "box", props: {}, children: [{ id: "qk_a", type: "box", props: {} }, { id: "qk_b", type: "box", props: {} }] };
+  const title: Node = { id: "qk_title", type: "text", props: { tag: "h2", content: { fr: [{ t: "text", v: "Bonjour" }] } } };
+  const base: Site = { ...sampleSite, animations: [], pages: [{ ...sampleSite.pages[0]!, root: { id: "qk_root", type: "box", props: {}, children: [card, title] } }] };
+  const find = (site: Site, id: string) => node(site, id);
+
+  it("un préréglage intact est reconnu, même mis à l'échelle ; retouché à la main, il devient personnalisé", () => {
+    const a = animationFromPreset(presetById("fade-up")!, { duration: 1400 });
+    expect(isPresetIntact(a)).toBe(true);
+    expect(isPresetIntact({ ...a, tracks: [{ ...a.tracks[0]!, target: { trigger: true, split: "letters" }, stagger: { each: 30 } }] })).toBe(true);
+    expect(isPresetIntact({ ...a, tracks: [{ ...a.tracks[0]!, keyframes: [a.tracks[0]!.keyframes[0]!, { ...a.tracks[0]!.keyframes[1]!, style: { opacity: "0.5" } }] }] })).toBe(false);
+    expect(isPresetIntact({ ...a, tracks: [...a.tracks, { ...a.tracks[0]!, id: "tk_other" }] })).toBe(false);
+    expect(isPresetIntact({ ...a, loop: "infinite" })).toBe(false);
+    expect(isPresetIntact({ ...a, preset: undefined })).toBe(false);
+  });
+
+  it("poser, remplacer et retirer un choix rapide par famille, en gardant le détail et le délai", () => {
+    let site = base;
+    ({ site } = applyOps(site, planQuickAnimation(site, find(site, "qk_title"), "Apparition", "fade-up")));
+    let q = quickAnimation(site, find(site, "qk_title"), "Apparition")!;
+    expect(q).toMatchObject({ preset: { id: "fade-up" }, intact: true, detail: "one" });
+    ({ site } = applyOps(site, planQuickDetail(site, find(site, "qk_title"), "Apparition", "letters")));
+    ({ site } = applyOps(site, planUpdateTrigger(find(site, "qk_title"), quickAnimation(site, find(site, "qk_title"), "Apparition")!.trigger.id, { delay: 150 })));
+    ({ site } = applyOps(site, planQuickAnimation(site, find(site, "qk_title"), "Apparition", "zoom")));
+    q = quickAnimation(site, find(site, "qk_title"), "Apparition")!;
+    expect(q).toMatchObject({ preset: { id: "zoom" }, detail: "letters", trigger: { delay: 150 } });
+    expect(animationById(site, q.trigger.animation)!.tracks[0]).toMatchObject({ target: { trigger: true, split: "letters" }, stagger: { each: 30 } });
+    ({ site } = applyOps(site, planQuickAnimation(site, find(site, "qk_title"), "Survol", "grow")));
+    expect(find(site, "qk_title").triggers).toHaveLength(2);
+    expect(site.animations).toHaveLength(2);
+    ({ site } = applyOps(site, planQuickAnimation(site, find(site, "qk_title"), "Apparition", "")));
+    expect(find(site, "qk_title").triggers!.map((t) => t.on)).toEqual(["hover"]);
+    expect(site.animations).toHaveLength(1);
+    expect(quickAnimation(site, find(site, "qk_title"), "Apparition")).toBeUndefined();
+    expect(siteSchema.safeParse(site).success).toBe(true);
+  });
+
+  it("les enfants un à un pour une boîte ; retirer un déclencheur retire aussi son animation si plus rien ne la lance", () => {
+    let site = base;
+    ({ site } = applyOps(site, planQuickAnimation(site, find(site, "qk_card"), "Apparition", "fade")));
+    ({ site } = applyOps(site, planQuickDetail(site, find(site, "qk_card"), "Apparition", "children")));
+    const q = quickAnimation(site, find(site, "qk_card"), "Apparition")!;
+    expect(q.detail).toBe("children");
+    expect(animationById(site, q.trigger.animation)!.tracks[0]).toMatchObject({ target: { trigger: true, children: true }, stagger: { each: 100 } });
+    ({ site } = applyOps(site, planAddTrigger(find(site, "qk_title"), { id: "tr_share", on: "load", animation: q.trigger.animation })));
+    ({ site } = applyOps(site, planRemoveTriggerWithAnimation(site, find(site, "qk_card"), q.trigger.id)));
+    expect(site.animations).toHaveLength(1);
+    ({ site } = applyOps(site, planRemoveTriggerWithAnimation(site, find(site, "qk_title"), "tr_share")));
+    expect(site.animations).toHaveLength(0);
     expect(siteSchema.safeParse(site).success).toBe(true);
   });
 });

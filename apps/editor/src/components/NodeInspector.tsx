@@ -1,5 +1,6 @@
 "use client";
 
+import { QuickAnimations } from "./animation/QuickAnimations";
 import { createElement, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Copy, Trash2, X } from "lucide-react";
 import type { CommitOptions, Inline, Node, NodeLocation, Op, Site, StyleValue, DataSource } from "@atelier/model";
@@ -60,8 +61,8 @@ type Props = {
   notify?: (text: string, tone?: "danger" | "success" | "info") => void;
   editMode?: "write" | "design";
   onSwitchMode?: (m: "write" | "design" | "animate") => void;
-  /** Ouvre l'animation d'un déclencheur de cet élément dans le mode Animation. */
-  onOpenAnimation?: (triggerId: string) => void;
+  /** Ouvre le mode Animation sur cet élément (sur l'animation d'un déclencheur si `triggerId`). Absent pour un rédacteur : pas de section Animation. */
+  onOpenAnimation?: (triggerId?: string) => void;
   commit: (op: Op, opts?: CommitOptions) => void;
   onDeleted: () => void;
 };
@@ -282,6 +283,11 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
 
         </>
       )}
+      {editMode === "write" && !sharedDef && onOpenAnimation ? (
+        <Section title="Animation" defaultOpen={!!node.triggers?.length} hint="Faire arriver l'élément, le faire réagir au survol ou bouger en continu, en un choix.">
+          <QuickAnimations site={site} node={node} commit={commit} onOpenAnimation={() => onOpenAnimation()} />
+        </Section>
+      ) : null}
       {!sharedDef && editMode === "design" ? <SharedStylesPanel site={site} node={node} commit={commit} onEdit={setEditingShared} /> : null}
 
       {editMode === "design" ? <ResponsivePanel site={site} node={node} activeBp={activeBp} onGoTo={onGoToBreakpoint} onReveal={(bp, prop) => { onGoToBreakpoint(bp); window.setTimeout(() => revealProp(prop), 50); }} /> : null}

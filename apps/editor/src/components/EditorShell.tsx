@@ -205,6 +205,14 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
     setTimeline({ page: target, open: o });
     if (o) select(o.hostId);
   }, [index, page.id, setPageId, select]);
+  /** « Animer cet élément » : passe en mode Animation sur l'élément, en ouvrant l'animation du déclencheur demandé (sinon du premier). */
+  const animateNode = useCallback((node: Node, triggerId?: string) => {
+    if (writer) return;
+    const t = (node.triggers ?? []).find((x) => x.id === triggerId) ?? node.triggers?.[0];
+    switchMode("animate");
+    if (t) openAnimation({ animationId: t.animation, hostId: node.id, triggerId: t.id });
+    else select(node.id);
+  }, [writer, switchMode, openAnimation, select]);
   // L'aperçu montre l'instant de la tête de lecture ; la valeur est gardée pour la reposer quand l'aperçu se recharge.
   const scrubTime = useRef<number | null>(null);
   const scrub = useCallback((time: number | null) => {
@@ -529,6 +537,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
       cmds.push({ id: "dup", group: "Édition", label: "Dupliquer la sélection", keys: "⌘D", run: () => { const loc = index.get(selected)!; const { node: cloned } = cloneWithNewIds(loc.node, newId); const copy = cloned.type === "field" ? { ...cloned, props: { ...cloned.props, name: uniqueFieldName(loc.parent!.children ?? [], String(cloned.props.name ?? "champ")) } } : cloned; doc.commit({ op: "node.insert", parent: loc.parent!.id, index: loc.index + 1, node: copy }, { label: "Dupliquer" }); select(copy.id); } });
       cmds.push({ id: "del", group: "Édition", label: "Supprimer la sélection", keys: "⌫", run: () => { const loc = index.get(selected)!; doc.commit({ op: "node.remove", id: selected }, { label: "Supprimer" }); select(loc.parent!.id); } });
       const sel = index.get(selected)!.node;
+      if (!writer) cmds.push({ id: "animate-node", group: "Apparition", label: `Animer « ${nodeLabel(sel)} »…`, icon: Zap, keywords: "animation mode ligne de temps déclencheur images-clés animer cet élément", run: () => animateNode(sel) });
       for (const [kind, label] of Object.entries(REVEAL_LABEL)) cmds.push({ id: `reveal:${kind}`, group: "Apparition", label: `Apparition · ${label}`, icon: Sparkles, keywords: "animation apparition défilement reveal", run: () => doc.commit({ op: "batch", ops: planReveal(site, sel, { kind: kind as RevealKind }), label: `Apparition · ${label}` }, { label: `Apparition · ${label}` }) });
       if (sel.type === "instance") cmds.push({ id: "detach", group: "Édition", label: "Détacher l'instance du composant", icon: Puzzle, run: detachInstance });
       else cmds.push({ id: "makecmp", group: "Édition", label: `Faire de « ${nodeLabel(sel)} » un composant`, icon: Puzzle, keywords: "composant réutiliser", run: () => makeComponent(sel.name ?? nodeLabel(sel)) });
@@ -538,7 +547,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
     const visit = (n: Node) => { const label = nodeLabel(n); if (!seen.has(n.id)) { seen.add(n.id); nodes.push({ id: `sel:${n.id}`, group: "Sélectionner un calque", label, icon: nodeIcon(n), keywords: n.type, run: () => select(n.id) }); } n.children?.forEach(visit); };
     visit(page.root);
     return [...cmds, ...nodes.slice(0, 80)];
-  }, [doc, site, locale, page.root, previewPath, selected, index, select, addBlock, showGrid, toggleGrid, switchMode, setPageId, makeComponent, detachInstance, writer]);
+  }, [doc, site, locale, page.root, previewPath, selected, index, select, addBlock, showGrid, toggleGrid, switchMode, setPageId, makeComponent, detachInstance, writer, animateNode]);
   const setOpen = useCallback((id: string, open: boolean) => setOpenMap((m) => ({ ...m, [id]: open })), []);
   const rename = useCallback((id: string, name: string | null | undefined) => {
     setEditing(null);
@@ -677,7 +686,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
         {editMode === "animate" ? (
           <div className="flex-1 overflow-auto"><AnimationModePanel site={site} node={selectedLoc?.node ?? null} commit={doc.commit} getSite={doc.getSite} bp={activeBp} mode={mode} open={openTl} onOpen={openAnimation} scrub={scrub} onSelect={select} /></div>
         ) : selectedLoc ? (
-          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} onPlay={(id, run) => post({ type: "atelier:play", id, run })} site={site} loc={selectedLoc} dataSource={dataSource} activeBp={activeBp} mode={mode} editMode={editMode} onSwitchMode={switchMode} onOpenAnimation={writer ? undefined : (triggerId) => { const t = selectedLoc.node.triggers?.find((x) => x.id === triggerId); if (!t) return; switchMode("animate"); openAnimation({ animationId: t.animation, hostId: selectedLoc.node.id, triggerId }); }} onGoToBreakpoint={goToBreakpoint} onPreviewState={setPreviewState} onEditInPreview={() => post({ type: "atelier:edit-text", id: selectedLoc.node.id })} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }} onMakeComponent={makeComponent} onDetach={detachInstance} notify={notify} commit={doc.commit} onDeleted={() => { select(selectedLoc.parent?.id ?? null); notify(`${nodeLabel(selectedLoc.node)} supprimé`, "info", { label: "Annuler", run: () => doc.undo() }); }} /></div>
+          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} onPlay={(id, run) => post({ type: "atelier:play", id, run })} site={site} loc={selectedLoc} dataSource={dataSource} activeBp={activeBp} mode={mode} editMode={editMode} onSwitchMode={switchMode} onOpenAnimation={writer ? undefined : (triggerId) => animateNode(selectedLoc.node, triggerId)} onGoToBreakpoint={goToBreakpoint} onPreviewState={setPreviewState} onEditInPreview={() => post({ type: "atelier:edit-text", id: selectedLoc.node.id })} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }} onMakeComponent={makeComponent} onDetach={detachInstance} notify={notify} commit={doc.commit} onDeleted={() => { select(selectedLoc.parent?.id ?? null); notify(`${nodeLabel(selectedLoc.node)} supprimé`, "info", { label: "Annuler", run: () => doc.undo() }); }} /></div>
         ) : (
           <div className="p-3 flex flex-col gap-2">
             <PanelHeading className="px-0">Sélection</PanelHeading>
