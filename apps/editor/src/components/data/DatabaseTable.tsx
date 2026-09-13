@@ -39,7 +39,7 @@ function Draft({ value, onCommit, type = "text", placeholder, mono }: { value: s
   const [prev, setPrev] = useState(value);
   if (value !== prev) { setPrev(value); setDraft(value); }
   const commit = () => { if (draft !== value) onCommit(draft); };
-  return <input type={type} value={draft} placeholder={placeholder} onChange={(e) => setDraft(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setDraft(value); (e.target as HTMLInputElement).blur(); } }} className={`w-full h-7 px-1.5 bg-transparent text-sm text-ink rounded-xs border border-transparent hover:border-line focus:border-accent focus:bg-surface ${mono ? "font-mono text-xs" : ""}`} />;
+  return <input type={type} value={draft} placeholder={placeholder} onChange={(e) => setDraft(e.target.value)} onBlur={commit} onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); if (e.key === "Escape") { setDraft(value); (e.target as HTMLInputElement).blur(); } }} className={`w-full h-8 px-2 bg-transparent text-sm text-ink rounded-xs border border-transparent hover:border-line focus:border-accent focus:bg-surface ${mono ? "font-mono text-xs" : ""}`} />;
 }
 
 const FOCUSABLE = "input:not([type=hidden]), select, textarea, button, [tabindex]";
@@ -285,13 +285,13 @@ export function DatabaseTable({ site, db, entries, save, saveMany, remove, commi
   const notOnline = publishedEntries ? rows.filter((e) => e.status === "published" && publishedEntries[e.id] !== e.updatedAt).length : null;
   const title = (e: Entry) => String(e.values[db.titleField] ?? "") || "Sans titre";
   return (
-    <Dialog open onClose={onClose} title={`${db.name[locale] ?? db.slug} · ${rows.length} entrée${rows.length > 1 ? "s" : ""}`} width={1240} actions={<div className="flex items-center gap-1"><TextInput className="w-44" value={query} placeholder="Filtrer…" aria-label="Filtrer les entrées" onValueChange={setQuery} />{saving ? <span className="text-2xs text-dim mr-2">Enregistrement…</span> : null}<Button size="sm" variant={justExported ? "primary" : "default"} icon={justExported ? Check : Download} onClick={() => void exportCsv()} disabled={!rows.length} title="Télécharger toutes les entrées en CSV (tableur)">{justExported ? "Téléchargé" : "CSV"}</Button><Button size="sm" variant="ghost" icon={Copy} onClick={copyCsv} disabled={!rows.length} title="Copier le CSV dans le presse-papier (à coller dans un tableur)">Copier</Button>{readOnly || !saveMany || !canEditSchema ? null : <><input ref={importInput} type="file" accept=".csv,.json,text/csv,application/json" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void onImportFile(f); }} /><Button size="sm" icon={Upload} onClick={() => importInput.current?.click()} title="Importer un CSV (tableur) ou un JSON : les colonnes deviennent des champs">Importer…</Button></>}{readOnly ? null : <>{canEditSchema ? <Button size="sm" icon={Plus} onClick={addField}>Champ</Button> : null}<Button size="sm" variant="primary" icon={Plus} onClick={addEntry}>Nouvelle entrée</Button></>}</div>}>
+    <Dialog open onClose={onClose} title={`${db.name[locale] ?? db.slug} · ${rows.length} entrée${rows.length > 1 ? "s" : ""}`} width={1440} className="w-[calc(100vw-32px)]" actions={<div className="flex items-center gap-1.5 flex-wrap justify-end"><TextInput className="w-44" value={query} placeholder="Filtrer…" aria-label="Filtrer les entrées" onValueChange={setQuery} />{saving ? <span className="text-2xs text-dim mr-2">Enregistrement…</span> : null}<Button size="sm" variant={justExported ? "primary" : "default"} icon={justExported ? Check : Download} onClick={() => void exportCsv()} disabled={!rows.length} title="Télécharger toutes les entrées en CSV (tableur)">{justExported ? "Téléchargé" : "CSV"}</Button><Button size="sm" variant="ghost" icon={Copy} onClick={copyCsv} disabled={!rows.length} title="Copier le CSV dans le presse-papier (à coller dans un tableur)">Copier</Button>{readOnly || !saveMany || !canEditSchema ? null : <><input ref={importInput} type="file" accept=".csv,.json,text/csv,application/json" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void onImportFile(f); }} /><Button size="sm" icon={Upload} onClick={() => importInput.current?.click()} title="Importer un CSV (tableur) ou un JSON : les colonnes deviennent des champs">Importer…</Button></>}{readOnly ? null : <>{canEditSchema ? <Button size="sm" icon={Plus} onClick={addField}>Champ</Button> : null}<Button size="sm" variant="primary" icon={Plus} onClick={addEntry}>Nouvelle entrée</Button></>}</div>}>
       {editing ? <FieldEditor site={site} db={db} field={editing} isNew={editing.name.startsWith("champ")} onChange={(f) => updateField(editing.name, f)} onMove={(d) => moveField(editing.name, d)} onRemove={() => removeField(editing.name)} onClose={() => setFieldEdit(null)} /> : null}
-      <div className="overflow-auto">
+      <div className="overflow-auto min-h-[360px] bg-app/30">
         <table className="border-collapse text-sm min-w-full" onKeyDown={tableKeys}>
           <thead className="sticky top-0 z-10 bg-panel">
             <tr>
-              <th className="w-8 border-b border-r border-line" title="Publié / brouillon" />
+              <th className="sticky left-0 z-20 w-20 border-b border-r border-line bg-panel" title="Publié / brouillon" />
               {db.fields.map((f) => (
                 <th key={f.name} className="text-left font-medium text-xs text-muted border-b border-r border-line px-1.5 h-8 whitespace-nowrap min-w-[140px]">
                   <div className="flex items-center gap-1">
@@ -310,7 +310,7 @@ export function DatabaseTable({ site, db, entries, save, saveMany, remove, commi
           <tbody>
             {rows.map((e) => (
               <tr key={e.id} className="group hover:bg-hover/40">
-                <td className="border-b border-r border-line text-center align-middle">
+                <td className="sticky left-0 z-10 border-b border-r border-line text-center align-middle bg-panel">
                   {(() => {
                     const on = e.status === "published";
                     const label = readOnly ? (on ? "Traité" : "Nouveau") : on ? "Publiée" : "Brouillon";
@@ -335,7 +335,7 @@ export function DatabaseTable({ site, db, entries, save, saveMany, remove, commi
           </tbody>
         </table>
       </div>
-      <div className="px-3 py-2 border-t border-line flex items-center gap-3">
+      <div className="px-4 py-3 border-t border-line flex items-center gap-3 bg-panel">
         <Hint>{readOnly ? "Les messages arrivent ici à chaque envoi du formulaire, en lecture seule. « Nouveau » / « Traité » en tête de ligne se bascule d'un clic ; la corbeille supprime le message." : `Une entrée « Publiée » n'est visible sur le site qu'à la prochaine publication (« Publier » ou « Publier les contenus seulement »)${publishedCount ? ` : ${publishedCount} entrée${publishedCount > 1 ? "s" : ""} publiée${publishedCount > 1 ? "s" : ""}, ${draftCount} en brouillon` : ""}${notOnline ? `, dont ${notOnline} pas encore en ligne` : ""}. Cliquez un en-tête pour régler le champ. Les images se choisissent dans la bibliothèque du site.`}</Hint>
         {onDeleteDatabase ? <Button size="sm" variant="danger" icon={Trash2} className="shrink-0" onClick={onDeleteDatabase}>Supprimer la base…</Button> : null}
       </div>

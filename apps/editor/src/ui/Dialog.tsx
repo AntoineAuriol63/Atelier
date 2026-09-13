@@ -29,15 +29,15 @@ export function Dialog({ open, onClose, title, children, actions, footer, width 
   }, [open, onClose]);
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-40 bg-black/60 flex items-center justify-center p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }} data-atelier-ui>
-      <div ref={box} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} className={cx("bg-panel border border-line-strong rounded-md shadow-2xl flex flex-col min-h-0", className)} style={{ width, maxWidth: "100%", maxHeight: "85vh" }}>
-        <header className="flex items-center gap-2 h-10 px-3 border-b border-line shrink-0">
-          <span className="text-sm font-medium text-ink flex-1 truncate">{title}</span>
+    <div className="fixed inset-0 z-40 bg-black/70 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-6" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }} data-atelier-ui>
+      <div ref={box} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} className={cx("bg-panel border border-line-strong rounded-md shadow-2xl flex flex-col min-h-0 ring-1 ring-black/40", className)} style={{ width, maxWidth: "100%", maxHeight: "min(90vh, 900px)" }}>
+        <header className="flex items-center gap-2 min-h-11 px-4 border-b border-line shrink-0">
+          <span className="text-base font-semibold text-ink flex-1 truncate">{title}</span>
           {actions}
           <IconButton label="Fermer (Échap)" icon={X} size="sm" onClick={onClose} />
         </header>
         <div className="flex-1 min-h-0 overflow-auto">{children}</div>
-        {footer ? <footer className="flex items-center justify-end gap-2 px-3 h-12 border-t border-line shrink-0">{footer}</footer> : null}
+        {footer ? <footer className="flex items-center justify-end gap-2 px-4 min-h-14 border-t border-line shrink-0">{footer}</footer> : null}
       </div>
     </div>
   );

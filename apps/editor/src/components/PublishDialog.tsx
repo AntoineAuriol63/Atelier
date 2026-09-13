@@ -114,14 +114,14 @@ export function PublishDialog({ site, role = "owner", version, dirty, broken, co
   const upToDate = behind === 0 && !dirty;
 
   return (
-    <Dialog open onClose={onClose} title={tab === "publish" ? "Publier le site" : "Réglages du site"} width={640}
+    <Dialog open onClose={onClose} title={tab === "publish" ? "Publier le site" : "Réglages du site"} width={760}
       actions={writer ? null : <Tabs variant="pill" label="Fenêtre" tabs={[{ id: "publish", label: "Publier" }, { id: "settings", label: "Réglages du site" }]} value={tab} onChange={(t) => setTab(t as "publish" | "settings")} />}
       footer={tab === "publish" && !writer
         ? <><span className="text-xs text-muted flex-1 truncate">{publishBlocked ?? (upToDate ? "Rien de nouveau depuis la dernière publication." : "Prêt à publier la version de travail.")}</span><Button variant="ghost" onClick={onClose}>Fermer</Button><Button variant="primary" icon={UploadCloud} disabled={!!publishBlocked} title={publishBlocked ?? undefined} onClick={publish}>{busy ?? "Publier maintenant"}</Button></>
         : <Button variant="ghost" onClick={onClose}>Fermer</Button>}>
-      <div className="flex flex-col gap-4 p-4">
+      <div className="flex flex-col gap-5 p-4 sm:p-5">
         {tab === "publish" ? (<>
-        <section className="flex flex-col gap-2">
+        <section className="flex flex-col gap-3 rounded-md border border-line bg-surface/50 p-4">
           <div className="flex items-center gap-2 flex-wrap">
             {state?.publishedVersion === null ? <Badge tone="warning">Jamais publié</Badge> : state ? <Badge tone={upToDate ? "success" : "accent"}>{upToDate ? "En ligne, à jour" : `En ligne : version ${state.publishedVersion}${behind ? ` · ${behind} changement${behind > 1 ? "s" : ""} depuis` : ""}`}</Badge> : <Badge>Lecture…</Badge>}
             {state?.publishedAt ? <span className="text-xs text-muted">publié le {when(state.publishedAt)}</span> : null}
@@ -176,7 +176,7 @@ export function PublishDialog({ site, role = "owner", version, dirty, broken, co
           </FieldGroup>
         </section>
 
-        <section className="flex flex-col gap-2 border-t border-line pt-3">
+        <section id="settings-routing" className="flex flex-col gap-2 border-t border-line pt-4 scroll-mt-16">
           <Eyebrow as="h3">Page introuvable (404)</Eyebrow>
           {notFound ? <p className="text-sm text-muted">La page <strong className="font-medium text-ink">{notFound.name[locale] ?? notFound.path}</strong> (<span className="font-mono text-xs">{NOT_FOUND_PATH}</span>) s&apos;affiche quand une adresse n&apos;existe pas. Modifiez-la comme une autre page ; elle n&apos;est pas indexée.</p> : (
             <div className="flex items-center gap-2 flex-wrap">
@@ -208,7 +208,7 @@ export function PublishDialog({ site, role = "owner", version, dirty, broken, co
           {redirectError ? <span className="text-xs text-danger">{redirectError}</span> : <Hint>Quand une adresse change, redirigez l&apos;ancienne : les visiteurs et les moteurs suivent. <span className="font-mono">{"/*"}</span> à la fin redirige tout un dossier, <span className="font-mono">{"*"}</span> dans la destination reprend le reste de l&apos;adresse. Appliqué à la prochaine publication.</Hint>}
         </section>
 
-        <section className="flex flex-col gap-2 border-t border-line pt-3">
+        <section id="settings-code" className="flex flex-col gap-2 border-t border-line pt-4 scroll-mt-16">
           <Eyebrow as="h3">Code personnalisé</Eyebrow>
           <FieldGroup>
             <Field label="Dans <head>" hint="Balises meta, scripts d'analyse, polices tierces, vérification de domaine… inséré tel quel dans le head de chaque page publiée" inline={false}><TextArea className="font-mono text-xs min-h-[72px]" value={site.settings.head ?? ""} placeholder={'<script defer data-domain="exemple.fr" src="https://plausible.io/js/script.js"></script>'} onValueChange={(v) => setSetting("settings.head", v || undefined, "Code dans head")} spellCheck={false} /></Field>
@@ -217,7 +217,7 @@ export function PublishDialog({ site, role = "owner", version, dirty, broken, co
           <Hint>Ce code n&apos;est actif que sur le site publié et dans l&apos;export, jamais dans l&apos;éditeur. Un script mal formé peut casser l&apos;affichage : vérifiez la page publiée après coup.</Hint>
         </section>
 
-        <section className="flex flex-col gap-2 border-t border-line pt-3">
+        <section id="settings-export" className="flex flex-col gap-2 border-t border-line pt-4 scroll-mt-16">
           <Eyebrow as="h3">Exporter le code</Eyebrow>
           <div className="flex items-center gap-2">
             <Button variant={exported ? "primary" : "default"} icon={exported ? Check : Download} disabled={!!busy || !state} onClick={() => void exportCode()}>{exported ? "Téléchargé" : "Télécharger le site (.zip)"}</Button>
@@ -226,7 +226,7 @@ export function PublishDialog({ site, role = "owner", version, dirty, broken, co
           <Hint>HTML complet page par page, feuille de style aux classes lisibles (les noms des calques), médias et données. À déposer tel quel sur n&apos;importe quel hébergement statique : le site vous appartient, sans Atelier.</Hint>
         </section>
         {role === "owner" && members !== null ? (
-          <section className="flex flex-col gap-2 border-t border-line pt-3">
+          <section id="settings-team" className="flex flex-col gap-2 border-t border-line pt-4 scroll-mt-16">
             <Eyebrow as="h3" className="flex items-center gap-1.5"><Users size={12} />Partage</Eyebrow>
             {members.length ? (
               <ul className="flex flex-col gap-1">

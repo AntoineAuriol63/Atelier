@@ -59,17 +59,17 @@ export function AnimationsPanel({ site, node, commit, onPlay }: { site: Site; no
         ) : null}
       </FieldGroup>
       {triggers.length ? (
-        <ul className="flex flex-col gap-1 pt-1">
+        <ul className="flex flex-col gap-2 pt-2">
           {triggers.map((t) => {
             const a = animationById(site, t.animation);
             return (
-              <li key={t.id} className="flex flex-col gap-1.5 rounded-sm border border-line bg-surface/60 p-1.5">
+              <li key={t.id} className="flex flex-col gap-2.5 rounded-md border border-line-strong bg-surface p-3 shadow-sm">
                 <div className="flex items-center gap-1">
-                  <span className="flex-1 min-w-0 text-xs truncate" title={describeTrigger(t, site)}>{describeTrigger(t, site)}</span>
+                  <span className="flex-1 min-w-0 text-sm font-medium text-ink truncate" title={describeTrigger(t, site)}>{describeTrigger(t, site)}</span>
                   {onPlay && a ? <IconButton size="sm" label="Jouer dans l'aperçu" icon={Play} onClick={() => onPlay(t.id)} /> : null}
                   <IconButton size="sm" label="Retirer l'animation" icon={X} onClick={() => removeTrigger(t, "Retirer l'animation")} />
                 </div>
-                <div className="grid grid-cols-2 gap-1">
+                <div className="grid grid-cols-2 gap-2">
                   <Field label="Quand" inline={false}><Select value={t.on} options={Object.entries(TRIGGER_LABELS).map(([value, label]) => ({ value, label }))} onValueChange={(v) => update(t, { on: v as Trigger["on"] }, "Déclencheur")} /></Field>
                   {t.on !== "scroll" && t.on !== "pointer" ? <Field label="Délai" inline={false}><NumberInput unit="ms" step={50} min={0} value={t.delay ?? 0} onValueChange={(v) => update(t, { delay: v || undefined }, "Délai", `tr-dl:${t.id}`)} /></Field> : null}
                   {t.on === "inView" ? <Field label="Rejouer" inline={false}><Toggle checked={t.once === false} label={t.once === false ? "à chaque passage" : "une seule fois"} onChange={(b) => update(t, { once: b ? false : undefined }, "Rejouer")} /></Field> : null}

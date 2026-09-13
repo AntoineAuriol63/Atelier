@@ -62,15 +62,15 @@ export function Dashboard({ sites, user }: { sites: DashboardSite[]; user: strin
   };
   return (
     <ConfirmProvider><div className="min-h-full bg-app text-ink">
-      <header className="flex items-center gap-3 h-12 px-5 border-b border-line">
-        <span className="font-semibold text-base tracking-tight">{PRODUCT_NAME}</span>
+      <header className="flex items-center gap-3 h-14 px-6 border-b border-line bg-panel">
+        <span className="font-semibold text-lg tracking-tight">{PRODUCT_NAME}</span>
         <span className="text-sm text-dim">Vos sites</span>
         <span className="flex-1" />
         {user ? <><span className="text-xs text-muted">{user}</span><form method="post" action="/auth/deconnexion"><IconButton label="Se déconnecter" icon={LogOut} type="submit" /></form></> : <Badge>accès local</Badge>}
       </header>
-      <main className="max-w-[960px] mx-auto p-6 flex flex-col gap-5">
+      <main className="max-w-[1180px] mx-auto p-6 lg:p-8 flex flex-col gap-6">
         <div className="flex items-center gap-2">
-          <h1 className="text-lg font-medium">{sites.length ? `${sites.length} site${sites.length > 1 ? "s" : ""}` : "Aucun site pour l'instant"}</h1>
+          <h1 className="text-xl font-semibold tracking-tight">{sites.length ? `${sites.length} site${sites.length > 1 ? "s" : ""}` : "Aucun site pour l'instant"}</h1>
           <span className="flex-1" />
           {!creating ? <Button variant="primary" icon={Plus} onClick={() => setCreating(true)}>Nouveau site</Button> : null}
         </div>
@@ -88,12 +88,12 @@ export function Dashboard({ sites, user }: { sites: DashboardSite[]; user: strin
           </form>
         ) : null}
         {error ? <p className="text-sm text-danger">{error}</p> : null}
-        <ul className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
+        <ul className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))" }}>
           {sites.map((s) => (
-            <li key={s.id} className="group rounded-md border border-line bg-panel p-4 flex flex-col gap-2 hover:border-line-strong">
+            <li key={s.id} className="group rounded-md border border-line bg-panel p-5 min-h-[180px] flex flex-col gap-3 shadow-sm transition-[border-color,transform,box-shadow] hover:-translate-y-0.5 hover:border-accent/70 hover:shadow-lg">
               <div className="flex items-start gap-2">
-                <Link href={`/sites/${s.id}`} className="flex-1 min-w-0 text-base font-medium text-ink hover:text-accent truncate">{s.name}</Link>
-                {s.role && s.role !== "owner" ? <Badge tone="accent" title={s.role === "writer" ? "Partagé avec vous : vous écrivez le contenu" : "Partagé avec vous : vous pouvez tout modifier sauf le partage"}>{s.role === "writer" ? "rédacteur" : "éditeur"}</Badge> : <IconButton label="Supprimer le site" icon={Trash2} tone="danger" size="sm" className="opacity-60 group-hover:opacity-100 focus-visible:opacity-100" onClick={() => remove(s)} />}
+                <Link href={`/sites/${s.id}`} className="flex-1 min-w-0 text-base font-semibold text-ink hover:text-accent truncate">{s.name}</Link>
+                {s.role && s.role !== "owner" ? <Badge tone="accent" title={s.role === "writer" ? "Partagé avec vous : vous écrivez le contenu" : "Partagé avec vous : vous pouvez tout modifier sauf le partage"}>{s.role === "writer" ? "rédacteur" : "éditeur"}</Badge> : <IconButton label="Supprimer le site" icon={Trash2} tone="danger" size="sm" className="opacity-0 group-hover:opacity-100 focus-visible:opacity-100" onClick={() => remove(s)} />}
               </div>
               <div className="flex items-center gap-2 text-xs text-muted">
                 {s.publishedVersion !== null ? <Badge tone="success">en ligne{s.publishedVersion !== s.version ? ` · v${s.publishedVersion}` : ""}</Badge> : <Badge>non publié</Badge>}
@@ -104,7 +104,7 @@ export function Dashboard({ sites, user }: { sites: DashboardSite[]; user: strin
                 <span className="flex-1" />
                 {s.url ? <a href={s.url} target="_blank" rel="noopener" className="inline-flex items-center gap-1 hover:text-accent"><ExternalLink size={11} />voir le site</a> : null}
               </div>
-              <Link href={`/sites/${s.id}`} className="mt-1"><Button className="w-full">Ouvrir l&apos;éditeur</Button></Link>
+              <Link href={`/sites/${s.id}`} className="mt-auto pt-1"><Button className="w-full">Ouvrir l&apos;éditeur</Button></Link>
             </li>
           ))}
         </ul>
