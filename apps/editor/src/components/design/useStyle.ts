@@ -5,7 +5,7 @@ import { isDraggingValue } from "@/ui/controls/useDragValue";
 const THROTTLE_MS = 50;
 const pendingByKey = new Map<string, { timer: number; last: () => void } | null>();
 /** Vrai si l'appel a été différé (un autre est parti il y a moins de 50 ms) ; le dernier appel différé est rejoué à la fin de la fenêtre. */
-function throttle(key: string, run: () => void): boolean {
+export function throttle(key: string, run: () => void): boolean {
   const cur = pendingByKey.get(key);
   if (cur) { cur.last = run; return true; }
   pendingByKey.set(key, { timer: window.setTimeout(() => { const p = pendingByKey.get(key); pendingByKey.set(key, null); pendingByKey.delete(key); p?.last?.(); }, THROTTLE_MS), last: undefined as unknown as () => void });
@@ -35,6 +35,8 @@ export type StyleApi = {
   state?: string;
   target: StyleTarget;
   bpName: (id: string) => string;
+  /** Mode image-clé (mode Animation) : les valeurs se lisent à cet instant et s'écrivent dans l'image-clé, pas dans le style. */
+  keyframe?: { at: number };
 };
 
 export const STATE_LABEL: Record<string, string> = { hover: "Survol", active: "Actif", focus: "Focus", current: "Page courante", open: "Ouvert" };

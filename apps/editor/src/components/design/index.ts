@@ -1,4 +1,5 @@
 export * from "./useStyle";
+export * from "./useKeyframeStyle";
 export * from "./LayoutPanel";
 export * from "./SpacingPanel";
 export * from "./SizePanel";

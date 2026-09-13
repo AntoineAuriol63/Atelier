@@ -83,7 +83,7 @@ export function AssetPicker({ site, value, onChange, kind = "image", onImport, b
   );
 }
 
-export function AppearancePanel({ site, style, mode }: { site: Site; style: StyleApi; mode?: string }) {
+export function AppearancePanel({ site, style, mode, defaultOpen = false }: { site: Site; style: StyleApi; mode?: string; defaultOpen?: boolean }) {
   const s = style;
   const row = (prop: string, label: string, children: React.ReactNode, wide?: boolean) => (
     <PropRow key={`${prop}:${label}`} prop={prop} label={label} source={s.source(prop)} sourceTitle={s.title(prop)} onReset={() => s.reset(prop)} wide={wide} onScrub={SCRUBBABLE.has(prop) ? s.scrub(prop) : undefined}>{children}</PropRow>
@@ -96,7 +96,7 @@ export function AppearancePanel({ site, style, mode }: { site: Site; style: Styl
   const opacity = (() => { const v = str(s.value("opacity")); if (!v) return ""; const n = Number(v); return Number.isFinite(n) ? Math.round(n * 100) : ""; })();
 
   return (
-    <Section title="Apparence" defaultOpen={false} hint="Fond, bordure, arrondi, ombre et opacité de l'élément.">
+    <Section title="Apparence" defaultOpen={defaultOpen} hint="Fond, bordure, arrondi, ombre et opacité de l'élément.">
       {row("background", "Fond", (
         <Segmented className="flex-1" value={kind === "none" ? undefined : kind} options={[{ value: "color", label: "Couleur" }, { value: "gradient", label: "Dégradé" }, { value: "image", label: "Image" }]} onChange={(k) => {
           if (!k) s.set("background", undefined, false);

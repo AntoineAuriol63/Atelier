@@ -4,7 +4,9 @@ export type StyleSource =
   | { kind: "local" }                                                          // posé ici (ce nœud, ce point, cet état)
   | { kind: "inherited"; breakpoint: string; fromState?: string | null }        // posé sur ce nœud à un point plus large ; `fromState: null` = vient de l'état normal
   | { kind: "shared"; style: string; breakpoint: string; state?: string }       // vient d'un style partagé
-  | { kind: "default"; from: string };                                         // valeur par défaut du thème (typeDefaults)
+  | { kind: "default"; from: string }                                          // valeur par défaut du thème (typeDefaults)
+  | { kind: "keyframe"; at: number; exact: boolean }                           // mode Animation : posé sur l'image-clé à `at` (exact), ou tenu depuis elle
+  | { kind: "rest"; of: StyleSource };                                         // mode Animation : état de repos de l'élément (avec son origine)
 
 export type ResolvedValue = { value: StyleValue; source: StyleSource };
 export type ResolvedStyle = Record<string, ResolvedValue>;

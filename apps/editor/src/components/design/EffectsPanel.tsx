@@ -59,7 +59,9 @@ function parseTransition(v: string | undefined): { prop: string; ms: number; eas
   return { prop: m[1]!, ms: m[3] === "s" ? Number(m[2]) * 1000 : Number(m[2]), easing: m[4] ?? "ease" };
 }
 
-export function EffectsPanel({ site, style, node, commit }: { site: Site; style: StyleApi; node?: Node; commit?: (op: Op, opts?: CommitOptions) => void }) {
+export function EffectsPanel({ site, style, node, commit, defaultOpen = false }: { site: Site; style: StyleApi; node?: Node; commit?: (op: Op, opts?: CommitOptions) => void; defaultOpen?: boolean }) {
+  // En mode image-clé, seules les propriétés qui s'animent restent : transformations et filtres (ni transition, ni curseur, ni parallaxe).
+  const animating = !!style.keyframe;
   const s = style;
   const row = (prop: string, label: string, children: React.ReactNode, wide?: boolean) => (
     <PropRow key={`${prop}:${label}`} prop={prop} label={label} source={s.source(prop)} sourceTitle={s.title(prop)} onReset={() => s.reset(prop)} wide={wide}>{children}</PropRow>
@@ -71,7 +73,7 @@ export function EffectsPanel({ site, style, node, commit }: { site: Site; style:
   const setTr = (patch: Partial<typeof tr>) => { const n = { ...tr, ...patch }; s.set("transition", `${n.prop} ${n.ms}ms ${n.easing}`, false); };
 
   return (
-    <Section title="Effets" defaultOpen={false} hint="Transformations (rotation, échelle, décalage), transitions, filtres et curseur.">
+    <Section title="Effets" defaultOpen={defaultOpen} hint={animating ? "Transformations (rotation, échelle, décalage) et filtres à cet instant de l'animation." : "Transformations (rotation, échelle, décalage), transitions, filtres et curseur."}>
       {tf.raw ? (
         row("transform", "Transform.", <div className="flex items-center gap-1 flex-1 min-w-0"><TextInput mono className="flex-1 min-w-0" value={str(s.value("transform")) ?? ""} onValueChange={(v) => s.set("transform", v || undefined)} /><TokenSelect site={site} onPick={(t) => s.set("transform", t)} /></div>)
       ) : (
@@ -82,7 +84,7 @@ export function EffectsPanel({ site, style, node, commit }: { site: Site; style:
         </>
       )}
       <div className="h-px bg-line my-1" />
-      {row("transition", "Transition", (
+      {animating ? null : row("transition", "Transition", (
         <div className="flex items-center gap-1 flex-1">
           <Select className="w-[84px]" value={hasTransition ? tr.prop : ""} placeholder="Aucune" options={[{ value: "all", label: "Tout" }, { value: "opacity", label: "Opacité" }, { value: "transform", label: "Transform." }, { value: "color", label: "Couleur" }, { value: "background-color", label: "Fond" }]} onValueChange={(v) => (v ? setTr({ prop: v }) : s.set("transition", undefined, false))} />
           {hasTransition ? <NumberInput className="w-[70px]" unit="ms" min={0} step={50} value={tr.ms} onValueChange={(n) => setTr({ ms: n === "" ? 200 : n })} /> : null}
@@ -103,9 +105,9 @@ export function EffectsPanel({ site, style, node, commit }: { site: Site; style:
           </>
         );
       })()}
-      {row("cursor", "Curseur", <Select className="flex-1" value={str(s.value("cursor")) ?? ""} placeholder="Auto" options={CURSORS} onValueChange={(v) => s.set("cursor", v || undefined, false)} />)}
-      <Hint>Pour animer un changement au survol (couleur, taille…), réglez une transition ici : elle s&apos;applique au passage d&apos;un état à l&apos;autre. Les apparitions au défilement se règlent dans « Interactions ».</Hint>
-      {node && commit ? (
+      {animating ? null : row("cursor", "Curseur", <Select className="flex-1" value={str(s.value("cursor")) ?? ""} placeholder="Auto" options={CURSORS} onValueChange={(v) => s.set("cursor", v || undefined, false)} />)}
+      {animating ? null : <Hint>Pour animer un changement au survol (couleur, taille…), réglez une transition ici : elle s&apos;applique au passage d&apos;un état à l&apos;autre. Les apparitions au défilement se règlent dans « Interactions ».</Hint>}
+      {node && commit && !animating ? (
         <>
           <div className="h-px bg-line my-1" />
           <PropRow label="Parallaxe" sourceTitle="Propriété de l'élément (props.parallax)" source={typeof node.props.parallax === "number" ? { kind: "local" } : undefined} onReset={typeof node.props.parallax === "number" ? () => commit({ op: "node.set", id: node.id, path: "props.parallax", value: undefined }, { label: "Parallaxe" }) : undefined}><NumberInput className="w-24" step={0.05} min={-1} max={1} value={typeof node.props.parallax === "number" ? node.props.parallax : ""} placeholder="aucune" onValueChange={(n) => commit({ op: "node.set", id: node.id, path: "props.parallax", value: n === "" || n === 0 ? undefined : n }, { coalesceKey: `parallax:${node.id}`, label: "Parallaxe" })} /></PropRow>

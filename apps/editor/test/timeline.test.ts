@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import type { Node, Site } from "@atelier/model";
+import type { Animation, Node, Site } from "@atelier/model";
 import { sampleSite } from "@atelier/model";
-import { animatedNodes, formatTime, nextAnimationName, rulerTicks, trackLabel, triggerHosts, validOpenTimeline } from "../src/lib/timeline";
+import { animatedNodes, canAddTrack, formatTime, nextAnimationName, rulerTicks, snapTime, targetKindOf, targetKindOptions, trackLabel, triggerHosts, validOpenTimeline } from "../src/lib/timeline";
 
 const text = (id: string, name?: string): Node => ({ id, type: "text", name, props: { tag: "p", content: { fr: [{ t: "text", v: id }] } } });
 const root: Node = { id: "root", type: "box", props: {}, children: [{ id: "card", type: "box", name: "Carte", props: {}, children: [text("inner")] }, text("txt_b", "Titre")] };
@@ -49,5 +49,28 @@ describe("ligne de temps", () => {
     expect(validOpenTimeline(withTrigger, { ...open, animationId: "an_2" })).toBeNull();
     expect(validOpenTimeline({ ...withTrigger, animations: [site.animations[1]!] }, open)).toBeNull();
     expect(validOpenTimeline(withTrigger, { ...open, hostId: "ailleurs" })).toBeNull();
+  });
+  it("aligne un temps sur une grille de 10 ms, jamais avant 0", () => {
+    expect(snapTime(423)).toBe(420);
+    expect(snapTime(426)).toBe(430);
+    expect(snapTime(-40)).toBe(0);
+    expect(snapTime(437, 50)).toBe(450);
+  });
+  it("formes de cible d'une piste : l'élément, ses enfants s'il en a, ses mots ou lettres pour un texte", () => {
+    expect(targetKindOf({ trigger: true })).toBe("element");
+    expect(targetKindOf({ node: "x", children: true })).toBe("children");
+    expect(targetKindOf({ node: "x", split: "letters" })).toBe("letters");
+    expect(targetKindOf({ selector: ".x" })).toBe("selector");
+    expect(targetKindOptions(root.children![0]).map((o) => o.value)).toEqual(["element", "children"]);
+    expect(targetKindOptions(root.children![1]).map((o) => o.value)).toEqual(["element", "words", "letters"]);
+    expect(targetKindOptions(undefined).map((o) => o.value)).toEqual(["element"]);
+  });
+  it("ajouter une piste : un élément de la même page que l'hôte, pas encore animé tel quel", () => {
+    const other: Site = { ...site, pages: [...site.pages, { ...site.pages[0]!, id: "pg_2", path: "/autre", root: { id: "root2", type: "box", props: {}, children: [text("far")] } }] };
+    const a: Animation = { id: "an_x", name: "X", duration: 600, tracks: [{ id: "t1", target: { trigger: true }, keyframes: [] }] };
+    expect(canAddTrack(other, a, "card", "txt_b")).toEqual({ ok: true });
+    expect(canAddTrack(other, a, "card", "card")).toEqual({ ok: false, reason: "« Carte » a déjà sa piste" });
+    expect(canAddTrack(other, a, "card", "far")).toEqual({ ok: false, reason: "Choisissez un élément de la même page que l'animation" });
+    expect(canAddTrack(other, a, "card", undefined)).toEqual({ ok: false, reason: "Sélectionnez un élément dans l'aperçu ou dans les calques" });
   });
 });

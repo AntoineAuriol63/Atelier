@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ANIMATION_PRESETS, animationById, animationFromPreset, animationUsages, applyOps, describeAnimation, describeTrigger, easingCss, keyframeAt, migrate, parseSpring, planAddTrack, planAddTrigger, planApplyPreset, planRemoveAnimation, planRemoveKeyframe, planRemoveTrack, planRemoveTrigger, planSetKeyframe, planUpdateAnimation, planUpdateTrigger, presetById, resolveTrackTarget, sampleSite, schema, springDuration, springEasing, springSamples, staggerDelay, staggerRank, trackSpan, type Animation, type Node, type Site, type Trigger } from "../src";
+import { ANIMATION_PRESETS, BASE, animationById, animationFromPreset, animationUsages, applyOps, describeAnimation, describeTrigger, easingCss, keyframeAt, keyframeStyleAt, migrate, parseSpring, planAddTrack, planAddTrigger, planApplyPreset, planRemoveAnimation, planRemoveKeyframe, planRemoveKeyframes, planRemoveTrack, planRemoveTrigger, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUnsetKeyframeProp, planUpdateAnimation, planUpdateTrack, planUpdateTrigger, presetById, resolveTrackTarget, sampleSite, schema, shiftDelta, springDuration, springEasing, springSamples, staggerDelay, staggerRank, trackSpan, trackTargetFor, withTargetKind, type Animation, type Node, type Site, type Trigger } from "../src";
 const siteSchema = schema.site;
 
 const node = (site: Site, id: string): Node => { let out: Node | undefined; const dfs = (n: Node) => { if (n.id === id) out = n; n.children?.forEach(dfs); }; site.pages.forEach((p) => dfs(p.root)); return out!; };
@@ -152,6 +152,71 @@ describe("migration 2 → 3", () => {
     expect(animationById(site, "an_ix1")).toMatchObject({ preset: "fade-up", duration: 650 });
     expect(n.style?.base).toEqual({ color: "red" });
     expect(n.props.marquee).toEqual({ duration: 20 });
+    expect(siteSchema.safeParse(site).success).toBe(true);
+  });
+});
+
+describe("animations : édition dans le mode Animation", () => {
+  const box: Node = { id: "kb", type: "box", props: {}, style: { base: { opacity: "0.9", color: "red" } } };
+  const withTrack = (keyframes: Animation["tracks"][number]["keyframes"], extra: Partial<Animation["tracks"][number]> = {}): Site => ({ ...sampleSite, animations: [anim("an_e", [{ id: "tk_e", target: { trigger: true }, keyframes, ...extra }, { id: "tk_e2", target: { node: "hero_p" }, keyframes: [{ at: 0, style: {} }, { at: 400, style: { opacity: "0" } }] }])] });
+  const track = (site: Site, id = "tk_e") => animationById(site, "an_e")!.tracks.find((t) => t.id === id)!;
+
+  it("état d'un élément à un instant : l'image-clé posée là, sinon la précédente qui règle la propriété, sinon le repos", () => {
+    const t = track(withTrack([{ at: 0, style: {} }, { at: 300, style: { opacity: "0.2", transform: "scale(1.1)" } }, { at: 600, style: { opacity: "1" } }]));
+    const at300 = keyframeStyleAt(sampleSite, box, BASE, t, 300);
+    expect(at300.opacity).toEqual({ value: "0.2", source: { kind: "keyframe", at: 300, exact: true } });
+    expect(at300.color).toEqual({ value: "red", source: { kind: "rest", of: { kind: "local" } } });
+    const at450 = keyframeStyleAt(sampleSite, box, BASE, t, 450);
+    expect(at450.opacity).toEqual({ value: "0.2", source: { kind: "keyframe", at: 300, exact: false } });
+    expect(at450.transform).toEqual({ value: "scale(1.1)", source: { kind: "keyframe", at: 300, exact: false } });
+    expect(keyframeStyleAt(sampleSite, box, BASE, t, 100).opacity).toEqual({ value: "0.9", source: { kind: "rest", of: { kind: "local" } } });
+    // Avant la portée, l'élément montre la première image (remplissage both).
+    const late = track(withTrack([{ at: 200, style: { opacity: "0" } }, { at: 600, style: { opacity: "1" } }]));
+    expect(keyframeStyleAt(sampleSite, box, BASE, late, 50).opacity).toEqual({ value: "0", source: { kind: "keyframe", at: 200, exact: false } });
+  });
+
+  it("retirer une propriété d'une image-clé ; changer la courbe d'un segment (ou revenir à la courbe par défaut)", () => {
+    let site = withTrack([{ at: 0, style: {} }, { at: 300, style: { opacity: "0.2", transform: "scale(1.1)" }, easing: "ease-in" }]);
+    ({ site } = applyOps(site, planUnsetKeyframeProp(site, "an_e", "tk_e", 300, "opacity")));
+    expect(keyframeAt(track(site), 300)).toEqual({ at: 300, style: { transform: "scale(1.1)" }, easing: "ease-in" });
+    ({ site } = applyOps(site, planSetKeyframeEasing(site, "an_e", "tk_e", 300, "spring(170, 26)")));
+    expect(keyframeAt(track(site), 300)!.easing).toBe("spring(170, 26)");
+    ({ site } = applyOps(site, planSetKeyframeEasing(site, "an_e", "tk_e", 300, undefined)));
+    expect(keyframeAt(track(site), 300)).toEqual({ at: 300, style: { transform: "scale(1.1)" } });
+    expect(planUnsetKeyframeProp(site, "an_e", "tk_e", 999, "opacity")).toEqual([]);
+    ({ site } = applyOps(site, planRemoveKeyframes(site, "an_e", [{ track: "tk_e", at: 300 }, { track: "tk_e2", at: 400 }, { track: "tk_e", at: 0 }])));
+    expect(track(site).keyframes).toEqual([]);
+    expect(track(site, "tk_e2").keyframes.map((k) => k.at)).toEqual([0]);
+    expect(siteSchema.safeParse(site).success).toBe(true);
+  });
+
+  it("déplacer des images-clés en groupe, jamais avant 0, en écrasant ce qui était à l'arrivée ; ⌥ duplique", () => {
+    let site = withTrack([{ at: 0, style: {} }, { at: 300, style: { opacity: "0.2" } }, { at: 600, style: { opacity: "1" } }]);
+    ({ site } = applyOps(site, planShiftKeyframes(site, "an_e", [{ track: "tk_e", at: 300 }, { track: "tk_e2", at: 400 }], 300)));
+    expect(track(site).keyframes).toEqual([{ at: 0, style: {} }, { at: 600, style: { opacity: "0.2" } }]);
+    expect(track(site, "tk_e2").keyframes.map((k) => k.at)).toEqual([0, 700]);
+    expect(animationById(site, "an_e")!.duration).toBe(1000);
+    ({ site } = applyOps(site, planShiftKeyframes(site, "an_e", [{ track: "tk_e2", at: 700 }], -900)));
+    expect(track(site, "tk_e2").keyframes).toEqual([{ at: 0, style: { opacity: "0" } }]);
+    ({ site } = applyOps(site, planShiftKeyframes(site, "an_e", [{ track: "tk_e", at: 600 }], 200, { duplicate: true })));
+    expect(track(site).keyframes.map((k) => k.at)).toEqual([0, 600, 800]);
+    expect(keyframeAt(track(site), 800)!.style).toEqual({ opacity: "0.2" });
+    expect(shiftDelta([{ at: 100 }, { at: 400 }], -250)).toBe(-100);
+    expect(siteSchema.safeParse(site).success).toBe(true);
+  });
+
+  it("régler une piste : cible (élément, enfants, mots, lettres) et décalage, sans perdre l'élément visé", () => {
+    let site = withTrack([{ at: 0, style: {} }, { at: 300, style: { opacity: "1" } }]);
+    expect(withTargetKind({ trigger: true }, "letters")).toEqual({ trigger: true, split: "letters" });
+    expect(withTargetKind({ node: "hero_p", split: "words" }, "children")).toEqual({ node: "hero_p", children: true });
+    expect(withTargetKind({ node: "hero_p", children: true }, "element")).toEqual({ node: "hero_p" });
+    expect(withTargetKind({ selector: ".x" }, "children")).toEqual({ selector: ".x" });
+    ({ site } = applyOps(site, planUpdateTrack(site, "an_e", "tk_e", { target: withTargetKind(track(site).target, "children"), stagger: { each: 80, from: "center" } })));
+    expect(track(site)).toMatchObject({ target: { trigger: true, children: true }, stagger: { each: 80, from: "center" } });
+    ({ site } = applyOps(site, planUpdateTrack(site, "an_e", "tk_e", { stagger: undefined })));
+    expect("stagger" in track(site)).toBe(false);
+    expect(trackTargetFor("host", "host")).toEqual({ trigger: true });
+    expect(trackTargetFor("host", "other")).toEqual({ node: "other" });
     expect(siteSchema.safeParse(site).success).toBe(true);
   });
 });

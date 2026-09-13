@@ -172,5 +172,8 @@ export function useDocument(initialSite: Site, initialVersion: number, options: 
     if (r) apply({ site: r.site, history: r.history }, r.applied);
   }
 
-  return { site: doc.site, history: doc.history, version, status, error, retryAt, blocked: isBlocked, commit, undo, redo, retryNow, copyPending, canUndo: canUndo(doc.history), canRedo: canRedo(doc.history) };
+  /** Le document tel qu'il est après la dernière opération, sans attendre le rendu : pour les aides qui réécrivent un tableau entier (animations). */
+  const getSite = () => docRef.current.site;
+
+  return { site: doc.site, history: doc.history, version, status, error, retryAt, blocked: isBlocked, commit, getSite, undo, redo, retryNow, copyPending, canUndo: canUndo(doc.history), canRedo: canRedo(doc.history) };
 }

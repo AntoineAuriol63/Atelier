@@ -1,5 +1,6 @@
 import type { Animation, Id, Keyframe, Node, Op, Page, Site, Stagger, SplitMode, StyleProps, Track, TrackTarget, Trigger, TriggerOn } from "./types";
 import { newId } from "./ids";
+import { resolveNodeStyle, type ResolvedStyle } from "./style";
 
 /** Courbes proposées dans l'interface (la valeur est du CSS). */
 export const ANIM_EASINGS: { value: string; label: string }[] = [
@@ -157,6 +158,85 @@ export function planRemoveTrack(site: Site, animationId: Id, trackId: Id): Op[] 
   const a = animationById(site, animationId);
   if (!a) return [];
   return planUpdateAnimation(site, animationId, { tracks: a.tracks.filter((t) => t.id !== trackId) });
+}
+
+// ---------------------------------------------------------------- édition (mode Animation, cadrage § 4.1)
+
+/**
+ * Style d'un élément à l'instant `at` d'une piste, pour les panneaux Design en mode image-clé : l'état de repos (source `rest`),
+ * recouvert, propriété par propriété, par l'image-clé posée à `at` (`exact`), sinon par la dernière image-clé d'avant qui la règle ;
+ * avant la portée de la piste, par la première image-clé (remplissage `both`). Les valeurs entre deux images-clés ne sont pas
+ * interpolées : l'aperçu montre l'état exact, le panneau dit d'où vient la valeur.
+ */
+export function keyframeStyleAt(site: Site, node: Node, bp: string, track: Track, at: number): ResolvedStyle {
+  const out: ResolvedStyle = {};
+  for (const [p, r] of Object.entries(resolveNodeStyle(site, node, bp))) out[p] = { value: r.value, source: { kind: "rest", of: r.source } };
+  const kfs = [...track.keyframes].sort((a, b) => a.at - b.at);
+  const first = kfs[0];
+  const props = new Set(kfs.flatMap((k) => Object.keys(k.style)));
+  for (const p of props) {
+    const exact = kfs.find((k) => k.at === at && k.style[p] !== undefined);
+    const held = exact ?? [...kfs].reverse().find((k) => k.at <= at && k.style[p] !== undefined) ?? (first && at < first.at && first.style[p] !== undefined ? first : undefined);
+    if (held) out[p] = { value: held.style[p]!, source: { kind: "keyframe", at: held.at, exact: held.at === at } };
+  }
+  return out;
+}
+/** Retire une propriété de l'image-clé à `at` (l'image-clé reste, vide elle vaut l'état de repos). */
+export function planUnsetKeyframeProp(site: Site, animationId: Id, trackId: Id, at: number, prop: string): Op[] {
+  const t = animationById(site, animationId)?.tracks.find((x) => x.id === trackId);
+  const k = t ? keyframeAt(t, at) : undefined;
+  if (!k || k.style[prop] === undefined) return [];
+  return withTrack(site, animationId, trackId, (tr) => ({ ...tr, keyframes: tr.keyframes.map((x) => { if (x.at !== at) return x; const style = { ...x.style }; delete style[prop]; return { ...x, style }; }) }));
+}
+/** Courbe pour atteindre l'image-clé à `at` depuis la précédente ; `undefined` revient à la courbe par défaut (`ease`). */
+export function planSetKeyframeEasing(site: Site, animationId: Id, trackId: Id, at: number, easing: string | undefined): Op[] {
+  return withTrack(site, animationId, trackId, (tr) => ({ ...tr, keyframes: tr.keyframes.map((x) => { if (x.at !== at) return x; const { easing: _old, ...rest2 } = x; void _old; return easing ? { ...rest2, easing } : rest2; }) }));
+}
+/** Retire un groupe d'images-clés, sur une ou plusieurs pistes, en une seule opération. */
+export function planRemoveKeyframes(site: Site, animationId: Id, keys: { track: Id; at: number }[]): Op[] {
+  const a = animationById(site, animationId);
+  if (!a || !keys.length) return [];
+  const tracks = a.tracks.map((t) => { const gone = new Set(keys.filter((k) => k.track === t.id).map((k) => k.at)); return gone.size ? { ...t, keyframes: t.keyframes.filter((k) => !gone.has(k.at)) } : t; });
+  return planUpdateAnimation(site, animationId, { tracks });
+}
+/** Décalage réellement applicable à un groupe d'images-clés : aucune ne passe avant 0. */
+export const shiftDelta = (keys: { at: number }[], delta: number): number => (keys.length ? Math.max(delta, -Math.min(...keys.map((k) => k.at))) : 0);
+/**
+ * Déplace (ou duplique, `duplicate`) un groupe d'images-clés de `delta` ms, borné pour qu'aucune ne passe avant 0.
+ * Une image-clé déplacée remplace celle qui occupait déjà sa place d'arrivée ; la durée s'allonge si besoin.
+ */
+export function planShiftKeyframes(site: Site, animationId: Id, keys: { track: Id; at: number }[], delta: number, o: { duplicate?: boolean } = {}): Op[] {
+  const a = animationById(site, animationId);
+  const d = shiftDelta(keys, delta);
+  if (!a || !keys.length || d === 0) return [];
+  const tracks = a.tracks.map((t) => {
+    const moving = new Set(keys.filter((k) => k.track === t.id).map((k) => k.at));
+    if (!moving.size) return t;
+    const moved = t.keyframes.filter((k) => moving.has(k.at)).map((k) => ({ ...structuredClone(k), at: k.at + d }));
+    const arrivals = new Set(moved.map((k) => k.at));
+    const kept = t.keyframes.filter((k) => (o.duplicate || !moving.has(k.at)) && !arrivals.has(k.at));
+    return { ...t, keyframes: [...kept, ...moved].sort((x, y) => x.at - y.at) };
+  });
+  const end = Math.max(0, ...tracks.map((t) => trackSpan(t).end));
+  return planUpdateAnimation(site, animationId, { tracks, duration: Math.max(a.duration, end) });
+}
+/** Règle une piste (cible, décalage) ; une clé à `undefined` est retirée. */
+export function planUpdateTrack(site: Site, animationId: Id, trackId: Id, patch: Partial<Pick<Track, "target" | "stagger">>): Op[] {
+  return withTrack(site, animationId, trackId, (t) => {
+    const next = { ...t, ...patch } as Track & Record<string, unknown>;
+    for (const [k, v] of Object.entries(patch)) if (v === undefined) delete next[k];
+    return next;
+  });
+}
+/** Cible d'une nouvelle piste depuis l'hôte du déclencheur : relative pour l'hôte lui-même (animation réutilisable), sinon l'élément. */
+export const trackTargetFor = (hostId: Id, nodeId: Id): TrackTarget => (hostId === nodeId ? { trigger: true } : { node: nodeId });
+/** Même élément visé, autre forme : lui-même, ses enfants, ses mots ou ses lettres. Un sélecteur reste tel quel. */
+export function withTargetKind(target: TrackTarget, kind: "element" | "children" | "words" | "letters"): TrackTarget {
+  if ("selector" in target) return target;
+  const base: TrackTarget = "trigger" in target ? { trigger: true } : { node: target.node };
+  if (kind === "children") return { ...base, children: true };
+  if (kind === "words" || kind === "letters") return { ...base, split: kind };
+  return base;
 }
 
 // ---------------------------------------------------------------- cibles et décalage

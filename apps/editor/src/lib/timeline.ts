@@ -1,4 +1,4 @@
-import type { Animation, Node, Site, Track } from "@atelier/model";
+import type { Animation, Node, Site, Track, TrackTarget } from "@atelier/model";
 import { animationById, indexSite, resolveTrackTarget } from "@atelier/model";
 import { nodeLabel } from "@/components/node-icons";
 
@@ -50,6 +50,33 @@ export function animatedNodes(a: Animation, hostId: string): Set<string> {
   const out = new Set<string>();
   for (const t of a.tracks) { const r = resolveTrackTarget(t.target, hostId); if (!("selector" in r)) out.add(r.node); }
   return out;
+}
+
+/** Temps aligné sur une grille (10 ms par défaut), jamais avant 0 : les images-clés se posent et se glissent sur ce pas. */
+export const snapTime = (ms: number, step = 10): number => Math.max(0, Math.round(ms / step) * step);
+
+export type TargetKind = "element" | "children" | "words" | "letters";
+/** Forme de la cible d'une piste : l'élément, ses enfants, ses mots, ses lettres, ou un sélecteur libre. */
+export function targetKindOf(target: TrackTarget): TargetKind | "selector" {
+  if ("selector" in target) return "selector";
+  return target.split ?? (target.children ? "children" : "element");
+}
+/** Formes proposées pour un élément : ses enfants s'il en a (ou les cartes d'une vue), ses mots et lettres pour un texte. */
+export function targetKindOptions(node: Node | undefined): { value: TargetKind; label: string }[] {
+  const out: { value: TargetKind; label: string }[] = [{ value: "element", label: "L'élément" }];
+  if (node && (node.children?.length || node.type === "collection")) out.push({ value: "children", label: "Ses enfants, un à un" });
+  if (node?.type === "text") out.push({ value: "words", label: "Ses mots" }, { value: "letters", label: "Ses lettres" });
+  return out;
+}
+/** Peut-on ajouter une piste pour `nodeId` à l'animation jouée depuis `hostId` ? Même page (ou même composant) que l'hôte, et pas déjà une piste sur l'élément seul. */
+export function canAddTrack(site: Site, animation: Animation, hostId: string, nodeId: string | undefined): { ok: true } | { ok: false; reason: string } {
+  if (!nodeId) return { ok: false, reason: "Sélectionnez un élément dans l'aperçu ou dans les calques" };
+  const index = indexSite(site);
+  const ownerKey = (id: string) => { const o = index.get(id)?.owner; return o ? ("page" in o ? `p:${o.page}` : `c:${o.component}`) : undefined; };
+  if (!index.get(nodeId) || ownerKey(nodeId) !== ownerKey(hostId)) return { ok: false, reason: "Choisissez un élément de la même page que l'animation" };
+  const taken = animation.tracks.some((t) => { const r = resolveTrackTarget(t.target, hostId); return !("selector" in r) && r.node === nodeId && !r.children && !r.split; });
+  if (taken) { const n = index.get(nodeId)!.node; return { ok: false, reason: `« ${nodeLabel(n)} » a déjà sa piste` }; }
+  return { ok: true };
 }
 
 /** « Animation 3 » : le premier nom libre. */

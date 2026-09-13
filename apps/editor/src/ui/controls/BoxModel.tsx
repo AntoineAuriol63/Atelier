@@ -11,7 +11,7 @@ import { startDragValue, stepFor } from "./useDragValue";
 const SIDES = ["Top", "Right", "Bottom", "Left"] as const;
 type Side = (typeof SIDES)[number];
 
-const SOURCE_TEXT: Record<string, string> = { local: "text-ink", inherited: "text-warning", shared: "text-violet-400", default: "text-dim" };
+const SOURCE_TEXT: Record<string, string> = { local: "text-ink", inherited: "text-warning", shared: "text-violet-400", default: "text-dim", keyframe: "text-accent", rest: "text-dim" };
 
 function Cell({ value, site, onCommit, title, className, prop }: { value: ResolvedValue | undefined; site: Site; onCommit: (v: StyleValue | undefined, coalesce?: boolean) => void; title: string; className?: string; prop?: string }) {
   // Une valeur du thème (ex. space.12) s'affiche par ce qu'elle vaut (6rem), jamais par son nom, pour ne pas la confondre avec des pixels.
