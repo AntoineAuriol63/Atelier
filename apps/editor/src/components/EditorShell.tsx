@@ -10,7 +10,7 @@ import type { Inline } from "@atelier/model";
 import { useDocument } from "@/lib/use-document";
 import Link from "next/link";
 import { PRODUCT_NAME } from "@/lib/product";
-import { mod } from "@/lib/keys";
+import { isEditableTarget, mod } from "@/lib/keys";
 import type { BlockPreset } from "@/lib/blocks";
 import { Badge, Breadcrumb, Button, Hint, IconButton, NumberInput, Panel, PanelHeading, Separator, Tabs, TreeRow, type DropIndicator, Select, ConfirmProvider, askConfirm, Eyebrow } from "@/ui";
 import { NodeInspector } from "./NodeInspector";
@@ -441,11 +441,11 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
     return { triggers: triggerHosts(treeRoot, treeRoot === page.root ? page : undefined), animated: anim && openTl ? animatedNodes(anim, openTl.hostId) : new Set<string>() };
   }, [editMode, treeRoot, openTl, site, page]);
   useEffect(() => {
-    type KeyLike = { key: string; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey?: boolean; preventDefault: () => void; fromPreview?: boolean };
+    type KeyLike = { key: string; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey?: boolean; preventDefault: () => void; fromPreview?: boolean; target?: EventTarget | null };
     const onKey = (e: KeyLike) => {
       const meta = e.metaKey || e.ctrlKey;
       // Dans un champ de saisie, le clavier appartient au champ : ⌘Z annule la frappe, pas le document ; ⌘K n'ouvre pas la palette.
-      if (!e.fromPreview && isTyping()) return;
+      if (!e.fromPreview && (isTyping() || isEditableTarget(e.target ?? null))) return;
       if (meta && e.key.toLowerCase() === "k") { e.preventDefault(); setPaletteOpen((o) => !o); return; }
       if (e.ctrlKey && !e.metaKey && e.key.toLowerCase() === "g") { e.preventDefault(); toggleGrid(); return; }
       if (paletteOpen) return;
