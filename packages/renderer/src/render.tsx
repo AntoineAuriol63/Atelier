@@ -215,11 +215,13 @@ export function RenderNode({ node, ctx }: { node: Node; ctx: RenderContext }): R
       return createElement("a", attrs(node, ctx, { href, target: node.props.newTab ? "_blank" : undefined, rel: node.props.newTab ? "noopener" : undefined, "aria-current": current ? "page" : undefined }), kids());
     }
     case "icon":
-      return createElement("span", attrs(node, ctx, { "aria-hidden": true, dangerouslySetInnerHTML: node.props.svg ? { __html: String(node.props.svg) } : undefined }), node.props.svg ? undefined : "◆");
+      return createElement("span", attrs(node, ctx, { "aria-hidden": true, dangerouslySetInnerHTML: !ctx.editor && node.props.svg ? { __html: String(node.props.svg) } : undefined }), !ctx.editor && node.props.svg ? undefined : "◆");
     case "divider":
       return createElement("hr", attrs(node, ctx));
     case "embed":
-      return createElement("div", attrs(node, ctx, { dangerouslySetInnerHTML: { __html: String(node.props.html ?? "") } }));
+      return ctx.editor
+        ? createElement("div", attrs(node, ctx, { "data-embed-placeholder": "" }), "Code intégré — visible sur le site publié")
+        : createElement("div", attrs(node, ctx, { dangerouslySetInnerHTML: { __html: String(node.props.html ?? "") } }));
     case "form": {
       const formId = String(node.props.formId ?? node.id);
       const success = localized<string>(node.props.successMessage, ctx) ?? "Merci, votre message est bien envoyé.";
