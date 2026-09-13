@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ANIMATION_PRESETS, BASE, QUICK_SPEEDS, animationLength, animationById, animationFromPreset, animationUsages, applyOps, describeAnimation, describeTrigger, duplicateQuickTriggers, easingCss, isPresetIntact, keyframeAt, keyframeStyleAt, migrate, parseSpring, planAddPageTrigger, planFillTrackFromPreset, planAddTrack, planAddTrigger, planApplyPreset, planRemoveAnimation, planRemoveKeyframe, planRemoveKeyframes, planRemovePageTriggerWithAnimation, planRemoveTrack, planQuickAnimation, planQuickDetail, planRemoveTrigger, planRemoveTriggerWithAnimation, planScaleAnimation, planQuickSpeed, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUnsetKeyframeProp, planUpdateAnimation, planUpdatePageTrigger, planUpdateTrack, planUpdateTrigger, presetById, quickAnimation, quickSpeed, resolveTrackTarget, sampleSite, schema, shiftDelta, springDuration, springEasing, springSamples, staggerDelay, staggerRank, trackSpan, trackTargetFor, withTargetKind, type Animation, type Node, type Site, type Trigger } from "../src";
+import { ANIMATION_PRESETS, BASE, QUICK_SPEEDS, animationLength, planAnimateElement, animationById, animationFromPreset, animationUsages, applyOps, describeAnimation, describeTrigger, duplicateQuickTriggers, easingCss, isPresetIntact, keyframeAt, keyframeStyleAt, migrate, parseSpring, planAddPageTrigger, planFillTrackFromPreset, planAddTrack, planAddTrigger, planApplyPreset, planRemoveAnimation, planRemoveKeyframe, planRemoveKeyframes, planRemovePageTriggerWithAnimation, planRemoveTrack, planQuickAnimation, planQuickDetail, planRemoveTrigger, planRemoveTriggerWithAnimation, planScaleAnimation, planQuickSpeed, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUnsetKeyframeProp, planUpdateAnimation, planUpdatePageTrigger, planUpdateTrack, planUpdateTrigger, presetById, quickAnimation, quickSpeed, resolveTrackTarget, sampleSite, schema, shiftDelta, springDuration, springEasing, springSamples, staggerDelay, staggerRank, trackSpan, trackTargetFor, withTargetKind, type Animation, type Node, type Site, type Trigger } from "../src";
 const siteSchema = schema.site;
 
 const node = (site: Site, id: string): Node => { let out: Node | undefined; const dfs = (n: Node) => { if (n.id === id) out = n; n.children?.forEach(dfs); }; site.pages.forEach((p) => dfs(p.root)); return out!; };
@@ -353,6 +353,18 @@ describe("animations : la durée est la vitesse (audit n°5 · R1)", () => {
     // Changer de préréglage garde la vitesse choisie.
     ({ site } = applyOps(site, planQuickAnimation(site, node(site, "sp_title"), "Apparition", "zoom")));
     expect(quickSpeed(quickAnimation(site, node(site, "sp_title"), "Apparition")!)).toBe("fast");
+    expect(siteSchema.safeParse(site).success).toBe(true);
+  });
+});
+
+describe("animations : animer un élément d'un geste (audit n°5 · R3)", () => {
+  it("« Animer cet élément » : un déclencheur à l'entrée dans l'écran, une animation nommée d'après lui, et sa propre piste prête à régler", () => {
+    const title: Node = { id: "ae_title", type: "text", props: { tag: "h2", content: { fr: [{ t: "text", v: "Titre" }] } } };
+    let site: Site = { ...sampleSite, animations: [], pages: [{ ...sampleSite.pages[0]!, root: { id: "ae_root", type: "box", props: {}, children: [title] } }] };
+    const plan = planAnimateElement(site, node(site, "ae_title"), { name: "Animation · Titre", animationId: "an_ae", triggerId: "tr_ae", trackId: "tk_ae" });
+    ({ site } = applyOps(site, plan));
+    expect(node(site, "ae_title").triggers).toEqual([{ id: "tr_ae", on: "inView", animation: "an_ae" }]);
+    expect(animationById(site, "an_ae")).toEqual({ id: "an_ae", name: "Animation · Titre", duration: 1000, tracks: [{ id: "tk_ae", target: { trigger: true }, keyframes: [{ at: 0, style: {} }] }] });
     expect(siteSchema.safeParse(site).success).toBe(true);
   });
 });

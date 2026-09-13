@@ -124,7 +124,8 @@ export function animationLabel(site: Site, a: Animation): string {
 }
 
 /** Un libellé d'élément entre guillemets, sauf s'il en porte déjà (« Titre 1 « Bonjour » »). */
-const quoted = (label: string) => (label.includes("«") ? label : `« ${label} »`);
+export const quoteLabel = (label: string) => (label.includes("«") ? label : `« ${label} »`);
+const quoted = quoteLabel;
 const joinFr = (parts: string[]) => (parts.length <= 1 ? parts.join("") : `${parts.slice(0, -1).join(", ")} et ${parts[parts.length - 1]}`);
 
 /**

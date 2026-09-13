@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronRight, Plus, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Sparkles, X } from "lucide-react";
 import type { Animation, CommitOptions, Node, Op, Page, Site, Trigger, TriggerOn } from "@atelier/model";
-import { ANIMATION_PRESETS, TRIGGER_LABELS, animationById, animationFromPreset, animationUsages, describeAnimation, describeTrigger, duplicateQuickTriggers, newId, planAddAnimation, planAddPageTrigger, planAddTrigger, planRemovePageTriggerWithAnimation, planRemoveTriggerWithAnimation, planUpdatePageTrigger, planUpdateTrigger, presetById, triggerFromPreset } from "@atelier/model";
+import { ANIMATION_PRESETS, TRIGGER_LABELS, animationById, animationFromPreset, animationUsages, describeAnimation, describeTrigger, duplicateQuickTriggers, newId, planAddAnimation, planAddPageTrigger, planAddTrigger, planAnimateElement, planRemovePageTriggerWithAnimation, planRemoveTriggerWithAnimation, planUpdatePageTrigger, planUpdateTrigger, presetById, triggerFromPreset } from "@atelier/model";
 import { Badge, Button, Eyebrow, Field, Hint, IconButton, NumberInput, PanelHeading, Section, Select, Toggle } from "@/ui";
-import { animationLabel, nextAnimationName, openTrigger, type OpenTimeline } from "@/lib/timeline";
+import { animationLabel, nextAnimationName, openTrigger, quoteLabel, type OpenTimeline } from "@/lib/timeline";
 import { Timeline } from "./Timeline";
 import { ContinuousEffects } from "./ContinuousEffects";
 import { nodeLabel } from "../node-icons";
@@ -49,12 +49,22 @@ export function AnimationModePanel({ site, node, commit, page, getSite, bp, mode
   const timelineOpen = !!(anim && open && opened);
   const duplicates = node ? duplicateQuickTriggers(site, node) : new Set<string>();
 
+  // « Animer « X » » : le cas le plus courant en un geste, sa ligne de temps ouverte avec la piste de l'élément prête à remplir (audit n°5 · R3).
+  const animateSelected = () => {
+    if (!node) return;
+    const animationId = newId(); const triggerId = newId();
+    run(planAnimateElement(site, node, { name: nextAnimationName(site, nodeLabel(node)), animationId, triggerId }), `Animer ${nodeLabel(node)}`);
+    setCreated(null);
+    onOpen({ animationId, hostId: node.id, triggerId });
+  };
   const elementTriggers = node ? (
     <>
+      {!node.triggers?.length ? <Button variant="primary" size="sm" icon={Sparkles} className="self-start" onClick={animateSelected} title="Un déclencheur à l'entrée dans l'écran et une ligne de temps où l'élément est déjà une piste">{`Animer « ${nodeLabel(node).replace(/ « .*$/, "")} »`}</Button> : null}
       <TriggerList site={site} triggers={node.triggers ?? []} hostId={node.id} duplicates={duplicates} open={open} onOpen={onOpen}
         onUpdate={(t, patch, label, key) => run(planUpdateTrigger(node, t.id, patch), label, key)}
         onRemove={(t) => { run(planRemoveTriggerWithAnimation(site, node, t.id), "Retirer le déclencheur"); if (open?.triggerId === t.id) onOpen(null); }} />
-      <AddTrigger site={site} ons={Object.keys(TRIGGER_LABELS) as TriggerOn[]} hostLabel={nodeLabel(node)}
+      <AddTrigger site={site} ons={Object.keys(TRIGGER_LABELS) as TriggerOn[]} hostLabel={nodeLabel(node)} title={`Lancer une animation depuis ${quoteLabel(nodeLabel(node))}`}
+        explain={`${quoteLabel(nodeLabel(node))} lance l'animation ; vous choisirez ensuite ce qui bouge : lui, ou d'autres éléments (la section lance, le titre et le texte bougent).`}
         onAdd={(ops, trigger, label, fresh) => { run([...ops, ...planAddTrigger(node, trigger)], label); setCreated(fresh ? trigger.id : null); onOpen({ animationId: trigger.animation, hostId: node.id, triggerId: trigger.id }); }} />
     </>
   ) : null;
@@ -63,7 +73,8 @@ export function AnimationModePanel({ site, node, commit, page, getSite, bp, mode
       <TriggerList site={site} triggers={page.triggers ?? []} hostId={page.root.id} pageLevel open={open} onOpen={onOpen}
         onUpdate={(t, patch, label, key) => run(planUpdatePageTrigger(getSite(), page.id, t.id, patch), label, key)}
         onRemove={(t) => { run(planRemovePageTriggerWithAnimation(site, page.id, t.id), "Retirer le déclencheur de la page"); if (open?.triggerId === t.id) onOpen(null); }} />
-      <AddTrigger site={site} ons={PAGE_ONS} defaultOn="scroll" hostLabel={`page ${pageName}`}
+      <AddTrigger site={site} ons={PAGE_ONS} defaultOn="scroll" hostLabel={`page ${pageName}`} title="Lancer une animation depuis la page"
+        explain="La page lance l'animation (à son chargement, pendant son défilement, quand la souris bouge) ; vous choisirez ensuite ce qui bouge."
         onAdd={(ops, trigger, label, fresh) => { run([...ops, ...planAddPageTrigger(site, page.id, trigger)], label); setCreated(fresh ? trigger.id : null); onOpen({ animationId: trigger.animation, hostId: page.root.id, triggerId: trigger.id }); }} />
       {!page.triggers?.length ? <Hint>Au défilement de la page, la progression de haut en bas parcourt la ligne de temps : ajoutez ensuite les éléments à animer (une barre de progression, un fond…).</Hint> : null}
     </>
@@ -71,14 +82,15 @@ export function AnimationModePanel({ site, node, commit, page, getSite, bp, mode
 
   return (
     <div className="flex flex-col gap-3 p-3">
+      {timelineOpen ? null : <HowItWorks />}
       {/* Une animation ouverte passe devant : c'est la surface de travail ; choisir un autre élément ne la déplace plus. */}
       {timelineOpen ? <Timeline key={`${open!.triggerId}:${anim!.id}`} site={site} getSite={getSite} animation={anim!} hostId={open!.hostId} trigger={opened!.trigger} pageLevel={!!opened!.page} selected={node} bp={bp} mode={mode} commit={commit} scrub={scrub} onClose={() => { setCreated(null); onOpen(null); }} onSelect={onSelect} focusName={created === open!.triggerId} onPick={onPick} picking={picking} showTargets={showTargets} /> : null}
 
       {node ? (
         timelineOpen
-          ? <Section title={`Déclencheurs · ${nodeLabel(node)}`} defaultOpen={false} className="-mx-3 border-t" hint="Ce qui lance les animations de l'élément sélectionné.">{<div className="flex flex-col gap-2">{elementTriggers}</div>}</Section>
-          : <section className="flex flex-col gap-2" aria-label="Déclencheurs de l'élément"><PanelHeading className="px-0">{`Déclencheurs · ${nodeLabel(node)}`}</PanelHeading>{elementTriggers}</section>
-      ) : !timelineOpen ? <Hint>Sélectionnez un élément dans l&apos;aperçu ou dans les calques pour voir ce qui le déclenche, ou ouvrez une animation du site ci-dessous.</Hint> : null}
+          ? <Section title={`Animations lancées par ${quoteLabel(nodeLabel(node))}`} defaultOpen={false} className="-mx-3 border-t" hint="Ce que l'élément sélectionné lance : à l'entrée dans l'écran, au survol, au clic…">{<div className="flex flex-col gap-2">{elementTriggers}</div>}</Section>
+          : <section className="flex flex-col gap-2" aria-label="Déclencheurs de l'élément"><PanelHeading className="px-0">{`Animations lancées par ${quoteLabel(nodeLabel(node))}`}</PanelHeading>{elementTriggers}</section>
+      ) : !timelineOpen ? <Hint>Sélectionnez dans le canevas ou les calques l&apos;élément qui doit lancer une animation, ou ouvrez une animation du site ci-dessous.</Hint> : null}
 
       {node ? (
         <Section title="Effets continus" defaultOpen={false} className="-mx-3 border-t" hint="Parallaxe, bandeau, compteur, carrousel automatique : des propriétés de l'élément qui bougent en continu, sans ligne de temps.">
@@ -88,8 +100,8 @@ export function AnimationModePanel({ site, node, commit, page, getSite, bp, mode
 
       {onPageRoot ? (
         timelineOpen
-          ? <Section title={`Page · ${pageName}`} defaultOpen={false} className="-mx-3 border-t" hint="Déclencheurs de la page : chargement, défilement, souris.">{<div className="flex flex-col gap-2">{pageTriggers}</div>}</Section>
-          : <section className="flex flex-col gap-2" aria-label="Déclencheurs de la page"><PanelHeading className="px-0">{`Page · ${pageName}`}</PanelHeading>{pageTriggers}</section>
+          ? <Section title={`Animations lancées par la page · ${pageName}`} defaultOpen={false} className="-mx-3 border-t" hint="Ce que la page lance : à son chargement, pendant son défilement, quand la souris bouge.">{<div className="flex flex-col gap-2">{pageTriggers}</div>}</Section>
+          : <section className="flex flex-col gap-2" aria-label="Déclencheurs de la page"><PanelHeading className="px-0">{`Animations lancées par la page · ${pageName}`}</PanelHeading>{pageTriggers}</section>
       ) : null}
 
       {!node && !timelineOpen && site.animations.length ? (
@@ -168,7 +180,7 @@ function TriggerSettings({ trigger: t, pageLevel, onUpdate }: { trigger: Trigger
 }
 
 /** Ajouter un déclencheur : quand, puis quoi (un préréglage, une animation du site, ou une animation vide à composer). */
-function AddTrigger({ site, ons, defaultOn = "inView", hostLabel, onAdd }: { site: Site; ons: TriggerOn[]; defaultOn?: TriggerOn; hostLabel?: string; onAdd: (animationOps: Op[], trigger: Trigger, label: string, fresh?: boolean) => void }) {
+function AddTrigger({ site, ons, defaultOn = "inView", hostLabel, title, explain, onAdd }: { site: Site; ons: TriggerOn[]; defaultOn?: TriggerOn; hostLabel?: string; title: string; explain: string; onAdd: (animationOps: Op[], trigger: Trigger, label: string, fresh?: boolean) => void }) {
   const [on, setOn] = useState<TriggerOn>(defaultOn);
   // En mode Animation, on vient composer : « Nouvelle animation » par défaut (les préréglages en un geste sont en Écriture et en Design).
   const [what, setWhat] = useState("new");
@@ -193,7 +205,8 @@ function AddTrigger({ site, ons, defaultOn = "inView", hostLabel, onAdd }: { sit
   };
   return (
     <div className="flex flex-col gap-1 rounded-sm border border-dashed border-line p-1.5">
-      <Eyebrow as="span">Ajouter un déclencheur</Eyebrow>
+      <Eyebrow as="span">{title}</Eyebrow>
+      <span className="text-2xs text-muted leading-snug">{explain}</span>
       <div className="grid grid-cols-[auto_1fr] items-center gap-1">
         <span className="text-xs text-muted">Quand</span><Select value={on} options={ons.map((value) => ({ value, label: TRIGGER_LABELS[value] }))} onValueChange={(v) => setOn(v as TriggerOn)} />
         <span className="text-xs text-muted">Animation</span><Select value={what} options={options} onValueChange={setWhat} />
@@ -203,3 +216,21 @@ function AddTrigger({ site, ons, defaultOn = "inView", hostLabel, onAdd }: { sit
   );
 }
 
+/**
+ * Comment ça marche (audit n°5 · R3) : le modèle du mode Animation dit en trois temps, avant d'agir. Repliable ; le choix est mémorisé.
+ */
+function HowItWorks() {
+  const [hidden, setHidden] = useState(() => { try { return localStorage.getItem("atelier:anim-howto-hidden") === "1"; } catch { return false; } });
+  const toggle = (h: boolean) => { setHidden(h); try { localStorage.setItem("atelier:anim-howto-hidden", h ? "1" : "0"); } catch { /* stockage refusé */ } };
+  if (hidden) return <button type="button" className="self-start text-2xs text-accent hover:underline" onClick={() => toggle(false)}>Comment ça marche ?</button>;
+  return (
+    <section aria-label="Comment ça marche" className="flex flex-col gap-1.5 rounded-sm border border-line bg-surface/60 p-2.5 text-xs">
+      <div className="flex items-center justify-between"><span className="font-medium text-ink">Comment ça marche</span><button type="button" className="text-2xs text-muted hover:text-ink" onClick={() => toggle(true)}>Masquer</button></div>
+      <ol className="flex flex-col gap-1 text-muted leading-snug list-none">
+        <li><span className="font-medium text-ink">1. Quand.</span> Un élément lance l&apos;animation : il entre dans l&apos;écran, on le survole, on clique dessus… La page aussi : chargement, défilement.</li>
+        <li><span className="font-medium text-ink">2. Ce qui bouge.</span> Cet élément, ou d&apos;autres, choisis ensuite : la section lance, le titre puis le texte arrivent.</li>
+        <li><span className="font-medium text-ink">3. Comment.</span> Un préréglage en un clic, ou vos propres images-clés sur la ligne de temps.</li>
+      </ol>
+    </section>
+  );
+}

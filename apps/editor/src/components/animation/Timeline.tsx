@@ -283,7 +283,7 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
       {!animation.tracks.length ? (
         <Hint>
           <span className="block font-medium text-ink">Composer cette animation</span>
-          1. Nommez-la ci-dessus. 2. « Choisir un élément », puis cliquez l&apos;élément à animer (l&apos;élément du déclencheur compris). 3. Sur sa piste, « Remplir avec » un préréglage, ou placez la tête de lecture et réglez ses propriétés : les images-clés se créent.
+          1. Nommez-la ci-dessus. 2. « Choisir un élément », puis cliquez l&apos;élément à animer (l&apos;élément qui lance l&apos;animation compris). 3. Sur sa piste, « Remplir avec » un préréglage, ou placez la tête de lecture et réglez ses propriétés : les images-clés se créent.
         </Hint>
       ) : null}
 

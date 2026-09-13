@@ -90,6 +90,14 @@ export function planApplyPreset(site: Site, node: Node, preset: AnimationPreset,
   ];
 }
 
+/**
+ * « Animer cet élément » (audit n°5 · R3) : le cas le plus courant en un geste. Un déclencheur à l'entrée dans l'écran sur l'élément,
+ * une animation vide nommée d'après lui, et une piste sur l'élément lui-même (image-clé de repos à 0 ms), prête à remplir ou à régler.
+ */
+export function planAnimateElement(site: Site, node: Node, o: { name: string; on?: TriggerOn; animationId?: Id; triggerId?: Id; trackId?: Id }): Op[] {
+  const animation: Animation = { id: o.animationId ?? newId(), name: o.name, duration: 1000, tracks: [{ id: o.trackId ?? newId(), target: { trigger: true }, keyframes: [{ at: 0, style: {} }] }] };
+  return [...planAddAnimation(site, animation), ...planAddTrigger(node, { id: o.triggerId ?? newId(), on: o.on ?? "inView", animation: animation.id })];
+}
 /** Retire un déclencheur et, si plus rien ne la lance, son animation. */
 export function planRemoveTriggerWithAnimation(site: Site, node: Node, triggerId: Id): Op[] {
   const t = (node.triggers ?? []).find((x) => x.id === triggerId);
