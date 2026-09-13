@@ -9,6 +9,7 @@ import { canAddTrack, formatMs, rulerTicks, tickLabel, snapTime, targetKindOf, t
 import { AppearancePanel, EffectsPanel, SizePanel, SpacingPanel, TypographyPanel, useKeyframeStyle } from "../design";
 import { nodeLabel } from "../node-icons";
 import { EasingField } from "./EasingField";
+import { MotionPanel } from "./MotionPanel";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
 type Key = { track: string; at: number };
@@ -170,6 +171,8 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
 
   return (
     <section ref={root} className="flex flex-col gap-2 scroll-mt-2" aria-label="Ligne de temps">
+      {/* Scène collante (audit n°4 · E4) : nom, lecteur, règle et pistes restent en haut du panneau pendant qu'on descend dans les réglages. */}
+      <div className="sticky top-0 z-20 -mx-3 -mt-3 px-3 pt-3 pb-2 flex flex-col gap-2 bg-panel border-b border-line shadow-[0_6px_10px_-8px_rgba(0,0,0,.6)]" data-timeline-stage="">
       <div className="flex items-center gap-1">
         <Eyebrow as="span">Animation</Eyebrow>
         <TextInput className="flex-1" value={animation.name} aria-label="Nom de l'animation" data-anim-name="" title="Nom de l'animation (Entrée pour valider)" onValueChange={(v) => update({ name: v || animation.name }, "Renommer l'animation", `anim-name:${animation.id}`)} />
@@ -189,10 +192,8 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
         <IconButton size="sm" label="Ralenti (vitesse ½)" icon={Snail} active={slow} onClick={() => setSlow((s) => !s)} />
         <span className="ml-auto text-xs tabular-nums text-muted" aria-live="off">{tickLabel(playhead)} / {formatMs(length)}</span>
       </div>
-      {trigger?.on === "scroll" ? <Hint>{`Au défilement ${pageLevel ? "de la page" : "de l'élément"}, la position entre ${Math.round((trigger.range?.[0] ?? 0) * 100)} % et ${Math.round((trigger.range?.[1] ?? 1) * 100)} % parcourt cette ligne de temps : la tête de lecture montre l'état à chaque position.`}</Hint>
-        : trigger?.on === "pointer" ? <Hint>{`La position ${trigger.axis === "x" ? "horizontale" : "verticale"} de la souris dans la fenêtre parcourt cette ligne de temps : la tête de lecture montre l'état à chaque position.`}</Hint> : null}
 
-      <div className="grid grid-cols-[96px_1fr] gap-x-2 text-xs" onKeyDown={onTimelineKey}>
+      <div className="grid grid-cols-[96px_1fr] gap-x-2 text-xs max-h-[38vh] overflow-y-auto" onKeyDown={onTimelineKey}>
         <span />
         <div ref={rail} className="relative h-5 border-b border-line cursor-ew-resize select-none" role="slider" aria-label="Tête de lecture" aria-valuemin={0} aria-valuemax={length} aria-valuenow={Math.round(playhead)} tabIndex={0} onPointerDown={onRailDown} onPointerMove={onRailMove}
           onKeyDown={(e) => { if (e.key === "ArrowRight") { e.preventDefault(); setPlayhead((p) => Math.min(length, snapTime(p) + (e.shiftKey ? 100 : 10))); } if (e.key === "ArrowLeft") { e.preventDefault(); setPlayhead((p) => Math.max(0, snapTime(p) - (e.shiftKey ? 100 : 10))); } if (e.key === " ") { e.preventDefault(); if (playing) pause(); else setPlaying(true); } }}>
@@ -237,6 +238,9 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
           {pickMsg ? <span className="text-2xs text-warning truncate" title={pickMsg}>{pickMsg}</span> : null}
         </div>
       </div>
+      </div>
+      {trigger?.on === "scroll" ? <Hint>{`Au défilement ${pageLevel ? "de la page" : "de l'élément"}, la position entre ${Math.round((trigger.range?.[0] ?? 0) * 100)} % et ${Math.round((trigger.range?.[1] ?? 1) * 100)} % parcourt cette ligne de temps : la tête de lecture montre l'état à chaque position.`}</Hint>
+        : trigger?.on === "pointer" ? <Hint>{`La position ${trigger.axis === "x" ? "horizontale" : "verticale"} de la souris dans la fenêtre parcourt cette ligne de temps : la tête de lecture montre l'état à chaque position.`}</Hint> : null}
 
       {!animation.tracks.length ? (
         <Hint>
@@ -326,8 +330,9 @@ function KeyframePanels({ site, getSite, node, bp, mode, animationId, track, at,
   const style = useKeyframeStyle(site, getSite, node, bp, animationId, track, at, commit);
   return (
     <div className="flex flex-col -mx-3 border-t border-line">
-      <EffectsPanel site={site} style={style} defaultOpen />
-      <AppearancePanel site={site} style={style} mode={mode} defaultOpen />
+      <MotionPanel site={site} style={style} />
+      <EffectsPanel site={site} style={style} defaultOpen={false} />
+      <AppearancePanel site={site} style={style} mode={mode} defaultOpen={false} />
       <SizePanel site={site} style={style} defaultOpen={false} />
       <SpacingPanel site={site} style={style} defaultOpen={false} />
       {node.type === "text" || node.type === "link" ? <TypographyPanel site={site} style={style} mode={mode} defaultOpen={false} /> : null}

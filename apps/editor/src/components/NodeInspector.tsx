@@ -150,6 +150,14 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
         {createElement(nodeIcon(node), { size: 14, className: "text-accent shrink-0", "aria-hidden": true })}
         <span className="text-sm font-medium truncate">{nodeLabel(node)}</span>
         <Badge>{TYPE_LABEL[node.type]}</Badge>
+        {node.triggers?.length && onOpenAnimation && !sharedDef ? (
+          <button type="button" className="h-6 px-1.5 rounded-sm text-2xs font-medium text-accent bg-accent-soft hover:brightness-110 whitespace-nowrap"
+            title="Aller à la section des animations de l'élément"
+            onClick={() => { const title = editMode === "write" ? "Animation" : "Animations"; window.dispatchEvent(new CustomEvent("atelier:reveal-section", { detail: title })); // La section s'ouvre au rendu suivant : on la fait venir ensuite, sans animation de défilement (fiable même onglet en arrière-plan).
+              window.setTimeout(() => document.querySelector(`[data-section="${title}"]`)?.scrollIntoView({ block: "start" }), 60); }}>
+            ◆ {node.triggers.length} animation{node.triggers.length > 1 ? "s" : ""}
+          </button>
+        ) : null}
         {node.type === "instance" && onEnterComponent ? <button type="button" onClick={() => onEnterComponent(String(node.props.component))} className="h-6 px-2 rounded-sm text-xs bg-accent-soft text-accent hover:brightness-110 whitespace-nowrap" title="Ouvrir le composant dans les calques pour modifier son contenu (toutes ses copies changent)">Modifier le composant</button> : null}
         {loc.parent ? (
           <div className="ml-auto flex items-center">
@@ -267,7 +275,7 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
               <Segmented className="flex-1" value={(() => { const v = style.value("fontSize"); return typeof v === "object" && v && "token" in v ? v.token.split(".")[1] : undefined; })()} options={[{ value: "sm", label: "Petit" }, { value: "md", label: "Normal" }, { value: "lg", label: "Grand" }, { value: "xl", label: "Très grand" }]} onChange={(v) => style.set("fontSize", v ? { token: `fontSize.${v}` } : undefined, false)} />
             </PropRow>
           ) : null}
-          <Hint>Sélectionnez du texte dans l&apos;aperçu : une barre propose gras, italique, souligné, lien (⌘B, ⌘I, ⌘U, ⌘K). Entrée termine le bloc et en commence un nouveau ; Maj+Entrée va à la ligne dans le même bloc ; « / » insère un bloc ; la poignée ⋮⋮ à gauche d&apos;un bloc le déplace.</Hint>
+          <Hint>Sélectionnez du texte dans l&apos;aperçu pour le mettre en forme (⌘B, ⌘I, ⌘K) ; « / » insère un bloc.</Hint>
           <button type="button" onClick={() => onSwitchMode?.("design")} className="self-start h-7 px-2.5 rounded-sm bg-accent text-accent-ink text-xs font-medium hover:brightness-110">Régler le style en détail</button>
         </Section>
       ) : (

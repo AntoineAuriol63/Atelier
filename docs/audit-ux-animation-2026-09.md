@@ -52,13 +52,13 @@ Audit du 13 septembre 2026, mené par l'agent (Claude) après la livraison du mo
 **E3 · Ouvrir une animation existante se devine** *(visibilité, reconnaissance)*. **Corrigé le 13 septembre.** La seule entrée est la ligne de texte du déclencheur, 17 px de haut, sans icône ni libellé d'action ; l'état ouvert se lit à une bordure accentuée.
 → Ligne de 28 px au moins, icône « Modifier la ligne de temps » (crayon ou chevron) et libellé au survol ; même comportement en Design (où l'icône Film existe déjà).
 
-**E4 · Les propriétés qu'on anime le plus sont loin, et la ligne de temps sort de l'écran pendant qu'on les règle** *(efficacité, charge mémoire)*. À 1024 × 768 : décalage à 630 px, opacité à 1 152 px sous le haut de la ligne de temps (Apparence commence par le fond, la bordure, l'arrondi, l'ombre). En défilant jusqu'à elles, on perd de vue la tête de lecture et les images-clés.
+**E4 · Les propriétés qu'on anime le plus sont loin, et la ligne de temps sort de l'écran pendant qu'on les règle** *(efficacité, charge mémoire)*. **Corrigé le 13 septembre.** À 1024 × 768 : décalage à 630 px, opacité à 1 152 px sous le haut de la ligne de temps (Apparence commence par le fond, la bordure, l'arrondi, l'ombre). En défilant jusqu'à elles, on perd de vue la tête de lecture et les images-clés.
 → En mode image-clé, une section **Mouvement** en tête (opacité, décalage X/Y, échelle, rotation, flou), les panneaux Design complets ensuite ; **lecteur et rail collants** en haut du panneau pendant le défilement.
 
 **E5 · Les choix rapides ne montrent pas ce qu'ils font** *(visibilité de l'état du système)*. **Corrigé le 13 septembre.** Choisir « Zoom » ou « Netteté » en Écriture ne joue rien dans l'aperçu (l'éditeur montre l'état d'arrivée) ; Écriture n'a pas de « Jouer ». Le débutant choisit à l'aveugle, contrairement à la référence retenue (Framer, aperçu immédiat).
 → Jouer une fois l'animation dans l'aperçu à chaque choix rapide ; bouton « Jouer » à côté des trois choix, en Écriture comme en Design.
 
-**E6 · Les sections Animation sont en bas des inspecteurs** *(efficacité, découvrabilité)*. Design : 12e section sur 16, à 1 423 px ; Écriture : après la mise en forme et son aide. C'était déjà le point 10 de l'audit n°2 pour les apparitions.
+**E6 · Les sections Animation sont en bas des inspecteurs** *(efficacité, découvrabilité)*. **Corrigé le 13 septembre.** Design : 12e section sur 16, à 1 423 px ; Écriture : après la mise en forme et son aide. C'était déjà le point 10 de l'audit n°2 pour les apparitions.
 → Remonter Animations juste après Effets en Design (ou l'ouvrir en tête quand l'élément a des déclencheurs) ; en Écriture, placer Animation avant l'aide de mise en forme, et raccourcir celle-ci.
 
 ## Points moyens (gravité 2)
