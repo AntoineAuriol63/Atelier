@@ -106,15 +106,16 @@ export function hasInteractions(n: Node): boolean { return !!n.interactions?.len
  * Lecture d'une animation (section 8.4), partagée par le script du site et par le bouton « Jouer » de l'éditeur :
  * `window.__atelierPlay(el, a, extra)` anime les cibles du run `a` (données de `data-anim`) porté par `el` avec l'API Web
  * Animations et rend la liste des animations créées ; le décalage donne à chaque cible son délai selon son rang.
+ * Courbes comme en CSS : une par segment, portée par l'image qui l'ouvre (`ease` par défaut), et une progression linéaire sur la piste.
  */
 export const ANIMATION_PLAY_SCRIPT = `(function(){if(window.__atelierPlay)return;
-var toKf=function(k){return k.map(function(s){var o={offset:s.o};if(s.e)o.easing=s.e;s.c.split(";").forEach(function(d){var i=d.indexOf(":");if(i>0){var p=d.slice(0,i).trim().replace(/-([a-z])/g,function(_,c){return c.toUpperCase();});o[p]=d.slice(i+1).trim();}});return o;});};
+var toKf=function(k){return k.map(function(s){var o={offset:s.o,easing:s.e||"ease"};s.c.split(";").forEach(function(d){var i=d.indexOf(":");if(i>0){var p=d.slice(0,i).trim().replace(/-([a-z])/g,function(_,c){return c.toUpperCase();});o[p]=d.slice(i+1).trim();}});return o;});};
 var kids=function(el){return Array.prototype.slice.call(el.children).map(function(c){return c.hasAttribute("data-instance")&&c.firstElementChild?c.firstElementChild:c;});};
 var pieces=function(el){return Array.prototype.slice.call(el.querySelectorAll(".at-piece"));};
 var els=function(el,tr){var tg=tr.tg;if(!tg)return[el];if(tg==="children")return kids(el);if(tg==="pieces")return pieces(el);var base=Array.prototype.slice.call(document.querySelectorAll(tg.s));if(tg.m==="children")return base.reduce(function(o,b){return o.concat(kids(b));},[]);if(tg.m==="pieces")return base.reduce(function(o,b){return o.concat(pieces(b));},[]);return base;};
 var rank=function(i,n,from){return from==="end"?n-1-i:from==="center"?Math.abs(i-(n-1)/2):i;};
 var delay=function(a,tr,i,n){return a.dl+tr.s+(tr.st?rank(i,n,tr.st[1])*tr.st[0]:0);};
-var opts=function(a,tr,extra){var o={duration:tr.d,easing:"ease",iterations:a.loop==="infinite"?Infinity:a.loop,direction:a.alt?"alternate":"normal",fill:"both"};for(var k in extra)o[k]=extra[k];return o;};
+var opts=function(a,tr,extra){var o={duration:tr.d,easing:"linear",iterations:a.loop==="infinite"?Infinity:a.loop,direction:a.alt?"alternate":"normal",fill:"both"};for(var k in extra)o[k]=extra[k];return o;};
 window.__atelierAnim={toKf:toKf,els:els,delay:delay,opts:opts};
 window.__atelierPlay=function(el,a,extra){var out=[];a.tr.forEach(function(tr){var list=els(el,tr);list.forEach(function(t,i){try{var o=opts(a,tr,extra||{});o.delay=delay(a,tr,i,list.length);out.push(t.animate(toKf(tr.k),o));}catch(e){}});});return out;};
 })();`;

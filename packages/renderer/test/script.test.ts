@@ -10,7 +10,7 @@ import { INTERACTION_SCRIPT, RenderPage, assetMap, memoryData, type RenderContex
  * Le script du site tourne dans un DOM simulé : l'API Web Animations et l'observateur d'intersection sont remplacés par des
  * enregistreurs, ce qui permet de vérifier quels éléments sont animés, avec quel délai, et sur quel déclencheur.
  */
-type Call = { el: Element; delay: number; duration: number };
+type Call = { el: Element; delay: number; duration: number; easing?: string; kf: Keyframe[] };
 type Handle = { playbackRate: number; reversed: number; playState: string; currentTime: number; pause(): void; play(): void; cancel(): void; reverse(): void };
 const calls: Call[] = [];
 const handles: Handle[] = [];
@@ -41,8 +41,8 @@ beforeEach(() => {
   const w = window as unknown as Record<string, unknown>;
   w.matchMedia = () => ({ matches: false });
   w.IntersectionObserver = class { observed: Element[] = []; constructor(cb: Observer["cb"]) { ios.push({ cb, observed: this.observed }); } observe(el: Element) { this.observed.push(el); } unobserve() { /* */ } disconnect() { /* */ } };
-  (Element.prototype as unknown as { animate: unknown }).animate = function (this: Element, _kf: unknown, opts: { delay?: number; duration?: number }) {
-    calls.push({ el: this, delay: opts.delay ?? 0, duration: opts.duration ?? 0 });
+  (Element.prototype as unknown as { animate: unknown }).animate = function (this: Element, kf: Keyframe[], opts: { delay?: number; duration?: number; easing?: string }) {
+    calls.push({ el: this, delay: opts.delay ?? 0, duration: opts.duration ?? 0, easing: opts.easing, kf });
     const h: Handle = { playbackRate: 1, reversed: 0, playState: "running", currentTime: 0, pause() { /* */ }, play() { /* */ }, cancel() { /* */ }, reverse() { this.playbackRate = -this.playbackRate; this.reversed += 1; } };
     handles.push(h);
     return h;
@@ -93,6 +93,14 @@ describe("script du site : cibles et décalage", () => {
     mount(page([box("b", [tr("r1", "scroll", "an_sc")])], [an("an_sc", [tk("t1"), tk("t2", {}, [{ at: 500, style: { opacity: "1" } }, { at: 1500, style: { opacity: "0" } }])])]));
     expect(calls).toHaveLength(2);
     expect(handles.map((h) => h.currentTime)).toEqual([1500, 1500]);
+  });
+  it("courbes : comme en CSS, une courbe par segment (ease par défaut) et une progression linéaire sur la piste", () => {
+    const kfs = [{ at: 0, style: { opacity: "0" } }, { at: 250, style: { opacity: "0.5" }, easing: "ease-in" }, { at: 500, style: { opacity: "1" } }];
+    mount(page([box("c", [tr("r1", "inView", "an_e")])], [an("an_e", [tk("t", {}, kfs)])]));
+    enter(document.querySelector(".n-c")!);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.easing).toBe("linear");
+    expect(calls[0]!.kf.map((k) => k.easing)).toEqual(["ease-in", "ease", "ease"]);
   });
 });
 
