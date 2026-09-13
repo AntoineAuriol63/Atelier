@@ -46,8 +46,10 @@ export function rulerTicks(length: number): number[] {
   return out;
 }
 
-/** « 0,42 s » */
-export const formatTime = (ms: number): string => `${(ms / 1000).toFixed(2).replace(".", ",")} s`;
+/** Nombre de millisecondes groupé à la française, sans unité : « 1 000 » (espace fine insécable). Pour la règle et le compteur. */
+export const tickLabel = (ms: number): string => Math.round(ms).toLocaleString("fr-FR").replace(/[\u202f\u00a0 ]/g, "\u202f");
+/** « 1 250 ms » : la ligne de temps parle en millisecondes, comme ses champs. */
+export const formatMs = (ms: number): string => `${tickLabel(ms)} ms`;
 
 /** Nom d'une piste d'après sa cible résolue depuis l'hôte : « Carte », « Titre · lettres », « Carte · enfants », « .x ». */
 export function trackLabel(track: Track, hostId: string, site: Site): string {
@@ -108,8 +110,16 @@ export function animationLabel(site: Site, a: Animation): string {
   return `${a.name} · ${first.node ? nodeLabel(first.node) : "?"} · ${where}${more}`;
 }
 
-/** « Animation 3 » : le premier nom libre. */
-export function nextAnimationName(site: Pick<Site, "animations">): string {
+/** Nom d'une nouvelle animation : d'après ce qui la lance (« Animation · Texte », puis « Animation · Texte 2 »), sinon « Animation 3 », le premier libre. */
+export function nextAnimationName(site: Pick<Site, "animations">, hostLabel?: string): string {
+  const taken = (name: string) => site.animations.some((a) => a.name === name);
+  if (hostLabel) {
+    const base = `Animation · ${hostLabel}`;
+    if (!taken(base)) return base;
+    let i = 2;
+    while (taken(`${base} ${i}`)) i += 1;
+    return `${base} ${i}`;
+  }
   let n = site.animations.length + 1;
   while (site.animations.some((a) => a.name === `Animation ${n}`)) n += 1;
   return `Animation ${n}`;

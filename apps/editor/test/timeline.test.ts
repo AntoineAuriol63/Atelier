@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { Animation, Node, Site } from "@atelier/model";
 import { sampleSite } from "@atelier/model";
-import { animatedNodes, animationLabel, canAddTrack, openTrigger, formatTime, nextAnimationName, rulerTicks, snapTime, targetKindOf, targetKindOptions, trackLabel, triggerHosts, validOpenTimeline } from "../src/lib/timeline";
+import { animatedNodes, animationLabel, canAddTrack, openTrigger, formatMs, tickLabel, nextAnimationName, rulerTicks, snapTime, targetKindOf, targetKindOptions, trackLabel, triggerHosts, validOpenTimeline } from "../src/lib/timeline";
 
 const text = (id: string, name?: string): Node => ({ id, type: "text", name, props: { tag: "p", content: { fr: [{ t: "text", v: id }] } } });
 const root: Node = { id: "root", type: "box", props: {}, children: [{ id: "card", type: "box", name: "Carte", props: {}, children: [text("inner")] }, text("txt_b", "Titre")] };
@@ -15,10 +15,12 @@ describe("ligne de temps", () => {
     expect(rulerTicks(12000)[1]).toBe(1000);
     expect(rulerTicks(0)).toEqual([0]);
   });
-  it("formate un temps en secondes à la française", () => {
-    expect(formatTime(0)).toBe("0,00 s");
-    expect(formatTime(420)).toBe("0,42 s");
-    expect(formatTime(1250)).toBe("1,25 s");
+  it("une seule unité dans la ligne de temps : les millisecondes, groupées à la française", () => {
+    expect(formatMs(0)).toBe("0 ms");
+    expect(formatMs(420.4)).toBe("420 ms");
+    expect(formatMs(1250)).toBe("1\u202f250 ms");
+    expect(tickLabel(1000)).toBe("1\u202f000");
+    expect(tickLabel(250)).toBe("250");
   });
   it("nomme la piste d'après sa cible résolue", () => {
     const a = site.animations[0]!;
@@ -34,6 +36,9 @@ describe("ligne de temps", () => {
   it("propose un nom libre pour une nouvelle animation", () => {
     expect(nextAnimationName(site)).toBe("Animation 3");
     expect(nextAnimationName({ ...site, animations: [] })).toBe("Animation 1");
+    // Nommée d'après ce qui la lance : plus parlant qu'un compteur du site.
+    expect(nextAnimationName(site, "Texte")).toBe("Animation · Texte");
+    expect(nextAnimationName({ animations: [...site.animations, { id: "an_t", name: "Animation · Texte", duration: 1, tracks: [] }] }, "Texte")).toBe("Animation · Texte 2");
   });
   it("libellé d'une animation dans la bibliothèque : son nom, l'élément qui la lance et sa page, pour distinguer les homonymes", () => {
     const withUses: Site = { ...site, pages: [{ ...site.pages[0]!, triggers: [{ id: "pg1", on: "scroll", animation: "an_2" }], root: { ...root, children: [{ ...root.children![0]!, triggers: [{ id: "g1", on: "inView", animation: "an_1" }, { id: "g2", on: "hover", animation: "an_1" }] }, root.children![1]!] } }] };

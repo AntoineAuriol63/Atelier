@@ -40,7 +40,7 @@ export function ContinuousEffects({ node, commit, only, hint = true }: { node: N
       ) : null}
       {show("countUp") && node.type === "text" ? (
         <PropRow label="Compteur" sourceTitle="Le nombre du texte défile de 0 à sa valeur quand il entre dans l'écran (« 12 ans » compte jusqu'à 12)" source={node.props.countUp ? { kind: "local" } : undefined} onReset={node.props.countUp ? () => set("props.countUp", undefined, "Compteur fixe") : undefined}>
-          <Toggle checked={!!node.props.countUp} label={node.props.countUp ? "animé" : "fixe"} onChange={(b) => set("props.countUp", b || undefined, b ? "Compteur animé" : "Compteur fixe")} />
+          <Toggle checked={!!node.props.countUp} label="compter jusqu'au nombre" onChange={(b) => set("props.countUp", b || undefined, b ? "Compteur animé" : "Compteur fixe")} />
         </PropRow>
       ) : null}
       {show("autoplay") && node.type === "collection" && view?.layout === "carousel" ? (

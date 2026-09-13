@@ -285,7 +285,7 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
       )}
       {editMode === "write" && !sharedDef && onOpenAnimation ? (
         <Section title="Animation" defaultOpen={!!node.triggers?.length} hint="Faire arriver l'élément, le faire réagir au survol ou bouger en continu, en un choix.">
-          <QuickAnimations site={site} node={node} commit={commit} onOpenAnimation={() => onOpenAnimation()} />
+          <QuickAnimations site={site} node={node} commit={commit} onPlay={onPlay ? (triggerId) => onPlay(node.id, triggerId) : undefined} onOpenAnimation={() => onOpenAnimation()} />
         </Section>
       ) : null}
       {!sharedDef && editMode === "design" ? <SharedStylesPanel site={site} node={node} commit={commit} onEdit={setEditingShared} /> : null}

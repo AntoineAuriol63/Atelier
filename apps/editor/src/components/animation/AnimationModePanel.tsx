@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, X } from "lucide-react";
 import type { Animation, CommitOptions, Node, Op, Page, Site, Trigger, TriggerOn } from "@atelier/model";
 import { ANIMATION_PRESETS, TRIGGER_LABELS, animationById, animationFromPreset, animationUsages, describeAnimation, describeTrigger, duplicateQuickTriggers, newId, planAddAnimation, planAddPageTrigger, planAddTrigger, planRemovePageTriggerWithAnimation, planRemoveTriggerWithAnimation, planUpdatePageTrigger, planUpdateTrigger, presetById, triggerFromPreset } from "@atelier/model";
 import { Badge, Button, Eyebrow, Field, Hint, IconButton, NumberInput, PanelHeading, Section, Select, Toggle } from "@/ui";
@@ -54,7 +54,7 @@ export function AnimationModePanel({ site, node, commit, page, getSite, bp, mode
       <TriggerList site={site} triggers={node.triggers ?? []} hostId={node.id} duplicates={duplicates} open={open} onOpen={onOpen}
         onUpdate={(t, patch, label, key) => run(planUpdateTrigger(node, t.id, patch), label, key)}
         onRemove={(t) => { run(planRemoveTriggerWithAnimation(site, node, t.id), "Retirer le déclencheur"); if (open?.triggerId === t.id) onOpen(null); }} />
-      <AddTrigger site={site} ons={Object.keys(TRIGGER_LABELS) as TriggerOn[]}
+      <AddTrigger site={site} ons={Object.keys(TRIGGER_LABELS) as TriggerOn[]} hostLabel={nodeLabel(node)}
         onAdd={(ops, trigger, label, fresh) => { run([...ops, ...planAddTrigger(node, trigger)], label); setCreated(fresh ? trigger.id : null); onOpen({ animationId: trigger.animation, hostId: node.id, triggerId: trigger.id }); }} />
     </>
   ) : null;
@@ -63,7 +63,7 @@ export function AnimationModePanel({ site, node, commit, page, getSite, bp, mode
       <TriggerList site={site} triggers={page.triggers ?? []} hostId={page.root.id} pageLevel open={open} onOpen={onOpen}
         onUpdate={(t, patch, label, key) => run(planUpdatePageTrigger(getSite(), page.id, t.id, patch), label, key)}
         onRemove={(t) => { run(planRemovePageTriggerWithAnimation(site, page.id, t.id), "Retirer le déclencheur de la page"); if (open?.triggerId === t.id) onOpen(null); }} />
-      <AddTrigger site={site} ons={PAGE_ONS} defaultOn="scroll"
+      <AddTrigger site={site} ons={PAGE_ONS} defaultOn="scroll" hostLabel={`page ${pageName}`}
         onAdd={(ops, trigger, label, fresh) => { run([...ops, ...planAddPageTrigger(site, page.id, trigger)], label); setCreated(fresh ? trigger.id : null); onOpen({ animationId: trigger.animation, hostId: page.root.id, triggerId: trigger.id }); }} />
       {!page.triggers?.length ? <Hint>Au défilement de la page, la progression de haut en bas parcourt la ligne de temps : ajoutez ensuite les éléments à animer (une barre de progression, un fond…).</Hint> : null}
     </>
@@ -119,7 +119,12 @@ function TriggerList({ site, triggers, hostId, pageLevel, duplicates, open, onOp
         return (
           <li key={t.id} className={`flex flex-col gap-1.5 rounded-sm border p-1.5 ${active ? "border-accent bg-accent-soft/40" : "border-line bg-surface/60"}`}>
             <div className="flex items-center gap-1">
-              <button type="button" className="flex-1 min-w-0 text-left text-xs truncate hover:text-accent" title={describeTrigger(t, site)} onClick={() => onOpen(active ? null : { animationId: t.animation, hostId, triggerId: t.id })} aria-pressed={active}>{describeTrigger(t, site)}</button>
+              {/* Toute la ligne ouvre la ligne de temps : chevron, libellé et « Modifier » au survol disent qu'elle se clique. */}
+              <button type="button" className="group flex-1 min-w-0 min-h-7 flex items-center gap-1 rounded-xs px-1 text-left text-xs hover:bg-hover" title={active ? "Fermer la ligne de temps" : `Modifier la ligne de temps · ${describeTrigger(t, site)}`} onClick={() => onOpen(active ? null : { animationId: t.animation, hostId, triggerId: t.id })} aria-pressed={active} aria-expanded={active}>
+                {active ? <ChevronDown size={13} className="shrink-0 text-accent" aria-hidden /> : <ChevronRight size={13} className="shrink-0 text-muted group-hover:text-accent" aria-hidden />}
+                <span className={`flex-1 min-w-0 truncate ${active ? "text-ink font-medium" : "text-ink"}`}>{describeTrigger(t, site)}</span>
+                {active ? null : <span className="shrink-0 text-2xs text-accent opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100">Modifier</span>}
+              </button>
               {duplicates?.has(t.id) ? <Badge tone="warning" title="Une autre animation de la même famille (apparition, survol, continu) est déjà posée sur cet élément : les deux se jouent.">en double</Badge> : null}
               <IconButton size="sm" label="Retirer le déclencheur" icon={X} onClick={() => onRemove(t)} />
             </div>
@@ -163,7 +168,7 @@ function TriggerSettings({ trigger: t, pageLevel, onUpdate }: { trigger: Trigger
 }
 
 /** Ajouter un déclencheur : quand, puis quoi (un préréglage, une animation du site, ou une animation vide à composer). */
-function AddTrigger({ site, ons, defaultOn = "inView", onAdd }: { site: Site; ons: TriggerOn[]; defaultOn?: TriggerOn; onAdd: (animationOps: Op[], trigger: Trigger, label: string, fresh?: boolean) => void }) {
+function AddTrigger({ site, ons, defaultOn = "inView", hostLabel, onAdd }: { site: Site; ons: TriggerOn[]; defaultOn?: TriggerOn; hostLabel?: string; onAdd: (animationOps: Op[], trigger: Trigger, label: string, fresh?: boolean) => void }) {
   const [on, setOn] = useState<TriggerOn>(defaultOn);
   // En mode Animation, on vient composer : « Nouvelle animation » par défaut (les préréglages en un geste sont en Écriture et en Design).
   const [what, setWhat] = useState("new");
@@ -182,7 +187,7 @@ function AddTrigger({ site, ons, defaultOn = "inView", onAdd }: { site: Site; on
       onAdd([], { id: newId(), on, animation: what.slice(5) }, "Ajouter un déclencheur");
     } else {
       // Sans piste : on ajoute ensuite les éléments à animer (l'élément porteur compris, s'il doit bouger).
-      const a: Animation = { id: newId(), name: nextAnimationName(site), duration: 1000, tracks: [] };
+      const a: Animation = { id: newId(), name: nextAnimationName(site, hostLabel), duration: 1000, tracks: [] };
       onAdd(planAddAnimation(site, a), { id: newId(), on, animation: a.id }, "Nouvelle animation", true);
     }
   };

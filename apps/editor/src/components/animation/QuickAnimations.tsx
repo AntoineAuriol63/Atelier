@@ -1,9 +1,10 @@
 "use client";
 
-import { Film } from "lucide-react";
+import { Fragment, useEffect, useRef } from "react";
+import { Film, Play } from "lucide-react";
 import type { CommitOptions, Node, Op, QuickGroup, Site } from "@atelier/model";
 import { ANIMATION_PRESETS, planQuickAnimation, planQuickDetail, quickAnimation } from "@atelier/model";
-import { Button, Field, FieldGroup, Select, Toggle } from "@/ui";
+import { Button, Field, FieldGroup, IconButton, Select, Toggle } from "@/ui";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
 
@@ -18,8 +19,21 @@ const QUICK: { group: QuickGroup; label: string; none: string; hint: string }[] 
  * continu) et, pour une apparition, « lettre par lettre » (texte) ou « les enfants un à un » (boîte à plusieurs enfants, vue).
  * Une animation retouchée dans le mode Animation s'affiche « Personnalisée » : choisir un préréglage la remplace.
  */
-export function QuickAnimations({ site, node, commit, onOpenAnimation }: { site: Site; node: Node; commit: Commit; onOpenAnimation?: () => void }) {
-  const run = (ops: Op[], label: string) => { if (ops.length) commit({ op: "batch", ops, label }, { label }); };
+export function QuickAnimations({ site, node, commit, onOpenAnimation, onPlay }: { site: Site; node: Node; commit: Commit; onOpenAnimation?: () => void; onPlay?: (triggerId: string) => void }) {
+  // Aperçu immédiat : après un choix, l'animation de la famille est jouée une fois dans l'aperçu (cadrage : « on doit voir ce qu'on règle »).
+  const pending = useRef<QuickGroup | null>(null);
+  const playRef = useRef(onPlay);
+  useEffect(() => { playRef.current = onPlay; });
+  useEffect(() => {
+    const group = pending.current;
+    const q = group ? quickAnimation(site, node, group) : undefined;
+    if (!q) return;
+    pending.current = null;
+    // L'éditeur envoie le site à l'aperçu dans son propre effet, après celui-ci : on laisse passer ce message avant de jouer.
+    const timer = window.setTimeout(() => playRef.current?.(q.trigger.id), 120);
+    return () => window.clearTimeout(timer);
+  }, [site, node]);
+  const run = (ops: Op[], label: string, group?: QuickGroup) => { if (!ops.length) return; if (group) pending.current = group; commit({ op: "batch", ops, label }, { label }); };
   const appear = quickAnimation(site, node, "Apparition");
   const canLetters = node.type === "text";
   const canChildren = node.type === "collection" || (node.children?.length ?? 0) > 1;
@@ -29,18 +43,24 @@ export function QuickAnimations({ site, node, commit, onOpenAnimation }: { site:
         const q = quickAnimation(site, node, group);
         const options = [{ value: "", label: none }, ...(q && !q.intact ? [{ value: "custom", label: `Personnalisée (${q.preset.label})` }] : []), ...ANIMATION_PRESETS.filter((p) => p.group === group).map((p) => ({ value: p.id, label: p.label }))];
         return (
-          <Field key={group} label={label} hint={q && !q.intact ? `${hint}. Retouchée dans le mode Animation : choisir un préréglage la remplace.` : hint}>
-            <Select value={q ? (q.intact ? q.preset.id : "custom") : ""} options={options} onValueChange={(v) => { if (v !== "custom") run(planQuickAnimation(site, node, group, v), v ? `${label} · ${ANIMATION_PRESETS.find((p) => p.id === v)?.label ?? v}` : `${label} · ${none.toLowerCase()}`); }} />
-          </Field>
+          <Fragment key={group}>
+            <Field label={label} hint={q && !q.intact ? `${hint}. Retouchée dans le mode Animation : choisir un préréglage la remplace.` : hint}>
+              <div className="flex items-center gap-1 min-w-0">
+                <Select className="flex-1 min-w-0" value={q ? (q.intact ? q.preset.id : "custom") : ""} options={options} onValueChange={(v) => { if (v !== "custom") run(planQuickAnimation(site, node, group, v), v ? `${label} · ${ANIMATION_PRESETS.find((p) => p.id === v)?.label ?? v}` : `${label} · ${none.toLowerCase()}`, v ? group : undefined); }} />
+                {q && onPlay ? <IconButton size="sm" label={`Jouer : ${q.preset.label}`} icon={Play} onClick={() => onPlay(q.trigger.id)} /> : null}
+              </div>
+            </Field>
+            {/* Le détail d'une apparition se règle juste sous elle, pas sous le dernier choix. */}
+            {group === "Apparition" && appear && (canLetters || canChildren) ? (
+              <Field label="" hint="Faire arriver l'élément d'un bloc, ou ses morceaux un à un">
+                {canLetters
+                  ? <Toggle checked={appear.detail === "letters"} label="lettre par lettre" onChange={(b) => run(planQuickDetail(site, node, "Apparition", b ? "letters" : "one"), b ? "Apparition lettre par lettre" : "Apparition d'un bloc", "Apparition")} />
+                  : <Toggle checked={appear.detail === "children"} label={node.type === "collection" ? "les cartes une à une" : "les enfants un à un"} onChange={(b) => run(planQuickDetail(site, node, "Apparition", b ? "children" : "one"), b ? "Apparition enfant par enfant" : "Apparition d'un bloc", "Apparition")} />}
+              </Field>
+            ) : null}
+          </Fragment>
         );
       })}
-      {appear && (canLetters || canChildren) ? (
-        <Field label="" hint="Faire arriver l'élément d'un bloc, ou ses morceaux un à un">
-          {canLetters
-            ? <Toggle checked={appear.detail === "letters"} label="lettre par lettre" onChange={(b) => run(planQuickDetail(site, node, "Apparition", b ? "letters" : "one"), b ? "Apparition lettre par lettre" : "Apparition d'un bloc")} />
-            : <Toggle checked={appear.detail === "children"} label={node.type === "collection" ? "les cartes une à une" : "les enfants un à un"} onChange={(b) => run(planQuickDetail(site, node, "Apparition", b ? "children" : "one"), b ? "Apparition enfant par enfant" : "Apparition d'un bloc")} />}
-        </Field>
-      ) : null}
       {onOpenAnimation ? <Button size="sm" variant="ghost" icon={Film} className="self-start" onClick={onOpenAnimation}>Ouvrir dans le mode Animation</Button> : null}
     </FieldGroup>
   );

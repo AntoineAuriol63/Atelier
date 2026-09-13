@@ -5,7 +5,7 @@ import { Copy, Crosshair, Diamond, Pause, Play, Plus, Repeat, SkipBack, Snail, T
 import type { Animation, CommitOptions, Node, Op, Site, Track, Trigger } from "@atelier/model";
 import { ANIMATION_PRESETS, STAGGER_FROM_LABELS, TRIGGER_LABELS, animationById, animationLength, describeAnimation, indexSite, keyframeAt, newId, planAddTrack, planFillTrackFromPreset, planRemoveKeyframes, planRemoveTrack, planSetKeyframeEasing, planShiftKeyframes, planUpdateAnimation, planUpdateTrack, resolveTrackTarget, shiftDelta, trackSpan, trackTargetFor, withTargetKind } from "@atelier/model";
 import { Badge, Button, Eyebrow, Hint, IconButton, NumberInput, PanelHeading, Select, TextInput, Toggle } from "@/ui";
-import { canAddTrack, formatTime, rulerTicks, snapTime, targetKindOf, targetKindOptions, trackLabel, type TargetKind } from "@/lib/timeline";
+import { canAddTrack, formatMs, rulerTicks, tickLabel, snapTime, targetKindOf, targetKindOptions, trackLabel, type TargetKind } from "@/lib/timeline";
 import { AppearancePanel, EffectsPanel, SizePanel, SpacingPanel, TypographyPanel, useKeyframeStyle } from "../design";
 import { nodeLabel } from "../node-icons";
 import { EasingField } from "./EasingField";
@@ -173,21 +173,21 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
       <div className="flex items-center gap-1">
         <Eyebrow as="span">Animation</Eyebrow>
         <TextInput className="flex-1" value={animation.name} aria-label="Nom de l'animation" data-anim-name="" title="Nom de l'animation (Entrée pour valider)" onValueChange={(v) => update({ name: v || animation.name }, "Renommer l'animation", `anim-name:${animation.id}`)} />
-        <Badge title={describeAnimation(animation)}>{formatTime(length)}</Badge>
+        <Badge title={describeAnimation(animation)}>{formatMs(length)}</Badge>
         <IconButton size="sm" label="Fermer la ligne de temps" icon={X} onClick={onClose} />
       </div>
       {trigger ? <span className="-mt-1 text-2xs text-muted truncate" title="Ce qui lance cette animation (réglages dans « Déclencheurs »)">{TRIGGER_LABELS[trigger.on]}{trigger.delay ? ` · +${trigger.delay} ms` : ""} · {pageLevel ? "sur la page" : `sur « ${hostNode ? nodeLabel(hostNode) : hostId} »`}</span> : null}
       <div className="grid grid-cols-[auto_1fr_auto] items-center gap-1.5">
         <NumberInput className="w-[92px]" unit="ms" min={Math.max(100, tracksEnd)} step={100} value={animation.duration} title="Durée de la ligne de temps (au moins la dernière image-clé)" onValueChange={(n) => update({ duration: Math.max(n === "" ? 0 : n, tracksEnd, 100) }, "Durée de l'animation", `anim-dur:${animation.id}`)} />
         <Select value={String(animation.loop ?? 1)} options={LOOPS} onValueChange={(v) => update({ loop: v === "1" ? undefined : v === "infinite" ? "infinite" : Number(v), ...(v === "1" ? { alternate: undefined } : {}) }, "Répétitions")} />
-        <Toggle checked={!!animation.alternate} disabled={!animation.loop || animation.loop === 1} label="aller-retour" title="En boucle : rejoue à l'envers une fois sur deux" onChange={(b) => update({ alternate: b || undefined }, "Aller-retour")} />
+        <Toggle checked={!!animation.alternate} disabled={!animation.loop || animation.loop === 1} label="aller-retour" title={!animation.loop || animation.loop === 1 ? "Choisissez d'abord des répétitions (2, 3 ou en boucle)" : "Rejoue à l'envers une fois sur deux"} onChange={(b) => update({ alternate: b || undefined }, "Aller-retour")} />
       </div>
       <div className="flex items-center gap-1">
         <IconButton size="sm" label="Revenir au début" icon={SkipBack} onClick={() => { setPlaying(false); setPlayhead(0); }} />
         <IconButton size="sm" label={playing ? "Pause" : "Lecture"} icon={playing ? Pause : Play} active={playing} onClick={() => { if (playing) pause(); else { if (playhead >= length) setPlayhead(0); setPlaying(true); } }} />
         <IconButton size="sm" label="Lire en boucle" icon={Repeat} active={loop} onClick={() => setLoop((l) => !l)} />
         <IconButton size="sm" label="Ralenti (vitesse ½)" icon={Snail} active={slow} onClick={() => setSlow((s) => !s)} />
-        <span className="ml-auto text-xs tabular-nums text-muted" aria-live="off">{formatTime(playhead)} / {formatTime(length)}</span>
+        <span className="ml-auto text-xs tabular-nums text-muted" aria-live="off">{tickLabel(playhead)} / {formatMs(length)}</span>
       </div>
       {trigger?.on === "scroll" ? <Hint>{`Au défilement ${pageLevel ? "de la page" : "de l'élément"}, la position entre ${Math.round((trigger.range?.[0] ?? 0) * 100)} % et ${Math.round((trigger.range?.[1] ?? 1) * 100)} % parcourt cette ligne de temps : la tête de lecture montre l'état à chaque position.`}</Hint>
         : trigger?.on === "pointer" ? <Hint>{`La position ${trigger.axis === "x" ? "horizontale" : "verticale"} de la souris dans la fenêtre parcourt cette ligne de temps : la tête de lecture montre l'état à chaque position.`}</Hint> : null}
@@ -196,7 +196,7 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
         <span />
         <div ref={rail} className="relative h-5 border-b border-line cursor-ew-resize select-none" role="slider" aria-label="Tête de lecture" aria-valuemin={0} aria-valuemax={length} aria-valuenow={Math.round(playhead)} tabIndex={0} onPointerDown={onRailDown} onPointerMove={onRailMove}
           onKeyDown={(e) => { if (e.key === "ArrowRight") { e.preventDefault(); setPlayhead((p) => Math.min(length, snapTime(p) + (e.shiftKey ? 100 : 10))); } if (e.key === "ArrowLeft") { e.preventDefault(); setPlayhead((p) => Math.max(0, snapTime(p) - (e.shiftKey ? 100 : 10))); } if (e.key === " ") { e.preventDefault(); if (playing) pause(); else setPlaying(true); } }}>
-          {ticks.map((t) => <span key={t} className="absolute top-0 text-2xs text-dim -translate-x-1/2" style={{ left: pct(t) }}>{t >= 1000 ? `${(t / 1000).toString().replace(".", ",")}s` : t}</span>)}
+          {ticks.map((t) => <span key={t} className="absolute top-0 text-2xs text-dim -translate-x-1/2" style={{ left: pct(t) }}>{tickLabel(t)}</span>)}
           <span className="absolute top-0 bottom-0 w-px bg-accent" style={{ left: pct(playhead) }} aria-hidden />
         </div>
         {animation.tracks.map((t) => {
@@ -298,7 +298,7 @@ function TrackSettings({ site, getSite, animation, track, node, hostId, run, onR
         <div className="grid grid-cols-[80px_1fr] items-center gap-1.5">
           <span className="text-xs text-muted" title="Temps de la première image-clé : changer le départ décale toute la piste">Départ</span>
           <NumberInput className="w-[110px]" unit="ms" min={0} step={10} value={trackSpan(track).start} onValueChange={(n) => { if (n === "") return; const d = snapTime(n) - trackSpan(track).start; if (d) run(planShiftKeyframes(getSite(), animation.id, track.keyframes.map((k) => ({ track: track.id, at: k.at })), d), "Décaler la piste"); }} />
-          <span className="text-xs text-muted">Anime</span>
+          <span className="text-xs text-muted" title="Ce que la piste anime : l'élément lui-même, ses enfants un à un, ses mots ou ses lettres">Cible</span>
           <Select value={kind} options={targetKindOptions(node)} onValueChange={(v) => setKind(v as TargetKind)} />
           {multi ? (
             <>

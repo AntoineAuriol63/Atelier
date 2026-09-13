@@ -49,13 +49,13 @@ Audit du 13 septembre 2026, mené par l'agent (Claude) après la livraison du mo
 **E2 · Entrée dans un champ numérique renomme le calque sélectionné** *(défaut, prévention des erreurs)*. **Corrigé le 13 septembre.** Reproduit avec de vraies frappes : taper « 20 » dans Départ puis Entrée valide la valeur, puis le champ perd le focus et la même touche atteint le raccourci global « Entrée = renommer » : la ligne du calque passe en renommage et prend le focus ; la frappe suivante renomme le calque. Cause : `NumberInput` (et `UnitInput`) quittent le champ sur Entrée, puis l'écouteur clavier de `EditorShell` voit `document.body` actif. Touche tout l'éditeur en Design et en Animation.
 → Dans `EditorShell`, ignorer une touche dont la **cible** est un champ (`input`, `textarea`, `select`, contenu éditable), et pas seulement l'élément actif ; ou `stopPropagation` sur Entrée dans les champs qui se quittent eux-mêmes. Test à écrire.
 
-**E3 · Ouvrir une animation existante se devine** *(visibilité, reconnaissance)*. La seule entrée est la ligne de texte du déclencheur, 17 px de haut, sans icône ni libellé d'action ; l'état ouvert se lit à une bordure accentuée.
+**E3 · Ouvrir une animation existante se devine** *(visibilité, reconnaissance)*. **Corrigé le 13 septembre.** La seule entrée est la ligne de texte du déclencheur, 17 px de haut, sans icône ni libellé d'action ; l'état ouvert se lit à une bordure accentuée.
 → Ligne de 28 px au moins, icône « Modifier la ligne de temps » (crayon ou chevron) et libellé au survol ; même comportement en Design (où l'icône Film existe déjà).
 
 **E4 · Les propriétés qu'on anime le plus sont loin, et la ligne de temps sort de l'écran pendant qu'on les règle** *(efficacité, charge mémoire)*. À 1024 × 768 : décalage à 630 px, opacité à 1 152 px sous le haut de la ligne de temps (Apparence commence par le fond, la bordure, l'arrondi, l'ombre). En défilant jusqu'à elles, on perd de vue la tête de lecture et les images-clés.
 → En mode image-clé, une section **Mouvement** en tête (opacité, décalage X/Y, échelle, rotation, flou), les panneaux Design complets ensuite ; **lecteur et rail collants** en haut du panneau pendant le défilement.
 
-**E5 · Les choix rapides ne montrent pas ce qu'ils font** *(visibilité de l'état du système)*. Choisir « Zoom » ou « Netteté » en Écriture ne joue rien dans l'aperçu (l'éditeur montre l'état d'arrivée) ; Écriture n'a pas de « Jouer ». Le débutant choisit à l'aveugle, contrairement à la référence retenue (Framer, aperçu immédiat).
+**E5 · Les choix rapides ne montrent pas ce qu'ils font** *(visibilité de l'état du système)*. **Corrigé le 13 septembre.** Choisir « Zoom » ou « Netteté » en Écriture ne joue rien dans l'aperçu (l'éditeur montre l'état d'arrivée) ; Écriture n'a pas de « Jouer ». Le débutant choisit à l'aveugle, contrairement à la référence retenue (Framer, aperçu immédiat).
 → Jouer une fois l'animation dans l'aperçu à chaque choix rapide ; bouton « Jouer » à côté des trois choix, en Écriture comme en Design.
 
 **E6 · Les sections Animation sont en bas des inspecteurs** *(efficacité, découvrabilité)*. Design : 12e section sur 16, à 1 423 px ; Écriture : après la mise en forme et son aide. C'était déjà le point 10 de l'audit n°2 pour les apparitions.
@@ -65,7 +65,7 @@ Audit du 13 septembre 2026, mené par l'agent (Claude) après la livraison du mo
 
 **M1 · « Personnalisée » se déclenche trop vite, sans retour possible.** Décaler le départ d'une piste de 20 ms suffit à perdre le préréglage (la position absolue des images-clés compte) ; ni Écriture ni Design ne disent ce qui a changé. → Ignorer un décalage uniforme dans `isPresetIntact` (ou convertir le départ d'une piste unique en délai du déclencheur) ; action « Revenir au préréglage ».
 
-**M2 · « lettre par lettre » est séparée de l'Apparition qu'elle règle.** La case apparaît sous « En continu », sans libellé de ligne. → La placer sur la ligne Apparition, ou en sous-ligne indentée juste dessous.
+**M2 · « lettre par lettre » est séparée de l'Apparition qu'elle règle.** **Corrigé le 13 septembre.** La case apparaît sous « En continu », sans libellé de ligne. → La placer sur la ligne Apparition, ou en sous-ligne indentée juste dessous.
 
 **M3 · Clavier et lecteur d'écran.** Les losanges ne se déplacent pas aux flèches (seul le champ « Temps » le permet) ; ils s'annoncent « Image-clé à 0 ms » sans la piste ; la tête de lecture n'a pas d'`aria-valuetext` (valeur brute en ms) ; la ligne de temps n'a pas de structure (liste ou grille) ; 2 champs d'Apparence sans nom. → Flèches ±10 ms (Maj ±100) sur les images-clés sélectionnées ; « Titre 1, image-clé à 0 ms » ; `aria-valuetext="0,40 s"` ; `role="list"` par piste ; nommer les champs.
 
@@ -79,16 +79,16 @@ Audit du 13 septembre 2026, mené par l'agent (Claude) après la livraison du mo
 
 **M8 · La bibliothèque ne passe pas l'échelle.** 59 entrées sans recherche ni regroupement, la partie qui distingue (élément, page) est tronquée à droite ; une animation inutilisée ne s'ouvre pas et ne se supprime pas ici. → Champ de recherche, regroupement par page, libellé sur deux lignes (nom, puis élément · page), actions « Ajouter un déclencheur » et « Supprimer » sur une animation inutilisée.
 
-**M9 · Nom par défaut peu parlant.** « Animation 60 » (compteur du site). → « Animation · Texte » d'après l'élément qui la lance.
+**M9 · Nom par défaut peu parlant.** **Corrigé le 13 septembre.** « Animation 60 » (compteur du site). → « Animation · Texte » d'après l'élément qui la lance.
 
-**M10 · Unités mélangées.** « 820 ms » à côté de « 0,82 s », règle en ms qui finit par « 1s », compteur en secondes. → Une seule unité dans la ligne de temps (ms, avec « 1 000 » pour la seconde), les secondes seulement dans le compteur de lecture.
+**M10 · Unités mélangées.** **Corrigé le 13 septembre.** « 820 ms » à côté de « 0,82 s », règle en ms qui finit par « 1s », compteur en secondes. → Une seule unité dans la ligne de temps (ms, avec « 1 000 » pour la seconde), les secondes seulement dans le compteur de lecture.
 
 ## Points mineurs (gravité 1)
 
 - **m1** Titres en capitales sur des noms longs (« PISTE · TITRE 1 « LE GOÛT DE L'AUVERGNE… » ») : moins lisibles, retour à la ligne. → Capitales pour la catégorie, nom en casse normale.
 - **m2** Fil d'Ariane : premier élément coupé net au bord gauche (« …ros »). → Dégradé ou « … » cliquable en tête.
 - **m3** Gestes de la ligne de temps (⇧-clic, ⌥-glisser, Suppr, clic sur la portée) décrits seulement dans l'infobulle des losanges. → Ligne d'aide repliable sous le rail, ou « ? » ouvrant les raccourcis.
-- **m4** Libellés : « Anime » (verbe seul), compteur « fixe / animé » qui décrit l'état au lieu de l'action, « aller-retour » grisé sans raison visible. → « Cible », « Compter jusqu'au nombre », info-bulle « Choisissez d'abord des répétitions ».
+- **m4** *(corrigé le 13 septembre : « Cible », « compter jusqu'au nombre », aide sur « aller-retour »)* Libellés : « Anime » (verbe seul), compteur « fixe / animé » qui décrit l'état au lieu de l'action, « aller-retour » grisé sans raison visible. → « Cible », « Compter jusqu'au nombre », info-bulle « Choisissez d'abord des répétitions ».
 - **m5** Guide « Composer cette animation » en un paragraphe numéroté ; lecteur et règle actifs sans piste. → Liste à puces, lecteur grisé tant qu'il n'y a rien à jouer.
 - **m6** En Design, la ligne de déclencheur est tronquée au profit des badges et de trois icônes : le nom de l'animation disparaît. → Nom sur sa propre ligne, actions au survol.
 - **m7** « Ouvrir dans le mode Animation » deux fois (bouton de section et icône par ligne). → Garder l'icône par ligne et un lien discret.
