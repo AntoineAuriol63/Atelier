@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { Animation, Node, Site } from "@atelier/model";
 import { sampleSite } from "@atelier/model";
-import { animatedNodes, animationLabel, canAddTrack, openTrigger, formatMs, tickLabel, nextAnimationName, nextZoom, rulerTicks, snapTime, targetKindOf, targetKindOptions, trackLabel, triggerHosts, validOpenTimeline } from "../src/lib/timeline";
+import { animatedNodes, animationLabel, canAddTrack, openTrigger, summarizeAnimation, formatMs, tickLabel, nextAnimationName, nextZoom, rulerTicks, snapTime, targetKindOf, targetKindOptions, trackLabel, triggerHosts, validOpenTimeline } from "../src/lib/timeline";
 
 const text = (id: string, name?: string): Node => ({ id, type: "text", name, props: { tag: "p", content: { fr: [{ t: "text", v: id }] } } });
 const root: Node = { id: "root", type: "box", props: {}, children: [{ id: "card", type: "box", name: "Carte", props: {}, children: [text("inner")] }, text("txt_b", "Titre")] };
@@ -107,5 +107,35 @@ describe("ligne de temps", () => {
     expect(canAddTrack(other, a, "card", "card")).toEqual({ ok: false, reason: "« Carte » a déjà sa piste" });
     expect(canAddTrack(other, a, "card", "far")).toEqual({ ok: false, reason: "Choisissez un élément de la même page que l'animation" });
     expect(canAddTrack(other, a, "card", undefined)).toEqual({ ok: false, reason: "Sélectionnez un élément dans l'aperçu ou dans les calques" });
+  });
+});
+
+describe("phrase de résumé d'une animation (audit n°5 · R2)", () => {
+  const t = (id: string, v: string, tag = "p"): Node => ({ id, type: "text", props: { tag, content: { fr: [{ t: "text", v }] } } });
+  const col: Node = { id: "col", type: "box", name: "Colonne", props: {}, children: [t("ttl", "Bonjour", "h1"), t("par", "Texte"), { id: "btns", type: "box", name: "Boutons", props: {}, children: [] }] };
+  const card: Node = { id: "crd", type: "box", name: "Carte", props: {}, children: [] };
+  const bar: Node = { id: "bar", type: "box", name: "Barre", props: {} };
+  const kf = (a: number, b: number) => [{ at: a, style: { opacity: "0" } }, { at: b, style: { opacity: "1" } }];
+  const s: Site = { ...sampleSite, pages: [{ ...sampleSite.pages[0]!, root: { id: "rt", type: "box", props: {}, children: [col, card, bar] } }], animations: [
+    { id: "a_up", name: "Fondu en montant", preset: "fade-up", duration: 700, tracks: [{ id: "k1", target: { trigger: true }, keyframes: [{ at: 0, style: { opacity: "0", transform: "translateY(28px)" } }, { at: 700, style: { opacity: "1", transform: "none", filter: "none" }, easing: "cubic-bezier(.22,1,.36,1)" }] }] },
+    { id: "a_comp", name: "Arrivée", duration: 1000, tracks: [{ id: "k2", target: { node: "ttl" }, keyframes: kf(0, 700) }, { id: "k3", target: { node: "par" }, keyframes: kf(150, 850) }, { id: "k4", target: { node: "btns", children: true }, stagger: { each: 80 }, keyframes: kf(300, 1000) }] },
+    { id: "a_grow", name: "Grossir", preset: "grow", duration: 250, tracks: [{ id: "k5", target: { trigger: true }, keyframes: [{ at: 0, style: { transform: "scale(1)" } }, { at: 250, style: { transform: "scale(1.06)" }, easing: "ease-out" }] }] },
+    { id: "a_bar", name: "Progression", duration: 1000, tracks: [{ id: "k6", target: { node: "bar" }, keyframes: kf(0, 1000) }] },
+    { id: "a_float", name: "Flottement", duration: 3000, loop: "infinite", tracks: [{ id: "k7", target: { trigger: true }, keyframes: [{ at: 0, style: {} }, { at: 1500, style: { transform: "translateY(-10px)" } }, { at: 3000, style: {} }] }] },
+    { id: "a_empty", name: "Vide", duration: 1000, tracks: [] },
+  ] };
+
+  it("une apparition simple sur l'élément lui-même : le mouvement, sa durée, sa fréquence", () => {
+    expect(summarizeAnimation(s, { id: "g", on: "inView", animation: "a_up" }, "ttl")).toBe("Quand Titre 1 « Bonjour » entre dans l'écran : fondu en montant en 700 ms, une seule fois.");
+    expect(summarizeAnimation(s, { id: "g", on: "inView", animation: "a_up", once: false, delay: 120 }, "ttl")).toBe("Quand Titre 1 « Bonjour » entre dans l'écran, après 120 ms : fondu en montant en 700 ms, à chaque passage.");
+  });
+  it("une composition : chaque élément, son moment, les décalages", () => {
+    expect(summarizeAnimation(s, { id: "g", on: "inView", animation: "a_comp" }, "col")).toBe("Quand « Colonne » entre dans l'écran : Titre 1 « Bonjour » en 700 ms, Paragraphe « Texte » de 150 à 850 ms et les enfants de « Boutons » un à un (tous les 80 ms) de 300 à 1\u202f000 ms, une seule fois.");
+  });
+  it("survol, défilement de la page, boucle, et animation encore vide", () => {
+    expect(summarizeAnimation(s, { id: "g", on: "hover", animation: "a_grow", reverseOnLeave: true }, "crd")).toBe("Au survol de « Carte » : grossir en 250 ms, puis retour quand la souris part.");
+    expect(summarizeAnimation(s, { id: "g", on: "scroll", animation: "a_bar" }, "rt", true)).toBe("Pendant le défilement de la page (de 0 à 100 %) : « Barre » de 0 à 100 % du parcours.");
+    expect(summarizeAnimation(s, { id: "g", on: "load", animation: "a_float" }, "crd")).toBe("Au chargement de la page : « Carte » en 3\u202f000 ms, en boucle.");
+    expect(summarizeAnimation(s, { id: "g", on: "click", animation: "a_empty" }, "crd")).toBe("Au clic sur « Carte » : rien ne bouge encore.");
   });
 });

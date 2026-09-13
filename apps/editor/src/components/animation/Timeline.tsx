@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Copy, Crosshair, Diamond, Pause, Play, Plus, Repeat, SkipBack, Snail, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { Animation, CommitOptions, Node, Op, Site, Track, Trigger } from "@atelier/model";
-import { ANIMATION_PRESETS, STAGGER_FROM_LABELS, TRIGGER_LABELS, animationById, animationLength, describeAnimation, indexSite, keyframeAt, newId, planAddTrack, planFillTrackFromPreset, planScaleAnimation, planRemoveKeyframes, planRemoveTrack, planSetKeyframeEasing, planShiftKeyframes, planUpdateAnimation, planUpdateTrack, resolveTrackTarget, shiftDelta, trackSpan, trackTargetFor, withTargetKind } from "@atelier/model";
+import { ANIMATION_PRESETS, STAGGER_FROM_LABELS, animationById, animationLength, describeAnimation, indexSite, keyframeAt, newId, planAddTrack, planFillTrackFromPreset, planScaleAnimation, planRemoveKeyframes, planRemoveTrack, planSetKeyframeEasing, planShiftKeyframes, planUpdateAnimation, planUpdateTrack, resolveTrackTarget, shiftDelta, trackSpan, trackTargetFor, withTargetKind } from "@atelier/model";
 import { Badge, Button, Eyebrow, Hint, IconButton, NumberInput, PanelHeading, Select, TextInput, Toggle } from "@/ui";
-import { canAddTrack, formatMs, nextZoom, rulerTicks, tickLabel, snapTime, targetKindOf, targetKindOptions, trackLabel, type TargetKind } from "@/lib/timeline";
+import { canAddTrack, formatMs, nextZoom, rulerTicks, summarizeAnimation, tickLabel, snapTime, targetKindOf, targetKindOptions, trackLabel, type TargetKind } from "@/lib/timeline";
 import { AppearancePanel, EffectsPanel, SizePanel, SpacingPanel, TypographyPanel, useKeyframeStyle } from "../design";
 import { nodeLabel } from "../node-icons";
 import { EasingField } from "./EasingField";
@@ -190,7 +190,6 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
   const targetId = trackNode?.id;
   const targetLabel = track ? trackLabel(track, hostId, site) : undefined;
   useEffect(() => { targetsRef.current?.(targetId ? [targetId] : [], targetLabel); }, [targetId, targetLabel]);
-  const hostNode = index.get(hostId)?.node;
 
   return (
     <section ref={root} className="flex flex-col gap-2 scroll-mt-2" aria-label="Ligne de temps">
@@ -202,7 +201,8 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
         <Badge title={describeAnimation(animation)}>{formatMs(length)}</Badge>
         <IconButton size="sm" label="Fermer la ligne de temps" icon={X} onClick={onClose} />
       </div>
-      {trigger ? <span className="-mt-1 text-2xs text-muted truncate" title="Ce qui lance cette animation (réglages dans « Déclencheurs »)">{TRIGGER_LABELS[trigger.on]}{trigger.delay ? ` · +${trigger.delay} ms` : ""} · {pageLevel ? "sur la page" : `sur « ${hostNode ? nodeLabel(hostNode) : hostId} »`}</span> : null}
+      {/* Ce qui va se passer sur le site, en une phrase (audit n°5 · R2) : se relit à chaque réglage. */}
+      {trigger ? <p className="-mt-1 text-xs text-muted leading-snug" data-anim-summary="">{summarizeAnimation(site, trigger, hostId, pageLevel)}</p> : null}
       <div className="grid grid-cols-[auto_1fr_auto] items-center gap-1.5">
         {/* Durée = vitesse (audit n°5 · R1) : la changer ralentit ou accélère toute l'animation, images-clés et décalages compris. */}
         <NumberInput className="w-[92px]" unit="ms" min={100} step={100} value={length} title="Durée : la changer ralentit ou accélère toute l'animation (images-clés et décalages suivent)" onValueChange={(n) => { if (n === "" || n === length) return; run(planScaleAnimation(getSite(), animation.id, Math.max(100, n)), "Durée de l'animation", `anim-dur:${animation.id}`); setPlayhead((p) => Math.round((p * Math.max(100, n)) / length)); }} />

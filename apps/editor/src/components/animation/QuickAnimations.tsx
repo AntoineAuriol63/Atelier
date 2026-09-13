@@ -6,6 +6,7 @@ import type { CommitOptions, Node, Op, QuickGroup, Site } from "@atelier/model";
 import { ANIMATION_PRESETS, planQuickAnimation, planQuickDetail, planQuickSpeed, quickAnimation, quickSpeed, type QuickSpeed } from "@atelier/model";
 import { Button, Field, FieldGroup, IconButton, Select, Toggle } from "@/ui";
 import { Segmented } from "@/ui/controls";
+import { summarizeAnimation } from "@/lib/timeline";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
 const SPEEDS = [{ value: "fast", label: "Rapide" }, { value: "normal", label: "Normale" }, { value: "slow", label: "Lente" }];
@@ -58,6 +59,7 @@ export function QuickAnimations({ site, node, commit, onOpenAnimation, onPlay }:
                 <Segmented size="sm" required label={`Vitesse · ${label}`} className="flex-1" value={quickSpeed(q) === "custom" ? undefined : quickSpeed(q)} options={SPEEDS} onChange={(v) => { if (v) run(planQuickSpeed(site, node, group, v as QuickSpeed), `${label} · ${SPEEDS.find((o) => o.value === v)?.label.toLowerCase()}`, group); }} />
               </Field>
             ) : null}
+            {q ? <Field label=""><p className="text-2xs text-muted leading-snug" data-anim-summary="">{summarizeAnimation(site, q.trigger, node.id)}</p></Field> : null}
             {/* Le détail d'une apparition se règle juste sous elle, pas sous le dernier choix. */}
             {group === "Apparition" && appear && (canLetters || canChildren) ? (
               <Field label="" hint="Faire arriver l'élément d'un bloc, ou ses morceaux un à un">

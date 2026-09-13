@@ -1,5 +1,5 @@
 import type { Animation, Node, Page, Site, Track, TrackTarget, Trigger } from "@atelier/model";
-import { animationById, animationUsages, indexSite, resolveTrackTarget } from "@atelier/model";
+import { animationById, animationLength, animationUsages, indexSite, isPresetIntact, presetById, resolveTrackTarget, trackSpan } from "@atelier/model";
 import { nodeLabel } from "@/components/node-icons";
 
 /** L'animation ouverte dans la ligne de temps : elle se joue depuis un hôte (l'élément qui porte le déclencheur). */
@@ -121,6 +121,65 @@ export function animationLabel(site: Site, a: Animation): string {
   if (first.page) return `${a.name} · page ${pageName(first.page.id)}${more}`;
   const where = pageName(first.owner) ?? `composant ${site.components.find((c) => c.id === first.owner)?.name ?? first.owner}`;
   return `${a.name} · ${first.node ? nodeLabel(first.node) : "?"} · ${where}${more}`;
+}
+
+/** Un libellé d'élément entre guillemets, sauf s'il en porte déjà (« Titre 1 « Bonjour » »). */
+const quoted = (label: string) => (label.includes("«") ? label : `« ${label} »`);
+const joinFr = (parts: string[]) => (parts.length <= 1 ? parts.join("") : `${parts.slice(0, -1).join(", ")} et ${parts[parts.length - 1]}`);
+
+/**
+ * Ce qui va se passer sur le site, en une phrase (audit n°5 · R2) : quand, ce qui bouge et à quel moment, combien de fois.
+ * « Quand « Colonne » entre dans l'écran : Titre 1 « Bonjour » en 700 ms, Paragraphe « Texte » de 150 à 850 ms…, une seule fois. »
+ * Au défilement et à la souris, les moments sont des parts du parcours (%), pas des durées.
+ */
+export function summarizeAnimation(site: Site, trigger: Trigger, hostId: string, pageLevel = false): string {
+  const index = indexSite(site);
+  const hostNode = index.get(hostId)?.node;
+  const host = pageLevel ? "la page" : quoted(hostNode ? nodeLabel(hostNode) : hostId);
+  const [lo, hi] = (trigger.range ?? [0, 1]).map((v) => Math.round(v * 100));
+  const when = {
+    load: "Au chargement de la page",
+    inView: `Quand ${host} entre dans l'écran`,
+    hover: `Au survol de ${host}`,
+    click: `Au clic sur ${host}`,
+    scroll: pageLevel ? `Pendant le défilement de la page (de ${lo} à ${hi} %)` : `Pendant que ${host} traverse l'écran (de ${lo} à ${hi} %)`,
+    pointer: `Quand la souris se déplace ${trigger.axis === "x" ? "de gauche à droite" : "de haut en bas"} dans la fenêtre`,
+  }[trigger.on];
+  const positional = trigger.on === "scroll" || trigger.on === "pointer";
+  const delay = trigger.delay && !positional ? `, après ${formatMs(trigger.delay)}` : "";
+  const a = animationById(site, trigger.animation);
+  const tracks = (a?.tracks ?? []).filter((t) => t.keyframes.length >= 2).sort((x, y) => trackSpan(x).start - trackSpan(y).start);
+  if (!a || !tracks.length) return `${when}${delay} : rien ne bouge encore.`;
+  const length = Math.max(1, animationLength(a));
+  const moment = (t: Track) => {
+    const { start, end } = trackSpan(t);
+    if (positional) return `de ${Math.round((start / length) * 100)} à ${Math.round((end / length) * 100)} % du parcours`;
+    return start === 0 ? `en ${formatMs(end)}` : `de ${tickLabel(start)} à ${formatMs(end)}`;
+  };
+  const subject = (t: Track) => {
+    const r = resolveTrackTarget(t.target, hostId);
+    if ("selector" in r) return quoted(r.selector);
+    const n = index.get(r.node)?.node;
+    const base = quoted(n ? nodeLabel(n) : r.node);
+    const from = t.stagger?.from === "end" ? ", depuis la fin" : t.stagger?.from === "center" ? ", depuis le centre" : "";
+    const each = t.stagger ? ` (tous les ${formatMs(t.stagger.each)}${from})` : "";
+    if (r.children) return `les enfants de ${base} un à un${each}`;
+    if (r.split) return `${r.split === "letters" ? "les lettres" : "les mots"} de ${base}${each}`;
+    return base;
+  };
+  // Un préréglage posé sur l'élément lui-même se dit par son nom : « fondu en montant en 700 ms ».
+  const preset = presetById(a.preset);
+  const only = tracks.length === 1 ? tracks[0]! : undefined;
+  const onHost = !!only && "trigger" in only.target && !only.target.children && !only.target.split;
+  const what = only && onHost && preset && isPresetIntact(a) && !positional
+    ? `${preset.label.charAt(0).toLowerCase()}${preset.label.slice(1)} ${moment(only)}`
+    : joinFr(tracks.map((t) => `${subject(t)} ${moment(t)}`));
+  const after = trigger.on === "inView" ? (trigger.once === false ? "à chaque passage" : "une seule fois")
+    : trigger.on === "hover" && trigger.reverseOnLeave ? "puis retour quand la souris part"
+    : trigger.on === "click" && trigger.toggle ? "un clic sur deux la rembobine"
+    : a.loop === "infinite" ? `en boucle${a.alternate ? ", en aller-retour" : ""}`
+    : typeof a.loop === "number" && a.loop > 1 ? `${a.loop} fois${a.alternate ? ", en aller-retour" : ""}` : "";
+  return `${when}${delay} : ${what}${after ? `, ${after}` : ""}.`;
 }
 
 /** Nom d'une nouvelle animation : d'après ce qui la lance (« Animation · Texte », puis « Animation · Texte 2 »), sinon « Animation 3 », le premier libre. */
