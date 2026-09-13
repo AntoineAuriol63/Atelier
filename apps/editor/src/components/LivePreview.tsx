@@ -27,10 +27,39 @@ function PageCss({ site, pageId }: { site: Site; pageId: string }) {
  * (message `atelier:site`) sans rechargement. En mode éditeur, gère la sélection, le glisser,
  * l'édition du texte (simple en Design, riche en Écriture), les barres flottantes et le menu « / ».
  */
+type ScrubTools = { els: (el: Element, tr: unknown) => Element[]; toKf: (k: unknown) => Keyframe[]; delay: (a: unknown, tr: unknown, i: number, n: number) => number };
+type WireTrigger = { i: string; dl: number; tr: { d: number; k: unknown }[] };
+let scrubStore: { key: string; anims: Animation[] } | null = null;
+/** Pose (ou repose) l'état d'une animation à un instant : les pistes du déclencheur sont jouées en pause sur leurs cibles et mises au temps voulu. */
+function applyScrub(m: { id: string; trigger: string; time: number } | null): void {
+  const A = (window as unknown as { __atelierAnim?: ScrubTools }).__atelierAnim;
+  if (!m || !A) { scrubStore?.anims.forEach((a) => a.cancel()); scrubStore = null; return; }
+  const el = document.querySelector<HTMLElement>(`[data-node="${m.id}"]`);
+  if (!el) return;
+  const raw = el.getAttribute("data-anim") ?? "";
+  const key = `${m.id}:${m.trigger}:${raw}`;
+  const alive = scrubStore && scrubStore.key === key && scrubStore.anims.every((a) => ((a.effect as KeyframeEffect | null)?.target as Element | null)?.isConnected);
+  if (!alive) {
+    scrubStore?.anims.forEach((a) => a.cancel());
+    let runs: WireTrigger[] = [];
+    try { runs = JSON.parse(raw) as WireTrigger[]; } catch { runs = []; }
+    const a = runs.find((r) => r.i === m.trigger);
+    if (!a) { scrubStore = null; return; }
+    const anims: Animation[] = [];
+    for (const tr of a.tr) {
+      const list = A.els(el, tr);
+      list.forEach((t, i) => { try { const an = t.animate(A.toKf(tr.k), { duration: tr.d, delay: A.delay({ ...a, dl: 0 }, tr, i, list.length), easing: "ease", fill: "both" }); an.pause(); anims.push(an); } catch { /* étapes invalides */ } });
+    }
+    scrubStore = { key, anims };
+  }
+  scrubStore.anims.forEach((a) => { a.currentTime = m.time; });
+}
+
 export function LivePreview({ initialSite, entries, path, mode, editor }: Props) {
   const [site, setSite] = useState(initialSite);
   // Après chaque rendu, l'état d'arrivée des apparitions est posé sans transition : sinon un élément qui reçoit une apparition disparaîtrait de l'aperçu.
-  useEffect(() => { if (editor) applyInstantStates(document); });
+  // Et si le mode Animation montre un instant précis, il est reposé (les éléments ont pu être recréés).
+  useEffect(() => { if (editor) { applyInstantStates(document); if (lastScrub.current) applyScrub(lastScrub.current); } });
   // Aperçu hors éditeur : les scripts du site (interactions, formulaires) sont injectés après l'hydratation, pas dans le HTML serveur.
   useEffect(() => {
     if (editor) return;
@@ -43,6 +72,8 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     const el = document.createElement("script"); el.textContent = ANIMATION_PLAY_SCRIPT; document.body.appendChild(el);
     return () => el.remove();
   }, [editor]);
+  // Mode Animation : pistes du déclencheur jouées en pause, positionnées à la tête de lecture (API Web Animations, via l'outil du site).
+  const lastScrub = useRef<{ id: string; trigger: string; time: number } | null>(null);
   const [entriesState, setEntriesState] = useState(entries);
   const [modeState, setModeState] = useState(mode ?? initialSite.theme.defaultMode);
   const data = useMemo(() => memoryData(entriesState), [entriesState]);
@@ -600,6 +631,8 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       if (m?.type === "atelier:editmode" && m.editMode) { editMode = m.editMode; if (editing) endEdit(true); hideBlockBar(); clear(hovered); hovered = null; }
       if (m?.type === "atelier:zoom") { const z = Number((m as { scale?: number }).scale); uiScale = z > 0 && z < 1 ? Math.min(1 / z, 2.2) : 1; applyUiScale(); }
       if (m?.type === "atelier:mode" && m.mode) setModeState(m.mode);
+      if (m?.type === "atelier:scrub") { lastScrub.current = { id: m.id, trigger: m.trigger, time: m.time }; applyScrub(lastScrub.current); }
+      if (m?.type === "atelier:scrub-stop") { lastScrub.current = null; applyScrub(null); }
       if (m?.type === "atelier:play") {
         // Rejoue un run une fois sur ses cibles (API Web Animations, via l'outil partagé avec le site), même si le CSS de l'éditeur laisse les animations à l'arrêt.
         const el = document.querySelector<HTMLElement>(`[data-node="${m.id}"]`);

@@ -59,7 +59,9 @@ type Props = {
   onDetach?: () => void;
   notify?: (text: string, tone?: "danger" | "success" | "info") => void;
   editMode?: "write" | "design";
-  onSwitchMode?: (m: "write" | "design") => void;
+  onSwitchMode?: (m: "write" | "design" | "animate") => void;
+  /** Ouvre l'animation d'un déclencheur de cet élément dans le mode Animation. */
+  onOpenAnimation?: (triggerId: string) => void;
   commit: (op: Op, opts?: CommitOptions) => void;
   onDeleted: () => void;
 };
@@ -83,7 +85,7 @@ function plainText(content: unknown, locale: string): { text: string; rich: bool
   return { text: list.map((s) => (s.t === "text" ? s.v : s.t === "break" ? "\n" : "")).join(""), rich };
 }
 
-export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBreakpoint, onPreviewState, onEditInPreview, onPlay, onEnterComponent, onMakeComponent, onDetach, notify, editMode = "design", onSwitchMode, commit, onDeleted }: Props) {
+export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBreakpoint, onPreviewState, onEditInPreview, onPlay, onEnterComponent, onMakeComponent, onDetach, notify, editMode = "design", onSwitchMode, onOpenAnimation, commit, onDeleted }: Props) {
   const node: Node = loc.node;
   const locale = site.settings.defaultLocale;
   const [state, setStateRaw] = useState<string | undefined>(undefined);
@@ -275,7 +277,7 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
       <TypographyPanel site={site} style={style} mode={mode} defaultOpen={node.type === "text" || node.type === "link"} />
       <AppearancePanel site={site} style={style} mode={mode} />
       <EffectsPanel site={site} style={style} node={sharedDef ? undefined : node} commit={commit} />
-      {!sharedDef ? <AnimationsPanel site={site} node={node} pageRoot={pageRoot} commit={commit} onPlay={onPlay ? (runId) => onPlay(node.id, runId) : undefined} /> : null}
+      {!sharedDef ? <AnimationsPanel site={site} node={node} commit={commit} onPlay={onPlay ? (runId) => onPlay(node.id, runId) : undefined} onOpenAnimation={onOpenAnimation} /> : null}
       {!sharedDef ? <InteractionsPanel site={site} node={node} pageRoot={pageRoot} commit={commit} /> : null}
 
         </>

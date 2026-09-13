@@ -1,10 +1,13 @@
 import type { DropPosition, Entry, Inline, Site } from "@atelier/model";
 
-export type EditMode = "write" | "design";
+export type EditMode = "write" | "design" | "animate";
 
 /** Ce que l'éditeur (parent) envoie à l'aperçu (iframe). Une seule origine : la nôtre. */
 export type ToPreview =
   | { type: "atelier:play"; id: string; run: string }
+  /** Mode Animation : montre l'état à `time` ms de la ligne de temps du déclencheur `trigger` porté par l'élément `id` (pistes jouées en pause). */
+  | { type: "atelier:scrub"; id: string; trigger: string; time: number }
+  | { type: "atelier:scrub-stop" }
   | { type: "atelier:site"; site: Site; containers: string[]; links: string[]; textNodes: string[]; editMode: EditMode; blocks: BlockPresetInfo[]; pages: { path: string; name: string }[] }
   | { type: "atelier:entries"; entries: Entry[] }
   | { type: "atelier:mode"; mode: string }

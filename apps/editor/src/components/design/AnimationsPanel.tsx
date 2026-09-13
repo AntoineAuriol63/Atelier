@@ -1,6 +1,6 @@
 "use client";
 
-import { Play, X } from "lucide-react";
+import { Film, Play, X } from "lucide-react";
 import type { AnimationPreset, CommitOptions, Node, Op, Site, Trigger } from "@atelier/model";
 import { ANIMATION_PRESETS, TRIGGER_LABELS, animationById, animationUsages, describeTrigger, planApplyPreset, planRemoveTrigger, planUpdateTrigger, presetById } from "@atelier/model";
 import { Field, FieldGroup, Hint, IconButton, NumberInput, Section, Select, Toggle } from "@/ui";
@@ -17,7 +17,7 @@ const QUICK: { group: Group; label: string; hint: string }[] = [
  * Animations d'un élément (section 8.4, cadrage `docs/cadrage-animation.md` § 4.3) : ses déclencheurs, avec « Jouer » et leurs réglages,
  * et trois choix rapides (apparition, survol, continu) qui posent un préréglage sur l'élément seul. La composition fine se fait dans le mode Animation.
  */
-export function AnimationsPanel({ site, node, commit, onPlay }: { site: Site; node: Node; pageRoot?: Node; commit: Commit; onPlay?: (triggerId: string) => void }) {
+export function AnimationsPanel({ site, node, commit, onPlay, onOpenAnimation }: { site: Site; node: Node; commit: Commit; onPlay?: (triggerId: string) => void; onOpenAnimation?: (triggerId: string) => void }) {
   const triggers = node.triggers ?? [];
   const presetOf = (t: Trigger) => presetById(animationById(site, t.animation)?.preset);
   const quickTrigger = (group: Group) => triggers.find((t) => presetOf(t)?.group === group);
@@ -67,6 +67,7 @@ export function AnimationsPanel({ site, node, commit, onPlay }: { site: Site; no
                 <div className="flex items-center gap-1">
                   <span className="flex-1 min-w-0 text-sm font-medium text-ink truncate" title={describeTrigger(t, site)}>{describeTrigger(t, site)}</span>
                   {onPlay && a ? <IconButton size="sm" label="Jouer dans l'aperçu" icon={Play} onClick={() => onPlay(t.id)} /> : null}
+                  {onOpenAnimation && a ? <IconButton size="sm" label="Ouvrir dans le mode Animation" icon={Film} onClick={() => onOpenAnimation(t.id)} /> : null}
                   <IconButton size="sm" label="Retirer l'animation" icon={X} onClick={() => removeTrigger(t, "Retirer l'animation")} />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
