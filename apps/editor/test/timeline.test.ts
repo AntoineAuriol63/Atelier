@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { Animation, Node, Site } from "@atelier/model";
 import { sampleSite } from "@atelier/model";
-import { animatedNodes, animationLabel, canAddTrack, openTrigger, formatMs, tickLabel, nextAnimationName, rulerTicks, snapTime, targetKindOf, targetKindOptions, trackLabel, triggerHosts, validOpenTimeline } from "../src/lib/timeline";
+import { animatedNodes, animationLabel, canAddTrack, openTrigger, formatMs, tickLabel, nextAnimationName, nextZoom, rulerTicks, snapTime, targetKindOf, targetKindOptions, trackLabel, triggerHosts, validOpenTimeline } from "../src/lib/timeline";
 
 const text = (id: string, name?: string): Node => ({ id, type: "text", name, props: { tag: "p", content: { fr: [{ t: "text", v: id }] } } });
 const root: Node = { id: "root", type: "box", props: {}, children: [{ id: "card", type: "box", name: "Carte", props: {}, children: [text("inner")] }, text("txt_b", "Titre")] };
@@ -14,6 +14,21 @@ describe("ligne de temps", () => {
     expect(rulerTicks(3000)[1]).toBe(250);
     expect(rulerTicks(12000)[1]).toBe(1000);
     expect(rulerTicks(0)).toEqual([0]);
+    // Zoomée, la règle garde un pas lisible pour la part visible : ×4 sur 8 s, on voit 2 s à la fois, graduées tous les 250 ms.
+    expect(rulerTicks(8000, 4)[1]).toBe(250);
+    expect(rulerTicks(8000, 4).at(-1)).toBe(8000);
+    expect(rulerTicks(8000)[1]).toBe(1000);
+    // Avec la largeur réelle de la règle, les repères gardent au moins 36 px entre eux : pas de chevauchement des nombres.
+    expect(rulerTicks(840, 1.5, 250)[1]).toBe(100);
+    expect(rulerTicks(800, 1, 311)[1]).toBe(100);
+    expect(rulerTicks(800, 1, 200)[1]).toBe(250);
+  });
+  it("niveaux de zoom de la ligne de temps : un cran à la fois, bornés", () => {
+    expect(nextZoom(1, 1)).toBe(1.5);
+    expect(nextZoom(1.5, -1)).toBe(1);
+    expect(nextZoom(1, -1)).toBe(1);
+    expect(nextZoom(8, 1)).toBe(8);
+    expect(nextZoom(2.2, 1)).toBe(3);
   });
   it("une seule unité dans la ligne de temps : les millisecondes, groupées à la française", () => {
     expect(formatMs(0)).toBe("0 ms");

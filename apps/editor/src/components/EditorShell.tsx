@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { AlertTriangle, CheckCircle2, Command as CommandIcon, Database as DatabaseIcon, ExternalLink, Info, FileText, Grid3x3, Layers, Moon, Palette, Plus, Puzzle, Redo2, Sparkles, Sun, Undo2, UploadCloud, X, Settings2, Maximize2, Minimize2, Columns2, Zap } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Command as CommandIcon, Database as DatabaseIcon, ExternalLink, Info, FileText, Grid3x3, Layers, Moon, Palette, Plus, Puzzle, Redo2, Sparkles, Sun, Undo2, UploadCloud, X, Settings2, Maximize2, Minimize2, Columns2, PanelLeftClose, PanelLeftOpen, Zap } from "lucide-react";
 import type { DropPosition, Entry, Node, Page, Site, StyleValue, Role } from "@atelier/model";
 import { animationById, BASE, breakpointForWidth, canInsertUnder, cloneWithNewIds, dataSourceFor, entryPath, fitHeadings as fitHeadingsInPage, indexSite, layoutGridAt, newId, planDetach, planDrop, planInsert, planMakeComponent, planMergePrev, planMove, planSlashInsert, planSplit, stylePath, templateOf, type ComponentPlan, type TextPlan, ANIMATION_PRESETS, planQuickAnimation } from "@atelier/model";
 import type { Op } from "@atelier/model";
@@ -163,6 +163,15 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
   const toggleGrid = useCallback(() => setShowGrid((g) => { try { localStorage.setItem("atelier:grid", g ? "0" : "1"); } catch {} return !g; }), []);
   const [previewState, setPreviewState] = useState<string | null>(null);
   const [focusMode, setFocusMode] = useState(false);
+  // Panneau de gauche repliable par mode, replié par défaut en mode Animation : l'aperçu a besoin de place pour voir bouger, et les
+  // calques restent joignables par le fil d'Ariane et la pioche (audit n°4 · E1). Choix mémorisé.
+  const [leftHidden, setLeftHidden] = useState<Record<string, boolean>>(() => { try { return JSON.parse(localStorage.getItem("atelier:left-hidden") || "{}") as Record<string, boolean>; } catch { return {}; } });
+  const leftCollapsed = leftHidden[editMode] ?? editMode === "animate";
+  const toggleLeft = useCallback(() => setLeftHidden((m) => { const next = { ...m, [editMode]: !(m[editMode] ?? editMode === "animate") }; try { localStorage.setItem("atelier:left-hidden", JSON.stringify(next)); } catch {} return next; }), [editMode]);
+  // Largeur du panneau Animation quand une ligne de temps est ouverte : poignée sur son bord, de 360 à 720 px, mémorisée.
+  const [animPanelW, setAnimPanelW] = useState<number>(() => { try { const n = Number(localStorage.getItem("atelier:anim-panel-w")); return n >= 360 && n <= 720 ? n : 440; } catch { return 440; } });
+  const showLeft = useCallback(() => setLeftHidden((m) => { const next = { ...m, [editMode]: false }; try { localStorage.setItem("atelier:left-hidden", JSON.stringify(next)); } catch {} return next; }), [editMode]);
+  const saveAnimPanelW = (w: number) => { const c = Math.round(Math.min(720, Math.max(360, w))); setAnimPanelW(c); try { localStorage.setItem("atelier:anim-panel-w", String(c)); } catch {} };
   const [compareMode, setCompareMode] = useState(false);
   const dragId = useRef<string | null>(null);
   const dragBlock = useRef<string | null>(null);
@@ -550,7 +559,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
       { id: "grid", group: "Affichage", label: showGrid ? "Masquer la grille de mise en page" : "Afficher la grille de mise en page", keys: "⌃G", icon: Grid3x3, run: toggleGrid },
       ...site.theme.modes.map((m) => ({ id: `mode:${m.id}`, group: "Affichage", label: `Aperçu en mode ${m.name.toLowerCase()}`, icon: m.id === "dark" ? Moon : Sun, run: () => setMode(m.id) })),
       ...PRESETS.map((p) => ({ id: `width:${p.id}`, group: "Affichage", label: `Largeur ${p.label.toLowerCase()}`, run: () => { setPreset(p.id); setCustomWidth(null); } })),
-      ...[{ id: "pages", label: "Pages", icon: FileText }, { id: "layers", label: "Calques", icon: Layers }, { id: "add", label: "Ajouter", icon: Plus }, { id: "data", label: "Données", icon: DatabaseIcon }, { id: "theme", label: "Thème", icon: Palette }].map((t) => ({ id: `tab:${t.id}`, group: "Panneaux", label: `Afficher ${t.label}`, icon: t.icon, run: () => setLeftTab(t.id) })),
+      ...[{ id: "pages", label: "Pages", icon: FileText }, { id: "layers", label: "Calques", icon: Layers }, { id: "add", label: "Ajouter", icon: Plus }, { id: "data", label: "Données", icon: DatabaseIcon }, { id: "theme", label: "Thème", icon: Palette }].map((t) => ({ id: `tab:${t.id}`, group: "Panneaux", label: `Afficher ${t.label}`, icon: t.icon, run: () => { setLeftTab(t.id); showLeft(); } })),
       ...site.pages.map((p) => ({ id: `page:${p.id}`, group: "Pages", label: `Aller à ${p.name[locale] ?? p.path}`, icon: FileText, keywords: p.path, run: () => { setPageId(p.id); select(null); setFrameReady(false); } })),
       { id: "newpage", group: "Pages", label: "Nouvelle page…", icon: Plus, run: () => setLeftTab("pages") },
       { id: "media", group: "Affichage", label: "Images du site…", icon: ImagesIcon, keywords: "médias bibliothèque photos", run: () => openMediaLibrary() },
@@ -571,7 +580,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
     const visit = (n: Node) => { const label = nodeLabel(n); if (!seen.has(n.id)) { seen.add(n.id); nodes.push({ id: `sel:${n.id}`, group: "Sélectionner un calque", label, icon: nodeIcon(n), keywords: n.type, run: () => select(n.id) }); } n.children?.forEach(visit); };
     visit(page.root);
     return [...cmds, ...nodes.slice(0, 80)];
-  }, [doc, site, locale, page.root, previewPath, selected, index, select, addBlock, showGrid, toggleGrid, switchMode, setPageId, makeComponent, detachInstance, writer, animateNode]);
+  }, [doc, site, locale, page.root, previewPath, selected, index, select, addBlock, showGrid, toggleGrid, switchMode, setPageId, makeComponent, detachInstance, writer, animateNode, showLeft]);
   const setOpen = useCallback((id: string, open: boolean) => setOpenMap((m) => ({ ...m, [id]: open })), []);
   const rename = useCallback((id: string, name: string | null | undefined) => {
     setEditing(null);
@@ -584,12 +593,13 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
   return (
     <ConfirmProvider><MediaLibraryProvider site={site} entries={ents.entries} commit={doc.commit} saveEntry={ents.save} onGoTo={goToUsage} readOnly={writer}>
     {/* En mode Animation, la colonne de droite s'élargit en poussant le canevas quand une ligne de temps est ouverte (cadrage § 4.1). */}
-    <div className={`h-full grid grid-rows-[48px_1fr] ${focusMode ? "grid-cols-[1fr]" : editMode === "animate" && openTl ? "grid-cols-[300px_1fr_440px]" : "grid-cols-[300px_1fr_360px]"}`}>
+    <div className="h-full grid grid-rows-[48px_1fr]" style={{ gridTemplateColumns: focusMode ? "minmax(0,1fr)" : `${leftCollapsed ? "" : "300px "}minmax(0,1fr) ${editMode === "animate" && openTl ? animPanelW : 360}px` }}>
       <header className="flex items-center gap-2 px-3 border-b border-line bg-panel" style={{ gridColumn: "1 / -1" }}>
         <Link href="/" className="font-semibold text-base tracking-tight text-ink hover:text-accent" title="Retour à vos sites">{PRODUCT_NAME}</Link>
         <Separator vertical />
-        <span className="text-sm text-muted truncate max-w-[200px]" title={site.name}>{site.name}</span>
-        <span className="text-dim">/</span>
+        {/* Sous 1440 px, la barre du haut garde l'essentiel : le nom du site, les images et la palette (⌘K) passent en retrait. */}
+        <span className="hidden min-[1440px]:inline text-sm text-muted truncate max-w-[200px]" title={site.name}>{site.name}</span>
+        <span className="hidden min-[1440px]:inline text-dim">/</span>
         <span className="text-sm text-ink truncate max-w-[160px]">{page.name[locale]}</span>
         {page.kind === "template" ? <Badge tone="accent" title="Cette page s'affiche une fois par entrée de sa base">page par entrée</Badge> : null}
         {template ? (
@@ -601,33 +611,41 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
         <div className="ml-4"><Tabs variant="pill" label="Mode" tabs={MODES.map((m) => ({ ...m, disabled: m.id === "code" || (writer && m.id !== "write"), hint: writer && (m.id === "design" || m.id === "animate") ? "Réservé aux éditeurs du site" : m.hint }))} value={editMode} onChange={(m) => switchMode(m as EditMode)} /></div>
 
         <div className="ml-auto flex items-center gap-2">
-          <Tabs variant="pill" label="Largeur de l'aperçu" tabs={PRESETS.map((x) => ({ id: x.id, label: x.label }))} value={customWidth === null ? preset : ""} onChange={(id) => { setPreset(id); setCustomWidth(null); }} />
-          {editMode === "design" ? <><NumberInput className="w-[92px]" unit="px" min={MIN_WIDTH} max={MAX_WIDTH} step={10} title="Largeur de l'aperçu (320 à 4000 px)" value={Math.round(effective) || ""} onValueChange={(v) => setCustomWidth(v === "" ? null : v)} />
-          <Badge tone="accent" title="Taille d'écran active : les réglages de style se posent dessus">{breakpoint}</Badge></> : null}
-          {scale < 1 ? <Badge title="Aperçu réduit pour tenir dans la zone">{Math.round(scale * 100)} %</Badge> : null}
+          <div className="hidden min-[1440px]:block"><Tabs variant="pill" label="Largeur de l'aperçu" tabs={PRESETS.map((x) => ({ id: x.id, label: x.label }))} value={customWidth === null ? preset : ""} onChange={(id) => { setPreset(id); setCustomWidth(null); }} /></div>
+          <Select className="min-[1440px]:hidden w-[104px]" value={customWidth === null ? preset : ""} placeholder="Libre" options={PRESETS.map((x) => ({ value: x.id, label: x.label }))} onValueChange={(id) => { setPreset(id); setCustomWidth(null); }} />
+          {/* Sous 1440 px : la largeur se règle à la poignée du canevas, qui rappelle aussi la taille d'écran active. */}
+          <span className="hidden min-[1440px]:contents">{editMode === "design" ? <><NumberInput className="w-[92px]" unit="px" min={MIN_WIDTH} max={MAX_WIDTH} step={10} title="Largeur de l'aperçu (320 à 4000 px)" value={Math.round(effective) || ""} onValueChange={(v) => setCustomWidth(v === "" ? null : v)} />
+          <Badge tone="accent" title="Taille d'écran active : les réglages de style se posent dessus">{breakpoint}</Badge></> : null}</span>
+          {scale < 1 ? <span className="hidden min-[1440px]:contents"><Badge title="Aperçu réduit pour tenir dans la zone">{Math.round(scale * 100)} %</Badge></span> : null}
           <IconButton label={showGrid ? "Masquer la grille de mise en page (⌃G)" : "Afficher la grille de mise en page (⌃G)"} icon={Grid3x3} active={showGrid} onClick={toggleGrid} />
+          {focusMode ? null : <IconButton label={leftCollapsed ? "Afficher le panneau de gauche (pages, calques, ajouter…)" : "Masquer le panneau de gauche"} icon={leftCollapsed ? PanelLeftOpen : PanelLeftClose} active={!leftCollapsed} onClick={toggleLeft} />}
           <IconButton label={focusMode ? "Quitter le mode concentration" : "Mode concentration : masquer les panneaux"} icon={focusMode ? Minimize2 : Maximize2} active={focusMode} onClick={() => setFocusMode((v) => !v)} />
-          {editMode === "design" ? <IconButton label={compareMode ? "Quitter la comparaison responsive" : "Comparer avec le mobile"} icon={Columns2} active={compareMode} onClick={() => setCompareMode((v) => !v)} /> : null}
+          <span className="hidden min-[1440px]:contents">{editMode === "design" ? <IconButton label={compareMode ? "Quitter la comparaison responsive" : "Comparer avec le mobile"} icon={Columns2} active={compareMode} onClick={() => setCompareMode((v) => !v)} /> : null}</span>
           <Separator vertical />
           <div className="flex items-center gap-0.5">
             <IconButton label={`Annuler (${mod()}Z)`} icon={Undo2} disabled={!doc.canUndo} onClick={doc.undo} />
             <IconButton label={`Rétablir (⇧${mod()}Z)`} icon={Redo2} disabled={!doc.canRedo} onClick={doc.redo} />
           </div>
-          <Badge tone={status.tone} title={doc.error ?? `Version ${doc.version}`}>{status.label} · v{doc.version}</Badge>
+          <Badge tone={status.tone} title={doc.error ?? `Version ${doc.version}`}>{status.label}<span className="hidden min-[1440px]:inline"> · v{doc.version}</span></Badge>
+          <span className="hidden min-[1440px]:contents">
           <Separator vertical />
           <div className="flex items-center gap-0.5">
             {site.theme.modes.map((m) => <IconButton key={m.id} label={`Aperçu en mode ${m.name.toLowerCase()}`} icon={m.id === "dark" ? Moon : Sun} active={mode === m.id} onClick={() => setMode(m.id)} />)}
           </div>
+          </span>
           <Separator vertical />
-          <IconButton label="Images du site" icon={ImagesIcon} onClick={() => openMediaLibrary()} />
-          <IconButton label={`Palette de commandes (${mod()}K)`} icon={CommandIcon} onClick={() => setPaletteOpen(true)} />
-          <Button variant="ghost" icon={ExternalLink} onClick={() => window.open(previewPath, "_blank")}>Aperçu</Button>
+          {/* Sous 1440 px : images et palette restent au clavier (⌘K), la barre garde la publication. */}
+          <span className="hidden min-[1440px]:contents">
+            <IconButton label="Images du site" icon={ImagesIcon} onClick={() => openMediaLibrary()} />
+            <IconButton label={`Palette de commandes (${mod()}K)`} icon={CommandIcon} onClick={() => setPaletteOpen(true)} />
+          </span>
+          <Button variant="ghost" icon={ExternalLink} title="Aperçu dans un nouvel onglet" aria-label="Aperçu dans un nouvel onglet" onClick={() => window.open(previewPath, "_blank")}><span className="hidden min-[1440px]:inline">Aperçu</span></Button>
           {writer ? null : <IconButton label="Réglages du site (adresse, référencement, redirections, export, partage)" icon={Settings2} onClick={() => { setPublishTab("settings"); setPublishOpen(true); }} />}
           <Button variant="primary" icon={UploadCloud} onClick={() => setPublishOpen(true)} title={writer ? "Publier les contenus (entrées des bases)" : "Publier le site, voir l'historique, revenir en arrière"}>{writer ? "Publier les contenus" : "Publier"}</Button>
         </div>
       </header>
 
-      {focusMode ? null : <Panel side="left">
+      {focusMode || leftCollapsed ? null : <Panel side="left">
         <Tabs label="Panneau" tabs={editMode === "write" ? [{ id: "pages", label: "Pages", icon: FileText }, { id: "add", label: "Ajouter", icon: Plus }, { id: "data", label: "Données", icon: DatabaseIcon }] : [{ id: "pages", label: "Pages", icon: FileText }, { id: "layers", label: "Calques", icon: Layers }, { id: "add", label: "Ajouter", icon: Plus }, { id: "data", label: "Données", icon: DatabaseIcon }, { id: "theme", label: "Thème", icon: Palette }]} value={leftTab} onChange={setLeftTab} className="px-1 shrink-0" />
         <div className="flex-1 overflow-auto py-1" onDragOver={(e) => { if (dragId.current || dragBlock.current) e.preventDefault(); }} onDrop={(e) => { e.preventDefault(); setDrop(null); }}>
           {leftTab === "pages" ? (
@@ -707,7 +725,14 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
         </div>
       </main>
 
-      {focusMode ? null : <Panel side="right">
+      {focusMode ? null : <Panel side="right" className="relative">
+        {editMode === "animate" && openTl ? (
+          <div role="separator" aria-orientation="vertical" aria-label="Largeur du panneau Animation (flèches pour ajuster)" aria-valuemin={360} aria-valuemax={720} aria-valuenow={animPanelW} tabIndex={0}
+            className="absolute left-0 top-0 bottom-0 z-40 w-1.5 -translate-x-1/2 cursor-col-resize hover:bg-accent/40 focus-visible:bg-accent/60"
+            title="Glisser pour élargir ou réduire le panneau Animation"
+            onPointerDown={(e) => { e.preventDefault(); const startX = e.clientX, startW = animPanelW; const onMove = (ev: PointerEvent) => setAnimPanelW(Math.round(Math.min(720, Math.max(360, startW - (ev.clientX - startX))))); const onUp = (ev: PointerEvent) => { window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); saveAnimPanelW(startW - (ev.clientX - startX)); }; window.addEventListener("pointermove", onMove); window.addEventListener("pointerup", onUp); }}
+            onKeyDown={(e) => { if (e.key === "ArrowLeft") { e.preventDefault(); saveAnimPanelW(animPanelW + (e.shiftKey ? 80 : 20)); } if (e.key === "ArrowRight") { e.preventDefault(); saveAnimPanelW(animPanelW - (e.shiftKey ? 80 : 20)); } }} />
+        ) : null}
         {selectionTrail.length > 1 ? <Breadcrumb label="Chemin de la sélection" items={selectionTrail} onSelect={selectOrPick} className="shrink-0" /> : null}
         {editMode === "animate" ? (
           <div className="flex-1 overflow-auto"><AnimationModePanel site={site} node={selectedLoc?.node ?? null} commit={doc.commit} page={page} getSite={doc.getSite} bp={activeBp} mode={mode} open={openTl} onOpen={openAnimation} scrub={scrub} onSelect={select} onPick={setPick} picking={picking} showTargets={showTargets} /></div>

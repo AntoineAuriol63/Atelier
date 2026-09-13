@@ -36,11 +36,16 @@ export function triggerHosts(root: Node, page?: Pick<Page, "triggers">): Set<str
   return out;
 }
 
-/** Graduations de la règle : un pas lisible (100, 250, 500 ms, 1 s…), au plus douze intervalles. */
-export function rulerTicks(length: number): number[] {
+/**
+ * Graduations de la règle : un pas lisible (50, 100, 250, 500 ms, 1 s…). Sans largeur connue, au plus douze intervalles dans la part
+ * visible (`zoom` : la règle est `zoom` fois plus large que le panneau) ; avec `railPx`, la largeur visible de la règle, au moins 36 px entre deux repères.
+ */
+export function rulerTicks(length: number, zoom = 1, railPx?: number): number[] {
   if (length <= 0) return [0];
-  const steps = [100, 250, 500, 1000, 2000, 5000, 10000, 30000, 60000];
-  const step = steps.find((s) => length / s <= 12) ?? 60000;
+  const steps = [50, 100, 250, 500, 1000, 2000, 5000, 10000, 30000, 60000];
+  const visible = length / Math.max(1, zoom);
+  const allowed = railPx ? Math.max(2, Math.floor(railPx / 36)) : 12;
+  const step = steps.find((s) => (s >= 100 || zoom > 1 ? visible / s <= allowed : false)) ?? 60000;
   const out: number[] = [];
   for (let t = 0; t <= length; t += step) out.push(t);
   return out;
@@ -65,6 +70,14 @@ export function animatedNodes(a: Animation, hostId: string): Set<string> {
   const out = new Set<string>();
   for (const t of a.tracks) { const r = resolveTrackTarget(t.target, hostId); if (!("selector" in r)) out.add(r.node); }
   return out;
+}
+
+/** Niveaux de zoom de la ligne de temps. */
+export const ZOOM_LEVELS = [1, 1.5, 2, 3, 4, 6, 8];
+/** Cran de zoom suivant (`dir` 1) ou précédent (-1), borné aux niveaux proposés. */
+export function nextZoom(current: number, dir: 1 | -1): number {
+  if (dir > 0) return ZOOM_LEVELS.find((z) => z > current + 1e-6) ?? ZOOM_LEVELS[ZOOM_LEVELS.length - 1]!;
+  return [...ZOOM_LEVELS].reverse().find((z) => z < current - 1e-6) ?? ZOOM_LEVELS[0]!;
 }
 
 /** Temps aligné sur une grille (10 ms par défaut), jamais avant 0 : les images-clés se posent et se glissent sur ce pas. */

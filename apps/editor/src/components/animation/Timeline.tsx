@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Copy, Crosshair, Diamond, Pause, Play, Plus, Repeat, SkipBack, Snail, Trash2, X } from "lucide-react";
+import { Copy, Crosshair, Diamond, Pause, Play, Plus, Repeat, SkipBack, Snail, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { Animation, CommitOptions, Node, Op, Site, Track, Trigger } from "@atelier/model";
 import { ANIMATION_PRESETS, STAGGER_FROM_LABELS, TRIGGER_LABELS, animationById, animationLength, describeAnimation, indexSite, keyframeAt, newId, planAddTrack, planFillTrackFromPreset, planRemoveKeyframes, planRemoveTrack, planSetKeyframeEasing, planShiftKeyframes, planUpdateAnimation, planUpdateTrack, resolveTrackTarget, shiftDelta, trackSpan, trackTargetFor, withTargetKind } from "@atelier/model";
 import { Badge, Button, Eyebrow, Hint, IconButton, NumberInput, PanelHeading, Select, TextInput, Toggle } from "@/ui";
-import { canAddTrack, formatMs, rulerTicks, tickLabel, snapTime, targetKindOf, targetKindOptions, trackLabel, type TargetKind } from "@/lib/timeline";
+import { canAddTrack, formatMs, nextZoom, rulerTicks, tickLabel, snapTime, targetKindOf, targetKindOptions, trackLabel, type TargetKind } from "@/lib/timeline";
 import { AppearancePanel, EffectsPanel, SizePanel, SpacingPanel, TypographyPanel, useKeyframeStyle } from "../design";
 import { nodeLabel } from "../node-icons";
 import { EasingField } from "./EasingField";
@@ -56,6 +56,10 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
   const pickRef = useRef(onPick);
   const targetsRef = useRef(showTargets);
   const rail = useRef<HTMLDivElement>(null);
+  const scrollX = useRef<HTMLDivElement>(null);
+  const [zoom, setZoom] = useState(1);
+  // Largeur visible de la règle, pour espacer les repères selon la place réelle (panneau redimensionnable).
+  const [railPx, setRailPx] = useState(0);
   const root = useRef<HTMLElement>(null);
   const [pickMsg, setPickMsg] = useState<string | null>(null);
   // Toujours les dernières fonctions de l'éditeur, sans relancer les effets qui les lisent (les refs se mettent à jour après le rendu, pas pendant).
@@ -68,6 +72,21 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
     root.current?.scrollIntoView({ block: "nearest" });
     if (focusName) { const input = root.current?.querySelector<HTMLInputElement>("input[data-anim-name]"); input?.focus(); input?.select(); }
   }, [focusName]);
+  // Zoom : ⌘ (ou Ctrl) + molette sur la règle ou les pistes ; écouteur non passif pour empêcher le zoom de la page.
+  useEffect(() => {
+    const el = scrollX.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => { if (!(e.metaKey || e.ctrlKey)) return; e.preventDefault(); setZoom((z) => nextZoom(z, e.deltaY < 0 ? 1 : -1)); };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+  useEffect(() => {
+    const el = scrollX.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setRailPx(el.clientWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   // Quitter la ligne de temps annule la pioche et retire le repère de l'aperçu.
   useEffect(() => () => { pickRef.current?.(null); targetsRef.current?.([]); }, []);
 
@@ -97,6 +116,11 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
   const run = (ops: Op[], label: string, coalesceKey?: string) => { if (ops.length) commit({ op: "batch", ops, label }, { label, coalesceKey }); };
   const pause = () => { setPlaying(false); setPlayhead((p) => snapTime(p)); };
   const pct = (t: number) => `${(t / length) * 100}%`;
+  /** Change le zoom en gardant la tête de lecture à l'écran. */
+  const zoomTo = (z: number) => {
+    setZoom(z);
+    window.requestAnimationFrame(() => { const el = scrollX.current; if (el) el.scrollLeft = Math.max(0, (playhead / length) * el.scrollWidth - el.clientWidth / 2); });
+  };
   const seek = (clientX: number) => { const r = rail.current?.getBoundingClientRect(); if (!r || r.width <= 0) return; setPlayhead(snapTime(Math.max(0, Math.min(1, (clientX - r.left) / r.width)) * length)); };
   const capture = (e: React.PointerEvent) => { try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* pointeur déjà relâché */ } };
   const onRailDown = (e: React.PointerEvent) => { pause(); capture(e); seek(e.clientX); };
@@ -158,7 +182,7 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
   const addTrack = () => { if (selected && canAdd.ok) addTrackFor(selected.id); };
   const startPick = () => { setPickMsg(null); onPick?.((id) => addTrackFor(id)); };
 
-  const ticks = rulerTicks(length);
+  const ticks = rulerTicks(length, zoom, railPx || undefined);
   const kfHere = track ? keyframeAt(track, at) : undefined;
   const sorted = track ? [...track.keyframes].sort((a, b) => a.at - b.at) : [];
   const prevKf = kfHere ? [...sorted].reverse().find((k) => k.at < at) : undefined;
@@ -190,53 +214,67 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
         <IconButton size="sm" label={playing ? "Pause" : "Lecture"} icon={playing ? Pause : Play} active={playing} onClick={() => { if (playing) pause(); else { if (playhead >= length) setPlayhead(0); setPlaying(true); } }} />
         <IconButton size="sm" label="Lire en boucle" icon={Repeat} active={loop} onClick={() => setLoop((l) => !l)} />
         <IconButton size="sm" label="Ralenti (vitesse ½)" icon={Snail} active={slow} onClick={() => setSlow((s) => !s)} />
+        <span className="mx-1 h-4 w-px bg-line" aria-hidden />
+        <IconButton size="sm" label="Dézoomer la ligne de temps (⌘ + molette)" icon={ZoomOut} disabled={zoom <= 1} onClick={() => zoomTo(nextZoom(zoom, -1))} />
+        <button type="button" className="h-7 min-w-9 px-1 rounded-sm text-2xs tabular-nums text-muted hover:text-ink hover:bg-hover disabled:opacity-40" disabled={zoom === 1} title="Ajuster : toute la ligne de temps dans la largeur" onClick={() => zoomTo(1)}>{zoom === 1 ? "×1" : `×${String(zoom).replace(".", ",")}`}</button>
+        <IconButton size="sm" label="Zoomer la ligne de temps (⌘ + molette)" icon={ZoomIn} disabled={zoom >= 8} onClick={() => zoomTo(nextZoom(zoom, 1))} />
         <span className="ml-auto text-xs tabular-nums text-muted" aria-live="off">{tickLabel(playhead)} / {formatMs(length)}</span>
       </div>
 
-      <div className="grid grid-cols-[96px_1fr] gap-x-2 text-xs max-h-[38vh] overflow-y-auto" onKeyDown={onTimelineKey}>
-        <span />
-        <div ref={rail} className="relative h-5 border-b border-line cursor-ew-resize select-none" role="slider" aria-label="Tête de lecture" aria-valuemin={0} aria-valuemax={length} aria-valuenow={Math.round(playhead)} tabIndex={0} onPointerDown={onRailDown} onPointerMove={onRailMove}
-          onKeyDown={(e) => { if (e.key === "ArrowRight") { e.preventDefault(); setPlayhead((p) => Math.min(length, snapTime(p) + (e.shiftKey ? 100 : 10))); } if (e.key === "ArrowLeft") { e.preventDefault(); setPlayhead((p) => Math.max(0, snapTime(p) - (e.shiftKey ? 100 : 10))); } if (e.key === " ") { e.preventDefault(); if (playing) pause(); else setPlaying(true); } }}>
-          {ticks.map((t) => <span key={t} className="absolute top-0 text-2xs text-dim -translate-x-1/2" style={{ left: pct(t) }}>{tickLabel(t)}</span>)}
-          <span className="absolute top-0 bottom-0 w-px bg-accent" style={{ left: pct(playhead) }} aria-hidden />
+      <div className="flex text-xs max-h-[38vh] overflow-y-auto" onKeyDown={onTimelineKey}>
+        {/* Noms des pistes, alignés sur la règle et les lignes de droite. */}
+        <div className="w-[104px] shrink-0 flex flex-col pr-2">
+          <span className="h-5 shrink-0" aria-hidden />
+          {animation.tracks.map((t) => {
+            const active = t.id === track?.id;
+            const label = trackLabel(t, hostId, site);
+            return <button key={t.id} type="button" className={`h-7 shrink-0 text-left text-xs truncate ${active ? "text-accent font-medium" : "text-muted hover:text-accent"}`} title={label} aria-current={active || undefined} onClick={() => { pick(t); const n = nodeOfTrack(t); if (n) onSelect(n.id); }}>{label}</button>;
+          })}
         </div>
-        {animation.tracks.map((t) => {
-          const active = t.id === track?.id;
-          const span = trackSpan(t);
-          return (
-            <TrackRow key={t.id} active={active} label={trackLabel(t, hostId, site)} onLabelClick={() => { pick(t); const n = nodeOfTrack(t); if (n) onSelect(n.id); }}>
-              <div className={`relative h-7 border-b border-line/60 ${active ? "bg-accent-soft/20" : ""}`} onPointerDown={(e) => { pick(t); onRailDown(e); }} onPointerMove={onRailMove}>
-                {t.keyframes.length > 1 ? (
-                  <button type="button" tabIndex={-1} title="Sélectionner toutes les images-clés de la piste" aria-label={`Toutes les images-clés de ${trackLabel(t, hostId, site)}`} className="absolute top-1/2 -translate-y-1/2 h-3 group"
-                    style={{ left: pct(span.start), width: `calc(${pct(span.end)} - ${pct(span.start)})` }}
-                    onPointerDown={(e) => { e.stopPropagation(); pause(); pick(t); setSelection(new Set(t.keyframes.map((k) => keyOf({ track: t.id, at: k.at })))); }}>
-                    <span className="block h-0.5 w-full bg-line-strong group-hover:bg-accent/60" aria-hidden />
-                  </button>
-                ) : null}
-                {t.keyframes.map((k) => {
-                  const key = keyOf({ track: t.id, at: k.at });
-                  const isSel = selection.has(key);
-                  const shown = isSel && drag ? Math.max(0, k.at + dragDelta) : k.at;
-                  return (
-                    <button key={k.at} type="button" title={`${k.at} ms${k.easing ? ` · ${k.easing}` : ""} · ⇧-clic : ajouter à la sélection · glisser : déplacer · ⌥-glisser : dupliquer · Suppr : retirer`} aria-label={`Image-clé à ${k.at} ms`} aria-pressed={isSel}
-                      className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 p-1 rounded-xs cursor-grab active:cursor-grabbing ${isSel ? "text-accent" : "text-ink hover:text-accent"}`} style={{ left: pct(shown) }}
-                      onPointerDown={onKeyDown(t, k.at)} onPointerMove={onKeyMove} onPointerUp={onKeyUp} onPointerCancel={() => setDrag(null)}>
-                      <Diamond size={10} fill="currentColor" aria-hidden />
+        {/* Règle et pistes dans un même défilement horizontal : zoomée, la ligne de temps s'élargit et défile (⌘ + molette, ou les boutons du lecteur). */}
+        <div ref={scrollX} className="flex-1 min-w-0 overflow-x-auto overflow-y-hidden">
+          <div className="relative px-2" style={{ width: `${zoom * 100}%`, minWidth: "100%" }}>
+            <div ref={rail} className="relative h-5 border-b border-line cursor-ew-resize select-none" role="slider" aria-label="Tête de lecture" aria-valuemin={0} aria-valuemax={length} aria-valuenow={Math.round(playhead)} tabIndex={0} onPointerDown={onRailDown} onPointerMove={onRailMove}
+              onKeyDown={(e) => { if (e.key === "ArrowRight") { e.preventDefault(); setPlayhead((p) => Math.min(length, snapTime(p) + (e.shiftKey ? 100 : 10))); } if (e.key === "ArrowLeft") { e.preventDefault(); setPlayhead((p) => Math.max(0, snapTime(p) - (e.shiftKey ? 100 : 10))); } if (e.key === " ") { e.preventDefault(); if (playing) pause(); else setPlaying(true); } }}>
+              {ticks.map((t) => <span key={t} className="absolute top-0 text-2xs text-dim -translate-x-1/2" style={{ left: pct(t) }}>{tickLabel(t)}</span>)}
+              <span className="absolute top-0 bottom-0 w-px bg-accent" style={{ left: pct(playhead) }} aria-hidden />
+            </div>
+            {animation.tracks.map((t) => {
+              const active = t.id === track?.id;
+              const span = trackSpan(t);
+              return (
+                <div key={t.id} className={`relative h-7 border-b border-line/60 ${active ? "bg-accent-soft/20" : ""}`} onPointerDown={(e) => { pick(t); onRailDown(e); }} onPointerMove={onRailMove}>
+                  {t.keyframes.length > 1 ? (
+                    <button type="button" tabIndex={-1} title="Sélectionner toutes les images-clés de la piste" aria-label={`Toutes les images-clés de ${trackLabel(t, hostId, site)}`} className="absolute top-1/2 -translate-y-1/2 h-3 group"
+                      style={{ left: pct(span.start), width: `calc(${pct(span.end)} - ${pct(span.start)})` }}
+                      onPointerDown={(e) => { e.stopPropagation(); pause(); pick(t); setSelection(new Set(t.keyframes.map((k) => keyOf({ track: t.id, at: k.at })))); }}>
+                      <span className="block h-0.5 w-full bg-line-strong group-hover:bg-accent/60" aria-hidden />
                     </button>
-                  );
-                })}
-                {drag?.duplicate && dragDelta ? keys.filter((k) => k.track === t.id).map((k) => <span key={`ghost-${k.at}`} className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 p-1 text-accent/40 pointer-events-none" style={{ left: pct(k.at) }} aria-hidden><Diamond size={10} fill="currentColor" /></span>) : null}
-                <span className="absolute top-0 bottom-0 w-px bg-accent/70 pointer-events-none" style={{ left: pct(playhead) }} aria-hidden />
-              </div>
-            </TrackRow>
-          );
-        })}
-        <span />
-        <div className="flex flex-wrap items-center gap-1 pt-1">
-          {onPick ? <Button size="sm" icon={Crosshair} active={picking} onClick={() => (picking ? onPick(null) : startPick())} title="Cliquez ensuite l'élément à animer dans l'aperçu, les calques ou le fil d'Ariane, sans changer la sélection">{picking ? "Cliquez un élément… (Échap)" : "Choisir un élément"}</Button> : null}
-          {canAdd.ok && selected ? <Button size="sm" variant="ghost" icon={Plus} onClick={addTrack} title="Animer l'élément sélectionné dans cette ligne de temps">{`Ajouter « ${nodeLabel(selected)} »`}</Button> : null}
-          {pickMsg ? <span className="text-2xs text-warning truncate" title={pickMsg}>{pickMsg}</span> : null}
+                  ) : null}
+                  {t.keyframes.map((k) => {
+                    const key = keyOf({ track: t.id, at: k.at });
+                    const isSel = selection.has(key);
+                    const shown = isSel && drag ? Math.max(0, k.at + dragDelta) : k.at;
+                    return (
+                      <button key={k.at} type="button" title={`${k.at} ms${k.easing ? ` · ${k.easing}` : ""} · ⇧-clic : ajouter à la sélection · glisser : déplacer · ⌥-glisser : dupliquer · Suppr : retirer`} aria-label={`Image-clé à ${k.at} ms`} aria-pressed={isSel}
+                        className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 p-1 rounded-xs cursor-grab active:cursor-grabbing ${isSel ? "text-accent" : "text-ink hover:text-accent"}`} style={{ left: pct(shown) }}
+                        onPointerDown={onKeyDown(t, k.at)} onPointerMove={onKeyMove} onPointerUp={onKeyUp} onPointerCancel={() => setDrag(null)}>
+                        <Diamond size={10} fill="currentColor" aria-hidden />
+                      </button>
+                    );
+                  })}
+                  {drag?.duplicate && dragDelta ? keys.filter((k) => k.track === t.id).map((k) => <span key={`ghost-${k.at}`} className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 p-1 text-accent/40 pointer-events-none" style={{ left: pct(k.at) }} aria-hidden><Diamond size={10} fill="currentColor" /></span>) : null}
+                  <span className="absolute top-0 bottom-0 w-px bg-accent/70 pointer-events-none" style={{ left: pct(playhead) }} aria-hidden />
+                </div>
+              );
+            })}
+          </div>
         </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-1 pt-1">
+        {onPick ? <Button size="sm" icon={Crosshair} active={picking} onClick={() => (picking ? onPick(null) : startPick())} title="Cliquez ensuite l'élément à animer dans l'aperçu, les calques ou le fil d'Ariane, sans changer la sélection">{picking ? "Cliquez un élément… (Échap)" : "Choisir un élément"}</Button> : null}
+        {canAdd.ok && selected ? <Button size="sm" variant="ghost" icon={Plus} onClick={addTrack} title="Animer l'élément sélectionné dans cette ligne de temps">{`Ajouter « ${nodeLabel(selected)} »`}</Button> : null}
+        {pickMsg ? <span className="text-2xs text-warning truncate" title={pickMsg}>{pickMsg}</span> : null}
       </div>
       </div>
       {trigger?.on === "scroll" ? <Hint>{`Au défilement ${pageLevel ? "de la page" : "de l'élément"}, la position entre ${Math.round((trigger.range?.[0] ?? 0) * 100)} % et ${Math.round((trigger.range?.[1] ?? 1) * 100)} % parcourt cette ligne de temps : la tête de lecture montre l'état à chaque position.`}</Hint>
@@ -278,15 +316,6 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
         </section>
       ) : track && playing ? <Hint>Lecture en cours : mettez en pause pour régler l&apos;image-clé à la tête de lecture.</Hint> : null}
     </section>
-  );
-}
-
-function TrackRow({ label, active, onLabelClick, children }: { label: string; active: boolean; onLabelClick: () => void; children: React.ReactNode }) {
-  return (
-    <>
-      <button type="button" className={`text-left text-xs truncate h-7 ${active ? "text-accent font-medium" : "text-muted hover:text-accent"}`} title={label} aria-current={active || undefined} onClick={onLabelClick}>{label}</button>
-      {children}
-    </>
   );
 }
 
