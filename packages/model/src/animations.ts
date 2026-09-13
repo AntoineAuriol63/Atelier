@@ -165,6 +165,20 @@ export function duplicateQuickTriggers(site: Site, node: Node): Set<Id> {
   }
   return out;
 }
+/** Vitesses proposées pour un choix rapide, en facteur de la durée du préréglage. */
+export const QUICK_SPEEDS = { fast: 0.6, normal: 1, slow: 1.6 } as const;
+export type QuickSpeed = keyof typeof QUICK_SPEEDS;
+/** Vitesse d'un choix rapide : rapide, normale ou lente d'après sa longueur rapportée au préréglage ; « custom » si elle a été réglée à la main. */
+export function quickSpeed(q: { animation: Animation; preset: AnimationPreset }): QuickSpeed | "custom" {
+  const ratio = q.preset.duration ? animationLength(q.animation) / q.preset.duration : 1;
+  const found = (Object.entries(QUICK_SPEEDS) as [QuickSpeed, number][]).find(([, f]) => Math.abs(ratio - f) < 0.05);
+  return found ? found[0] : "custom";
+}
+/** Règle la vitesse d'un choix rapide (met son animation à l'échelle, qui reste son préréglage). */
+export function planQuickSpeed(site: Site, node: Node, group: QuickGroup, speed: QuickSpeed): Op[] {
+  const q = quickAnimation(site, node, group);
+  return q ? planScaleAnimation(site, q.animation.id, q.preset.duration * QUICK_SPEEDS[speed]) : [];
+}
 /** Pose (ou remplace, ou retire avec `""`) le préréglage d'une famille sur l'élément seul ; le détail (lettres, enfants) et le délai sont gardés. */
 export function planQuickAnimation(site: Site, node: Node, group: QuickGroup, presetId: string): Op[] {
   const current = quickAnimation(site, node, group);
@@ -173,7 +187,9 @@ export function planQuickAnimation(site: Site, node: Node, group: QuickGroup, pr
   if (!preset || preset.group !== group) return [];
   const track = current?.animation.tracks[0];
   const relative = track && "trigger" in track.target ? track : undefined;
-  return planApplyPreset(site, node, preset, { replaceTriggerId: current?.trigger.id, triggerId: current?.trigger.id, target: relative?.target, stagger: relative?.stagger, trigger: current?.trigger.delay ? { delay: current.trigger.delay } : undefined });
+  // La vitesse choisie suit le changement de préréglage (même facteur de durée).
+  const factor = current && current.preset.duration ? animationLength(current.animation) / current.preset.duration : 1;
+  return planApplyPreset(site, node, preset, { replaceTriggerId: current?.trigger.id, triggerId: current?.trigger.id, target: relative?.target, stagger: relative?.stagger, duration: Math.abs(factor - 1) > 0.01 ? Math.round(preset.duration * factor) : undefined, trigger: current?.trigger.delay ? { delay: current.trigger.delay } : undefined });
 }
 /** Détail d'un choix rapide : d'un bloc, lettre par lettre (30 ms), ou enfant par enfant (100 ms). La ligne de temps n'est pas touchée. */
 export function planQuickDetail(site: Site, node: Node, group: QuickGroup, detail: QuickDetail): Op[] {
@@ -313,6 +329,24 @@ export function planShiftKeyframes(site: Site, animationId: Id, keys: { track: I
   });
   const end = Math.max(0, ...tracks.map((t) => trackSpan(t).end));
   return planUpdateAnimation(site, animationId, { tracks, duration: Math.max(a.duration, end) });
+}
+/**
+ * Vitesse d'une animation (audit n°5 · R1) : changer sa durée met toutes ses pistes à l'échelle, images-clés et décalages compris,
+ * à partir de sa longueur réelle ; le délai du déclencheur ne bouge pas. Sans piste, la durée est seulement la longueur de la ligne de temps.
+ */
+export function planScaleAnimation(site: Site, animationId: Id, duration: number): Op[] {
+  const a = animationById(site, animationId);
+  if (!a || !(duration > 0)) return [];
+  const length = animationLength(a);
+  const target = Math.round(duration);
+  if (!a.tracks.length || !length) return planUpdateAnimation(site, animationId, { duration: target });
+  const f = target / length;
+  const tracks = a.tracks.map((t) => {
+    const byAt = new Map<number, Keyframe>();
+    for (const k of [...t.keyframes].sort((x, y) => x.at - y.at)) byAt.set(Math.round(k.at * f), { ...k, at: Math.round(k.at * f) });
+    return { ...t, keyframes: [...byAt.values()], ...(t.stagger ? { stagger: { ...t.stagger, each: Math.round(t.stagger.each * f) } } : {}) };
+  });
+  return planUpdateAnimation(site, animationId, { tracks, duration: target });
 }
 /** Remplit une piste avec les images-clés d'un préréglage, posées à partir du départ de la piste (sa cible et son décalage restent). */
 export function planFillTrackFromPreset(site: Site, animationId: Id, trackId: Id, preset: AnimationPreset): Op[] {

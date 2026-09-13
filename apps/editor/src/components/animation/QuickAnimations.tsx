@@ -3,10 +3,12 @@
 import { Fragment, useEffect, useRef } from "react";
 import { Film, Play } from "lucide-react";
 import type { CommitOptions, Node, Op, QuickGroup, Site } from "@atelier/model";
-import { ANIMATION_PRESETS, planQuickAnimation, planQuickDetail, quickAnimation } from "@atelier/model";
+import { ANIMATION_PRESETS, planQuickAnimation, planQuickDetail, planQuickSpeed, quickAnimation, quickSpeed, type QuickSpeed } from "@atelier/model";
 import { Button, Field, FieldGroup, IconButton, Select, Toggle } from "@/ui";
+import { Segmented } from "@/ui/controls";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
+const SPEEDS = [{ value: "fast", label: "Rapide" }, { value: "normal", label: "Normale" }, { value: "slow", label: "Lente" }];
 
 const QUICK: { group: QuickGroup; label: string; none: string; hint: string }[] = [
   { group: "Apparition", label: "Apparition", none: "Aucune", hint: "L'élément arrive quand il entre dans l'écran" },
@@ -50,6 +52,12 @@ export function QuickAnimations({ site, node, commit, onOpenAnimation, onPlay }:
                 {q && onPlay ? <IconButton size="sm" label={`Jouer : ${q.preset.label}`} icon={Play} onClick={() => onPlay(q.trigger.id)} /> : null}
               </div>
             </Field>
+            {/* Vitesse (audit n°5 · R1) : rapide, normale ou lente, sans quitter le préréglage. */}
+            {q ? (
+              <Field label="" hint="Vitesse de l'animation, par rapport au préréglage">
+                <Segmented size="sm" required label={`Vitesse · ${label}`} className="flex-1" value={quickSpeed(q) === "custom" ? undefined : quickSpeed(q)} options={SPEEDS} onChange={(v) => { if (v) run(planQuickSpeed(site, node, group, v as QuickSpeed), `${label} · ${SPEEDS.find((o) => o.value === v)?.label.toLowerCase()}`, group); }} />
+              </Field>
+            ) : null}
             {/* Le détail d'une apparition se règle juste sous elle, pas sous le dernier choix. */}
             {group === "Apparition" && appear && (canLetters || canChildren) ? (
               <Field label="" hint="Faire arriver l'élément d'un bloc, ou ses morceaux un à un">

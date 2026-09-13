@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Copy, Crosshair, Diamond, Pause, Play, Plus, Repeat, SkipBack, Snail, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { Animation, CommitOptions, Node, Op, Site, Track, Trigger } from "@atelier/model";
-import { ANIMATION_PRESETS, STAGGER_FROM_LABELS, TRIGGER_LABELS, animationById, animationLength, describeAnimation, indexSite, keyframeAt, newId, planAddTrack, planFillTrackFromPreset, planRemoveKeyframes, planRemoveTrack, planSetKeyframeEasing, planShiftKeyframes, planUpdateAnimation, planUpdateTrack, resolveTrackTarget, shiftDelta, trackSpan, trackTargetFor, withTargetKind } from "@atelier/model";
+import { ANIMATION_PRESETS, STAGGER_FROM_LABELS, TRIGGER_LABELS, animationById, animationLength, describeAnimation, indexSite, keyframeAt, newId, planAddTrack, planFillTrackFromPreset, planScaleAnimation, planRemoveKeyframes, planRemoveTrack, planSetKeyframeEasing, planShiftKeyframes, planUpdateAnimation, planUpdateTrack, resolveTrackTarget, shiftDelta, trackSpan, trackTargetFor, withTargetKind } from "@atelier/model";
 import { Badge, Button, Eyebrow, Hint, IconButton, NumberInput, PanelHeading, Select, TextInput, Toggle } from "@/ui";
 import { canAddTrack, formatMs, nextZoom, rulerTicks, tickLabel, snapTime, targetKindOf, targetKindOptions, trackLabel, type TargetKind } from "@/lib/timeline";
 import { AppearancePanel, EffectsPanel, SizePanel, SpacingPanel, TypographyPanel, useKeyframeStyle } from "../design";
@@ -164,7 +164,6 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
 
   // --- animation : nom, durée, répétitions
   const update = (patch: Partial<Animation>, label: string, coalesceKey?: string) => run(planUpdateAnimation(getSite(), animation.id, patch), label, coalesceKey);
-  const tracksEnd = Math.max(0, ...animation.tracks.map((t) => trackSpan(t).end));
   const canAdd = canAddTrack(site, animation, hostId, selected?.id);
   /** Ajoute une piste pour un élément (sélectionné, ou pris à la pioche) : elle devient la piste active. */
   const addTrackFor = (nodeId: string) => {
@@ -205,7 +204,8 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
       </div>
       {trigger ? <span className="-mt-1 text-2xs text-muted truncate" title="Ce qui lance cette animation (réglages dans « Déclencheurs »)">{TRIGGER_LABELS[trigger.on]}{trigger.delay ? ` · +${trigger.delay} ms` : ""} · {pageLevel ? "sur la page" : `sur « ${hostNode ? nodeLabel(hostNode) : hostId} »`}</span> : null}
       <div className="grid grid-cols-[auto_1fr_auto] items-center gap-1.5">
-        <NumberInput className="w-[92px]" unit="ms" min={Math.max(100, tracksEnd)} step={100} value={animation.duration} title="Durée de la ligne de temps (au moins la dernière image-clé)" onValueChange={(n) => update({ duration: Math.max(n === "" ? 0 : n, tracksEnd, 100) }, "Durée de l'animation", `anim-dur:${animation.id}`)} />
+        {/* Durée = vitesse (audit n°5 · R1) : la changer ralentit ou accélère toute l'animation, images-clés et décalages compris. */}
+        <NumberInput className="w-[92px]" unit="ms" min={100} step={100} value={length} title="Durée : la changer ralentit ou accélère toute l'animation (images-clés et décalages suivent)" onValueChange={(n) => { if (n === "" || n === length) return; run(planScaleAnimation(getSite(), animation.id, Math.max(100, n)), "Durée de l'animation", `anim-dur:${animation.id}`); setPlayhead((p) => Math.round((p * Math.max(100, n)) / length)); }} />
         <Select value={String(animation.loop ?? 1)} options={LOOPS} onValueChange={(v) => update({ loop: v === "1" ? undefined : v === "infinite" ? "infinite" : Number(v), ...(v === "1" ? { alternate: undefined } : {}) }, "Répétitions")} />
         <Toggle checked={!!animation.alternate} disabled={!animation.loop || animation.loop === 1} label="aller-retour" title={!animation.loop || animation.loop === 1 ? "Choisissez d'abord des répétitions (2, 3 ou en boucle)" : "Rejoue à l'envers une fois sur deux"} onChange={(b) => update({ alternate: b || undefined }, "Aller-retour")} />
       </div>

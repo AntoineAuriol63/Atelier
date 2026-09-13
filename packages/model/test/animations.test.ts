@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ANIMATION_PRESETS, BASE, animationById, animationFromPreset, animationUsages, applyOps, describeAnimation, describeTrigger, duplicateQuickTriggers, easingCss, isPresetIntact, keyframeAt, keyframeStyleAt, migrate, parseSpring, planAddPageTrigger, planFillTrackFromPreset, planAddTrack, planAddTrigger, planApplyPreset, planRemoveAnimation, planRemoveKeyframe, planRemoveKeyframes, planRemovePageTriggerWithAnimation, planRemoveTrack, planQuickAnimation, planQuickDetail, planRemoveTrigger, planRemoveTriggerWithAnimation, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUnsetKeyframeProp, planUpdateAnimation, planUpdatePageTrigger, planUpdateTrack, planUpdateTrigger, presetById, quickAnimation, resolveTrackTarget, sampleSite, schema, shiftDelta, springDuration, springEasing, springSamples, staggerDelay, staggerRank, trackSpan, trackTargetFor, withTargetKind, type Animation, type Node, type Site, type Trigger } from "../src";
+import { ANIMATION_PRESETS, BASE, QUICK_SPEEDS, animationLength, animationById, animationFromPreset, animationUsages, applyOps, describeAnimation, describeTrigger, duplicateQuickTriggers, easingCss, isPresetIntact, keyframeAt, keyframeStyleAt, migrate, parseSpring, planAddPageTrigger, planFillTrackFromPreset, planAddTrack, planAddTrigger, planApplyPreset, planRemoveAnimation, planRemoveKeyframe, planRemoveKeyframes, planRemovePageTriggerWithAnimation, planRemoveTrack, planQuickAnimation, planQuickDetail, planRemoveTrigger, planRemoveTriggerWithAnimation, planScaleAnimation, planQuickSpeed, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUnsetKeyframeProp, planUpdateAnimation, planUpdatePageTrigger, planUpdateTrack, planUpdateTrigger, presetById, quickAnimation, quickSpeed, resolveTrackTarget, sampleSite, schema, shiftDelta, springDuration, springEasing, springSamples, staggerDelay, staggerRank, trackSpan, trackTargetFor, withTargetKind, type Animation, type Node, type Site, type Trigger } from "../src";
 const siteSchema = schema.site;
 
 const node = (site: Site, id: string): Node => { let out: Node | undefined; const dfs = (n: Node) => { if (n.id === id) out = n; n.children?.forEach(dfs); }; site.pages.forEach((p) => dfs(p.root)); return out!; };
@@ -312,5 +312,47 @@ describe("animations : suites de l'audit d'usage", () => {
     const site: Site = { ...sampleSite, animations: [a1, a2, a3] };
     expect([...duplicateQuickTriggers(site, n)]).toEqual(["tr_d2"]);
     expect(duplicateQuickTriggers(site, { ...n, triggers: n.triggers!.slice(0, 2) }).size).toBe(0);
+  });
+});
+
+describe("animations : la durée est la vitesse (audit n°5 · R1)", () => {
+  it("changer la durée met toute l'animation à l'échelle : images-clés, décalages ; le délai du déclencheur ne bouge pas", () => {
+    const a = anim("an_sc", [
+      { id: "tk_sc1", target: { trigger: true }, keyframes: [{ at: 0, style: { opacity: "0" } }, { at: 400, style: { opacity: "1" } }] },
+      { id: "tk_sc2", target: { node: "hero_p", children: true }, stagger: { each: 80 }, keyframes: [{ at: 200, style: {} }, { at: 800, style: { opacity: "1" }, easing: "ease-out" }] },
+    ], { duration: 800 });
+    let site: Site = { ...sampleSite, animations: [a] };
+    ({ site } = applyOps(site, planScaleAnimation(site, "an_sc", 1600)));
+    const b = animationById(site, "an_sc")!;
+    expect(b.duration).toBe(1600);
+    expect(b.tracks[0]!.keyframes.map((k) => k.at)).toEqual([0, 800]);
+    expect(b.tracks[1]!.keyframes).toEqual([{ at: 400, style: {} }, { at: 1600, style: { opacity: "1" }, easing: "ease-out" }]);
+    expect(b.tracks[1]!.stagger).toEqual({ each: 160 });
+    // Une ligne de temps plus longue que ses pistes : l'échelle part de sa longueur réelle.
+    ({ site } = applyOps(site, planScaleAnimation(site, "an_sc", 800)));
+    expect(animationById(site, "an_sc")!.tracks[1]!.keyframes.map((k) => k.at)).toEqual([200, 800]);
+    // Sans piste, la durée est seulement la longueur de la ligne de temps.
+    const empty = { ...sampleSite, animations: [anim("an_empty", [], { duration: 1000 })] };
+    expect(animationById(applyOps(empty, planScaleAnimation(empty, "an_empty", 2000)).site, "an_empty")!.duration).toBe(2000);
+    expect(planScaleAnimation(site, "an_sc", 0)).toEqual([]);
+    expect(siteSchema.safeParse(site).success).toBe(true);
+  });
+
+  it("vitesse d'un choix rapide : rapide, normale, lente, par rapport à la durée du préréglage, sans le rendre « personnalisé »", () => {
+    const title: Node = { id: "sp_title", type: "text", props: { tag: "h2", content: { fr: [{ t: "text", v: "Titre" }] } } };
+    let site: Site = { ...sampleSite, animations: [], pages: [{ ...sampleSite.pages[0]!, root: { id: "sp_root", type: "box", props: {}, children: [title] } }] };
+    ({ site } = applyOps(site, planQuickAnimation(site, node(site, "sp_title"), "Apparition", "fade-up")));
+    expect(quickSpeed(quickAnimation(site, node(site, "sp_title"), "Apparition")!)).toBe("normal");
+    ({ site } = applyOps(site, planQuickSpeed(site, node(site, "sp_title"), "Apparition", "slow")));
+    const q = quickAnimation(site, node(site, "sp_title"), "Apparition")!;
+    expect(quickSpeed(q)).toBe("slow");
+    expect(q.intact).toBe(true);
+    expect(animationLength(q.animation)).toBe(Math.round(700 * QUICK_SPEEDS.slow));
+    ({ site } = applyOps(site, planQuickSpeed(site, node(site, "sp_title"), "Apparition", "fast")));
+    expect(quickSpeed(quickAnimation(site, node(site, "sp_title"), "Apparition")!)).toBe("fast");
+    // Changer de préréglage garde la vitesse choisie.
+    ({ site } = applyOps(site, planQuickAnimation(site, node(site, "sp_title"), "Apparition", "zoom")));
+    expect(quickSpeed(quickAnimation(site, node(site, "sp_title"), "Apparition")!)).toBe("fast");
+    expect(siteSchema.safeParse(site).success).toBe(true);
   });
 });
