@@ -1,5 +1,5 @@
 import type { Animation, Node, Page, Site, Track, TrackTarget, Trigger } from "@atelier/model";
-import { animationById, animationLength, animationUsages, indexSite, isPresetIntact, presetById, resolveTrackTarget, trackSpan } from "@atelier/model";
+import { animationById, animationLength, animationUsages, indexSite, isPresetIntact, presetById, resolveTrackTarget, trackPresetMatch, trackSpan } from "@atelier/model";
 import { nodeLabel } from "@/components/node-icons";
 
 /** L'animation ouverte dans la ligne de temps : elle se joue depuis un hôte (l'élément qui porte le déclencheur). */
@@ -126,7 +126,6 @@ export function animationLabel(site: Site, a: Animation): string {
 /** Un libellé d'élément entre guillemets, sauf s'il en porte déjà (« Titre 1 « Bonjour » »). */
 export const quoteLabel = (label: string) => (label.includes("«") ? label : `« ${label} »`);
 const quoted = quoteLabel;
-const joinFr = (parts: string[]) => (parts.length <= 1 ? parts.join("") : `${parts.slice(0, -1).join(", ")} et ${parts[parts.length - 1]}`);
 
 /**
  * Ce qui va se passer sur le site, en une phrase (audit n°5 · R2) : quand, ce qui bouge et à quel moment, combien de fois.
@@ -173,9 +172,17 @@ export function summarizeAnimation(site: Site, trigger: Trigger, hostId: string,
   const preset = presetById(a.preset);
   const only = tracks.length === 1 ? tracks[0]! : undefined;
   const onHost = !!only && "trigger" in only.target && !only.target.children && !only.target.split;
+  const lower = (label: string) => `${label.charAt(0).toLowerCase()}${label.slice(1)}`;
+  // Dans un enchaînement, chaque élément dit son effet quand c'est un préréglage, et « puis » marque celui qui part après la fin du précédent.
+  const effect = (t: Track) => { const m = positional ? undefined : trackPresetMatch(t); return m ? ` (${lower(m.preset.label)})` : ""; };
   const what = only && onHost && preset && isPresetIntact(a) && !positional
-    ? `${preset.label.charAt(0).toLowerCase()}${preset.label.slice(1)} ${moment(only)}`
-    : joinFr(tracks.map((t) => `${subject(t)} ${moment(t)}`));
+    ? `${lower(preset.label)} ${moment(only)}`
+    : tracks.map((t, i) => {
+      const part = `${subject(t)}${effect(t)} ${moment(t)}`;
+      if (i === 0) return part;
+      const sequential = !positional && trackSpan(t).start >= trackSpan(tracks[i - 1]!).end - 1;
+      return `${sequential ? ", puis " : i === tracks.length - 1 ? " et " : ", "}${part}`;
+    }).join("");
   const after = trigger.on === "inView" ? (trigger.once === false ? "à chaque passage" : "une seule fois")
     : trigger.on === "hover" && trigger.reverseOnLeave ? "puis retour quand la souris part"
     : trigger.on === "click" && trigger.toggle ? "un clic sur deux la rembobine"

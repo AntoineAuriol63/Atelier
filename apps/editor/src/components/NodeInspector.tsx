@@ -4,7 +4,7 @@ import { QuickAnimations } from "./animation/QuickAnimations";
 import { createElement, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Copy, Trash2, X } from "lucide-react";
 import type { CommitOptions, Inline, Node, NodeLocation, Op, Site, StyleValue, DataSource } from "@atelier/model";
-import { BASE, classMap, cloneWithNewIds, newId, resolveNodeStyle, resolveSharedStyleSet, stylePath, variantKey } from "@atelier/model";
+import { BASE, appearanceOf, classMap, cloneWithNewIds, newId, resolveNodeStyle, resolveSharedStyleSet, stylePath, variantKey } from "@atelier/model";
 import { Badge, Field, FieldGroup, Hint, IconButton, Section, TextArea, TextInput, Eyebrow } from "@/ui";
 import { nodeIcon, nodeLabel, TYPE_LABEL } from "./node-icons";
 import { propLabel } from "@/lib/prop-labels";
@@ -288,14 +288,14 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
       <TypographyPanel site={site} style={style} mode={mode} defaultOpen={node.type === "text" || node.type === "link"} />
       <AppearancePanel site={site} style={style} mode={mode} />
       <EffectsPanel site={site} style={style} node={sharedDef ? undefined : node} commit={commit} />
-      {!sharedDef ? <AnimationsPanel site={site} node={node} commit={commit} onPlay={onPlay ? (triggerId) => onPlay(node.id, triggerId) : undefined} onOpenAnimation={onOpenAnimation} onTestOnSite={onTestOnSite} /> : null}
+      {!sharedDef ? <AnimationsPanel site={site} node={node} commit={commit} onPlay={onPlay ? (triggerId, hostId) => onPlay(hostId ?? node.id, triggerId) : undefined} onOpenAnimation={onOpenAnimation} onTestOnSite={onTestOnSite} /> : null}
       {!sharedDef ? <InteractionsPanel site={site} node={node} pageRoot={pageRoot} commit={commit} /> : null}
 
         </>
       )}
       {editMode === "write" && !sharedDef && onOpenAnimation ? (
-        <Section title="Animation" defaultOpen={!!node.triggers?.length} hint="Faire arriver l'élément, le faire réagir au survol ou bouger en continu, en un choix.">
-          <QuickAnimations site={site} node={node} commit={commit} onPlay={onPlay ? (triggerId) => onPlay(node.id, triggerId) : undefined} onOpenAnimation={() => onOpenAnimation()} onTestOnSite={onTestOnSite} />
+        <Section title="Animation" defaultOpen={!!node.triggers?.length || !!appearanceOf(site, node.id)} hint="Faire arriver l'élément, le faire réagir au survol ou bouger en continu, en un choix.">
+          <QuickAnimations site={site} node={node} commit={commit} onPlay={onPlay ? (triggerId, hostId) => onPlay(hostId ?? node.id, triggerId) : undefined} onOpenAnimation={() => onOpenAnimation()} onTestOnSite={onTestOnSite} />
         </Section>
       ) : null}
       {!sharedDef && editMode === "design" ? <SharedStylesPanel site={site} node={node} commit={commit} onEdit={setEditingShared} /> : null}

@@ -63,6 +63,12 @@ Chaque lot : tests d'abord, code, parcours vérifié dans l'éditeur par de vrai
 - **« Tester sur le site » ouvert en haut de page** (S15) : l'Aperçu attend 400 ms, place l'élément sous l'écran, puis le fait défiler 700 ms plus tard ; une capture prise dans cette seconde montre le haut de la page. Cause probable : moment de la capture ; pas de changement.
 - **Encart « Comment ça marche »** (constat 11) : reporté au lot 4, avec l'arrivée dans le mode Animation.
 
+### Lot 1 · enchaîner (14 septembre)
+- **Modèle** (`packages/model/src/appearance.ts`, 18 tests) : lecture de l'apparition d'un élément où qu'elle soit (sur lui, ou piste d'une animation lancée par un autre élément de la page), de son préréglage (décalé et mis à l'échelle), de sa vitesse, de ce qui la fait démarrer (lui-même, après, en même temps, avec l'élément qui lance) et de son délai ; réglages qui gardent l'enchaînement (ce qui part avec ou après un élément suit ses changements ; retirer referme). Pas de changement de schéma.
+- **Rubrique « Animation »** (Écriture et Design) : Apparition · Vitesse · **Démarre** · **Délai** · **Rejouer** · phrase de résumé · détail. Phrase des enchaînements : « Au chargement de la page : Titre 1 « … » (fondu en montant) en 1 120 ms, puis « Réserver une table » (fondu en montant) de 1 120 à 1 620 ms et « Voir la carte » … ».
+- **Vérifié dans l'éditeur** sur l'état de départ de T3 (panneau du navigateur masqué : sélection et choix déclenchés dans la page, pas à la souris) : « Réserver une table » démarre après le titre, « Voir la carte » en même temps, titre passé en « Lente » : boutons de 1 120 à 1 620 ms. Sur le site : titre `1.12s`, boutons `animation-delay: 1.12s`, remplissage `both` (cachés jusqu'à leur départ). Critères R1 à R4 de T3 remplis par cette configuration.
+- **Reste pour U2** (scène de T4) : les trois chiffres sont des occurrences du composant « Chiffre clé » ; un clic sélectionne le texte du composant, pas l'occurrence, et une occurrence ne peut pas porter d'animation au rendu (lots 3 et 5).
+
 ## 5. Test simulé de validation
 
 - Même protocole v1.0 (missions, critères, grille, hypothèses), mêmes personas, même ordre des tâches et même ordre de passage que la vague 2 ; nouvelles instances, nouvelles copies du site, sur la version livrée par les lots 0 à 5.

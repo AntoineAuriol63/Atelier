@@ -125,3 +125,12 @@ Chaque étape : contrat d'abord, tests rouges, code, vérification dans l'édite
 **Réalisé le 13 septembre 2026** (étapes 3 à 7 menées dans la même journée à partir du travail en cours de l'étape 3) : le détail est dans la feuille de route, l'audit d'usage et ses suites dans `docs/audit-animation-2026-09.md`.
 
 Ordre de grandeur prévu : trois à quatre sessions de travail. Les étapes 1 et 2 sont invisibles pour l'utilisateur mais rendent l'étape 3 sûre (les documents existants continuent d'être rendus à l'identique).
+
+## 7. Suite des tests simulés : régler l'apparition depuis l'élément (14 septembre 2026)
+
+Les tests utilisateurs simulés (`docs/tests-simules-animation-2026-09.md`) ont montré que 4 participants sur 5 cherchent « après le titre », un délai ou « rejouer » **à côté de l'effet**, dans la rubrique « Animation » de l'élément, et que le mode Animation fait reculer les débutants. Décisions (plan `docs/plan-usage-animation-2026-09.md`) :
+
+- **« Après » par enchaînement dans une même animation** (solution A, choisie par Antoine) : un élément qui démarre après un autre devient une piste de l'animation qui lance cet autre, placée à la fin de sa piste. Pas de second délai caché : la valeur réglée dans la rubrique est le départ que montre la ligne de temps. Rejeté : un champ « attendre » sur le déclencheur de chaque élément (deux délais qui s'additionnent, R5 ; une scène resterait faite d'événements séparés).
+- **Des champs plutôt qu'une phrase à trous** : « Démarre · Délai · Rejouer » sous l'effet et la vitesse, sur le modèle éprouvé de PowerPoint (« Démarrer : après la précédente »), que cite une participante. La phrase de résumé reste la relecture de ce qui est réglé.
+- **Aucun champ ajouté au modèle** : l'enchaînement se lit dans les départs et fins des pistes (`appearance.ts`, spécification § 8.4). Conséquence assumée : deux éléments qui partent au même instant se lisent « en même temps que » le premier listé, même s'ils ont été posés « après » le même élément ; le résultat pour le visiteur est identique.
+- **Déplacer un élément qui lance déjà une suite l'emmène avec elle** (construire une scène dans le désordre garde l'ordre voulu) ; déplacer un élément enchaîné le déplace seul, et ce qui le suivait se rapproche.

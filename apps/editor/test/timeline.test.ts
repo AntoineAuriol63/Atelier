@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import type { Animation, Node, Site } from "@atelier/model";
+import type { Animation, Keyframe, Node, Site } from "@atelier/model";
 import { sampleSite } from "@atelier/model";
 import { animatedNodes, animationLabel, canAddTrack, openTrigger, summarizeAnimation, formatMs, tickLabel, nextAnimationName, nextZoom, rulerTicks, snapTime, targetKindOf, targetKindOptions, trackLabel, triggerHosts, validOpenTimeline } from "../src/lib/timeline";
 
@@ -131,6 +131,11 @@ describe("phrase de résumé d'une animation (audit n°5 · R2)", () => {
   });
   it("une composition : chaque élément, son moment, les décalages", () => {
     expect(summarizeAnimation(s, { id: "g", on: "inView", animation: "a_comp" }, "col")).toBe("Quand « Colonne » entre dans l'écran : Titre 1 « Bonjour » en 700 ms, Paragraphe « Texte » de 150 à 850 ms et les enfants de « Boutons » un à un (tous les 80 ms) de 300 à 1\u202f000 ms, une seule fois.");
+  });
+  it("un enchaînement : chaque élément avec son effet, « puis » quand il part après la fin du précédent", () => {
+    const up = (from: number, to: number): Keyframe[] => [{ at: from, style: { opacity: "0", transform: "translateY(28px)" } }, { at: to, style: { opacity: "1", transform: "none", filter: "none" }, easing: "cubic-bezier(.22,1,.36,1)" }];
+    const chain: Site = { ...s, animations: [...s.animations, { id: "a_chain", name: "Fondu en montant", preset: "fade-up", duration: 1400, tracks: [{ id: "c1", target: { trigger: true }, keyframes: up(0, 700) }, { id: "c2", target: { node: "par" }, keyframes: up(700, 1400) }, { id: "c3", target: { node: "crd" }, keyframes: kf(700, 1400) }] }] };
+    expect(summarizeAnimation(chain, { id: "g", on: "load", animation: "a_chain" }, "ttl")).toBe("Au chargement de la page : Titre 1 « Bonjour » (fondu en montant) en 700 ms, puis Paragraphe « Texte » (fondu en montant) de 700 à 1 400 ms et « Carte » de 700 à 1 400 ms.");
   });
   it("des enfants visés sans décalage partent ensemble : la phrase ne dit pas « un à un »", () => {
     const together: Site = { ...s, animations: [...s.animations, { id: "a_kids", name: "Enfants", duration: 700, tracks: [{ id: "k8", target: { trigger: true, children: true }, keyframes: kf(0, 700) }] }] };

@@ -2,7 +2,7 @@
 
 import { Film, Play, X } from "lucide-react";
 import type { CommitOptions, Node, Op, Site } from "@atelier/model";
-import { animationById, describeTrigger, duplicateQuickTriggers, isPresetIntact, planRemoveTriggerWithAnimation } from "@atelier/model";
+import { animationById, appearanceOf, describeTrigger, duplicateQuickTriggers, isPresetIntact, planRemoveTriggerWithAnimation } from "@atelier/model";
 import { Badge, Hint, IconButton, Section } from "@/ui";
 import { QuickAnimations } from "../animation/QuickAnimations";
 import { ContinuousEffects } from "../animation/ContinuousEffects";
@@ -14,11 +14,11 @@ type Commit = (op: Op, opts?: CommitOptions) => void;
  * des déclencheurs en lecture seule (« Jouer », « Ouvrir dans le mode Animation », retirer) et le compteur d'un texte.
  * Les réglages des déclencheurs et la composition (pistes, images-clés) se font dans le mode Animation.
  */
-export function AnimationsPanel({ site, node, commit, onPlay, onOpenAnimation, onTestOnSite }: { site: Site; node: Node; commit: Commit; onPlay?: (triggerId: string) => void; onOpenAnimation?: (triggerId?: string) => void; onTestOnSite?: () => void }) {
+export function AnimationsPanel({ site, node, commit, onPlay, onOpenAnimation, onTestOnSite }: { site: Site; node: Node; commit: Commit; onPlay?: (triggerId: string, hostId?: string) => void; onOpenAnimation?: (triggerId?: string) => void; onTestOnSite?: () => void }) {
   const triggers = node.triggers ?? [];
   const duplicates = duplicateQuickTriggers(site, node);
   return (
-    <Section title="Animations" defaultOpen={triggers.length > 0} hint="Choisissez une apparition, une réaction au survol ou un mouvement continu. Le mode Animation règle les déclencheurs et compose des lignes de temps sur plusieurs éléments.">
+    <Section title="Animations" defaultOpen={triggers.length > 0 || !!appearanceOf(site, node.id)} hint="Choisissez une apparition, une réaction au survol ou un mouvement continu. Le mode Animation règle les déclencheurs et compose des lignes de temps sur plusieurs éléments.">
       <QuickAnimations site={site} node={node} commit={commit} onPlay={onPlay} onOpenAnimation={onOpenAnimation ? () => onOpenAnimation() : undefined} onTestOnSite={onTestOnSite} />
       {triggers.length ? (
         <ul className="flex flex-col gap-1 pt-2" aria-label="Déclencheurs de l'élément">
@@ -41,7 +41,7 @@ export function AnimationsPanel({ site, node, commit, onPlay, onOpenAnimation, o
         </ul>
       ) : null}
       {node.type === "text" ? <div className="pt-2"><ContinuousEffects node={node} commit={commit} only={["countUp"]} hint={false} /></div> : null}
-      {triggers.length ? <Hint>Quand, délai, rejouer, retour au départ de la souris… se règlent dans le mode Animation.</Hint> : null}
+      {triggers.length ? <Hint>Retour au départ de la souris, bascule au clic, défilement… se règlent dans le mode Animation.</Hint> : null}
     </Section>
   );
 }
