@@ -167,3 +167,5 @@ Classées par effet sur la compréhension. Il s'agit de ce que l'utilisateur doi
 | **R11** | **Un mot par geste** : « Retirer l'animation » partout (et dire si elle reste utilisée ailleurs) ; renommer « Netteté » (« Flou qui s'efface ») ; corriger la mention de l'aperçu « Voir » | P1, P7 | Moins d'hésitation sur les mots |
 
 **Pour confirmer avant d'engager R1 à R4**, un essai court (30 minutes, 2 ou 3 personnes, sans aide) sur trois consignes suffit : « faites apparaître ce titre », « faites arriver le titre puis le texte quand la section entre à l'écran », « rendez cette apparition deux fois plus lente ». Chaque consigne mesure une des idées non dites du modèle.
+
+**Suite (14 septembre 2026)** : tests utilisateurs simulés après R1 à R4, `docs/tests-simules-animation-2026-09.md`. Ils confirment l'essentiel du verdict, déplacent l'obstacle principal du designer (pas d'« après » dans le panneau plutôt que le placement du déclencheur), révèlent des problèmes non vus ici et révisent R5 à R11 : R5 et R7 à reformuler, R10 confirmée, R6 et R8 sans appui, R9 et R11 moins prioritaires (section 11 du rapport).
