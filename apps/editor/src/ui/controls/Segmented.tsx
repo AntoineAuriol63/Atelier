@@ -38,7 +38,7 @@ export function Segmented({ value, options, onChange, className, size = "md", la
             aria-label={o.label}
             tabIndex={o.value === focusable ? 0 : -1}
             onClick={() => onChange(active && !required ? undefined : o.value)}
-            className={cx("flex-1 min-w-0 inline-flex items-center justify-center rounded-xs text-xs whitespace-nowrap overflow-hidden", size === "sm" ? "h-5 px-1" : "h-6 px-1.5", active ? "bg-raised text-ink shadow-sm" : "text-muted hover:text-ink hover:bg-hover")}
+            className={cx("flex-1 min-w-0 inline-flex items-center justify-center rounded-xs text-xs whitespace-nowrap overflow-hidden", size === "sm" ? "h-5 px-1" : "h-6 px-1.5", active ? "bg-raised text-ink font-medium shadow-sm ring-1 ring-inset ring-line-strong" : "text-muted hover:text-ink hover:bg-hover")}
           >
             {o.icon ? createElement(o.icon, { size: 13, strokeWidth: 1.75, "aria-hidden": true, style: o.rotate ? { transform: `rotate(${o.rotate}deg)` } : undefined }) : <span className="truncate">{o.label}</span>}
           </button>

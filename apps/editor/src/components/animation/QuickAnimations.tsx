@@ -3,10 +3,10 @@
 import { Fragment, useEffect, useRef } from "react";
 import { ExternalLink, Film, Play } from "lucide-react";
 import type { CommitOptions, Node, Op, QuickGroup, Site } from "@atelier/model";
-import { ANIMATION_PRESETS, planQuickAnimation, planQuickDetail, planQuickSpeed, quickAnimation, quickSpeed, type QuickSpeed } from "@atelier/model";
+import { ANIMATION_PRESETS, animationLength, planQuickAnimation, planQuickDetail, planQuickSpeed, quickAnimation, quickSpeed, type QuickSpeed } from "@atelier/model";
 import { Button, Field, FieldGroup, IconButton, Select, Toggle } from "@/ui";
 import { Segmented } from "@/ui/controls";
-import { summarizeAnimation } from "@/lib/timeline";
+import { formatMs, summarizeAnimation } from "@/lib/timeline";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
 const SPEEDS = [{ value: "fast", label: "Rapide" }, { value: "normal", label: "Normale" }, { value: "slow", label: "Lente" }];
@@ -54,10 +54,15 @@ export function QuickAnimations({ site, node, commit, onOpenAnimation, onPlay, o
               </div>
             </Field>
             {/* Vitesse (audit n°5 · R1) : rapide, normale ou lente, sans quitter le préréglage. */}
+            {/* Pas de <label> autour : un clic dans la marge activerait le premier bouton. Une vitesse réglée à la main se dit (tests simulés, PR14). */}
             {q ? (
-              <Field label="" hint="Vitesse de l'animation, par rapport au préréglage">
-                <Segmented size="sm" required label={`Vitesse · ${label}`} className="flex-1" value={quickSpeed(q) === "custom" ? undefined : quickSpeed(q)} options={SPEEDS} onChange={(v) => { if (v) run(planQuickSpeed(site, node, group, v as QuickSpeed), `${label} · ${SPEEDS.find((o) => o.value === v)?.label.toLowerCase()}`, group); }} />
-              </Field>
+              <div className="grid grid-cols-[88px_1fr] items-center gap-2" title="Vitesse de l'animation, par rapport au préréglage">
+                <span className="text-xs text-muted truncate">Vitesse</span>
+                <div className="flex flex-col gap-0.5 min-w-0">
+                  <Segmented size="sm" required label={`Vitesse · ${label}`} className="w-full" value={quickSpeed(q) === "custom" ? undefined : quickSpeed(q)} options={SPEEDS} onChange={(v) => { if (v) run(planQuickSpeed(site, node, group, v as QuickSpeed), `${label} · ${SPEEDS.find((o) => o.value === v)?.label.toLowerCase()}`, group); }} />
+                  {quickSpeed(q) === "custom" ? <span className="text-2xs text-muted">Sur mesure : {formatMs(animationLength(q.animation))}</span> : null}
+                </div>
+              </div>
             ) : null}
             {q ? <Field label=""><p className="text-2xs text-muted leading-snug" data-anim-summary="">{summarizeAnimation(site, q.trigger, node.id)}</p></Field> : null}
             {/* Le détail d'une apparition se règle juste sous elle, pas sous le dernier choix. */}

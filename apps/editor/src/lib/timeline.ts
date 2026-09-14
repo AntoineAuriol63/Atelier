@@ -164,7 +164,8 @@ export function summarizeAnimation(site: Site, trigger: Trigger, hostId: string,
     const base = quoted(n ? nodeLabel(n) : r.node);
     const from = t.stagger?.from === "end" ? ", depuis la fin" : t.stagger?.from === "center" ? ", depuis le centre" : "";
     const each = t.stagger ? ` (tous les ${formatMs(t.stagger.each)}${from})` : "";
-    if (r.children) return `les enfants de ${base} un à un${each}`;
+    // Sans décalage, les enfants partent ensemble (constat 2 des tests simulés) : « un à un » ne se dit qu'avec un décalage réel.
+    if (r.children) return t.stagger?.each ? `les enfants de ${base} un à un${each}` : `les enfants de ${base} ensemble`;
     if (r.split) return `${r.split === "letters" ? "les lettres" : "les mots"} de ${base}${each}`;
     return base;
   };

@@ -132,6 +132,10 @@ describe("phrase de résumé d'une animation (audit n°5 · R2)", () => {
   it("une composition : chaque élément, son moment, les décalages", () => {
     expect(summarizeAnimation(s, { id: "g", on: "inView", animation: "a_comp" }, "col")).toBe("Quand « Colonne » entre dans l'écran : Titre 1 « Bonjour » en 700 ms, Paragraphe « Texte » de 150 à 850 ms et les enfants de « Boutons » un à un (tous les 80 ms) de 300 à 1\u202f000 ms, une seule fois.");
   });
+  it("des enfants visés sans décalage partent ensemble : la phrase ne dit pas « un à un »", () => {
+    const together: Site = { ...s, animations: [...s.animations, { id: "a_kids", name: "Enfants", duration: 700, tracks: [{ id: "k8", target: { trigger: true, children: true }, keyframes: kf(0, 700) }] }] };
+    expect(summarizeAnimation(together, { id: "g", on: "load", animation: "a_kids" }, "btns")).toBe("Au chargement de la page : les enfants de « Boutons » ensemble en 700 ms.");
+  });
   it("survol, défilement de la page, boucle, et animation encore vide", () => {
     expect(summarizeAnimation(s, { id: "g", on: "hover", animation: "a_grow", reverseOnLeave: true }, "crd")).toBe("Au survol de « Carte » : grossir en 250 ms, puis retour quand la souris part.");
     expect(summarizeAnimation(s, { id: "g", on: "scroll", animation: "a_bar" }, "rt", true)).toBe("Pendant le défilement de la page (de 0 à 100 %) : « Barre » de 0 à 100 % du parcours.");

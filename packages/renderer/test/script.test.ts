@@ -121,6 +121,42 @@ describe("script du site : cibles et décalage", () => {
   });
 });
 
+describe("script du site : entrée dans l'écran sans éclair", () => {
+  it("avant l'entrée, l'élément reste à son état de départ (animation CSS en pause) : rien n'est retiré ni joué", () => {
+    mount(page([box("c", [tr("r1", "inView", "an_i")])], [an("an_i", [tk("t")])]));
+    const el = document.querySelector<HTMLElement>(".n-c")!;
+    expect(el.style.animation).toBe("");
+    expect(calls).toHaveLength(0);
+    enter(el);
+    expect(el.style.animation).toBe("none");
+    expect(calls).toHaveLength(1);
+  });
+  it("à chaque passage : à la sortie, l'élément reprend son état de départ, et l'apparition se rejoue à l'entrée suivante", () => {
+    mount(page([box("c", [tr("r1", "inView", "an_i", { once: false })])], [an("an_i", [tk("t")])]));
+    const el = document.querySelector<HTMLElement>(".n-c")!;
+    enter(el);
+    enter(el, false);
+    expect(el.style.animation).toBe("");
+    enter(el);
+    expect(el.style.animation).toBe("none");
+    expect(calls).toHaveLength(2);
+  });
+  it("une seule fois : une nouvelle entrée ne rejoue rien", () => {
+    mount(page([box("c", [tr("r1", "inView", "an_i")])], [an("an_i", [tk("t")])]));
+    const el = document.querySelector<HTMLElement>(".n-c")!;
+    enter(el); enter(el, false); enter(el);
+    expect(calls).toHaveLength(1);
+  });
+  it("une apparition et une boucle sur le même élément : la boucle continue après l'entrée dans l'écran", () => {
+    const loopKfs = [{ at: 0, style: { transform: "scale(1)" } }, { at: 1600, style: { transform: "scale(1.05)" } }];
+    mount(page([box("c", [tr("r1", "inView", "an_i"), tr("r2", "load", "an_loop")])], [an("an_i", [tk("t")]), an("an_loop", [tk("t", {}, loopKfs)], { loop: "infinite" })]));
+    const el = document.querySelector<HTMLElement>(".n-c")!;
+    expect(calls).toHaveLength(0);
+    enter(el);
+    expect(calls.map((c) => c.duration).sort((a, b) => a - b)).toEqual([500, 1600]);
+  });
+});
+
 describe("script du site : retour et bascule", () => {
   it("survol qui revient : joue à l'entrée, rembobine à la sortie, repart en avant à l'entrée suivante", () => {
     mount(page([box("b", [tr("r1", "hover", "an_h", { reverseOnLeave: true })])], [an("an_h", [tk("t")])]));
