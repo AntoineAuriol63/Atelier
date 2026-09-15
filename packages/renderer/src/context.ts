@@ -36,6 +36,8 @@ export type RenderContext = {
   classes?: ClassMap;
   /** Classes supplémentaires par nœud (variantes d'une instance sur la racine du composant). */
   extraClass?: Record<string, string>;
+  /** Posé par une instance sur le rendu de son composant : la racine `rootId` porte aussi la classe, les déclencheurs et la marque de cible de l'instance. */
+  instanceRoot?: { rootId: string; instance: Node };
 };
 
 export function localized<T>(value: unknown, ctx: RenderContext): T | undefined {

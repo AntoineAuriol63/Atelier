@@ -26,7 +26,9 @@ export type AppearanceBegin =
   /** à la fin de l'apparition d'un autre élément */
   | { kind: "after"; node: Id }
   /** au départ de l'apparition d'un autre élément */
-  | { kind: "with"; node: Id };
+  | { kind: "with"; node: Id }
+  /** quand un bloc qui le contient (la section) entre dans l'écran : l'animation est lancée par ce bloc */
+  | { kind: "within"; node: Id };
 
 export type Appearance = {
   nodeId: Id;
@@ -150,7 +152,8 @@ export function appearanceOf(site: Site, nodeId: Id, index: Map<Id, NodeLocation
   const endOf = (t: Track) => trackEnd(site, t, launch.hostId, index);
   const end = endOf(track);
   const target = track.target;
-  const detail: QuickDetail = !("selector" in target) && target.split ? "letters" : !("selector" in target) && target.children ? "children" : "one";
+  // « Un à un » seulement avec un décalage réel : des enfants visés sans décalage partent ensemble (constat 2 des tests simulés).
+  const detail: QuickDetail = !("selector" in target) && target.split ? "letters" : !("selector" in target) && target.children && track.stagger?.each ? "children" : "one";
   const factor = match ? match.factor : origin && origin.duration ? Math.round(((trackSpan(track).end - start) / origin.duration) * 1000) / 1000 : 1;
 
   // Ce qui le fait démarrer, lu dans la ligne de temps : en même temps qu'une piste listée avant lui, sinon après la fin la plus proche.
@@ -243,6 +246,7 @@ export function planAppearanceStart(site: Site, nodeId: Id, begin: AppearanceBeg
   const cur = appearanceOf(site, nodeId, index);
   if (!loc || !cur || begin.kind === "host") return [];
   const plan = new Plan(site);
+  if (begin.kind === "within") return planWithin(site, plan, cur, loc, begin.node);
   if (begin.kind === "own") {
     if (cur.own) return cur.trigger.on === begin.on ? [] : triggerPatch(site, cur, { on: begin.on, ...(begin.on === "inView" ? {} : { once: undefined }) });
     // Il reprend son propre déclencheur, avec sa piste ramenée à 0 (effet, vitesse et détail gardés).
@@ -350,12 +354,79 @@ export function planAppearanceReplay(site: Site, nodeId: Id, everyPass: boolean)
 /** D'un bloc, lettre par lettre (30 ms) ou enfant par enfant (100 ms) ; ce qui vient après attend le dernier morceau. */
 export function planAppearanceDetail(site: Site, nodeId: Id, detail: QuickDetail): Op[] {
   const cur = appearanceOf(site, nodeId);
-  if (!cur || cur.detail === detail) return [];
+  if (!cur || (cur.detail === detail && !(detail === "one" && visesChildren(cur)))) return [];
   const next: Track = { ...cur.track, target: withTargetKind(cur.track.target, detail === "one" ? "element" : detail) };
   if (detail === "letters") next.stagger = { each: 30 };
   else if (detail === "children") next.stagger = { each: 100 };
   else delete next.stagger;
   const plan = new Plan(site);
   plan.setAnimation(replaceTrack(site, cur, next));
+  return plan.ops;
+}
+
+/** Un élément sans apparition propre qui arrive avec un autre : un parent qui fait arriver ses enfants un à un (la carte d'une liste), ou un bloc qui arrive d'un seul tenant. */
+export type InheritedAppearance = {
+  /** L'élément qui porte l'apparition (la liste, le bloc). */
+  carrierId: Id;
+  /** Ce qui bouge et contient l'élément : l'enfant de la liste (la carte), ou le bloc lui-même. */
+  moverId: Id;
+  appearance: Appearance;
+  viaChildren: boolean;
+};
+const visesChildren = (ap: Appearance) => !("selector" in ap.track.target) && !!ap.track.target.children;
+export function inheritedAppearance(site: Site, nodeId: Id, index: Map<Id, NodeLocation> = indexSite(site)): InheritedAppearance | undefined {
+  const start = index.get(nodeId);
+  if (!start || appearanceOf(site, nodeId, index)) return undefined;
+  for (let cur: NodeLocation | undefined = start; cur; cur = cur.parent ? index.get(cur.parent.id) : undefined) {
+    if (cur !== start) {
+      const own = appearanceOf(site, cur.node.id, index);
+      if (own && !visesChildren(own)) return { carrierId: cur.node.id, moverId: cur.node.id, appearance: own, viaChildren: false };
+    }
+    const parent = cur.parent ? index.get(cur.parent.id) : undefined;
+    const byParent = parent ? appearanceOf(site, parent.node.id, index) : undefined;
+    if (parent && byParent && visesChildren(byParent)) return { carrierId: parent.node.id, moverId: cur.node.id, appearance: byParent, viaChildren: true };
+  }
+  return undefined;
+}
+
+/** Les blocs qui contiennent l'élément et peuvent lancer sa scène : sections et blocs nommés, du plus proche au plus lointain (trois au plus, sans la racine). */
+export function appearanceStartOptions(site: Site, nodeId: Id): Id[] {
+  const index = indexSite(site);
+  const out: Id[] = [];
+  for (let cur = index.get(nodeId); cur?.parent && out.length < 3; cur = index.get(cur.parent.id)) {
+    const p = index.get(cur.parent.id);
+    if (!p?.parent) break;
+    if (p.node.props.tag === "section" || p.node.name) out.push(p.node.id);
+  }
+  return out;
+}
+
+/** Faire démarrer une apparition (et ce qui la suit, si l'élément lançait sa propre animation) quand un bloc qui le contient entre dans l'écran. */
+function planWithin(site: Site, plan: Plan, cur: Appearance, loc: NodeLocation, ancestorId: Id): Op[] {
+  const index = indexSite(site);
+  let isAncestor = false;
+  for (let p = loc.parent ? index.get(loc.parent.id) : undefined; p; p = p.parent ? index.get(p.parent.id) : undefined) if (p.node.id === ancestorId) { isAncestor = true; break; }
+  if (!isAncestor || (cur.begin.kind === "host" && cur.hostId === ancestorId)) return [];
+  const toNode = (t: Track, id: Id): Track => ("trigger" in t.target ? { ...t, target: { node: id, ...(t.target.children ? { children: true as const } : {}), ...(t.target.split ? { split: t.target.split } : {}) } } : t);
+  const group = cur.own ? cur.animation.tracks.map((t) => toNode(t, cur.nodeId)) : [cur.track];
+  const on: TriggerOn = cur.trigger.on === "load" ? "load" : "inView";
+  const once = cur.trigger.once;
+  if (cur.own) {
+    plan.push(planRemoveTrigger(loc.node, cur.trigger.id));
+    if (animationUsages(site, cur.animation.id).length <= 1) plan.push([{ op: "site.set", path: "animations", value: plan.site.animations.filter((a) => a.id !== cur.animation.id) }]);
+  } else removeTrack(plan, cur);
+  const ancestor = indexSite(plan.site).get(ancestorId)!.node;
+  // Le bloc lance déjà une apparition : l'élément la rejoint, au départ ; sinon le bloc reçoit un déclencheur et l'animation.
+  const existing = (ancestor.triggers ?? []).find((t) => APPEAR_ONS.has(t.on) && appearanceAnimation(plan.site, t));
+  const shift = -Math.min(...group.map((t) => trackSpan(t).start));
+  if (existing) {
+    const into = animationById(plan.site, existing.animation)!;
+    const taken = new Set(into.tracks.map((t) => t.id));
+    plan.setAnimation(withTracks(into, [...into.tracks, ...group.map((t) => { const s = shiftTrack(t, shift); return taken.has(s.id) ? { ...s, id: newId() } : s; })]));
+    return plan.ops;
+  }
+  const animation: Animation = { id: newId(), name: cur.animation.name, ...(cur.own && cur.animation.preset ? { preset: cur.animation.preset } : {}), duration: 1, tracks: group.map((t) => shiftTrack(t, shift)) };
+  plan.push([{ op: "site.set", path: "animations", value: [...plan.site.animations, withTracks(animation, animation.tracks)] }]);
+  plan.push(planAddTrigger(ancestor, { id: newId(), on, animation: animation.id, ...(once === false ? { once: false } : {}) }));
   return plan.ops;
 }

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight, Plus, Sparkles, X } from "lucide-react";
 import type { Animation, CommitOptions, Node, Op, Page, Site, Trigger, TriggerOn } from "@atelier/model";
-import { ANIMATION_PRESETS, TRIGGER_LABELS, animationById, animationFromPreset, animationUsages, describeAnimation, describeTrigger, duplicateQuickTriggers, newId, planAddAnimation, planAddPageTrigger, planAddTrigger, planAnimateElement, planRemovePageTriggerWithAnimation, planRemoveTriggerWithAnimation, planUpdatePageTrigger, planUpdateTrigger, presetById, triggerFromPreset } from "@atelier/model";
+import { ANIMATION_PRESETS, TRIGGER_LABELS, animationById, animationFromPreset, animationUsages, appearanceOf, describeAnimation, describeTrigger, duplicateQuickTriggers, indexSite, newId, planAddAnimation, planAddPageTrigger, planAddTrigger, planAnimateElement, planRemovePageTriggerWithAnimation, planRemoveTriggerWithAnimation, planUpdatePageTrigger, planUpdateTrigger, presetById, triggerFromPreset } from "@atelier/model";
 import { Badge, Button, Eyebrow, Field, Hint, IconButton, NumberInput, PanelHeading, Section, Select, Toggle } from "@/ui";
 import { animationLabel, nextAnimationName, openTrigger, quoteLabel, type OpenTimeline } from "@/lib/timeline";
 import { Timeline } from "./Timeline";
@@ -50,6 +50,16 @@ export function AnimationModePanel({ site, node, commit, page, getSite, bp, mode
   const [created, setCreated] = useState<string | null>(null);
   const timelineOpen = !!(anim && open && opened);
   const duplicates = node ? duplicateQuickTriggers(site, node) : new Set<string>();
+  /** Les animations d'un autre élément : la sienne s'il en lance une, sinon celle qui le fait apparaître, sinon sa liste de déclencheurs (ligne de temps fermée). */
+  const openElement = (id: string) => {
+    const n = indexSite(site).get(id)?.node;
+    const t = n?.triggers?.[0];
+    const ap = appearanceOf(site, id);
+    setCreated(null);
+    if (t) onOpen({ animationId: t.animation, hostId: id, triggerId: t.id });
+    else if (ap) onOpen({ animationId: ap.animation.id, hostId: ap.hostId, triggerId: ap.trigger.id });
+    else onOpen(null);
+  };
 
   // « Animer « X » » : le cas le plus courant en un geste, sa ligne de temps ouverte avec la piste de l'élément prête à remplir (audit n°5 · R3).
   const animateSelected = () => {
@@ -84,9 +94,10 @@ export function AnimationModePanel({ site, node, commit, page, getSite, bp, mode
 
   return (
     <div className="flex flex-col gap-3 p-3">
+      {/* Le mode dit aussi comment se lit la ligne de temps quand on y arrive directement depuis la rubrique d'un élément (tests simulés, constat 11). */}
       {timelineOpen ? null : <HowItWorks />}
       {/* Une animation ouverte passe devant : c'est la surface de travail ; choisir un autre élément ne la déplace plus. */}
-      {timelineOpen ? <Timeline key={`${open!.triggerId}:${anim!.id}`} site={site} getSite={getSite} animation={anim!} hostId={open!.hostId} trigger={opened!.trigger} pageLevel={!!opened!.page} selected={node} bp={bp} mode={mode} commit={commit} scrub={scrub} onClose={() => { setCreated(null); onOpen(null); }} onSelect={onSelect} focusName={created === open!.triggerId} onPick={onPick} picking={picking} showTargets={showTargets} onTestOnSite={onTestOnSite ? () => onTestOnSite(open!.hostId) : undefined} /> : null}
+      {timelineOpen ? <Timeline key={`${open!.triggerId}:${anim!.id}`} site={site} getSite={getSite} animation={anim!} hostId={open!.hostId} trigger={opened!.trigger} pageLevel={!!opened!.page} selected={node} bp={bp} mode={mode} commit={commit} scrub={scrub} onClose={() => { setCreated(null); onOpen(null); }} onSelect={onSelect} focusName={created === open!.triggerId} onPick={onPick} picking={picking} showTargets={showTargets} onTestOnSite={onTestOnSite ? () => onTestOnSite(open!.hostId) : undefined} onOpenElement={openElement} intro={<HowItWorks compact />} /> : null}
 
       {node ? (
         timelineOpen
@@ -107,20 +118,42 @@ export function AnimationModePanel({ site, node, commit, page, getSite, bp, mode
       ) : null}
 
       {!node && !timelineOpen && site.animations.length ? (
-        <section className="flex flex-col gap-1" aria-label="Animations du site">
+        <section className="flex flex-col gap-2" aria-label="Animations du site">
           <PanelHeading className="px-0">Animations du site</PanelHeading>
-          <ul className="flex flex-col gap-1">
-            {site.animations.map((a) => {
-              const u = animationUsages(site, a.id)[0];
-              const hostId = u?.node?.id ?? u?.page?.root.id;
-              const label = animationLabel(site, a);
-              return <li key={a.id}><button type="button" disabled={!hostId} title={hostId ? `${label} · ${describeAnimation(a)}` : "Aucun déclencheur ne la lance : ajoutez-en un sur un élément"} className="w-full text-left text-xs truncate rounded-sm px-1.5 py-1 hover:bg-surface disabled:opacity-50" onClick={() => u && hostId && onOpen({ animationId: a.id, hostId, triggerId: u.trigger.id })}>{label}</button></li>;
-            })}
-          </ul>
+          {/* Rangées par page, la page ouverte d'abord (tests simulés, PR4 : une animation homonyme d'une autre page a été ouverte sans que le changement de page se voie). */}
+          {animationGroups(site, page).map((g) => (
+            <div key={g.key} className="flex flex-col gap-0.5">
+              <Eyebrow as="span">{g.label}</Eyebrow>
+              <ul className="flex flex-col gap-0.5">
+                {g.animations.map((a) => {
+                  const u = animationUsages(site, a.id)[0];
+                  const hostId = u?.node?.id ?? u?.page?.root.id;
+                  const label = animationLabel(site, a);
+                  return <li key={a.id}><button type="button" disabled={!hostId} title={hostId ? `${label} · ${describeAnimation(a)}${g.current ? "" : " · s'ouvre sur son autre page"}` : "Aucun déclencheur ne la lance : ajoutez-en un sur un élément"} className="w-full text-left text-xs truncate rounded-sm px-1.5 py-1 hover:bg-surface disabled:opacity-50" onClick={() => u && hostId && onOpen({ animationId: a.id, hostId, triggerId: u.trigger.id })}>{label}</button></li>;
+                })}
+              </ul>
+            </div>
+          ))}
         </section>
       ) : null}
     </div>
   );
+}
+
+/** Les animations du site rangées par ce qui les lance : la page ouverte, les autres pages, les composants, puis celles que rien ne lance. */
+function animationGroups(site: Site, page: Page): { key: string; label: string; current: boolean; animations: Animation[] }[] {
+  const locale = site.settings.defaultLocale;
+  const groups = new Map<string, { key: string; label: string; current: boolean; animations: Animation[] }>();
+  const add = (key: string, label: string, current: boolean, a: Animation) => { const g = groups.get(key) ?? { key, label, current, animations: [] }; g.animations.push(a); groups.set(key, g); };
+  for (const a of site.animations) {
+    const u = animationUsages(site, a.id)[0];
+    if (!u) { add("none", "Lancées par rien", false, a); continue; }
+    const p = site.pages.find((x) => x.id === u.owner);
+    if (p) add(`p:${p.id}`, p.id === page.id ? `Sur cette page · ${p.name[locale] ?? p.path}` : `Page ${p.name[locale] ?? p.path}`, p.id === page.id, a);
+    else add(`c:${u.owner}`, `Composant ${site.components.find((c) => c.id === u.owner)?.name ?? u.owner}`, false, a);
+  }
+  const order = (g: { key: string; current: boolean }) => (g.current ? 0 : g.key.startsWith("p:") ? 1 : g.key.startsWith("c:") ? 2 : 3);
+  return [...groups.values()].sort((x, y) => order(x) - order(y));
 }
 
 /** Liste des déclencheurs d'un élément ou d'une page ; le déclencheur ouvert montre ses réglages. */
@@ -220,11 +253,18 @@ function AddTrigger({ site, ons, defaultOn = "inView", hostLabel, title, explain
 
 /**
  * Comment ça marche (audit n°5 · R3) : le modèle du mode Animation dit en trois temps, avant d'agir. Repliable ; le choix est mémorisé.
+ * Avec une ligne de temps ouverte (`compact`), une seule ligne qui dit comment la lire : on y arrive souvent depuis la rubrique d'un élément.
  */
-function HowItWorks() {
+function HowItWorks({ compact = false }: { compact?: boolean }) {
   const [hidden, setHidden] = useState(() => { try { return localStorage.getItem("atelier:anim-howto-hidden") === "1"; } catch { return false; } });
   const toggle = (h: boolean) => { setHidden(h); try { localStorage.setItem("atelier:anim-howto-hidden", h ? "1" : "0"); } catch { /* stockage refusé */ } };
-  if (hidden) return <button type="button" className="self-start text-2xs text-accent hover:underline" onClick={() => toggle(false)}>Comment ça marche ?</button>;
+  if (hidden) return compact ? null : <button type="button" className="self-start text-2xs text-accent hover:underline" onClick={() => toggle(false)}>Comment ça marche ?</button>;
+  if (compact) return (
+    <p className="flex items-start gap-2 rounded-sm border border-line bg-surface/60 px-2 py-1.5 text-2xs text-muted leading-snug" aria-label="Comment lire la ligne de temps">
+      <span className="flex-1"><span className="font-medium text-ink">Comment lire cet écran :</span> chaque ligne (une <em>piste</em>) est un élément qui bouge ; ses losanges (des <em>images-clés</em>) sont son état à un instant ; « Départ » dit quand il part. Pour un effet tout prêt, un délai ou « après tel élément », la rubrique Animation de l&apos;élément suffit.</span>
+      <button type="button" className="shrink-0 text-muted hover:text-ink" onClick={() => toggle(true)}>Masquer</button>
+    </p>
+  );
   return (
     <section aria-label="Comment ça marche" className="flex flex-col gap-1.5 rounded-sm border border-line bg-surface/60 p-2.5 text-xs">
       <div className="flex items-center justify-between"><span className="font-medium text-ink">Comment ça marche</span><button type="button" className="text-2xs text-muted hover:text-ink" onClick={() => toggle(true)}>Masquer</button></div>

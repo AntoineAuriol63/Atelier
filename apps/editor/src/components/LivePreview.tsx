@@ -4,8 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Entry, Site } from "@atelier/model";
 import { serialize, isEmptyText } from "./preview/serialize";
 import { isAtelierMessage, type BlockPresetInfo, type EditMode, type FromPreview, type ToPreview } from "@/lib/preview-protocol";
-import { applyScrub, type ScrubAt } from "@/lib/scrub";
+import { animationHost, applyScrub, type ScrubAt } from "@/lib/scrub";
 import { revealForTest } from "@/lib/test-on-site";
+import { pickSelection } from "@/lib/selection";
 import { ANIMATION_PLAY_SCRIPT, FORM_SCRIPT, INTERACTION_SCRIPT, RenderPage, applyInstantStates, assetMap, fontsHref, matchPath, memoryData, siteCss, type RenderContext } from "@atelier/renderer";
 
 type Props = { initialSite: Site; entries: Entry[]; path: string; mode?: string; editor: boolean };
@@ -73,6 +74,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     let containers = new Set<string>();
     let links = new Set<string>();       // blocs atomiques pour le dépôt : liens et boutons (contenu en ligne seulement) et, en mode Écriture, les vues de base de données (leur carte est un modèle répété)
     let textNodes = new Set<string>();
+    let compounds = new Set<string>();   // éléments qu'un clic désigne d'abord (bouton, carte, occurrence, pastille) : `pickSelection`
     let editMode: EditMode = "design";
     let blocks: BlockPresetInfo[] = [];
     let editing: HTMLElement | null = null;
@@ -85,6 +87,14 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
 
     const selectedEl = () => (selectedId.current ? document.querySelector<HTMLElement>(`[data-node="${selectedId.current}"]`) : null);
     const nodeOf = (t: EventTarget | null) => (t instanceof Element ? (t.closest("[data-node]") as HTMLElement | null) : null);
+    /** L'élément qu'un clic désigne : le bouton, la carte, l'occurrence ou la pastille autour du texte cliqué, puis, dedans, un niveau plus bas (`pickSelection`). */
+    const pickedOf = (t: EventTarget | null): HTMLElement | null => {
+      const chain: HTMLElement[] = [];
+      for (let cur = nodeOf(t); cur; cur = cur.parentElement ? nodeOf(cur.parentElement) : null) chain.push(cur);
+      if (!chain.length) return null;
+      const id = pickSelection(chain.map(idOf), compounds, selectedId.current);
+      return chain.find((c) => idOf(c) === id) ?? chain[0]!;
+    };
     const idOf = (el: HTMLElement) => el.getAttribute("data-node")!;
     const isRoot = (el: HTMLElement) => idOf(el) === document.querySelector(".at-page > [data-node]")?.getAttribute("data-node");
     const outline = (el: HTMLElement | null, kind: "selected" | "hover") => { if (!el) return; el.style.outline = kind === "selected" ? `2px solid ${ACCENT}` : `1px dashed ${ACCENT}`; el.style.outlineOffset = "-1px"; };
@@ -487,11 +497,13 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       const el = nodeOf(e.target);
       if (editing) { if (el !== editing) endEdit(true); else return; }
       if (!el || e.button !== 0) return;
-      // Mode Écriture : cliquer un texte y place directement le curseur.
-      if (editMode === "write" && textNodes.has(idOf(el))) { startEdit(el); return; }
+      // Mode Écriture : cliquer un texte y place directement le curseur (sauf le texte d'un bouton ou d'une étiquette : le premier clic désigne l'élément entier).
+      if (editMode === "write" && textNodes.has(idOf(el)) && pickedOf(e.target) === el) { startEdit(el); return; }
       // Mode Animation : l'aperçu montre un instant, on y sélectionne seulement (aucun déplacement sur le canevas en v1, cadrage § 4.1).
       if (editMode === "animate") return;
-      if (idOf(el) === selectedId.current && !isRoot(el)) press = { x: e.clientX, y: e.clientY, el };
+      // Glisser l'élément sélectionné ; un bouton, une carte ou une pastille sélectionnés se glissent aussi en appuyant sur ce qu'ils contiennent.
+      const sel = selectedEl();
+      if (sel && !isRoot(sel) && (sel === el || (compounds.has(idOf(sel)) && sel.contains(el)))) press = { x: e.clientX, y: e.clientY, el: sel };
     };
     const onMouseMove = (e: MouseEvent) => {
       if (press && !dragging && Math.hypot(e.clientX - press.x, e.clientY - press.y) > 5) {
@@ -557,7 +569,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       if ((e.target as Element).closest?.("[data-atelier-ui]")) return;
       e.preventDefault();
       if (suppressClick || dragging || editing) return;
-      const el = nodeOf(e.target);
+      const el = pickedOf(e.target);
       if (!el) return;
       select(el, true);
       // Une image vide s'ouvre sur la bibliothèque : on choisit ou on importe sans passer par le panneau.
@@ -627,6 +639,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
         if (m.pages) pages = m.pages;
         if ((m as { links?: string[] }).links) links = new Set((m as { links?: string[] }).links);
         if (m.textNodes) textNodes = new Set(m.textNodes);
+        if (m.compounds) compounds = new Set(m.compounds);
         if (m.blocks) blocks = m.blocks;
         if (m.editMode) editMode = m.editMode;
       }
@@ -639,7 +652,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       if (m?.type === "atelier:scrub-stop") { lastScrub.current = null; applyScrub(document, null); }
       if (m?.type === "atelier:play") {
         // Rejoue une fois l'animation d'un déclencheur sur ses cibles (API Web Animations, via l'outil partagé avec le site), même si le CSS de l'éditeur laisse les animations à l'arrêt.
-        const el = document.querySelector<HTMLElement>(`[data-node="${m.id}"]`);
+        const el = animationHost(document, m.id) as HTMLElement | null;
         let triggers: { i: string; loop: number | "infinite" }[] = [];
         try { triggers = JSON.parse(el?.getAttribute("data-anim") ?? "[]"); } catch { triggers = []; }
         const a = triggers.find((r) => r.i === m.trigger);

@@ -11,7 +11,7 @@ export type ToPreview =
   | { type: "atelier:scrub-stop" }
   /** Mode Animation : éléments de la piste active, à repérer d'un contour pointillé et de son nom (`ids` vide : aucun). */
   | { type: "atelier:anim-targets"; ids: string[]; label?: string }
-  | { type: "atelier:site"; site: Site; containers: string[]; links: string[]; textNodes: string[]; editMode: EditMode; blocks: BlockPresetInfo[]; pages: { path: string; name: string }[] }
+  | { type: "atelier:site"; site: Site; containers: string[]; links: string[]; textNodes: string[]; compounds?: string[]; editMode: EditMode; blocks: BlockPresetInfo[]; pages: { path: string; name: string }[] }
   | { type: "atelier:entries"; entries: Entry[] }
   | { type: "atelier:mode"; mode: string }
   | { type: "atelier:editmode"; editMode: EditMode }

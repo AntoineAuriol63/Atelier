@@ -29,11 +29,15 @@ function attrs(node: Node, ctx: RenderContext, extra: Record<string, unknown> = 
   if (ix) a["data-ix"] = ix;
   // Effets de mouvement joués par le script du site (parallaxe, compteur), sans effet dans l'éditeur.
   if (typeof node.props.parallax === "number" && node.props.parallax !== 0) a["data-parallax"] = String(node.props.parallax);
-  const anim = animationsAttr(node, ctx);
+  // Racine du composant d'une instance : elle joue aussi les animations de l'instance (l'instance elle-même n'a pas d'élément rendu).
+  const inst = ctx.instanceRoot?.rootId === node.id ? ctx.instanceRoot.instance : undefined;
+  const own = animationsAttr(node, ctx);
+  const ofInstance = inst ? animationsAttr(inst, ctx) : undefined;
+  const anim = own && ofInstance ? JSON.stringify([...(JSON.parse(own) as unknown[]), ...(JSON.parse(ofInstance) as unknown[])]) : own ?? ofInstance;
   if (anim) a["data-anim"] = anim;
   // Cible d'une animation portée par un autre élément (section 8.4) : marquée, et numérotée pour le décalage.
   const mark = ctx.animChild?.of === node.id ? ctx.animChild : undefined;
-  if (mark || ctx.animTargets?.targets.has(node.id)) a["data-anim-target"] = "";
+  if (mark || ctx.animTargets?.targets.has(node.id) || (inst && ctx.animTargets?.targets.has(inst.id))) a["data-anim-target"] = "";
   if (mark) a.style = { ...((extra.style as Record<string, unknown> | undefined) ?? {}), "--at-i": mark.i, "--at-n": mark.n };
   if (node.props.countUp) a["data-countup"] = "";
   if (node.props.anchor) a.id = String(node.props.anchor);
@@ -284,7 +288,9 @@ function renderInstance(node: Node, cmp: ComponentDef, ctx: RenderContext): Reac
   const vc = cmp.variants?.length ? variantClasses(cmp, node) : "";
   // Si l'instance est l'enfant visé par une animation du parent, c'est la racine du composant (l'élément rendu) qui porte la marque.
   const animChild = ctx.animChild?.of === node.id ? { ...ctx.animChild, of: root.id } : ctx.animChild;
-  const inner: RenderContext = { ...ctx, props, slots: node.props.slots as Record<string, Node[]> | undefined, extraClass: vc ? { ...(ctx.extraClass ?? {}), [root.id]: vc } : ctx.extraClass, animChild };
+  // La racine porte aussi la classe de l'instance : ses styles, ses animations et les pistes qui la visent s'y appliquent.
+  const rootClass = [vc, ctx.classes?.node.get(node.id) ?? `n-${node.id}`].filter(Boolean).join(" ");
+  const inner: RenderContext = { ...ctx, props, slots: node.props.slots as Record<string, Node[]> | undefined, extraClass: { ...(ctx.extraClass ?? {}), [root.id]: rootClass }, animChild, instanceRoot: { rootId: root.id, instance: node } };
   // Le nœud racine du composant porte aussi la classe de l'instance pour permettre des styles locaux.
   const rootWithInstanceClass: Node = { ...root, style: { ...(root.style ?? {}), shared: [...(root.style?.shared ?? []), ...(node.style?.shared ?? [])] } };
   const el = createElement(RenderNode, { node: rootWithInstanceClass, ctx: inner });

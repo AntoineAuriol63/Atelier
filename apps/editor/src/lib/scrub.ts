@@ -25,10 +25,19 @@ function stop(): void {
   store = null;
 }
 
+/**
+ * L'élément qui porte les animations d'un nœud dans l'aperçu : lui-même, ou pour une instance de composant (enveloppe sans boîte),
+ * la racine rendue du composant, qui porte ses déclencheurs.
+ */
+export function animationHost(doc: Document, id: string): Element | null {
+  const el = doc.querySelector(`[data-node="${id}"]`);
+  return el?.hasAttribute("data-instance") && el.firstElementChild ? el.firstElementChild : el;
+}
+
 /** Pose l'état de l'animation lancée par `at.trigger` sur l'élément `at.id` au temps `at.time` (ms) ; `null` rend l'aperçu au repos. */
 export function applyScrub(doc: Document, at: ScrubAt | null): void {
   const tools = (doc.defaultView as unknown as { __atelierAnim?: AnimTools } | null)?.__atelierAnim;
-  const host = at && tools ? doc.querySelector(`[data-node="${at.id}"]`) : null;
+  const host = at && tools ? animationHost(doc, at.id) : null;
   if (!at || !tools || !host) { stop(); return; }
   const raw = host.getAttribute("data-anim") ?? "";
   const key = `${at.id}\n${at.trigger}\n${raw}`;

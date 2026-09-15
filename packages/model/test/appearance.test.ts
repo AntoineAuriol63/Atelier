@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  animationById, appearanceAnchors, appearanceOf, applyOps, planAppearanceDelay, planAppearanceDetail, planAppearancePreset, planAppearanceReplay,
+  animationById, appearanceAnchors, appearanceOf, appearanceStartOptions, applyOps, inheritedAppearance, planAppearanceDelay, planAppearanceDetail, planAppearancePreset, planAppearanceReplay,
   planAppearanceSpeed, planAppearanceStart, planQuickAnimation, planUpdateTrigger, presetById, sampleSite, schema, trackPresetMatch, trackSpan,
   type Node, type Site,
 } from "../src";
@@ -25,6 +25,22 @@ const quick = (site: Site, id: string, preset: string, on?: "load") => {
 /** Départ et fin de la piste d'un élément dans son animation. */
 const span = (site: Site, id: string) => { const a = appearanceOf(site, id)!; return [a.start, a.end]; };
 const valid = (site: Site) => expect(schema.site.safeParse(site).success).toBe(true);
+
+describe("apparition : des arrivées qui dépassent leur place avant de se poser (T4, PR8)", () => {
+  it("« Montée avec rebond » et « Zoom avec rebond » : une courbe qui dépasse l'arrivée, reconnues comme préréglages distincts", () => {
+    for (const id of ["rise-bounce", "zoom-bounce"]) {
+      const p = presetById(id)!;
+      expect(p.group).toBe("Apparition");
+      const easing = p.keyframes[p.keyframes.length - 1]!.easing!;
+      // Deuxième point de contrôle au-dessus de 1 : la valeur dépasse l'arrivée avant de s'y poser.
+      expect(Number(easing.match(/cubic-bezier\(([^)]+)\)/)![1]!.split(",")[1])).toBeGreaterThan(1);
+    }
+    let site = quick(base, "title", "rise-bounce");
+    expect(appearanceOf(site, "title")).toMatchObject({ preset: { id: "rise-bounce" }, speed: "normal", end: 800 });
+    site = run(site, planAppearancePreset(site, "title", "fade-up"));
+    expect(appearanceOf(site, "title")).toMatchObject({ preset: { id: "fade-up" } });
+  });
+});
 
 describe("apparition : reconnaître un préréglage sur une piste", () => {
   it("un préréglage décalé dans le temps et mis à l'échelle reste reconnu ; retouché, il ne l'est plus", () => {
@@ -172,6 +188,25 @@ describe("apparition : composer une scène (T4)", () => {
     expect(span(site, "hh2")).toEqual([1400, 2100]);
     expect(appearanceOf(site, "hh2")!.begin).toEqual({ kind: "after", node: "pp2" });
   });
+  it("la scène démarre quand la section entre dans l'écran : l'élément de tête passe son animation (et sa suite) à la section", () => {
+    let site = quick(quick(base, "photo", "slide-right"), "hh2", "fade-up");
+    site = run(site, planAppearanceReplay(site, "photo", true));
+    site = run(site, planAppearanceStart(site, "hh2", { kind: "after", node: "photo" }));
+    expect(appearanceAnchors(site, "photo")).toEqual(["hh2"]);
+    site = run(site, planAppearanceStart(site, "photo", { kind: "within", node: "about" }));
+    expect(find(site, "photo").triggers).toBeUndefined();
+    expect(find(site, "about").triggers).toEqual([expect.objectContaining({ on: "inView", once: false })]);
+    expect(appearanceOf(site, "photo")).toMatchObject({ hostId: "about", own: false, begin: { kind: "host", hostId: "about", on: "inView" }, start: 0 });
+    expect(appearanceOf(site, "hh2")).toMatchObject({ hostId: "about", begin: { kind: "after", node: "photo" }, start: 700 });
+    expect(site.animations).toHaveLength(1);
+    // Un élément de la section qui démarre lui aussi « avec la section » rejoint la même animation, au départ.
+    site = quick(site, "pp2", "fade");
+    site = run(site, planAppearanceStart(site, "pp2", { kind: "within", node: "about" }));
+    expect(appearanceOf(site, "pp2")).toMatchObject({ hostId: "about", start: 0 });
+    expect(site.animations).toHaveLength(1);
+    expect(appearanceStartOptions(site, "photo")).toEqual(["about"]);
+    valid(site);
+  });
   it("rejouer à chaque passage se règle depuis n'importe quel élément de la scène, sur ce qui la lance", () => {
     let site = quick(quick(base, "photo", "slide-right"), "hh2", "fade-up");
     site = run(site, planAppearanceStart(site, "hh2", { kind: "after", node: "photo" }));
@@ -203,5 +238,34 @@ describe("apparition : composer une scène (T4)", () => {
     const withFar = quick(two, "far", "fade");
     expect(planAppearanceStart(withFar, "title", { kind: "after", node: "far" })).toEqual([]);
     expect(appearanceAnchors(withFar, "title")).toEqual([]);
+  });
+});
+
+describe("apparition : un élément qui arrive avec un autre (T2)", () => {
+  const card = (id: string) => box(id, "Carte plat", [box(`${id}_img`, "Image"), text(`${id}_name`, "Œuf parfait")]);
+  const list = box("plats", "Plats", [card("crd1"), card("crd2"), card("crd3")]);
+  const withList: Site = { ...base, pages: [{ ...base.pages[0]!, root: { id: "root", type: "box", props: {}, children: [hero, list] } }] };
+  it("une carte dont la liste fait arriver les enfants un à un : elle arrive avec la liste, et sa photo aussi", () => {
+    let site = quick(withList, "plats", "fade-up", "load");
+    site = run(site, planAppearanceDetail(site, "plats", "children"));
+    expect(appearanceOf(site, "crd2")).toBeUndefined();
+    expect(inheritedAppearance(site, "crd2")).toMatchObject({ carrierId: "plats", moverId: "crd2", viaChildren: true, appearance: { begin: { kind: "own", on: "load" } } });
+    expect(inheritedAppearance(site, "crd2_img")).toMatchObject({ carrierId: "plats", moverId: "crd2", viaChildren: true });
+    expect(inheritedAppearance(site, "plats")).toBeUndefined();
+  });
+  it("des enfants visés sans décalage partent ensemble : pas « un à un » ; la carte arrive quand même avec la liste", () => {
+    let site = quick(withList, "plats", "fade-up", "load");
+    const ap = appearanceOf(site, "plats")!;
+    site = applyOps(site, [{ op: "site.set", path: "animations", value: site.animations.map((a) => (a.id === ap.animation.id ? { ...a, tracks: [{ ...a.tracks[0]!, target: { trigger: true, children: true } }] } : a)) }]).site;
+    expect(appearanceOf(site, "plats")!.detail).toBe("one");
+    expect(inheritedAppearance(site, "crd2")).toMatchObject({ carrierId: "plats", moverId: "crd2", viaChildren: true });
+  });
+  it("un élément dans un bloc qui arrive d'un bloc : il arrive avec lui ; sans rien au-dessus, rien", () => {
+    let site = quick(withList, "crd1", "zoom");
+    expect(inheritedAppearance(site, "crd1_name")).toMatchObject({ carrierId: "crd1", moverId: "crd1", viaChildren: false });
+    expect(inheritedAppearance(site, "crd2_name")).toBeUndefined();
+    // Sa propre apparition passe devant : il n'hérite de rien.
+    site = quick(site, "crd1_name", "fade");
+    expect(inheritedAppearance(site, "crd1_name")).toBeUndefined();
   });
 });

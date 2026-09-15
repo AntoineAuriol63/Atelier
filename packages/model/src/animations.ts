@@ -16,7 +16,9 @@ export type AnimationPreset = {
 };
 const SOFT = "cubic-bezier(.22,1,.36,1)";
 const rest: StyleProps = { opacity: "1", transform: "none", filter: "none" };
-const appear = (id: string, label: string, from: StyleProps): AnimationPreset => ({ id, label, group: "Apparition", on: "inView", duration: 700, keyframes: [{ at: 0, style: from }, { at: 700, style: rest, easing: SOFT }] });
+const appear = (id: string, label: string, from: StyleProps, easing = SOFT, duration = 700): AnimationPreset => ({ id, label, group: "Apparition", on: "inView", duration, keyframes: [{ at: 0, style: from }, { at: duration, style: rest, easing }] });
+/** Courbe qui dépasse la valeur d'arrivée puis revient s'y poser (tests simulés, PR8 : « un tout petit peu trop loin avant de revenir »). */
+export const OVERSHOOT = "cubic-bezier(.34,1.56,.64,1)";
 const loop = (id: string, label: string, duration: number, keyframes: [number, StyleProps][], easing = "ease-in-out", alternate?: boolean): AnimationPreset => ({ id, label, group: "Continue", on: "load", duration, loop: "infinite", alternate, keyframes: keyframes.map(([pct, style], i) => ({ at: Math.round((pct / 100) * duration), style, ...(i ? { easing } : {}) })) });
 /** Animations prêtes à l'emploi : apparitions (à l'entrée dans l'écran), survol, continues (en boucle dès le chargement), attention (au clic). */
 export const ANIMATION_PRESETS: AnimationPreset[] = [
@@ -27,6 +29,8 @@ export const ANIMATION_PRESETS: AnimationPreset[] = [
   appear("slide-right", "Glissé depuis la gauche", { opacity: "0", transform: "translateX(-40px)" }),
   appear("zoom", "Zoom", { opacity: "0", transform: "scale(0.92)" }),
   appear("blur", "Netteté", { opacity: "0", filter: "blur(12px)" }),
+  appear("rise-bounce", "Montée avec rebond", { opacity: "0", transform: "translateY(28px)" }, OVERSHOOT, 800),
+  appear("zoom-bounce", "Zoom avec rebond", { opacity: "0", transform: "scale(0.85)" }, OVERSHOOT, 800),
   { id: "grow", label: "Grossir", group: "Survol", on: "hover", duration: 250, keyframes: [{ at: 0, style: { transform: "scale(1)" } }, { at: 250, style: { transform: "scale(1.06)" }, easing: "ease-out" }], trigger: { reverseOnLeave: true } },
   { id: "lift", label: "Soulever", group: "Survol", on: "hover", duration: 250, keyframes: [{ at: 0, style: { transform: "translateY(0)" } }, { at: 250, style: { transform: "translateY(-4px)" }, easing: "ease-out" }], trigger: { reverseOnLeave: true } },
   { id: "brighten", label: "Éclaircir", group: "Survol", on: "hover", duration: 200, keyframes: [{ at: 0, style: { filter: "brightness(1)" } }, { at: 200, style: { filter: "brightness(1.15)" }, easing: "ease-out" }], trigger: { reverseOnLeave: true } },

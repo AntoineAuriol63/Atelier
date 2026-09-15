@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { AlertTriangle, CheckCircle2, Command as CommandIcon, Database as DatabaseIcon, ExternalLink, Info, FileText, Grid3x3, Layers, Moon, Palette, Plus, Puzzle, Redo2, Sparkles, Sun, Undo2, UploadCloud, X, Settings2, Maximize2, Minimize2, Columns2, PanelLeftClose, PanelLeftOpen, Zap } from "lucide-react";
 import type { DropPosition, Entry, Node, Page, Site, StyleValue, Role } from "@atelier/model";
-import { animationById, BASE, breakpointForWidth, canInsertUnder, cloneWithNewIds, dataSourceFor, entryPath, fitHeadings as fitHeadingsInPage, indexSite, layoutGridAt, newId, planDetach, planDrop, planInsert, planMakeComponent, planMergePrev, planMove, planSlashInsert, planSplit, stylePath, templateOf, type ComponentPlan, type TextPlan, ANIMATION_PRESETS, planQuickAnimation } from "@atelier/model";
+import { animationById, appearanceOf, BASE, breakpointForWidth, canInsertUnder, cloneWithNewIds, dataSourceFor, entryPath, fitHeadings as fitHeadingsInPage, indexSite, layoutGridAt, newId, planDetach, planDrop, planInsert, planMakeComponent, planMergePrev, planMove, planSlashInsert, planSplit, stylePath, templateOf, type ComponentPlan, type TextPlan, ANIMATION_PRESETS, planQuickAnimation } from "@atelier/model";
 import type { Op } from "@atelier/model";
 import { valueToCss } from "@atelier/renderer";
 import type { Inline } from "@atelier/model";
@@ -23,7 +23,7 @@ import { ImagesIcon, MediaLibraryProvider, openMediaLibrary } from "@/components
 import type { AssetUsage } from "@/lib/asset-usage";
 import { isAtelierMessage, type EditMode, type FromPreview, type ToPreview } from "@/lib/preview-protocol";
 import { animatedNodes, triggerHosts, validOpenTimeline, type OpenTimeline } from "@/lib/timeline";
-import { selectionPath } from "@/lib/selection";
+import { compoundIds, selectionPath } from "@/lib/selection";
 import { testOnSiteUrl } from "@/lib/test-on-site";
 import { AnimationModePanel } from "./animation/AnimationModePanel";
 import { PublishDialog } from "@/components/PublishDialog";
@@ -212,18 +212,26 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
   const openAnimation = useCallback((o: OpenTimeline) => {
     const owner = o ? index.get(o.hostId)?.owner : undefined;
     const target = owner && "page" in owner ? owner.page : page.id;
-    if (target !== page.id) { setPageId(target); setFrameReady(false); }
+    if (target !== page.id) {
+      setPageId(target); setFrameReady(false);
+      // Changer de page en ouvrant une animation se dit (tests simulés, PR4 : le changement était passé inaperçu).
+      const p = site.pages.find((x) => x.id === target);
+      if (p) notify(`Page « ${p.name[site.settings.defaultLocale] ?? p.path} » : cette animation est lancée depuis cette page`, "info");
+    }
     setTimeline({ page: target, open: o });
     if (o) select(o.hostId);
-  }, [index, page.id, setPageId, select]);
+  }, [index, page.id, setPageId, select, site, notify]);
   /** « Animer cet élément » : passe en mode Animation sur l'élément, en ouvrant l'animation du déclencheur demandé (sinon du premier). */
   const animateNode = useCallback((node: Node, triggerId?: string) => {
     if (writer) return;
     const t = (node.triggers ?? []).find((x) => x.id === triggerId) ?? node.triggers?.[0];
     switchMode("animate");
+    // Un élément enchaîné n'a pas de déclencheur à lui : on ouvre l'animation qui le fait apparaître.
+    const ap = t ? undefined : appearanceOf(site, node.id);
     if (t) openAnimation({ animationId: t.animation, hostId: node.id, triggerId: t.id });
+    else if (ap) openAnimation({ animationId: ap.animation.id, hostId: ap.hostId, triggerId: ap.trigger.id });
     else select(node.id);
-  }, [writer, switchMode, openAnimation, select]);
+  }, [writer, switchMode, openAnimation, select, site]);
   // Pioche de la ligne de temps : le prochain élément cliqué (aperçu, calques, fil d'Ariane) devient une piste, sans changer la sélection.
   const pickRef = useRef<((id: string) => void) | null>(null);
   const [picking, setPicking] = useState(false);
@@ -413,7 +421,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
     return () => window.removeEventListener("message", onMsg);
   }, [moveNode, select, dropBlock, setNodeContent, splitNode, mergePrev, slashInsert, switchMode, doc, index, site, locale, page.id, notify, consumePick]);
 
-  useEffect(() => { if (frameReady) post({ type: "atelier:site", site, containers: [...index.values()].filter((l) => ["box", "list", "listItem", "link", "form", "item", "slot"].includes(l.node.type)).map((l) => l.node.id), links: [...index.values()].filter((l) => l.node.type === "link" || (editMode === "write" && l.node.type === "collection")).map((l) => l.node.id), textNodes: textNodeIds, editMode, blocks: blockInfos, pages: site.pages.filter((p) => p.kind === "static").map((p) => ({ path: p.path, name: p.name[locale] ?? p.path })) }); }, [site, index, textNodeIds, frameReady, post, editMode, blockInfos, locale]);
+  useEffect(() => { if (frameReady) post({ type: "atelier:site", site, containers: [...index.values()].filter((l) => ["box", "list", "listItem", "link", "form", "item", "slot"].includes(l.node.type)).map((l) => l.node.id), links: [...index.values()].filter((l) => l.node.type === "link" || (editMode === "write" && l.node.type === "collection")).map((l) => l.node.id), textNodes: textNodeIds, compounds: compoundIds(site, editMode), editMode, blocks: blockInfos, pages: site.pages.filter((p) => p.kind === "static").map((p) => ({ path: p.path, name: p.name[locale] ?? p.path })) }); }, [site, index, textNodeIds, frameReady, post, editMode, blockInfos, locale]);
   // Les entrées voyagent à part, et seulement celles des bases que la page utilise (vues et modèle) : le message ne pèse plus le site entier.
   const pageDatabases = useMemo(() => {
     const ids = new Set<string>();
@@ -740,7 +748,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
         {editMode === "animate" ? (
           <div className="flex-1 overflow-auto"><AnimationModePanel site={site} node={selectedLoc?.node ?? null} commit={doc.commit} page={page} getSite={doc.getSite} bp={activeBp} mode={mode} open={openTl} onOpen={openAnimation} scrub={scrub} onSelect={select} onPick={setPick} picking={picking} showTargets={showTargets} onTestOnSite={testOnSite} /></div>
         ) : selectedLoc ? (
-          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} onPlay={(id, trigger) => post({ type: "atelier:play", id, trigger })} site={site} loc={selectedLoc} dataSource={dataSource} activeBp={activeBp} mode={mode} editMode={editMode} onSwitchMode={switchMode} onOpenAnimation={writer ? undefined : (triggerId) => animateNode(selectedLoc.node, triggerId)} onTestOnSite={() => testOnSite(selectedLoc.node.id)} onGoToBreakpoint={goToBreakpoint} onPreviewState={setPreviewState} onEditInPreview={() => post({ type: "atelier:edit-text", id: selectedLoc.node.id })} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }} onMakeComponent={makeComponent} onDetach={detachInstance} notify={notify} commit={doc.commit} onDeleted={() => { select(selectedLoc.parent?.id ?? null); notify(`${nodeLabel(selectedLoc.node)} supprimé`, "info", { label: "Annuler", run: () => doc.undo() }); }} /></div>
+          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} onPlay={(id, trigger) => post({ type: "atelier:play", id, trigger })} site={site} loc={selectedLoc} dataSource={dataSource} activeBp={activeBp} mode={mode} editMode={editMode} onSwitchMode={switchMode} onOpenAnimation={writer ? undefined : (triggerId) => animateNode(selectedLoc.node, triggerId)} onTestOnSite={() => testOnSite(selectedLoc.node.id)} onSelectNode={(id) => select(id)} onGoToBreakpoint={goToBreakpoint} onPreviewState={setPreviewState} onEditInPreview={() => post({ type: "atelier:edit-text", id: selectedLoc.node.id })} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }} onMakeComponent={makeComponent} onDetach={detachInstance} notify={notify} commit={doc.commit} onDeleted={() => { select(selectedLoc.parent?.id ?? null); notify(`${nodeLabel(selectedLoc.node)} supprimé`, "info", { label: "Annuler", run: () => doc.undo() }); }} /></div>
         ) : (
           <div className="p-3 flex flex-col gap-2">
             <PanelHeading className="px-0">Sélection</PanelHeading>

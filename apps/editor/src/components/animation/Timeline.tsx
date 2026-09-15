@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Copy, Crosshair, Diamond, ExternalLink, Pause, Play, Plus, Repeat, SkipBack, Snail, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { Animation, CommitOptions, Node, Op, Site, Track, Trigger } from "@atelier/model";
 import { ANIMATION_PRESETS, STAGGER_FROM_LABELS, animationById, animationLength, describeAnimation, indexSite, keyframeAt, newId, planAddTrack, planFillTrackFromPreset, planScaleAnimation, planRemoveKeyframes, planRemoveTrack, planSetKeyframeEasing, planShiftKeyframes, planUpdateAnimation, planUpdateTrack, resolveTrackTarget, shiftDelta, trackSpan, trackTargetFor, withTargetKind } from "@atelier/model";
@@ -36,6 +36,10 @@ export type TimelineProps = {
   showTargets?: (ids: string[], label?: string) => void;
   /** « Tester sur le site » : l'onglet Aperçu, où l'élément qui lance l'animation arrive à l'écran. */
   onTestOnSite?: () => void;
+  /** Montrer les animations d'un autre élément sélectionné (ferme ou remplace cette ligne de temps). */
+  onOpenElement?: (nodeId: string) => void;
+  /** Aide de lecture, sous la scène collante. */
+  intro?: ReactNode;
 };
 
 /**
@@ -44,9 +48,10 @@ export type TimelineProps = {
  * ⌥-glisser : dupliquer ; Suppr : retirer ; clic sur la portée : toute la piste) ; réglages de la piste (cible, décalage) ; puis l'image-clé
  * à la tête de lecture (courbe du segment, dupliquer, supprimer) et les panneaux Design en mode image-clé.
  */
-export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel, selected, bp, mode, commit, scrub, onClose, onSelect, focusName, onPick, picking, showTargets, onTestOnSite }: TimelineProps) {
+export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel, selected, bp, mode, commit, scrub, onClose, onSelect, focusName, onPick, picking, showTargets, onTestOnSite, onOpenElement, intro }: TimelineProps) {
   const length = Math.max(1, animationLength(animation));
-  const [playhead, setPlayhead] = useState(0);
+  // Une apparition s'ouvre sur son état visible (audit n°5 · R10) : à 0 ms, l'élément est souvent invisible et l'on croit l'avoir fait disparaître.
+  const [playhead, setPlayhead] = useState(() => (trigger?.on === "load" || trigger?.on === "inView" ? length : 0));
   const [playing, setPlaying] = useState(false);
   const [loop, setLoop] = useState(animation.loop === "infinite");
   const [slow, setSlow] = useState(false);
@@ -111,6 +116,8 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
   const index = useMemo(() => indexSite(site), [site]);
   const nodeOfTrack = (t: Track): Node | undefined => { const r = resolveTrackTarget(t.target, hostId); return "selector" in r ? undefined : index.get(r.node)?.node; };
   const byNode = selected ? animation.tracks.find((t) => nodeOfTrack(t)?.id === selected.id) : undefined;
+  /** L'élément sélectionné, s'il n'est ni l'hôte ni visé par une piste de cette animation. */
+  const outside = onOpenElement && selected && selected.id !== hostId && !byNode && !picking ? selected : null;
   const pickedTrack = picked && (picked.forNode === (selected?.id ?? null) || !byNode) ? animation.tracks.find((t) => t.id === picked.track) : undefined;
   const track = pickedTrack ?? byNode ?? animation.tracks[0];
   const at = snapTime(playhead);
@@ -281,10 +288,21 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
       </div>
       <div className="flex flex-wrap items-center gap-1 pt-1">
         {onPick ? <Button size="sm" icon={Crosshair} active={picking} onClick={() => (picking ? onPick(null) : startPick())} title="Cliquez ensuite l'élément à animer dans l'aperçu, les calques ou le fil d'Ariane, sans changer la sélection">{picking ? "Cliquez un élément… (Échap)" : "Choisir un élément"}</Button> : null}
-        {canAdd.ok && selected ? <Button size="sm" variant="ghost" icon={Plus} onClick={addTrack} title="Animer l'élément sélectionné dans cette ligne de temps">{`Ajouter « ${nodeLabel(selected)} »`}</Button> : null}
+        {canAdd.ok && selected && !outside ? <Button size="sm" variant="ghost" icon={Plus} onClick={addTrack} title="Animer l'élément sélectionné dans cette ligne de temps">{`Ajouter « ${nodeLabel(selected)} »`}</Button> : null}
         {pickMsg ? <span className="text-2xs text-warning truncate" title={pickMsg}>{pickMsg}</span> : null}
       </div>
+      {/* Un autre élément sélectionné (tests simulés, PR5) : on dit qu'il n'est pas dans cette animation et on laisse choisir entre ouvrir les siennes et l'ajouter ici. */}
+      {outside ? (
+        <div className="flex flex-col gap-1 rounded-sm border border-accent/50 bg-accent-soft/20 p-1.5" role="status">
+          <span className="text-xs text-ink">{`« ${nodeLabel(outside).replace(/ « .*$/, "")} » n'est pas dans cette animation.`}</span>
+          <div className="flex flex-wrap gap-1">
+            <Button size="sm" onClick={() => onOpenElement!(outside.id)} title="Ferme cette ligne de temps et montre ce qui fait bouger l'élément sélectionné">Voir ses animations</Button>
+            {canAdd.ok ? <Button size="sm" variant="ghost" icon={Plus} onClick={addTrack} title="Ajoute l'élément sélectionné comme piste de cette animation">L&apos;ajouter à cette animation</Button> : null}
+          </div>
+        </div>
+      ) : null}
       </div>
+      {intro}
       {trigger?.on === "scroll" ? <Hint>{`Au défilement ${pageLevel ? "de la page" : "de l'élément"}, la position entre ${Math.round((trigger.range?.[0] ?? 0) * 100)} % et ${Math.round((trigger.range?.[1] ?? 1) * 100)} % parcourt cette ligne de temps : la tête de lecture montre l'état à chaque position.`}</Hint>
         : trigger?.on === "pointer" ? <Hint>{`La position ${trigger.axis === "x" ? "horizontale" : "verticale"} de la souris dans la fenêtre parcourt cette ligne de temps : la tête de lecture montre l'état à chaque position.`}</Hint> : null}
 

@@ -118,8 +118,8 @@ describe("variantes de composant", () => {
   it("pose la classe de variante sur la racine de l'instance et émet le CSS ciblé", () => {
     const ctx: RenderContext = { ...ctxFor("/"), site, page: site.pages[0]! };
     const html = renderToStaticMarkup(createElement(RenderPage, { ctx }));
-    expect(html).toContain('class="n-vb v-style-primaire"');
-    expect(html).toContain('class="n-vb v-style-secondaire"');
+    expect(html).toContain('class="n-vb v-style-primaire n-vi1"');
+    expect(html).toContain('class="n-vb v-style-secondaire n-vi2"');
     const css = siteCss(site);
     expect(css).toContain(".n-vb.v-style-secondaire{background:blue}");
     expect(css).toContain(".n-vb.v-style-secondaire .n-vt{color:white}");
@@ -167,7 +167,7 @@ describe("site d'exemple : restaurant", () => {
     const home = renderToStaticMarkup(createElement(RenderPage, { ctx: { site: restaurantSite, page: restaurantSite.pages[0]!, params: {}, locale: "fr", data, assets } }));
     expect(home).toContain("Agneau des Combrailles");
     expect(home).toContain("Brunch des producteurs");
-    expect(home).toContain('class="n-rh_root v-fond-transparent"');
+    expect(home).toContain('class="n-rh_root v-fond-transparent n-rp_home_hdr"');
     expect(home).toContain("data-anim=");
     expect(home).toContain("IntersectionObserver");
   });
@@ -425,8 +425,22 @@ describe("animations (section 8.4, lignes de temps et déclencheurs)", () => {
     const site: Site = { ...page([{ id: "p", type: "box", props: {}, triggers: [tr("r1", "load", "an_i")], children: [{ id: "i1", type: "instance", props: { component: "cmp" } }, { id: "i2", type: "instance", props: { component: "cmp" } }] }], [a]), components: [cmp] };
     const h = html(site, true);
     expect(h).toContain('<div data-node="i2" data-instance="cmp" data-anim-target="" style="display:contents">');
-    expect(h).toContain('class="n-cmp_root" data-node="cmp_root" data-anim-target="" style="--at-i:1;--at-n:2"');
-    expect(html(site)).toContain('class="n-cmp_root" data-anim-target="" style="--at-i:0;--at-n:2"');
+    expect(h).toContain('class="n-cmp_root n-i2" data-node="cmp_root" data-anim-target="" style="--at-i:1;--at-n:2"');
+    expect(html(site)).toContain('class="n-cmp_root n-i1" data-anim-target="" style="--at-i:0;--at-n:2"');
+  });
+  it("une occurrence de composant peut apparaître : sa racine rendue porte sa classe et ses déclencheurs, et une piste d'un autre élément peut la viser", () => {
+    const cmp: ComponentDef = { id: "cmp", name: "Chiffre", scope: "site", props: [], root: { id: "cmp_root", type: "box", props: {}, children: [text("cmp_v", "12")] } };
+    const own = an("an_o", [fade("t_o")]);
+    const other = an("an_b", [fade("t_b", { target: { node: "in2" } })]);
+    const site: Site = { ...page([{ id: "hst", type: "box", props: {}, triggers: [tr("r2", "load", "an_b")] }, { id: "in1", type: "instance", props: { component: "cmp" }, triggers: [tr("r1", "inView", "an_o")] }, { id: "in2", type: "instance", props: { component: "cmp" } }], [own, other]), components: [cmp] };
+    const h = html(site);
+    expect(h).toMatch(/class="n-cmp_root n-in1" data-anim="[^"]*&quot;i&quot;:&quot;r1&quot;/);
+    expect(h).toContain('class="n-cmp_root n-in2" data-anim-target=""');
+    const css = siteCss(site);
+    expect(css).toContain(".n-in1{animation:at-an_o-t_o 500ms ease 0ms 1 normal both;animation-play-state:paused}");
+    expect(css).toContain(".n-in2{animation:at-an_b-t_b 500ms ease 0ms 1 normal both;animation-play-state:running}");
+    // Dans l'éditeur, l'enveloppe garde l'identifiant d'édition ; la racine porte la classe et les déclencheurs.
+    expect(html(site, true)).toMatch(/<div data-node="in1" data-instance="cmp" style="display:contents"><div class="n-cmp_root n-in1" data-node="cmp_root" data-anim="/);
   });
   it("les règles éditeur, réduire les animations et sans script couvrent les cibles ; bandeau inchangé", () => {
     const site = page([text("t", "x", { triggers: [tr("r1", "load", "an_z")] })], [an("an_z", [fade("t_z")])]);
