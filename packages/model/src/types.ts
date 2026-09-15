@@ -187,7 +187,9 @@ export type SplitMode = "words" | "letters";
 /** Ce qu'une piste anime : l'élément du déclencheur (relatif), un élément précis, ou un sélecteur ; `children` vise les enfants directs, `split` les mots ou lettres d'un texte. */
 export type TrackTarget = { trigger: true; children?: true; split?: SplitMode } | { node: Id; children?: true; split?: SplitMode } | { selector: string };
 export type Stagger = { each: number; from?: "start" | "end" | "center" };
-export type Track = { id: Id; target: TrackTarget; stagger?: Stagger; keyframes: Keyframe[] };
+/** Place une piste par rapport à une autre piste de la même animation : à sa fin (`after`) ou à son départ (`with`), plus `gap` ms. */
+export type TrackStart = { after: Id; gap?: number } | { with: Id; gap?: number };
+export type Track = { id: Id; target: TrackTarget; stagger?: Stagger; keyframes: Keyframe[]; start?: TrackStart };
 export type Animation = {
   id: Id;
   name: string;

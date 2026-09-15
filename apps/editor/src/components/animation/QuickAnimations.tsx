@@ -39,7 +39,7 @@ function Row({ label, title, children }: { label: string; title?: string; childr
  * L'apparition se règle entièrement ici (tests simulés du 14 septembre, lot 1) : effet, vitesse, ce qui la fait démarrer (l'élément
  * lui-même, ou la fin d'un autre élément : « après « Titre » »), délai, rejouer, détail ; un enchaînement est une seule animation.
  */
-export function QuickAnimations({ site, node, commit, onOpenAnimation, onPlay, onTestOnSite, onSelectNode }: { site: Site; node: Node; commit: Commit; onOpenAnimation?: () => void; onPlay?: PlayFn; onTestOnSite?: () => void; onSelectNode?: (id: string) => void }) {
+export function QuickAnimations({ site, node, commit, onOpenAnimation, onPlay, onTestOnSite, onSelectNode }: { site: Site; node: Node; commit: Commit; onOpenAnimation?: () => void; onPlay?: PlayFn; onTestOnSite?: (nodeId?: string) => void; onSelectNode?: (id: string) => void }) {
   // Aperçu immédiat : après un choix, ce qu'il lance est joué une fois dans le canevas (cadrage : « on doit voir ce qu'on règle »).
   const pending = useRef<QuickGroup | null>(null);
   const playRef = useRef(onPlay);
@@ -89,7 +89,7 @@ export function QuickAnimations({ site, node, commit, onOpenAnimation, onPlay, o
       })}
       <div className="flex flex-wrap items-center gap-1">
         {/* Le canevas joue l'animation ; le vrai déclenchement (entrée dans l'écran, survol) se vérifie sur le site (audit n°5 · R4). */}
-        {onTestOnSite && (node.triggers?.length || appearance) ? <Button size="sm" variant="ghost" icon={ExternalLink} onClick={onTestOnSite} title="Ouvre l'onglet Aperçu : l'élément arrive à l'écran et ses animations se jouent comme pour un visiteur">Tester sur le site</Button> : null}
+        {onTestOnSite && (node.triggers?.length || appearance) ? <Button size="sm" variant="ghost" icon={ExternalLink} onClick={() => onTestOnSite(appearance && !appearance.page && appearance.hostId !== node.id ? appearance.hostId : undefined)} title="Ouvre l'onglet Aperçu : ce qui lance l'animation arrive à l'écran et elle se joue comme pour un visiteur">Tester sur le site</Button> : null}
         {onOpenAnimation ? <Button size="sm" variant="ghost" icon={Film} onClick={onOpenAnimation}>Ouvrir dans le mode Animation</Button> : null}
       </div>
     </FieldGroup>
@@ -134,14 +134,20 @@ function AppearanceFields({ site, node, run, onPlay, onSelectNode }: { site: Sit
     <>
       <Field label="Apparition" hint={ap && !ap.preset ? "L'élément arrive. Retouchée dans le mode Animation : choisir un préréglage la remplace, en gardant son départ." : "L'élément arrive quand il entre dans l'écran, ou après un autre élément"}>
         <div className="flex items-center gap-1 min-w-0">
-          <Select className="flex-1 min-w-0" value={ap ? ap.preset?.id ?? "custom" : ""} options={options} onValueChange={(v) => { if (v !== "custom") run(planAppearancePreset(site, node.id, v), v ? `Apparition · ${ANIMATION_PRESETS.find((p) => p.id === v)?.label ?? v}` : "Apparition · aucune", v ? "Apparition" : undefined); }} />
+          <Select className="flex-1 min-w-0" value={ap ? ap.preset?.id ?? "custom" : inherited?.viaChildren ? inherited.appearance.preset?.id ?? "" : ""} options={options} onValueChange={(v) => {
+            if (v === "custom") return;
+            // Une carte qui arrive avec sa liste : l'effet se règle sur la liste, pour toutes les cartes (sinon deux apparitions se contrediraient).
+            const on = inherited?.viaChildren ? inherited.carrierId : node.id;
+            if (inherited?.viaChildren && !v) return;
+            run(planAppearancePreset(site, on, v), v ? `Apparition · ${ANIMATION_PRESETS.find((p) => p.id === v)?.label ?? v}` : "Apparition · aucune", v ? "Apparition" : undefined);
+          }} />
           {ap && onPlay ? <IconButton size="sm" label="Jouer dans le canevas" icon={Play} onClick={() => onPlay(ap.trigger.id, ap.hostId)} /> : null}
         </div>
       </Field>
       {inherited ? (
         <Field label="">
           <div className="flex flex-col gap-1 min-w-0">
-            <p className="text-2xs text-muted leading-snug" data-anim-summary="">{`Arrive avec ${labelOf(inherited.carrierId)}${inherited.viaChildren ? "" : ", d'un seul bloc"} : ${summarizeAnimation(site, inherited.appearance.trigger, inherited.appearance.hostId, !!inherited.appearance.page)}`}</p>
+            <p className="text-2xs text-muted leading-snug" data-anim-summary="">{`Arrive avec ${labelOf(inherited.carrierId)}${inherited.viaChildren ? " : l'effet choisi ici vaut pour tous ses éléments" : ", d'un seul bloc"}. ${summarizeAnimation(site, inherited.appearance.trigger, inherited.appearance.hostId, !!inherited.appearance.page)}`}</p>
             {onSelectNode ? <Button size="sm" variant="ghost" className="self-start" onClick={() => onSelectNode(inherited.carrierId)} title="Sélectionne l'élément qui porte cette apparition, pour la régler">{`Régler sur ${labelOf(inherited.carrierId)}`}</Button> : null}
           </div>
         </Field>

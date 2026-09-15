@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight, Plus, Sparkles, X } from "lucide-react";
 import type { Animation, CommitOptions, Node, Op, Page, Site, Trigger, TriggerOn } from "@atelier/model";
-import { ANIMATION_PRESETS, TRIGGER_LABELS, animationById, animationFromPreset, animationUsages, appearanceOf, describeAnimation, describeTrigger, duplicateQuickTriggers, indexSite, newId, planAddAnimation, planAddPageTrigger, planAddTrigger, planAnimateElement, planRemovePageTriggerWithAnimation, planRemoveTriggerWithAnimation, planUpdatePageTrigger, planUpdateTrigger, presetById, triggerFromPreset } from "@atelier/model";
+import { ANIMATION_PRESETS, TRIGGER_LABELS, animationById, animationFromPreset, animationUsages, appearanceOf, describeAnimation, describeTrigger, duplicateQuickTriggers, indexSite, isSequence, newId, planAddAnimation, planAddPageTrigger, planAddTrigger, planAnimateElement, planRemovePageTriggerWithAnimation, planRemoveTriggerWithAnimation, planUpdatePageTrigger, planUpdateTrigger, presetById, triggerFromPreset } from "@atelier/model";
 import { Badge, Button, Eyebrow, Field, Hint, IconButton, NumberInput, PanelHeading, Section, Select, Toggle } from "@/ui";
 import { animationLabel, nextAnimationName, openTrigger, quoteLabel, type OpenTimeline } from "@/lib/timeline";
 import { Timeline } from "./Timeline";
@@ -57,7 +57,7 @@ export function AnimationModePanel({ site, node, commit, page, getSite, bp, mode
     const ap = appearanceOf(site, id);
     setCreated(null);
     if (t) onOpen({ animationId: t.animation, hostId: id, triggerId: t.id });
-    else if (ap) onOpen({ animationId: ap.animation.id, hostId: ap.hostId, triggerId: ap.trigger.id });
+    else if (ap) { onOpen({ animationId: ap.animation.id, hostId: ap.hostId, triggerId: ap.trigger.id }); onSelect(id); }
     else onOpen(null);
   };
 
@@ -173,7 +173,7 @@ function TriggerList({ site, triggers, hostId, pageLevel, duplicates, open, onOp
                 {active ? null : <span className="shrink-0 text-2xs text-accent opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100">Modifier</span>}
               </button>
               {duplicates?.has(t.id) ? <Badge tone="warning" title="Une autre animation de la même famille (apparition, survol, continu) est déjà posée sur cet élément : les deux se jouent.">en double</Badge> : null}
-              <IconButton size="sm" label="Retirer le déclencheur" icon={X} onClick={() => onRemove(t)} />
+              {(() => { const a = animationById(site, t.animation); const n = a && isSequence(a) ? a.tracks.filter((k) => !("trigger" in k.target)).length : 0; return <IconButton size="sm" label={n ? `Retirer le déclencheur : ${n} autre${n > 1 ? "s" : ""} élément${n > 1 ? "s" : ""} ne bouger${n > 1 ? "ont" : "a"} plus` : "Retirer le déclencheur"} icon={X} onClick={() => onRemove(t)} />; })()}
             </div>
             {active ? <TriggerSettings trigger={t} pageLevel={pageLevel} onUpdate={(patch, label, key) => onUpdate(t, patch, label, key)} /> : null}
           </li>

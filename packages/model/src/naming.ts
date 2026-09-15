@@ -43,8 +43,7 @@ export function classMap(site: Site): ClassMap {
   };
   for (const s of site.sharedStyles) shared.set(s.id, unique([slugify(s.name) || "style"]));
   const walk = (n: Node, scope: string, siblings: Node[]) => {
-    // Une instance ne produit pas d'élément propre : c'est la racine du composant qui porte la classe.
-    if (n.type === "instance") return;
+    // Une instance ne produit pas d'élément propre : la racine rendue du composant porte la classe du composant et la sienne.
     let cls: string;
     if (n.name) {
       const slug = slugify(n.name) || kindOf(n);
@@ -57,6 +56,7 @@ export function classMap(site: Site): ClassMap {
       cls = unique([i > 0 ? `${base}-${i + 1}` : base]);
     }
     node.set(n.id, cls);
+    if (n.type === "instance") return;
     const nextScope = n.name ? cls : scope;
     (n.children ?? []).forEach((c) => walk(c, nextScope, n.children ?? []));
   };

@@ -21,6 +21,12 @@ describe("classes lisibles", () => {
     expect(m.shared.get("st_button")).toBe("bouton");
     expect(m.shared.get("st_button_secondary")).toBe("bouton-secondaire");
   });
+  it("une occurrence de composant a sa classe lisible (portée par la racine rendue du composant)", () => {
+    expect(m.node.get("home_hdr")).toBe("en-tete-2");
+    expect(m.node.get("gal_hdr")).toMatch(/^component(-\d+)?$/);
+    const all = [...m.node.values()];
+    expect(new Set(all).size).toBe(all.length);
+  });
   it("connaît la sorte d'un nœud", () => {
     expect(kindOf({ id: "x", type: "text", props: { tag: "h2" } })).toBe("title");
     expect(kindOf({ id: "x", type: "link", props: { tag: "button" } })).toBe("button");

@@ -1,5 +1,5 @@
 import type { ComponentDef, Inline, Mark, Node, Overrides, Page, Site, ViewConfig } from "@atelier/model";
-import { animationById, applyOverrides, resolveTrackTarget, variantClasses } from "@atelier/model";
+import { animationById, applyOverrides, resolveTrackTarget, variantClasses, walk } from "@atelier/model";
 import { createElement, Fragment, type ReactNode } from "react";
 import { nodeClassName } from "./css";
 import { INTERACTION_SCRIPT, animationsAttr, hasInteractions, hasMotion, interactionsAttr, marqueeOf } from "./interactions";
@@ -142,7 +142,8 @@ export function collectAnimTargets(site: Site, page: Page): AnimTargets {
       else if (r.node !== host) out.targets.add(r.node);
     }
   };
-  const visit = (n: Node) => { take(n.id, n.triggers); n.children?.forEach(visit); };
+  // `walk` parcourt aussi les emplacements des occurrences : un élément animé placé dans un emplacement est une cible comme un autre.
+  const visit = (root: Node) => walk(root, (n) => { take(n.id, n.triggers); });
   take(page.root.id, page.triggers);
   visit(page.root);
   site.components.forEach((c) => visit(c.root));

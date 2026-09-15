@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ANIMATION_PRESETS, BASE, QUICK_SPEEDS, animationLength, planAnimateElement, animationById, animationFromPreset, animationUsages, applyOps, describeAnimation, describeTrigger, duplicateQuickTriggers, easingCss, isPresetIntact, keyframeAt, keyframeStyleAt, migrate, parseSpring, planAddPageTrigger, planFillTrackFromPreset, planAddTrack, planAddTrigger, planApplyPreset, planRemoveAnimation, planRemoveKeyframe, planRemoveKeyframes, planRemovePageTriggerWithAnimation, planRemoveTrack, planQuickAnimation, planQuickDetail, planRemoveTrigger, planRemoveTriggerWithAnimation, planScaleAnimation, planQuickSpeed, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUnsetKeyframeProp, planUpdateAnimation, planUpdatePageTrigger, planUpdateTrack, planUpdateTrigger, presetById, quickAnimation, quickSpeed, resolveTrackTarget, sampleSite, schema, shiftDelta, springDuration, springEasing, springSamples, staggerDelay, staggerRank, trackSpan, trackTargetFor, withTargetKind, type Animation, type Node, type Site, type Trigger } from "../src";
+import { ANIMATION_PRESETS, BASE, QUICK_SPEEDS, animationLength, layoutTracks, planMoveKeyframe, planAnimateElement, animationById, animationFromPreset, animationUsages, applyOps, describeAnimation, describeTrigger, duplicateQuickTriggers, easingCss, isPresetIntact, keyframeAt, keyframeStyleAt, migrate, parseSpring, planAddPageTrigger, planFillTrackFromPreset, planAddTrack, planAddTrigger, planApplyPreset, planRemoveAnimation, planRemoveKeyframe, planRemoveKeyframes, planRemovePageTriggerWithAnimation, planRemoveTrack, planQuickAnimation, planQuickDetail, planRemoveTrigger, planRemoveTriggerWithAnimation, planScaleAnimation, planQuickSpeed, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUnsetKeyframeProp, planUpdateAnimation, planUpdatePageTrigger, planUpdateTrack, planUpdateTrigger, presetById, quickAnimation, quickSpeed, resolveTrackTarget, sampleSite, schema, shiftDelta, springDuration, springEasing, springSamples, staggerDelay, staggerRank, trackSpan, trackTargetFor, withTargetKind, type Animation, type Node, type Site, type Trigger } from "../src";
 const siteSchema = schema.site;
 
 const node = (site: Site, id: string): Node => { let out: Node | undefined; const dfs = (n: Node) => { if (n.id === id) out = n; n.children?.forEach(dfs); }; site.pages.forEach((p) => dfs(p.root)); return out!; };
@@ -353,6 +353,54 @@ describe("animations : la durée est la vitesse (audit n°5 · R1)", () => {
     // Changer de préréglage garde la vitesse choisie.
     ({ site } = applyOps(site, planQuickAnimation(site, node(site, "sp_title"), "Apparition", "zoom")));
     expect(quickSpeed(quickAnimation(site, node(site, "sp_title"), "Apparition")!)).toBe("fast");
+    expect(siteSchema.safeParse(site).success).toBe(true);
+  });
+});
+
+describe("animations : pistes enchaînées (start)", () => {
+  const kf = (a: number, b: number) => [{ at: a, style: { opacity: "0" } }, { at: b, style: { opacity: "1" } }];
+  const t = (id: string, from: number, to: number, start?: Animation["tracks"][number]["start"]): Animation["tracks"][number] => ({ id, target: { node: `hero_${id}` }, keyframes: kf(from, to), ...(start ? { start } : {}) });
+  const at = (site: Site, id: string) => { const tr = animationById(site, "an_ch")!.tracks.find((x) => x.id === id)!; return [trackSpan(tr).start, trackSpan(tr).end]; };
+  const make = (tracks: Animation["tracks"], duration = 3000): Site => ({ ...sampleSite, animations: [anim("an_ch", tracks, { duration })] });
+
+  it("une piste « after » part à la fin de sa référence, « with » à son départ, plus l'écart ; référence absente ou cycle : ses temps restent", () => {
+    const site = make([t("tk_a", 0, 700), t("tk_b", 0, 700, { after: "tk_a", gap: 100 }), t("tk_c", 0, 500, { with: "tk_b" }), t("tk_d", 50, 450, { after: "tk_zz" }), t("tk_e", 10, 20, { after: "tk_f" }), t("tk_f", 30, 40, { after: "tk_e" })]);
+    const laid = layoutTracks(site, animationById(site, "an_ch")!);
+    expect(laid.map((x) => [x.id, trackSpan(x).start, trackSpan(x).end])).toEqual([["tk_a", 0, 700], ["tk_b", 800, 1500], ["tk_c", 800, 1300], ["tk_d", 50, 450], ["tk_e", 10, 20], ["tk_f", 30, 40]]);
+    expect(siteSchema.safeParse(site).success).toBe(true);
+    expect(siteSchema.safeParse(make([t("tk_a", 0, 700), { ...t("tk_b", 0, 700), start: { before: "tk_a" } as never }])).success).toBe(false);
+  });
+  it("modifier la référence replace ce qui la suit ; déplacer à la main une piste enchaînée change son écart, pas quand sa référence bouge avec elle", () => {
+    let site = make([t("tk_a", 0, 700), t("tk_b", 700, 1400, { after: "tk_a" }), t("tk_c", 1400, 2100, { after: "tk_b" })]);
+    ({ site } = applyOps(site, planMoveKeyframe(site, "an_ch", "tk_a", 700, 1000)));
+    expect([at(site, "tk_b"), at(site, "tk_c")]).toEqual([[1000, 1700], [1700, 2400]]);
+    ({ site } = applyOps(site, planShiftKeyframes(site, "an_ch", [{ track: "tk_b", at: 1000 }, { track: "tk_b", at: 1700 }], 200)));
+    expect(animationById(site, "an_ch")!.tracks[1]!.start).toEqual({ after: "tk_a", gap: 200 });
+    expect([at(site, "tk_b"), at(site, "tk_c")]).toEqual([[1200, 1900], [1900, 2600]]);
+    // La référence et la piste qui la suit, déplacées ensemble : l'écart ne change pas.
+    const all = animationById(site, "an_ch")!.tracks.slice(0, 2).flatMap((x) => x.keyframes.map((k) => ({ track: x.id, at: k.at })));
+    ({ site } = applyOps(site, planShiftKeyframes(site, "an_ch", all, 100)));
+    expect(animationById(site, "an_ch")!.tracks[1]!.start).toEqual({ after: "tk_a", gap: 200 });
+    expect([at(site, "tk_a"), at(site, "tk_b"), at(site, "tk_c")]).toEqual([[100, 1100], [1300, 2000], [2000, 2700]]);
+    // Avancer la piste avant sa référence : l'écart ne descend pas sous 0.
+    ({ site } = applyOps(site, planShiftKeyframes(site, "an_ch", [{ track: "tk_c", at: 2000 }, { track: "tk_c", at: 2700 }], -1500)));
+    expect(animationById(site, "an_ch")!.tracks[2]!.start).toEqual({ after: "tk_b" });
+    expect(at(site, "tk_c")).toEqual([2000, 2700]);
+    expect(siteSchema.safeParse(site).success).toBe(true);
+  });
+  it("changer la durée met les écarts à l'échelle ; retirer une piste : celles qui la suivaient prennent son départ, avec leur écart", () => {
+    let site = make([t("tk_a", 0, 700), t("tk_b", 800, 1500, { after: "tk_a", gap: 100 }), t("tk_c", 1500, 2200, { after: "tk_b" }), t("tk_d", 850, 1350, { with: "tk_b", gap: 50 })], 2200);
+    ({ site } = applyOps(site, planScaleAnimation(site, "an_ch", 4400)));
+    expect(animationById(site, "an_ch")!.tracks[1]!.start).toEqual({ after: "tk_a", gap: 200 });
+    expect(at(site, "tk_c")).toEqual([3000, 4400]);
+    ({ site } = applyOps(site, planScaleAnimation(site, "an_ch", 2200)));
+    ({ site } = applyOps(site, planRemoveTrack(site, "an_ch", "tk_b")));
+    const tracks = animationById(site, "an_ch")!.tracks;
+    expect(tracks.map((x) => [x.id, x.start])).toEqual([["tk_a", undefined], ["tk_c", { after: "tk_a" }], ["tk_d", { after: "tk_a", gap: 50 }]]);
+    expect([at(site, "tk_c"), at(site, "tk_d")]).toEqual([[700, 1400], [750, 1250]]);
+    // La référence de tête retirée : la suite repart de son départ.
+    ({ site } = applyOps(site, planRemoveTrack(site, "an_ch", "tk_a")));
+    expect(animationById(site, "an_ch")!.tracks.map((x) => [x.id, x.start, trackSpan(x).start])).toEqual([["tk_c", undefined, 0], ["tk_d", undefined, 50]]);
     expect(siteSchema.safeParse(site).success).toBe(true);
   });
 });

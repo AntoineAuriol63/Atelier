@@ -47,6 +47,12 @@ describe("un clic désigne ce qu'on veut faire bouger (tests simulés, PR10)", (
     expect(pickSelection(["img", "link2", "card", "root"], compounds, "link2")).toBe("img");
     // Sans composé autour, l'élément cliqué ; une sélection ailleurs ne change rien.
     expect(pickSelection(["para", "root"], compounds, "btn")).toBe("para");
-    expect(pickSelection(["badge_v", "badge", "root"], compounds, "btn")).toBe("badge");
+    expect(pickSelection(["badge_v", "badge", "root"], compounds, "btn", ["btn", "root"])).toBe("badge");
+    // Entré dans la pastille : cliquer l'autre étiquette la sélectionne directement.
+    expect(pickSelection(["badge_v", "badge", "root"], compounds, "badge_l", ["badge_l", "badge", "root"])).toBe("badge_v");
+  });
+  it("en mode Animation, un bloc nommé fait de textes n'est pas un composé : son titre se pioche directement", () => {
+    expect(compoundIds(site, "animate").includes("badge")).toBe(false);
+    expect(compoundIds(site, "animate").includes("btn")).toBe(true);
   });
 });

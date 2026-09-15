@@ -61,14 +61,16 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
   // Après chaque rendu du site, on remet le surlignage sur l'élément sélectionné (il a pu être recréé).
   useEffect(() => {
     if (!editor) return;
-    document.querySelectorAll<HTMLElement>("[data-node][data-selected]").forEach((el) => { el.style.outline = ""; el.removeAttribute("data-selected"); });
+    const box = (el: HTMLElement) => (el.hasAttribute("data-instance") && el.firstElementChild instanceof HTMLElement ? el.firstElementChild : el);
+    document.querySelectorAll<HTMLElement>("[data-node][data-selected]").forEach((el) => { box(el).style.outline = ""; el.removeAttribute("data-selected"); });
     const el = selectedId.current ? document.querySelector<HTMLElement>(`[data-node="${selectedId.current}"]`) : null;
-    if (el) { el.style.outline = `2px solid ${ACCENT}`; el.style.outlineOffset = "-1px"; el.setAttribute("data-selected", ""); }
+    if (el) { box(el).style.outline = `2px solid ${ACCENT}`; box(el).style.outlineOffset = "-1px"; el.setAttribute("data-selected", ""); }
   }, [site, editor]);
 
   useEffect(() => {
     if (!editor) return;
     let hovered: HTMLElement | null = null;
+    let barHover: HTMLElement | null = null;
     const send = (msg: FromPreview) => parent.postMessage(msg, window.location.origin);
     let pages: { path: string; name: string }[] = [];
     let containers = new Set<string>();
@@ -88,20 +90,22 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     const selectedEl = () => (selectedId.current ? document.querySelector<HTMLElement>(`[data-node="${selectedId.current}"]`) : null);
     const nodeOf = (t: EventTarget | null) => (t instanceof Element ? (t.closest("[data-node]") as HTMLElement | null) : null);
     /** L'élément qu'un clic désigne : le bouton, la carte, l'occurrence ou la pastille autour du texte cliqué, puis, dedans, un niveau plus bas (`pickSelection`). */
+    const chainOf = (from: Element | null): HTMLElement[] => { const chain: HTMLElement[] = []; for (let cur = nodeOf(from); cur; cur = cur.parentElement ? nodeOf(cur.parentElement) : null) chain.push(cur); return chain; };
     const pickedOf = (t: EventTarget | null): HTMLElement | null => {
-      const chain: HTMLElement[] = [];
-      for (let cur = nodeOf(t); cur; cur = cur.parentElement ? nodeOf(cur.parentElement) : null) chain.push(cur);
+      const chain = chainOf(t instanceof Element ? t : null);
       if (!chain.length) return null;
-      const id = pickSelection(chain.map(idOf), compounds, selectedId.current);
+      const id = pickSelection(chain.map(idOf), compounds, selectedId.current, chainOf(selectedEl()).map(idOf));
       return chain.find((c) => idOf(c) === id) ?? chain[0]!;
     };
+    /** L'élément qui dessine la boîte d'un nœud : pour une occurrence de composant (enveloppe sans boîte), la racine rendue du composant. */
+    const boxOf = (el: HTMLElement): HTMLElement => (el.hasAttribute("data-instance") && el.firstElementChild instanceof HTMLElement ? el.firstElementChild : el);
     const idOf = (el: HTMLElement) => el.getAttribute("data-node")!;
     const isRoot = (el: HTMLElement) => idOf(el) === document.querySelector(".at-page > [data-node]")?.getAttribute("data-node");
-    const outline = (el: HTMLElement | null, kind: "selected" | "hover") => { if (!el) return; el.style.outline = kind === "selected" ? `2px solid ${ACCENT}` : `1px dashed ${ACCENT}`; el.style.outlineOffset = "-1px"; };
-    const clear = (el: HTMLElement | null) => { if (el && idOf(el) !== selectedId.current && el !== editing) el.style.outline = ""; };
+    const outline = (el: HTMLElement | null, kind: "selected" | "hover") => { if (!el) return; const b = boxOf(el); b.style.outline = kind === "selected" ? `2px solid ${ACCENT}` : `1px dashed ${ACCENT}`; b.style.outlineOffset = "-1px"; };
+    const clear = (el: HTMLElement | null) => { if (el && idOf(el) !== selectedId.current && el !== editing) boxOf(el).style.outline = ""; };
     const select = (el: HTMLElement | null, notify: boolean) => {
       const prev = selectedEl();
-      if (prev) { prev.style.outline = ""; prev.removeAttribute("data-selected"); }
+      if (prev) { boxOf(prev).style.outline = ""; prev.removeAttribute("data-selected"); }
       selectedId.current = el ? idOf(el) : null;
       if (el) { outline(el, "selected"); el.setAttribute("data-selected", ""); }
       if (notify) send({ type: "atelier:select", id: selectedId.current });
@@ -510,9 +514,9 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
         dragging = true;
         document.body.style.userSelect = "none";
         document.body.classList.add("atelier-dragging");
-        press.el.style.opacity = "0.3";
+        boxOf(press.el).style.opacity = "0.3";
         hideBlockBar();
-        startGhost(press.el, press.x, press.y);
+        startGhost(boxOf(press.el), press.x, press.y);
       }
       if (dragging && press) {
         moveGhost(e.clientX, e.clientY);
@@ -527,9 +531,11 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       }
       if ((e.target as Element).closest?.("[data-atelier-ui]")) return;
       const el = nodeOf(e.target);
-      if (el !== hovered) {
-        clear(hovered); hovered = el;
-        if (el && idOf(el) !== selectedId.current && el !== editing) outline(el, "hover");
+      // Le pointillé entoure ce qu'un clic sélectionnerait (le bouton, pas le texte qu'il contient) ; la barre de bloc suit le bloc survolé.
+      const picked = pickedOf(e.target);
+      if (picked !== hovered) { clear(hovered); hovered = picked; if (picked && idOf(picked) !== selectedId.current && picked !== editing) outline(picked, "hover"); }
+      if (el !== barHover) {
+        barHover = el;
         if (editMode === "write" && el && !isRoot(el)) {
           // En route vers la poignée, on passe souvent sur le parent : on garde la barre du bloc courant.
           const keep = barEl && el !== barEl && el.contains(barEl) && nearBar(e.clientX, e.clientY);
@@ -540,7 +546,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     const cancelDrag = () => {
       if (!press) return;
       endGhost();
-      press.el.style.opacity = "";
+      boxOf(press.el).style.opacity = "";
       document.body.style.userSelect = "";
       document.body.classList.remove("atelier-dragging");
       hideIndicator();
@@ -553,7 +559,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     const onMouseUp = () => {
       if (dragging && press) {
         endGhost();
-        press.el.style.opacity = "";
+        boxOf(press.el).style.opacity = "";
         document.body.style.userSelect = "";
         document.body.classList.remove("atelier-dragging");
         hideIndicator();
@@ -569,7 +575,9 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       if ((e.target as Element).closest?.("[data-atelier-ui]")) return;
       e.preventDefault();
       if (suppressClick || dragging || editing) return;
-      const el = pickedOf(e.target);
+      // Une image vide, même dans un bouton ou une carte, s'ouvre directement sur la bibliothèque.
+      const deepest = nodeOf(e.target);
+      const el = deepest?.getAttribute("data-empty") === "image" ? deepest : pickedOf(e.target);
       if (!el) return;
       select(el, true);
       // Une image vide s'ouvre sur la bibliothèque : on choisit ou on importe sans passer par le panneau.

@@ -5,7 +5,7 @@ import { Copy, Crosshair, Diamond, ExternalLink, Pause, Play, Plus, Repeat, Skip
 import type { Animation, CommitOptions, Node, Op, Site, Track, Trigger } from "@atelier/model";
 import { ANIMATION_PRESETS, STAGGER_FROM_LABELS, animationById, animationLength, describeAnimation, indexSite, keyframeAt, newId, planAddTrack, planFillTrackFromPreset, planScaleAnimation, planRemoveKeyframes, planRemoveTrack, planSetKeyframeEasing, planShiftKeyframes, planUpdateAnimation, planUpdateTrack, resolveTrackTarget, shiftDelta, trackSpan, trackTargetFor, withTargetKind } from "@atelier/model";
 import { Badge, Button, Eyebrow, Hint, IconButton, NumberInput, PanelHeading, Select, TextInput, Toggle } from "@/ui";
-import { canAddTrack, formatMs, nextZoom, rulerTicks, summarizeAnimation, tickLabel, snapTime, targetKindOf, targetKindOptions, trackLabel, type TargetKind } from "@/lib/timeline";
+import { canAddTrack, formatMs, nextZoom, quoteLabel, rulerTicks, summarizeAnimation, tickLabel, snapTime, targetKindOf, targetKindOptions, trackLabel, type TargetKind } from "@/lib/timeline";
 import { AppearancePanel, EffectsPanel, SizePanel, SpacingPanel, TypographyPanel, useKeyframeStyle } from "../design";
 import { nodeLabel } from "../node-icons";
 import { EasingField } from "./EasingField";
@@ -51,7 +51,7 @@ export type TimelineProps = {
 export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel, selected, bp, mode, commit, scrub, onClose, onSelect, focusName, onPick, picking, showTargets, onTestOnSite, onOpenElement, intro }: TimelineProps) {
   const length = Math.max(1, animationLength(animation));
   // Une apparition s'ouvre sur son état visible (audit n°5 · R10) : à 0 ms, l'élément est souvent invisible et l'on croit l'avoir fait disparaître.
-  const [playhead, setPlayhead] = useState(() => (trigger?.on === "load" || trigger?.on === "inView" ? length : 0));
+  const [playhead, setPlayhead] = useState(() => ((trigger?.on === "load" || trigger?.on === "inView") && animation.tracks.some((t) => t.keyframes.length >= 2) ? length : 0));
   const [playing, setPlaying] = useState(false);
   const [loop, setLoop] = useState(animation.loop === "infinite");
   const [slow, setSlow] = useState(false);
@@ -116,8 +116,9 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
   const index = useMemo(() => indexSite(site), [site]);
   const nodeOfTrack = (t: Track): Node | undefined => { const r = resolveTrackTarget(t.target, hostId); return "selector" in r ? undefined : index.get(r.node)?.node; };
   const byNode = selected ? animation.tracks.find((t) => nodeOfTrack(t)?.id === selected.id) : undefined;
-  /** L'élément sélectionné, s'il n'est ni l'hôte ni visé par une piste de cette animation. */
-  const outside = onOpenElement && selected && selected.id !== hostId && !byNode && !picking ? selected : null;
+  /** L'élément sélectionné, s'il n'est ni l'hôte ni visé par une piste de cette animation (ni l'enfant d'un élément dont les enfants sont animés). */
+  const covered = !!selected && animation.tracks.some((t) => { const r = resolveTrackTarget(t.target, hostId); return !("selector" in r) && (r.node === selected.id || (!!r.children && index.get(selected.id)?.parent?.id === r.node)); });
+  const outside = onOpenElement && selected && selected.id !== hostId && !covered && !picking ? selected : null;
   const pickedTrack = picked && (picked.forNode === (selected?.id ?? null) || !byNode) ? animation.tracks.find((t) => t.id === picked.track) : undefined;
   const track = pickedTrack ?? byNode ?? animation.tracks[0];
   const at = snapTime(playhead);
@@ -356,7 +357,11 @@ function TrackSettings({ site, getSite, animation, track, node, hostId, run, onR
       {kind === "selector" ? <Hint>Sélecteur libre : {"selector" in track.target ? track.target.selector : ""}</Hint> : (
         <div className="grid grid-cols-[80px_1fr] items-center gap-1.5">
           <span className="text-xs text-muted" title="Temps de la première image-clé : changer le départ décale toute la piste">Départ</span>
-          <NumberInput className="w-[110px]" unit="ms" min={0} step={10} value={trackSpan(track).start} onValueChange={(n) => { if (n === "") return; const d = snapTime(n) - trackSpan(track).start; if (d) run(planShiftKeyframes(getSite(), animation.id, track.keyframes.map((k) => ({ track: track.id, at: k.at })), d), "Décaler la piste"); }} />
+          <div className="flex items-center gap-1.5 min-w-0">
+            <NumberInput className="w-[110px]" unit="ms" min={0} step={10} value={trackSpan(track).start} onValueChange={(n) => { if (n === "") return; const d = snapTime(n) - trackSpan(track).start; if (d) run(planShiftKeyframes(getSite(), animation.id, track.keyframes.map((k) => ({ track: track.id, at: k.at })), d), "Décaler la piste"); }} />
+            {/* Une piste enchaînée dit à quoi elle est rattachée ; changer son départ change son écart, et elle suit sa référence. */}
+            {track.start ? (() => { const ref = animation.tracks.find((t) => t.id === ("after" in track.start! ? track.start!.after : track.start!.with)); const gap = track.start!.gap ?? 0; return ref ? <span className="text-2xs text-muted truncate" title="Cette piste suit une autre piste : changer son départ change l'écart, et elle se replace quand l'autre change">{`${"after" in track.start! ? "après" : "avec"} ${quoteLabel(trackLabel(ref, hostId, site))}${gap ? ` + ${formatMs(gap)}` : ""}`}</span> : null; })() : null}
+          </div>
           <span className="text-xs text-muted" title="Ce que la piste anime : l'élément lui-même, ses enfants un à un, ses mots ou ses lettres">Cible</span>
           <Select value={kind} options={targetKindOptions(node)} onValueChange={(v) => setKind(v as TargetKind)} />
           {multi ? (

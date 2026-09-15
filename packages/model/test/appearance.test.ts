@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  animationById, appearanceAnchors, appearanceOf, appearanceStartOptions, applyOps, inheritedAppearance, planAppearanceDelay, planAppearanceDetail, planAppearancePreset, planAppearanceReplay,
+  animationById, animationUsages, appearanceAnchors, planAddTrigger, appearanceOf, appearanceStartOptions, applyOps, inheritedAppearance, planRemoveNode, planAppearanceDelay, planAppearanceDetail, planAppearancePreset, planAppearanceReplay,
   planAppearanceSpeed, planAppearanceStart, planQuickAnimation, planUpdateTrigger, presetById, sampleSite, schema, trackPresetMatch, trackSpan,
   type Node, type Site,
 } from "../src";
@@ -239,6 +239,12 @@ describe("apparition : composer une scène (T4)", () => {
     expect(planAppearanceStart(withFar, "title", { kind: "after", node: "far" })).toEqual([]);
     expect(appearanceAnchors(withFar, "title")).toEqual([]);
   });
+  it("une animation lancée par plusieurs déclencheurs n'est pas proposée comme point de départ", () => {
+    let site = quick(quick(base, "title", "fade-up"), "par", "fade");
+    const a = appearanceOf(site, "title")!;
+    site = run(site, planAddTrigger(find(site, "photo"), { id: "tr_share", on: "inView", animation: a.animation.id }));
+    expect(appearanceAnchors(site, "par")).not.toContain("title");
+  });
 });
 
 describe("apparition : un élément qui arrive avec un autre (T2)", () => {
@@ -267,5 +273,97 @@ describe("apparition : un élément qui arrive avec un autre (T2)", () => {
     // Sa propre apparition passe devant : il n'hérite de rien.
     site = quick(site, "crd1_name", "fade");
     expect(inheritedAppearance(site, "crd1_name")).toBeUndefined();
+  });
+});
+
+describe("apparition : scénarios de la revue de code (15 septembre)", () => {
+  const chain3 = () => {
+    let site = quick(quick(quick(quick(base, "title", "fade-up", "load"), "bt1", "fade-up", "load"), "bt2", "fade-up", "load"), "par", "fade", "load");
+    site = run(site, planAppearanceStart(site, "bt1", { kind: "after", node: "title" }));
+    return site;
+  };
+  it("poser un effet sur l'élément qui lance une suite, après avoir retiré le sien, ne détruit pas la suite", () => {
+    let site = chain3();
+    site = run(site, planAppearanceStart(site, "bt2", { kind: "after", node: "bt1" }));
+    site = run(site, planAppearancePreset(site, "title", ""));
+    site = run(site, planAppearancePreset(site, "title", "zoom"));
+    expect(appearanceOf(site, "title")).toMatchObject({ own: true, preset: { id: "zoom" }, speed: "normal", start: 0, end: 700 });
+    expect(appearanceOf(site, "bt1")).toMatchObject({ hostId: "title", preset: { id: "fade-up" } });
+    expect(appearanceOf(site, "bt2")).toMatchObject({ begin: { kind: "after", node: "bt1" } });
+    valid(site);
+  });
+  it("poser un effet sur la section qui lance la scène ne la remplace pas", () => {
+    let site = quick(quick(quick(base, "photo", "slide-right"), "hh2", "fade-up"), "pp2", "fade");
+    site = run(site, planAppearanceStart(site, "hh2", { kind: "after", node: "photo" }));
+    site = run(site, planAppearanceStart(site, "pp2", { kind: "after", node: "hh2" }));
+    site = run(site, planAppearanceStart(site, "photo", { kind: "within", node: "about" }));
+    site = run(site, planAppearancePreset(site, "about", "fade"));
+    for (const id of ["photo", "hh2", "pp2"]) expect(appearanceOf(site, id)).toMatchObject({ hostId: "about" });
+    expect(appearanceOf(site, "about")).toMatchObject({ own: true, preset: { id: "fade" }, start: 0 });
+    expect(find(site, "about").triggers).toHaveLength(1);
+    valid(site);
+  });
+  it("retirer un élément « en même temps que » un autre ne fait pas avancer ce qui suit", () => {
+    let site = chain3();
+    site = run(site, planAppearanceStart(site, "bt2", { kind: "with", node: "bt1" }));
+    site = run(site, planAppearanceStart(site, "par", { kind: "after", node: "bt1" }));
+    expect(span(site, "par")).toEqual([1400, 2100]);
+    const again = run(site, planAppearancePreset(site, "bt2", ""));
+    expect(appearanceOf(again, "par")).toMatchObject({ begin: { kind: "after", node: "bt1" }, start: 1400 });
+    const own = run(site, planAppearanceStart(site, "bt2", { kind: "own", on: "inView" }));
+    expect(appearanceOf(own, "par")).toMatchObject({ begin: { kind: "after", node: "bt1" }, start: 1400 });
+    expect(appearanceOf(own, "bt1")).toMatchObject({ begin: { kind: "after", node: "title" } });
+  });
+  it("régler un élément ne déplace pas ceux qui n'en dépendent pas", () => {
+    let site = chain3();
+    site = quick(site, "photo", "fade", "load");
+    site = run(site, planAppearanceStart(site, "bt2", { kind: "with", node: "bt1" }));
+    site = run(site, planAppearanceStart(site, "photo", { kind: "with", node: "bt1" }));
+    site = run(site, planAppearanceDelay(site, "bt2", 200));
+    expect(appearanceOf(site, "photo")).toMatchObject({ begin: { kind: "with", node: "bt1" }, delay: 0, start: 700 });
+    expect(appearanceOf(site, "bt2")).toMatchObject({ begin: { kind: "with", node: "bt1" }, delay: 200, start: 900 });
+    // B2 après T avec 500 ms, P après B2 : ralentir B1 ne touche pas P.
+    let s2 = chain3();
+    s2 = run(s2, planAppearanceStart(s2, "bt2", { kind: "after", node: "title" }));
+    s2 = run(s2, planAppearanceDelay(s2, "bt2", 500));
+    s2 = run(s2, planAppearanceStart(s2, "par", { kind: "after", node: "bt2" }));
+    s2 = run(s2, planAppearanceSpeed(s2, "bt1", "slow"));
+    expect(appearanceOf(s2, "par")).toMatchObject({ begin: { kind: "after", node: "bt2" }, delay: 0, start: 1900 });
+  });
+  it("« en même temps que » avec un délai se règle et se relit tel quel", () => {
+    let site = chain3();
+    site = run(site, planAppearanceStart(site, "bt2", { kind: "with", node: "bt1" }));
+    site = run(site, planAppearanceDelay(site, "bt2", 650));
+    expect(appearanceOf(site, "bt2")).toMatchObject({ begin: { kind: "with", node: "bt1" }, delay: 650, start: 1350 });
+    site = run(site, planAppearanceDelay(site, "bt2", 700));
+    site = run(site, planAppearanceDelay(site, "bt2", 750));
+    expect(appearanceOf(site, "bt2")).toMatchObject({ begin: { kind: "with", node: "bt1" }, delay: 750, start: 1450 });
+  });
+  it("quand la section entre dans l'écran : toujours un déclencheur d'entrée dans l'écran, même depuis « dès l'ouverture »", () => {
+    let site = quick(base, "photo", "slide-right", "load");
+    site = run(site, planAppearanceStart(site, "photo", { kind: "within", node: "about" }));
+    expect(find(site, "about").triggers).toEqual([expect.objectContaining({ on: "inView" })]);
+  });
+  it("un élément réordonné après un de ses suiveurs peut revenir à « quand il entre dans l'écran »", () => {
+    let site = quick(quick(base, "title", "fade-up"), "bt1", "fade-up");
+    site = run(site, planAppearanceStart(site, "bt1", { kind: "after", node: "title" }));
+    site = run(site, planAppearanceStart(site, "title", { kind: "after", node: "bt1" }));
+    expect(appearanceOf(site, "title")).toMatchObject({ begin: { kind: "after", node: "bt1" }, start: 700 });
+    expect(span(site, "bt1")).toEqual([0, 700]);
+    site = run(site, planAppearanceStart(site, "title", { kind: "own", on: "inView" }));
+    expect(appearanceOf(site, "title")).toMatchObject({ begin: { kind: "own", on: "inView" }, start: 0 });
+    valid(site);
+  });
+  it("supprimer l'élément qui lance une suite : le premier élément restant la reprend ; supprimer un élément enchaîné raccroche ce qui le suivait", () => {
+    let site = chain3();
+    site = run(site, planAppearanceStart(site, "bt2", { kind: "after", node: "bt1" }));
+    const noB1 = run(site, planRemoveNode(site, "bt1"));
+    expect(appearanceOf(noB1, "bt2")).toMatchObject({ hostId: "title", begin: { kind: "after", node: "title" }, start: 700 });
+    expect(JSON.stringify(noB1.animations)).not.toContain("bt1");
+    const noTitle = run(site, planRemoveNode(site, "title"));
+    expect(appearanceOf(noTitle, "bt1")).toMatchObject({ own: true, hostId: "bt1", begin: { kind: "own", on: "load" }, start: 0 });
+    expect(appearanceOf(noTitle, "bt2")).toMatchObject({ hostId: "bt1", begin: { kind: "after", node: "bt1" }, start: 700 });
+    expect(noTitle.animations.every((a) => animationUsages(noTitle, a.id).length > 0)).toBe(true);
+    valid(noTitle); valid(noB1);
   });
 });

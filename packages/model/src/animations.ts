@@ -1,6 +1,7 @@
-import type { Animation, Id, Keyframe, Node, Op, Page, Site, Stagger, SplitMode, StyleProps, Track, TrackTarget, Trigger, TriggerOn } from "./types";
+import type { Animation, Id, Keyframe, Node, Op, Page, Site, Stagger, SplitMode, StyleProps, Track, TrackStart, TrackTarget, Trigger, TriggerOn } from "./types";
 import { newId } from "./ids";
 import { resolveNodeStyle, type ResolvedStyle } from "./style";
+import { indexSite, type NodeLocation } from "./tree";
 
 /** Courbes proposées dans l'interface (la valeur est du CSS). */
 export const ANIM_EASINGS: { value: string; label: string }[] = [
@@ -152,6 +153,8 @@ export function isPresetIntact(a: Animation): boolean {
   const scale = p.duration ? (kfs[kfs.length - 1]?.at ?? 0) / p.duration : 1;
   return kfs.every((k, i) => { const q = p.keyframes[i]!; return Math.abs(k.at - Math.round(q.at * scale)) <= 1 && sameStyle(k.style, q.style) && (k.easing ?? undefined) === (q.easing ?? undefined); });
 }
+/** Une animation qui fait bouger autre chose que l'élément qui la lance (une suite, une scène). */
+export const isSequence = (a: Animation): boolean => a.tracks.some((t) => !("trigger" in t.target));
 export type QuickGroup = AnimationPreset["group"];
 export type QuickDetail = "one" | "letters" | "children";
 /** Le choix rapide d'une famille (apparition, survol, continu…) posé sur un élément : son déclencheur, son préréglage, s'il est intact, et son détail. */
@@ -160,6 +163,8 @@ export function quickAnimation(site: Site, node: Node, group: QuickGroup): { tri
     const animation = animationById(site, trigger.animation);
     const preset = presetById(animation?.preset);
     if (!animation || !preset || preset.group !== group) continue;
+    // Une suite (des pistes d'autres éléments dans l'animation) n'est pas un choix rapide : la remplacer effacerait leur apparition.
+    if (isSequence(animation)) continue;
     const target = animation.tracks[0]?.target;
     const detail: QuickDetail = target && !("selector" in target) && target.split ? "letters" : target && !("selector" in target) && target.children ? "children" : "one";
     return { trigger, animation, preset, intact: isPresetIntact(animation), detail };
@@ -171,7 +176,8 @@ export function duplicateQuickTriggers(site: Site, node: Node): Set<Id> {
   const seen = new Set<string>();
   const out = new Set<Id>();
   for (const t of node.triggers ?? []) {
-    const group = presetById(animationById(site, t.animation)?.preset)?.group;
+    const a = animationById(site, t.animation);
+    const group = a && !isSequence(a) ? presetById(a.preset)?.group : undefined;
     if (!group || group === "Attention") continue;
     if (seen.has(group)) out.add(t.id); else seen.add(group);
   }
@@ -249,13 +255,7 @@ export function trackSpan(track: Track): { start: number; end: number } {
   return ats.length ? { start: Math.min(...ats), end: Math.max(...ats) } : { start: 0, end: 0 };
 }
 export const keyframeAt = (track: Track, at: number): Keyframe | undefined => track.keyframes.find((k) => k.at === at);
-const withTrack = (site: Site, animationId: Id, trackId: Id, fn: (t: Track) => Track): Op[] => {
-  const a = animationById(site, animationId);
-  if (!a) return [];
-  const tracks = a.tracks.map((t) => (t.id === trackId ? fn(t) : t));
-  const end = Math.max(0, ...tracks.map((t) => trackSpan(t).end));
-  return planUpdateAnimation(site, animationId, { tracks, duration: Math.max(a.duration, end) });
-};
+const withTrack = (site: Site, animationId: Id, trackId: Id, fn: (t: Track) => Track): Op[] => planTracks(site, animationId, (tracks) => tracks.map((t) => (t.id === trackId ? fn(t) : t)));
 /** Pose une image-clé à `at` (créée si absente, fusionnée sinon) ; la durée de l'animation s'allonge si besoin. */
 export function planSetKeyframe(site: Site, animationId: Id, trackId: Id, at: number, style: StyleProps, easing?: string): Op[] {
   return withTrack(site, animationId, trackId, (t) => {
@@ -272,14 +272,24 @@ export function planMoveKeyframe(site: Site, animationId: Id, trackId: Id, from:
   return withTrack(site, animationId, trackId, (t) => ({ ...t, keyframes: t.keyframes.filter((k) => k.at !== to).map((k) => (k.at === from ? { ...k, at: to } : k)).sort((a, b) => a.at - b.at) }));
 }
 export function planAddTrack(site: Site, animationId: Id, track: Track): Op[] {
-  const a = animationById(site, animationId);
-  if (!a) return [];
-  return planUpdateAnimation(site, animationId, { tracks: [...a.tracks, track], duration: Math.max(a.duration, trackSpan(track).end) });
+  return planTracks(site, animationId, (tracks) => [...tracks, track], { fixed: new Set([track.id]) });
 }
+/** Retire une piste ; celles qui la suivaient prennent son départ (son `start`, ou son temps de départ), en gardant leur écart. */
 export function planRemoveTrack(site: Site, animationId: Id, trackId: Id): Op[] {
   const a = animationById(site, animationId);
-  if (!a) return [];
-  return planUpdateAnimation(site, animationId, { tracks: a.tracks.filter((t) => t.id !== trackId) });
+  const gone = a?.tracks.find((t) => t.id === trackId);
+  if (!a || !gone) return [];
+  const goneStart = trackSpan(gone).start;
+  const fixed = new Set<Id>();
+  const tracks = a.tracks.filter((t) => t.id !== trackId).map((t) => {
+    if (!t.start || startRef(t.start) !== trackId) return t;
+    fixed.add(t.id);
+    const gap = t.start.gap ?? 0;
+    if (gone.start) return { ...t, start: startOf(gone.start, startRef(gone.start), gap) };
+    const { start: _s, ...rest } = t; void _s;
+    return shiftTrackTo(rest, goneStart + gap);
+  });
+  return planTracks(site, animationId, () => tracks, { fixed });
 }
 
 // ---------------------------------------------------------------- édition (mode Animation, cadrage § 4.1)
@@ -318,8 +328,7 @@ export function planSetKeyframeEasing(site: Site, animationId: Id, trackId: Id, 
 export function planRemoveKeyframes(site: Site, animationId: Id, keys: { track: Id; at: number }[]): Op[] {
   const a = animationById(site, animationId);
   if (!a || !keys.length) return [];
-  const tracks = a.tracks.map((t) => { const gone = new Set(keys.filter((k) => k.track === t.id).map((k) => k.at)); return gone.size ? { ...t, keyframes: t.keyframes.filter((k) => !gone.has(k.at)) } : t; });
-  return planUpdateAnimation(site, animationId, { tracks });
+  return planTracks(site, animationId, (tracks) => tracks.map((t) => { const gone = new Set(keys.filter((k) => k.track === t.id).map((k) => k.at)); return gone.size ? { ...t, keyframes: t.keyframes.filter((k) => !gone.has(k.at)) } : t; }));
 }
 /** Décalage réellement applicable à un groupe d'images-clés : aucune ne passe avant 0. */
 export const shiftDelta = (keys: { at: number }[], delta: number): number => (keys.length ? Math.max(delta, -Math.min(...keys.map((k) => k.at))) : 0);
@@ -339,8 +348,7 @@ export function planShiftKeyframes(site: Site, animationId: Id, keys: { track: I
     const kept = t.keyframes.filter((k) => (o.duplicate || !moving.has(k.at)) && !arrivals.has(k.at));
     return { ...t, keyframes: [...kept, ...moved].sort((x, y) => x.at - y.at) };
   });
-  const end = Math.max(0, ...tracks.map((t) => trackSpan(t).end));
-  return planUpdateAnimation(site, animationId, { tracks, duration: Math.max(a.duration, end) });
+  return planTracks(site, animationId, () => tracks);
 }
 /**
  * Vitesse d'une animation (audit n°5 · R1) : changer sa durée met toutes ses pistes à l'échelle, images-clés et décalages compris,
@@ -358,7 +366,8 @@ export function planScaleAnimation(site: Site, animationId: Id, duration: number
     for (const k of [...t.keyframes].sort((x, y) => x.at - y.at)) byAt.set(Math.round(k.at * f), { ...k, at: Math.round(k.at * f) });
     return { ...t, keyframes: [...byAt.values()], ...(t.stagger ? { stagger: { ...t.stagger, each: Math.round(t.stagger.each * f) } } : {}) };
   });
-  return planUpdateAnimation(site, animationId, { tracks, duration: target });
+  // Les écarts des pistes enchaînées suivent l'échelle (ils sont recalculés d'après les nouveaux temps).
+  return planTracks(site, animationId, () => tracks, { patch: { duration: target } });
 }
 /** Remplit une piste avec les images-clés d'un préréglage, posées à partir du départ de la piste (sa cible et son décalage restent). */
 export function planFillTrackFromPreset(site: Site, animationId: Id, trackId: Id, preset: AnimationPreset): Op[] {
@@ -384,6 +393,99 @@ export function withTargetKind(target: TrackTarget, kind: "element" | "children"
   if (kind === "children") return { ...base, children: true };
   if (kind === "words" || kind === "letters") return { ...base, split: kind };
   return base;
+}
+
+// ---------------------------------------------------------------- enchaînement des pistes (start)
+
+/** L'identifiant de la piste à laquelle se rattache un départ. */
+export const startRef = (s: TrackStart): Id => ("after" in s ? s.after : s.with);
+/** Un départ du même genre (`after` ou `with`) vers `ref`, avec l'écart `gap` (arrondi, jamais négatif, omis s'il est nul). */
+export function startOf(kind: TrackStart | "after" | "with", ref: Id, gap = 0): TrackStart {
+  const g = Math.max(0, Math.round(gap));
+  const after = kind === "after" || (typeof kind === "object" && "after" in kind);
+  return after ? { after: ref, ...(g ? { gap: g } : {}) } : { with: ref, ...(g ? { gap: g } : {}) };
+}
+/** La piste déplacée pour que sa première image-clé soit à `at`. */
+export function shiftTrackTo<T extends Pick<Track, "keyframes">>(t: T, at: number): T {
+  const d = Math.round(at) - (t.keyframes.length ? Math.min(...t.keyframes.map((k) => k.at)) : 0);
+  return d ? { ...t, keyframes: t.keyframes.map((k) => ({ ...k, at: Math.max(0, k.at + d) })) } : t;
+}
+
+const plainText = (node: Node, locale: string): string => {
+  const content = (node.props.content as Record<string, unknown[]> | undefined)?.[locale] ?? [];
+  const rec = (list: unknown[]): string => list.map((x) => { const seg = x as { t: string; v?: string; children?: unknown[] }; return seg.t === "text" ? seg.v ?? "" : seg.t === "link" ? rec(seg.children ?? []) : " "; }).join("");
+  return rec(content);
+};
+
+/**
+ * Fin d'une piste : sa dernière image-clé, plus le décalage du dernier enfant, mot ou lettre quand elle en vise plusieurs.
+ * Pour une vue sans limite, le nombre de cartes n'est pas connu du modèle : une seule est comptée.
+ */
+export function trackEnd(site: Site, track: Track, hostId: Id, index: Map<Id, NodeLocation> = indexSite(site)): number {
+  const { end } = trackSpan(track);
+  const each = track.stagger?.each ?? 0;
+  if (!each) return end;
+  const r = resolveTrackTarget(track.target, hostId);
+  if ("selector" in r || (!r.children && !r.split)) return end;
+  const n = index.get(r.node)?.node;
+  if (!n) return end;
+  let count = 1;
+  if (r.children) count = n.type === "collection" ? ((n.props.view as { limit?: number } | undefined)?.limit ?? 1) : (n.children?.length ?? 1);
+  else { const words = plainText(n, site.settings.defaultLocale).split(/\s+/).filter(Boolean); count = r.split === "letters" ? words.reduce((sum, w) => sum + [...w].length, 0) : words.length; }
+  const maxRank = track.stagger?.from === "center" ? (count - 1) / 2 : count - 1;
+  return end + each * Math.max(0, maxRank);
+}
+
+/** L'élément qui lance une animation (le premier déclencheur, ou la racine de sa page) : pour résoudre ses cibles relatives. */
+export const animationHost = (site: Site, animationId: Id): Id | undefined => { const u = animationUsages(site, animationId)[0]; return u?.node?.id ?? u?.page?.root.id; };
+
+/**
+ * Replace les pistes enchaînées d'une animation (`start`) : première image-clé = fin (`after`) ou départ (`with`) de la piste référencée,
+ * plus l'écart. Une piste sans `start`, rattachée à une piste absente ou prise dans un cycle garde ses temps.
+ */
+export function layoutTracks(site: Site, animation: Pick<Animation, "id" | "tracks">, hostId: Id = animationHost(site, animation.id) ?? "", index: Map<Id, NodeLocation> = indexSite(site)): Track[] {
+  const byId = new Map(animation.tracks.map((t) => [t.id, t]));
+  const refOf = (t: Track) => (t.start ? byId.get(startRef(t.start)) : undefined);
+  const inCycle = (t: Track) => { let cur = refOf(t); for (let i = 0; cur && i <= animation.tracks.length; i++) { if (cur === t) return true; cur = refOf(cur); } return false; };
+  const placed = new Map<Id, Track>();
+  const place = (t: Track): Track => {
+    const done = placed.get(t.id);
+    if (done) return done;
+    const ref = refOf(t);
+    if (!ref || !t.start || !t.keyframes.length || inCycle(t)) { placed.set(t.id, t); return t; }
+    const r = place(ref);
+    const base = "after" in t.start ? trackEnd(site, r, hostId, index) : trackSpan(r).start;
+    const next = shiftTrackTo(t, Math.max(0, base + (t.start.gap ?? 0)));
+    placed.set(t.id, next);
+    return next;
+  };
+  return animation.tracks.map(place);
+}
+
+/**
+ * Remplace les pistes d'une animation par `fn`, puis replace les pistes enchaînées. Une piste enchaînée que `fn` a modifiée garde le départ
+ * qu'on lui a donné : son écart change d'autant (jamais sous 0), sauf pour les pistes de `fixed`, dont l'écart est déjà le bon. La durée
+ * s'allonge si besoin (`patch.duration` fixe la durée voulue).
+ */
+export function planTracks(site: Site, animationId: Id, fn: (tracks: Track[]) => Track[], o: { fixed?: Set<Id>; patch?: Partial<Animation> } = {}): Op[] {
+  const a = animationById(site, animationId);
+  if (!a) return [];
+  const index = indexSite(site);
+  const hostId = animationHost(site, animationId) ?? "";
+  const original = new Map(a.tracks.map((t) => [t.id, t]));
+  const edited = fn(a.tracks);
+  const byId = new Map(edited.map((t) => [t.id, t]));
+  const rebased = edited.map((t) => {
+    if (!t.start || original.get(t.id) === t || o.fixed?.has(t.id) || !t.keyframes.length) return t;
+    const ref = byId.get(startRef(t.start));
+    if (!ref) return t;
+    const expected = ("after" in t.start ? trackEnd(site, ref, hostId, index) : trackSpan(ref).start) + (t.start.gap ?? 0);
+    const d = trackSpan(t).start - expected;
+    return d ? { ...t, start: startOf(t.start, startRef(t.start), (t.start.gap ?? 0) + d) } : t;
+  });
+  const tracks = layoutTracks(site, { id: a.id, tracks: rebased }, hostId, index);
+  const end = Math.max(0, ...tracks.map((t) => trackSpan(t).end));
+  return planUpdateAnimation(site, animationId, { ...o.patch, tracks, duration: Math.max(o.patch?.duration ?? a.duration, end) });
 }
 
 // ---------------------------------------------------------------- cibles et décalage

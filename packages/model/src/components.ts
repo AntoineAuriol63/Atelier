@@ -168,7 +168,11 @@ export function planDetach(site: Site, loc: NodeLocation, makeId: () => Id = new
   const single = Array.isArray(resolved) ? { ...withOverrides, children: resolved } : resolved;
   const { node: copy } = cloneWithNewIds({ ...single, name: inst.name ?? single.name, style: { ...(single.style ?? {}), shared: [...(single.style?.shared ?? []), ...(inst.style?.shared ?? [])] } }, makeId);
   if (!loc.parent) return { ok: false, reason: "Cette instance est une racine." };
-  return { ok: true, ops: [{ op: "node.remove", id: inst.id }, { op: "node.insert", parent: loc.parent.id, index: loc.index, node: copy }], label: `Détacher « ${cmp.name} »`, select: copy.id };
+  // Les animations de l'instance la suivent : ses déclencheurs passent sur la copie, les pistes qui la visaient visent la copie.
+  const detached: Node = inst.triggers?.length ? { ...copy, triggers: [...(copy.triggers ?? []), ...inst.triggers] } : copy;
+  const aimed = site.animations.some((a) => a.tracks.some((t) => "node" in t.target && t.target.node === inst.id));
+  const retarget: Op[] = aimed ? [{ op: "site.set", path: "animations", value: site.animations.map((a) => ({ ...a, tracks: a.tracks.map((t) => ("node" in t.target && t.target.node === inst.id ? { ...t, target: { ...t.target, node: copy.id } } : t)) })) }] : [];
+  return { ok: true, ops: [{ op: "node.remove", id: inst.id }, { op: "node.insert", parent: loc.parent.id, index: loc.index, node: detached }, ...retarget], label: `Détacher « ${cmp.name} »`, select: copy.id };
 }
 
 export function planDeleteComponent(site: Site, componentId: Id): ComponentPlan {

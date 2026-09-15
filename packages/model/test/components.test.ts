@@ -52,6 +52,24 @@ describe("détacher une instance", () => {
     expect((slotted!.props.content as { fr: { v: string }[] }).fr[0]!.v).toBe("dans le slot");
     expect(after.components).toHaveLength(1);
     expect(planDeleteComponent(after, cmpId).ok).toBe(true);
+  });
+  it("une instance qui apparaît ou qui est visée par une piste : la copie reprend ses déclencheurs et les pistes qui la visaient", () => {
+    const cmpId = "cmp_a";
+    const anims = [
+      { id: "an_own", name: "Fondu", preset: "fade", duration: 700, tracks: [{ id: "tk_o", target: { trigger: true as const }, keyframes: [{ at: 0, style: { opacity: "0" } }, { at: 700, style: { opacity: "1" } }] }] },
+      { id: "an_seq", name: "Suite", duration: 1400, tracks: [{ id: "tk_h", target: { trigger: true as const }, keyframes: [{ at: 0, style: { opacity: "0" } }, { at: 700, style: { opacity: "1" } }] }, { id: "tk_i", target: { node: "i2" }, start: { after: "tk_h" }, keyframes: [{ at: 700, style: { opacity: "0" } }, { at: 1400, style: { opacity: "1" } }] }] },
+    ];
+    const site: Site = {
+      ...sampleSite, animations: anims,
+      components: [{ id: cmpId, name: "Chiffre", scope: "site", props: [], root: { id: "k_root", type: "box", props: { tag: "div" }, children: [] } }],
+      pages: [{ ...sampleSite.pages[0]!, root: { id: "r", type: "box", props: { tag: "div" }, children: [{ id: "hst", type: "box", props: {}, triggers: [{ id: "tr_s", on: "inView", animation: "an_seq" }] }, { id: "i1", type: "instance", props: { component: cmpId }, triggers: [{ id: "tr_o", on: "inView", animation: "an_own" }] }, { id: "i2", type: "instance", props: { component: cmpId } }] } }],
+    };
+    let after = site;
+    for (const id of ["i1", "i2"]) { const plan = planDetach(after, indexSite(after).get(id)!, ids); expect(plan.ok).toBe(true); if (plan.ok) after = applyOps(after, plan.ops).site; }
+    const [, c1, c2] = after.pages[0]!.root.children!;
+    expect(c1!.triggers).toEqual([{ id: "tr_o", on: "inView", animation: "an_own" }]);
+    expect(after.animations.find((a) => a.id === "an_seq")!.tracks[1]!.target).toEqual({ node: c2!.id });
+    expect(JSON.stringify(after.animations)).not.toContain('"i2"');
     expect(planDeleteComponent(site, cmpId).ok).toBe(false);
   });
 });

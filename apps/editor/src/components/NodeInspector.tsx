@@ -4,7 +4,7 @@ import { QuickAnimations } from "./animation/QuickAnimations";
 import { createElement, useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, Copy, Trash2, X } from "lucide-react";
 import type { CommitOptions, Inline, Node, NodeLocation, Op, Site, StyleValue, DataSource } from "@atelier/model";
-import { BASE, appearanceOf, classMap, inheritedAppearance, cloneWithNewIds, newId, resolveNodeStyle, resolveSharedStyleSet, stylePath, variantKey } from "@atelier/model";
+import { BASE, appearanceOf, classMap, inheritedAppearance, planRemoveNode, cloneWithNewIds, newId, resolveNodeStyle, resolveSharedStyleSet, stylePath, variantKey } from "@atelier/model";
 import { Badge, Field, FieldGroup, Hint, IconButton, Section, TextArea, TextInput, Eyebrow } from "@/ui";
 import { nodeIcon, nodeLabel, TYPE_LABEL } from "./node-icons";
 import { propLabel } from "@/lib/prop-labels";
@@ -64,7 +64,7 @@ type Props = {
   /** Ouvre le mode Animation sur cet élément (sur l'animation d'un déclencheur si `triggerId`). Absent pour un rédacteur : pas de section Animation. */
   onOpenAnimation?: (triggerId?: string) => void;
   /** « Tester sur le site » : l'onglet Aperçu, où cet élément arrive à l'écran. */
-  onTestOnSite?: () => void;
+  onTestOnSite?: (nodeId?: string) => void;
   /** Sélectionner un autre élément (l'élément qui fait arriver celui-ci, par exemple). */
   onSelectNode?: (id: string) => void;
   commit: (op: Op, opts?: CommitOptions) => void;
@@ -168,7 +168,7 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
             <IconButton size="sm" label="Monter" icon={ArrowUp} disabled={loc.index === 0} onClick={() => commit({ op: "node.move", id: node.id, to: { parent: loc.parent!.id, index: loc.index - 1 } }, { label: "Monter" })} />
             <IconButton size="sm" label="Descendre" icon={ArrowDown} disabled={loc.index >= siblings.length - 1} onClick={() => commit({ op: "node.move", id: node.id, to: { parent: loc.parent!.id, index: loc.index + 1 } }, { label: "Descendre" })} />
             <IconButton size="sm" label="Dupliquer (⌘D)" icon={Copy} onClick={() => { const { node: copy } = cloneWithNewIds(node, newId); const dup = copy.type === "field" ? { ...copy, props: { ...copy.props, name: uniqueFieldName(loc.parent!.children ?? [], String(copy.props.name ?? "champ")) } } : copy; commit({ op: "node.insert", parent: loc.parent!.id, index: loc.index + 1, node: dup }, { label: "Dupliquer" }); }} />
-            <IconButton size="sm" label="Supprimer" icon={Trash2} tone="danger" onClick={() => { commit({ op: "node.remove", id: node.id }, { label: "Supprimer" }); onDeleted(); }} />
+            <IconButton size="sm" label="Supprimer" icon={Trash2} tone="danger" onClick={() => { commit({ op: "batch", ops: planRemoveNode(site, node.id), label: "Supprimer" }, { label: "Supprimer" }); onDeleted(); }} />
           </div>
         ) : null}
       </div>

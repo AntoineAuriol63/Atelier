@@ -1,7 +1,7 @@
 import type { Interaction, Node, Target, Trigger } from "@atelier/model";
-import { animationById, animationLength, easingCss, resolveTrackTarget, trackSpan, variantClass } from "@atelier/model";
+import { animationById, animationLength, easingCss, resolveTrackTarget, trackSpan, variantClass, walk, type Site } from "@atelier/model";
 import { resolveHref, type RenderContext } from "./context";
-import { declarations } from "./css";
+import { declarations, trackKeyframesName } from "./css";
 
 /** Forme compacte d'une interaction pour le script du site : déclencheur, options, actions avec sélecteurs résolus. */
 type WireAction = { k: string; s?: string; css?: string; v?: [string, string][]; to?: string; tr?: string };
@@ -65,10 +65,17 @@ export function marqueeOf(node: Node): { duration: number; direction?: "left" | 
   return null;
 }
 
+/** Racine du composant qui contient un nœud (pour les pistes qui visent un élément du composant : elles restent dans leur occurrence). */
+const componentRoots = new WeakMap<Site, Map<string, string>>();
+function componentRootOf(site: Site, id: string): string | undefined {
+  let m = componentRoots.get(site);
+  if (!m) { m = new Map(); for (const c of site.components) walk(c.root, (n) => { m!.set(n.id, c.root.id); }); componentRoots.set(site, m); }
+  return m.get(id);
+}
 /**
  * Valeur de `data-anim` : les déclencheurs du nœud avec leurs animations recopiées (pistes, images-clés en déclarations CSS résolues),
  * pour le script (entrée dans l'écran, clic, défilement, souris, retour, bascule, sélecteurs libres) et pour « Jouer » dans l'éditeur.
- * Piste : `tg` absent (l'élément), "children", "pieces", ou `{ s, m? }` (sélecteur, avec `m` enfants ou morceaux) ; `st` décalage ;
+ * Piste : `tg` absent (l'élément), "children", "pieces", ou `{ s, r?, m? }` (sélecteur, cherché dans la racine de composant `r` qui contient l'hôte, avec `m` enfants ou morceaux) ; `nm` nom CSS de ses images-clés ; `st` décalage ;
  * `s` début, `d` portée, `k` images `{ o, c, e }` (position 0-1, déclarations, courbe vers l'image suivante).
  * Déclencheur : `pg` quand il appartient à la page (au défilement, la progression de toute la page parcourt la ligne de temps).
  */
@@ -84,11 +91,16 @@ export function animationsAttr(node: Node, ctx: RenderContext, triggers: Trigger
       let tg: unknown;
       if ("selector" in r) { tg = { s: r.selector }; js = 1; }
       else if (r.node === node.id) tg = r.children ? "children" : r.split ? "pieces" : undefined;
-      else tg = { s: selOf(r.node), ...(r.children ? { m: "children" } : r.split ? { m: "pieces" } : {}) };
+      else {
+        // Dans un composant, l'élément visé est celui de la même occurrence : la recherche part de la racine du composant qui contient l'hôte.
+        const root = componentRootOf(ctx.site, r.node);
+        const scoped = root && root === componentRootOf(ctx.site, node.id) ? { r: selOf(root) } : {};
+        tg = { s: selOf(r.node), ...scoped, ...(r.children ? { m: "children" } : r.split ? { m: "pieces" } : {}) };
+      }
       const kfs = [...track.keyframes].sort((x, y) => x.at - y.at);
       const { start, end } = trackSpan(track);
       const span = end - start || 1;
-      return { tg, st: track.stagger ? [track.stagger.each, track.stagger.from ?? "start"] : undefined, s: start, d: end - start, k: kfs.map((k, i) => ({ o: Number(((k.at - start) / span).toFixed(4)), c: declarations(k.style, ctx.assets), e: kfs[i + 1]?.easing ? easingCss(kfs[i + 1]!.easing, kfs[i + 1]!.at - k.at) : undefined })) };
+      return { tg, nm: trackKeyframesName(a.id, track.id), st: track.stagger ? [track.stagger.each, track.stagger.from ?? "start"] : undefined, s: start, d: end - start, k: kfs.map((k, i) => ({ o: Number(((k.at - start) / span).toFixed(4)), c: declarations(k.style, ctx.assets), e: kfs[i + 1]?.easing ? easingCss(kfs[i + 1]!.easing, kfs[i + 1]!.at - k.at) : undefined })) };
     });
     // Déclencheur de page (porté par la racine) : au défilement, c'est la progression de toute la page qui parcourt la ligne de temps.
     const pg = node.id === ctx.page.root.id && ctx.page.triggers?.some((x) => x.id === t.id) ? 1 : undefined;
@@ -98,12 +110,14 @@ export function animationsAttr(node: Node, ctx: RenderContext, triggers: Trigger
 }
 
 /** Vrai si la page contient un effet joué par le script (animations, parallaxe, compteur, carrousel automatique). */
-export function hasMotion(n: Node): boolean {
-  const own = !!n.triggers?.length || (typeof n.props.parallax === "number" && n.props.parallax !== 0) || !!n.props.countUp || (n.type === "collection" && !!(n.props.view as { autoplay?: number } | undefined)?.autoplay);
-  return own || (n.children ?? []).some(hasMotion);
+export function hasMotion(root: Node): boolean {
+  let found = false;
+  // `walk` parcourt aussi les emplacements des occurrences de composants.
+  walk(root, (n) => { if (found) return false; if (n.triggers?.length || (typeof n.props.parallax === "number" && n.props.parallax !== 0) || n.props.countUp || (n.type === "collection" && (n.props.view as { autoplay?: number } | undefined)?.autoplay)) found = true; });
+  return found;
 }
 
-export function hasInteractions(n: Node): boolean { return !!n.interactions?.length || (n.children ?? []).some(hasInteractions); }
+export function hasInteractions(root: Node): boolean { let found = false; walk(root, (n) => { if (found) return false; if (n.interactions?.length) found = true; }); return found; }
 
 /**
  * Lecture d'une animation (section 8.4), partagée par le script du site et par le bouton « Jouer » de l'éditeur :
@@ -115,7 +129,7 @@ export const ANIMATION_PLAY_SCRIPT = `(function(){if(window.__atelierPlay)return
 var toKf=function(k){return k.map(function(s){var o={offset:s.o,easing:s.e||"ease"};s.c.split(";").forEach(function(d){var i=d.indexOf(":");if(i>0){var p=d.slice(0,i).trim().replace(/-([a-z])/g,function(_,c){return c.toUpperCase();});o[p]=d.slice(i+1).trim();}});return o;});};
 var kids=function(el){return Array.prototype.slice.call(el.children).map(function(c){return c.hasAttribute("data-instance")&&c.firstElementChild?c.firstElementChild:c;});};
 var pieces=function(el){return Array.prototype.slice.call(el.querySelectorAll(".at-piece"));};
-var els=function(el,tr){var tg=tr.tg;if(!tg)return[el];if(tg==="children")return kids(el);if(tg==="pieces")return pieces(el);var base=Array.prototype.slice.call(document.querySelectorAll(tg.s));if(tg.m==="children")return base.reduce(function(o,b){return o.concat(kids(b));},[]);if(tg.m==="pieces")return base.reduce(function(o,b){return o.concat(pieces(b));},[]);return base;};
+var els=function(el,tr){var tg=tr.tg;if(!tg)return[el];if(tg==="children")return kids(el);if(tg==="pieces")return pieces(el);var scope=tg.r&&el.closest?el.closest(tg.r):null;var base=Array.prototype.slice.call((scope||document).querySelectorAll(tg.s));if(scope&&scope.matches(tg.s))base.unshift(scope);if(tg.m==="children")return base.reduce(function(o,b){return o.concat(kids(b));},[]);if(tg.m==="pieces")return base.reduce(function(o,b){return o.concat(pieces(b));},[]);return base;};
 var rank=function(i,n,from){return from==="end"?n-1-i:from==="center"?Math.abs(i-(n-1)/2):i;};
 var delay=function(a,tr,i,n){return a.dl+tr.s+(tr.st?rank(i,n,tr.st[1])*tr.st[0]:0);};
 var opts=function(a,tr,extra){var o={duration:tr.d,easing:"linear",iterations:a.loop==="infinite"?Infinity:a.loop,direction:a.alt?"alternate":"normal",fill:"both"};for(var k in extra)o[k]=extra[k];return o;};
@@ -166,13 +180,15 @@ if(!instant){document.querySelectorAll("[data-anim]").forEach(function(el){var r
   else if(a.js&&a.t==="hover"){el.addEventListener("mouseenter",function(){if(a.rv&&live[a.i]&&live[a.i].length){live[a.i].forEach(function(an){if(an.playbackRate<0)an.reverse();});}else{cancel(a);live[a.i]=window.__atelierPlay(el,a);}});el.addEventListener("mouseleave",function(){if(a.rv){(live[a.i]||[]).forEach(function(an){if(an.playbackRate>0)an.reverse();});}else{cancel(a);}});}
  });
  var inView=runs.filter(function(a){return a.t==="inView";});
- /* Entrée dans l'écran : jusqu'à l'entrée, le CSS tient les cibles à leur état de départ (animation en pause). À l'entrée, dans la même tâche, le script retire l'animation CSS et joue les pistes : pas d'éclair. Une boucle CSS au chargement sur les mêmes cibles est reprise au même temps ; à chaque passage, la sortie rend la main au CSS (retour à l'état de départ). */
- if(inView.length&&("IntersectionObserver" in window)){var inT=[];inView.forEach(function(a){a.tr.forEach(function(tr){A.els(el,tr).forEach(function(t){if(inT.indexOf(t)<0)inT.push(t);});});});
-  var shared=runs.filter(function(a){return a.t==="load"&&!a.js&&a.tr.some(function(tr){return A.els(el,tr).some(function(t){return inT.indexOf(t)>=0;});});});
-  var taken=false,played={};
-  var take=function(){if(taken)return;taken=true;inT.forEach(function(t){t.style.animation="none";});var now=(document.timeline&&document.timeline.currentTime)||0;shared.forEach(function(a){cancel(a);live[a.i]=window.__atelierPlay(el,a);live[a.i].forEach(function(an){try{an.currentTime=now;}catch(e){}});});};
-  var release=function(){if(!taken)return;taken=false;shared.forEach(cancel);inT.forEach(function(t){t.style.animation="";});};
-  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){var todo=inView.filter(function(a){return !a.once||!played[a.i];});if(!todo.length)return;take();todo.forEach(function(a){played[a.i]=1;cancel(a);live[a.i]=window.__atelierPlay(el,a);});if(inView.every(function(a){return a.once;}))io.unobserve(el);}else if(inView.every(function(a){return !a.once;})){inView.forEach(cancel);release();}else{inView.forEach(function(a){if(!a.once)cancel(a);});}});},{threshold:0.15});io.observe(el);}
+ /* Entrée dans l'écran : jusqu'à l'entrée, le CSS tient chaque cible à son état de départ (animation en pause). À l'entrée, le script retire du CSS de la cible seulement les animations de ce déclencheur (leur nom devient « none » dans la liste), puis les joue : les autres animations de la cible (une boucle, une autre apparition) continuent sans être relancées. À chaque passage, la sortie rend ces noms au CSS : retour à l'état de départ. */
+ if(inView.length&&("IntersectionObserver" in window)){
+  var off=function(t,nm,on){var cur=t.__atOff||(t.__atOff={});if(on)cur[nm]=1;else delete cur[nm];
+   if(!t.__atBase){var cs=getComputedStyle(t);var raw=cs.animationName;t.__atBase=(raw&&raw!=="none"?raw.split(","):(cs.animation||"").split(",").map(function(x){var m=x.match(/at-[A-Za-z0-9_-]+/);return m?m[0]:"none";})).map(function(x){return x.trim();});}
+   var any=false;for(var k in cur){any=true;break;}
+   t.style.animationName=any?t.__atBase.map(function(x){return cur[x]?"none":x;}).join(", "):"";};
+  var hold=function(a,on){a.tr.forEach(function(tr){if(tr.nm)A.els(el,tr).forEach(function(t){off(t,tr.nm,on);});});};
+  var played={};
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){inView.filter(function(a){return !a.once||!played[a.i];}).forEach(function(a){played[a.i]=1;cancel(a);hold(a,true);live[a.i]=window.__atelierPlay(el,a);});if(inView.every(function(a){return a.once;}))io.unobserve(el);}else{inView.forEach(function(a){if(!a.once&&live[a.i]){cancel(a);hold(a,false);}});}});},{threshold:0.15});io.observe(el);}
 });}
 /* Compteur : le nombre du texte défile de 0 à sa valeur quand il entre dans l'écran (la ponctuation autour est gardée). */
 var counters=Array.prototype.slice.call(document.querySelectorAll("[data-countup]"));

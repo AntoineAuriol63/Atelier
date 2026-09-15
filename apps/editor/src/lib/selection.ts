@@ -27,7 +27,8 @@ export function compoundIds(site: Site, editMode: "write" | "design" | "animate"
   const out: string[] = [];
   for (const { node } of indexSite(site).values()) {
     if (node.type === "link" || node.type === "item" || node.type === "instance") out.push(node.id);
-    else if (node.type === "box" && node.name && node.children?.length && node.children.every((c) => (editMode === "write" ? isInlineText(c) : LEAVES.has(c.type)))) out.push(node.id);
+    // En mode Animation, un bloc de textes (un titre de section) ne fait pas écran : son titre se pioche directement pour l'animer.
+    else if (editMode !== "animate" && node.type === "box" && node.name && node.children?.length && node.children.every((c) => (editMode === "write" ? isInlineText(c) : LEAVES.has(c.type)))) out.push(node.id);
   }
   return out;
 }
@@ -35,10 +36,16 @@ export function compoundIds(site: Site, editMode: "write" | "design" | "animate"
 /**
  * Ce qu'un clic sélectionne, d'après la chaîne des éléments sous le pointeur (du plus profond à la racine) : le composé le plus
  * extérieur qui contient l'élément cliqué ; si l'on clique à l'intérieur de l'élément déjà sélectionné, le composé le plus extérieur
- * sous lui, sinon l'élément cliqué (on descend d'un niveau à chaque clic, comme dans un logiciel de dessin).
+ * sous lui, sinon l'élément cliqué (on descend d'un niveau à chaque clic, comme dans un logiciel de dessin). Une fois entré dans un
+ * composé (la sélection est dedans), cliquer un voisin dans ce même composé le sélectionne directement.
  */
-export function pickSelection(chain: string[], compounds: Set<string>, selected: string | null): string {
+export function pickSelection(chain: string[], compounds: Set<string>, selected: string | null, selectedChain: string[] = []): string {
   const inSelected = selected ? chain.indexOf(selected) : -1;
-  const scope = inSelected >= 0 ? chain.slice(0, inSelected) : chain;
+  let scope = inSelected >= 0 ? chain.slice(0, inSelected) : chain;
+  if (inSelected < 0 && selected) {
+    // Le composé le plus profond qui contient à la fois le clic et la sélection : on reste dedans.
+    const shared = chain.findIndex((id) => compounds.has(id) && id !== selected && selectedChain.includes(id));
+    if (shared >= 0) scope = chain.slice(0, shared);
+  }
   return [...scope].reverse().find((id) => compounds.has(id)) ?? chain[0]!;
 }

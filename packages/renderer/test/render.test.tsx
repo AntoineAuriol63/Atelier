@@ -437,10 +437,27 @@ describe("animations (section 8.4, lignes de temps et déclencheurs)", () => {
     expect(h).toMatch(/class="n-cmp_root n-in1" data-anim="[^"]*&quot;i&quot;:&quot;r1&quot;/);
     expect(h).toContain('class="n-cmp_root n-in2" data-anim-target=""');
     const css = siteCss(site);
-    expect(css).toContain(".n-in1{animation:at-an_o-t_o 500ms ease 0ms 1 normal both;animation-play-state:paused}");
+    expect(css).toContain(".n-cmp_root.n-in1{animation:at-an_o-t_o 500ms ease 0ms 1 normal both;animation-play-state:paused}");
     expect(css).toContain(".n-in2{animation:at-an_b-t_b 500ms ease 0ms 1 normal both;animation-play-state:running}");
     // Dans l'éditeur, l'enveloppe garde l'identifiant d'édition ; la racine porte la classe et les déclencheurs.
     expect(html(site, true)).toMatch(/<div data-node="in1" data-instance="cmp" style="display:contents"><div class="n-cmp_root n-in1" data-node="cmp_root" data-anim="/);
+  });
+  it("occurrence de composant : son style et ses animations l'emportent sur ceux de la racine, sans les effacer", () => {
+    const cmp: ComponentDef = { id: "cmp", name: "Chiffre", scope: "site", props: [], root: { id: "cmp_root", type: "box", props: {}, style: { base: { background: "white" } }, triggers: [tr("r_l", "load", "an_l")] } };
+    const loopA = an("an_l", [tk("t_l", [{ at: 0, style: { transform: "scale(1)" } }, { at: 1600, style: { transform: "scale(1.05)" } }])], { loop: "infinite" });
+    const site: Site = { ...page([{ id: "in1", type: "instance", props: { component: "cmp" }, style: { base: { background: "red" } }, triggers: [tr("r1", "inView", "an_o")] }], [loopA, an("an_o", [fade("t_o")])]), components: [cmp] };
+    const css = siteCss(site);
+    expect(css).toContain(".n-cmp_root.n-in1{background:red}");
+    expect(css).toContain(".n-cmp_root.n-in1{animation:at-an_l-t_l 1600ms ease 0ms infinite normal both,at-an_o-t_o 500ms ease 0ms 1 normal both;animation-play-state:running,paused}");
+    expect(css).toContain(".n-cmp_root{animation:at-an_l-t_l 1600ms ease 0ms infinite normal both;animation-play-state:running}");
+  });
+  it("un élément placé dans l'emplacement d'une occurrence, visé par une piste, est marqué comme cible ; le script est émis", () => {
+    const cmp: ComponentDef = { id: "cmp", name: "Carte", scope: "site", props: [], root: { id: "cmp_root", type: "box", props: {}, children: [{ id: "cmp_slot", type: "slot", props: { name: "default" }, children: [] }] } };
+    const seq = an("an_s", [fade("t_t"), fade("t_p", { target: { node: "s_par" }, start: { after: "t_t" } })]);
+    const site: Site = { ...page([{ id: "in1", type: "instance", props: { component: "cmp", slots: { default: [text("s_ttl", "Titre", { triggers: [tr("r1", "inView", "an_s")] }), text("s_par", "Texte")] } } }], [seq]), components: [cmp] };
+    const h = html(site);
+    expect(h).toContain('class="n-s_par" data-anim-target=""');
+    expect(h).toContain("<script>");
   });
   it("les règles éditeur, réduire les animations et sans script couvrent les cibles ; bandeau inchangé", () => {
     const site = page([text("t", "x", { triggers: [tr("r1", "load", "an_z")] })], [an("an_z", [fade("t_z")])]);

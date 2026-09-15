@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import { AlertTriangle, CheckCircle2, Command as CommandIcon, Database as DatabaseIcon, ExternalLink, Info, FileText, Grid3x3, Layers, Moon, Palette, Plus, Puzzle, Redo2, Sparkles, Sun, Undo2, UploadCloud, X, Settings2, Maximize2, Minimize2, Columns2, PanelLeftClose, PanelLeftOpen, Zap } from "lucide-react";
 import type { DropPosition, Entry, Node, Page, Site, StyleValue, Role } from "@atelier/model";
-import { animationById, appearanceOf, BASE, breakpointForWidth, canInsertUnder, cloneWithNewIds, dataSourceFor, entryPath, fitHeadings as fitHeadingsInPage, indexSite, layoutGridAt, newId, planDetach, planDrop, planInsert, planMakeComponent, planMergePrev, planMove, planSlashInsert, planSplit, stylePath, templateOf, type ComponentPlan, type TextPlan, ANIMATION_PRESETS, planQuickAnimation } from "@atelier/model";
+import { animationById, appearanceOf, planAppearancePreset, planRemoveNode, BASE, breakpointForWidth, canInsertUnder, cloneWithNewIds, dataSourceFor, entryPath, fitHeadings as fitHeadingsInPage, indexSite, layoutGridAt, newId, planDetach, planDrop, planInsert, planMakeComponent, planMergePrev, planMove, planSlashInsert, planSplit, stylePath, templateOf, type ComponentPlan, type TextPlan, ANIMATION_PRESETS } from "@atelier/model";
 import type { Op } from "@atelier/model";
 import { valueToCss } from "@atelier/renderer";
 import type { Inline } from "@atelier/model";
@@ -229,7 +229,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
     // Un élément enchaîné n'a pas de déclencheur à lui : on ouvre l'animation qui le fait apparaître.
     const ap = t ? undefined : appearanceOf(site, node.id);
     if (t) openAnimation({ animationId: t.animation, hostId: node.id, triggerId: t.id });
-    else if (ap) openAnimation({ animationId: ap.animation.id, hostId: ap.hostId, triggerId: ap.trigger.id });
+    else if (ap) { openAnimation({ animationId: ap.animation.id, hostId: ap.hostId, triggerId: ap.trigger.id }); select(node.id); }
     else select(node.id);
   }, [writer, switchMode, openAnimation, select, site]);
   // Pioche de la ligne de temps : le prochain élément cliqué (aperçu, calques, fil d'Ariane) devient une piste, sans changer la sélection.
@@ -415,7 +415,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
       if (m.type === "atelier:set-style") doc.commit({ op: "node.set", id: m.id, path: stylePath(activeBpRef.current, m.prop), value: m.value as StyleValue | undefined }, { label: `${m.prop}` });
       if (m.type === "atelier:set-tag") doc.commit({ op: "node.set", id: m.id, path: "props.tag", value: m.tag }, { label: "Type de bloc" });
       if (m.type === "atelier:pick-image") { const target = m.id; select(target); openMediaLibrary({ value: (index.get(target)?.node.props.asset as string | null) ?? null, onPick: (assetId) => doc.commit({ op: "node.set", id: target, path: "props.asset", value: assetId }, { label: "Changer l'image" }) }); }
-      if (m.type === "atelier:remove") { const loc = index.get(m.id); if (loc?.parent) { doc.commit({ op: "node.remove", id: m.id }, { label: "Supprimer" }); select(loc.parent.id); notify(`${nodeLabel(loc.node)} supprimé`, "info", { label: "Annuler", run: () => doc.undo() }); } }
+      if (m.type === "atelier:remove") { const loc = index.get(m.id); if (loc?.parent) { doc.commit({ op: "batch", ops: planRemoveNode(doc.site, m.id), label: "Supprimer" }, { label: "Supprimer" }); select(loc.parent.id); notify(`${nodeLabel(loc.node)} supprimé`, "info", { label: "Annuler", run: () => doc.undo() }); } }
     };
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
@@ -477,10 +477,10 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
       // sur un bouton ou un onglet focalisé, ces touches gardent leur sens natif.
       if (!e.fromPreview && !focusInWorkspace() && !meta) return;
       if (meta && e.key.toLowerCase() === "c") { e.preventDefault(); clipboard.current = structuredClone(loc.node); void navigator.clipboard?.writeText(JSON.stringify(loc.node)).catch(() => {}); notify("Copié", "success"); return; }
-      if (meta && e.key.toLowerCase() === "x") { e.preventDefault(); if (!loc.parent) return; clipboard.current = structuredClone(loc.node); doc.commit({ op: "node.remove", id: loc.node.id }, { label: "Couper" }); select(loc.parent.id); return; }
+      if (meta && e.key.toLowerCase() === "x") { e.preventDefault(); if (!loc.parent) return; clipboard.current = structuredClone(loc.node); doc.commit({ op: "batch", ops: planRemoveNode(doc.site, loc.node.id), label: "Couper" }, { label: "Couper" }); select(loc.parent.id); return; }
       if (meta && e.key.toLowerCase() === "v") { e.preventDefault(); if (!clipboard.current) return; const { node: copy } = cloneWithNewIds(clipboard.current, newId); const to = planInsert(index, page.root, loc.node.id, "after"); const ok = canInsertUnder(index, to.parent, copy); if (!ok.ok) { notify(ok.reason); return; } doc.commit({ op: "node.insert", parent: to.parent, index: to.index, node: copy }, { label: "Coller" }); select(copy.id); return; }
       if (meta && e.key.toLowerCase() === "d") { e.preventDefault(); if (!loc.parent) return; const { node: copy } = cloneWithNewIds(loc.node, newId); doc.commit({ op: "node.insert", parent: loc.parent.id, index: loc.index + 1, node: copy }, { label: "Dupliquer" }); select(copy.id); return; }
-      if ((e.key === "Backspace" || e.key === "Delete") && loc.parent) { e.preventDefault(); doc.commit({ op: "node.remove", id: loc.node.id }, { label: "Supprimer" }); select(loc.parent.id); notify(`${nodeLabel(loc.node)} supprimé`, "info", { label: "Annuler", run: () => doc.undo() }); return; }
+      if ((e.key === "Backspace" || e.key === "Delete") && loc.parent) { e.preventDefault(); doc.commit({ op: "batch", ops: planRemoveNode(doc.site, loc.node.id), label: "Supprimer" }, { label: "Supprimer" }); select(loc.parent.id); notify(`${nodeLabel(loc.node)} supprimé`, "info", { label: "Annuler", run: () => doc.undo() }); return; }
       if (e.key === "ArrowUp" || e.key === "ArrowDown") {
         e.preventDefault();
         const rows = [...document.querySelectorAll<HTMLElement>("[data-row-id]")].map((r) => r.dataset.rowId!);
@@ -579,10 +579,10 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
     ];
     if (selected && index.get(selected)?.parent) {
       cmds.push({ id: "dup", group: "Édition", label: "Dupliquer la sélection", keys: "⌘D", run: () => { const loc = index.get(selected)!; const { node: cloned } = cloneWithNewIds(loc.node, newId); const copy = cloned.type === "field" ? { ...cloned, props: { ...cloned.props, name: uniqueFieldName(loc.parent!.children ?? [], String(cloned.props.name ?? "champ")) } } : cloned; doc.commit({ op: "node.insert", parent: loc.parent!.id, index: loc.index + 1, node: copy }, { label: "Dupliquer" }); select(copy.id); } });
-      cmds.push({ id: "del", group: "Édition", label: "Supprimer la sélection", keys: "⌫", run: () => { const loc = index.get(selected)!; doc.commit({ op: "node.remove", id: selected }, { label: "Supprimer" }); select(loc.parent!.id); } });
+      cmds.push({ id: "del", group: "Édition", label: "Supprimer la sélection", keys: "⌫", run: () => { const loc = index.get(selected)!; doc.commit({ op: "batch", ops: planRemoveNode(doc.site, selected), label: "Supprimer" }, { label: "Supprimer" }); select(loc.parent!.id); } });
       const sel = index.get(selected)!.node;
       if (!writer) cmds.push({ id: "animate-node", group: "Apparition", label: `Animer « ${nodeLabel(sel)} »…`, icon: Zap, keywords: "animation mode ligne de temps déclencheur images-clés animer cet élément", run: () => animateNode(sel) });
-      for (const p of ANIMATION_PRESETS.filter((x) => x.group === "Apparition")) cmds.push({ id: `appear:${p.id}`, group: "Apparition", label: `Apparition · ${p.label}`, icon: Sparkles, keywords: "animation apparition défilement préréglage", run: () => doc.commit({ op: "batch", ops: planQuickAnimation(site, sel, "Apparition", p.id), label: `Apparition · ${p.label}` }, { label: `Apparition · ${p.label}` }) });
+      for (const p of ANIMATION_PRESETS.filter((x) => x.group === "Apparition")) cmds.push({ id: `appear:${p.id}`, group: "Apparition", label: `Apparition · ${p.label}`, icon: Sparkles, keywords: "animation apparition défilement préréglage", run: () => doc.commit({ op: "batch", ops: planAppearancePreset(site, sel.id, p.id), label: `Apparition · ${p.label}` }, { label: `Apparition · ${p.label}` }) });
       if (sel.type === "instance") cmds.push({ id: "detach", group: "Édition", label: "Détacher l'instance du composant", icon: Puzzle, run: detachInstance });
       else cmds.push({ id: "makecmp", group: "Édition", label: `Faire de « ${nodeLabel(sel)} » un composant`, icon: Puzzle, keywords: "composant réutiliser", run: () => makeComponent(sel.name ?? nodeLabel(sel)) });
     }
@@ -748,7 +748,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
         {editMode === "animate" ? (
           <div className="flex-1 overflow-auto"><AnimationModePanel site={site} node={selectedLoc?.node ?? null} commit={doc.commit} page={page} getSite={doc.getSite} bp={activeBp} mode={mode} open={openTl} onOpen={openAnimation} scrub={scrub} onSelect={select} onPick={setPick} picking={picking} showTargets={showTargets} onTestOnSite={testOnSite} /></div>
         ) : selectedLoc ? (
-          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} onPlay={(id, trigger) => post({ type: "atelier:play", id, trigger })} site={site} loc={selectedLoc} dataSource={dataSource} activeBp={activeBp} mode={mode} editMode={editMode} onSwitchMode={switchMode} onOpenAnimation={writer ? undefined : (triggerId) => animateNode(selectedLoc.node, triggerId)} onTestOnSite={() => testOnSite(selectedLoc.node.id)} onSelectNode={(id) => select(id)} onGoToBreakpoint={goToBreakpoint} onPreviewState={setPreviewState} onEditInPreview={() => post({ type: "atelier:edit-text", id: selectedLoc.node.id })} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }} onMakeComponent={makeComponent} onDetach={detachInstance} notify={notify} commit={doc.commit} onDeleted={() => { select(selectedLoc.parent?.id ?? null); notify(`${nodeLabel(selectedLoc.node)} supprimé`, "info", { label: "Annuler", run: () => doc.undo() }); }} /></div>
+          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} onPlay={(id, trigger) => post({ type: "atelier:play", id, trigger })} site={site} loc={selectedLoc} dataSource={dataSource} activeBp={activeBp} mode={mode} editMode={editMode} onSwitchMode={switchMode} onOpenAnimation={writer ? undefined : (triggerId) => animateNode(selectedLoc.node, triggerId)} onTestOnSite={(id) => testOnSite(id ?? selectedLoc.node.id)} onSelectNode={(id) => select(id)} onGoToBreakpoint={goToBreakpoint} onPreviewState={setPreviewState} onEditInPreview={() => post({ type: "atelier:edit-text", id: selectedLoc.node.id })} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }} onMakeComponent={makeComponent} onDetach={detachInstance} notify={notify} commit={doc.commit} onDeleted={() => { select(selectedLoc.parent?.id ?? null); notify(`${nodeLabel(selectedLoc.node)} supprimé`, "info", { label: "Annuler", run: () => doc.undo() }); }} /></div>
         ) : (
           <div className="p-3 flex flex-col gap-2">
             <PanelHeading className="px-0">Sélection</PanelHeading>

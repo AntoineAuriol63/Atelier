@@ -90,7 +90,8 @@ const trackTarget = z.union([
   z.object({ selector: z.string() }),
 ]);
 const stagger = z.object({ each: z.number().min(0), from: z.enum(["start", "end", "center"]).optional() });
-export const track = z.object({ id, target: trackTarget, stagger: stagger.optional(), keyframes: z.array(keyframe) });
+const trackStart = z.union([z.object({ after: id, gap: z.number().min(0).optional() }).strict(), z.object({ with: id, gap: z.number().min(0).optional() }).strict()]);
+export const track = z.object({ id, target: trackTarget, stagger: stagger.optional(), keyframes: z.array(keyframe), start: trackStart.optional() });
 export const animation = z.object({
   id, name: z.string(), duration: z.number().min(0), tracks: z.array(track),
   loop: z.union([z.number().positive(), z.literal("infinite")]).optional(), alternate: z.boolean().optional(), preset: z.string().optional(),
