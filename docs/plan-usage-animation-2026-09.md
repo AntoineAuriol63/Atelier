@@ -10,16 +10,16 @@ Ce document est écrit **avant** toute conception. Les critères de la section 1
 
 Mesurés par le test simulé de validation (section 5), avec les **mêmes missions, les mêmes critères de réussite** (protocole v1.0, § 5, lus dans le site enregistré et par visite instrumentée) et les mêmes personas que la vague 2. Référence : vague 2 du 14 septembre (version `fc1764d`).
 
-| # | Usage | Critère | Vague 2 |
-|---|---|---|---|
-| U1 | « Les boutons après le titre » (T3) | réussite complète chez **au moins 4 sur 5**, sans aide de niveau 2 ou 3 ; et au moins 3 de ces réussites **sans ouvrir le mode Animation** | 1 sur 5 (en mode Animation) |
-| U2 | La scène de « La maison » (T4) | réussite complète ou partielle chez **au moins 2 designers sur 3** ; au moins 1 réussite complète sur 5 | 0 partielle, 0 complète |
-| U3 | « Les plats ne bougent pas » (T2) | réussite complète chez **au moins 4 sur 5** ; cause identifiée (T2-a) par au moins 4 sur 5 ; aucun déclencheur en double ni réglage perdu (« une à une ») dans le journal chez au moins 4 sur 5 | 2 sur 5 ; 3 sur 5 ; 3 sur 5 |
-| U4 | Rejouer à chaque passage, arrivée qui dépasse (T4) | critère C6 rempli par **au moins 3 sur 5** ; au moins un chiffre avec dépassement (partie « chiffres » de C5) chez au moins 3 sur 5 | 0 et 0 |
-| U5 | Débutants et mode Animation (T3, T4) | **aucun abandon** dont l'événement d'origine est dans le mode Animation | 2 (les deux débutants) |
-| U6 | Désigner ce qui bouge (toutes) | sélection du texte ou de l'image contenus au lieu de l'élément voulu chez **au plus 2 participants** | 5 sur 5 |
-| **N1** | À ne pas casser | T1 et T5 réussies par **5 sur 5** ; titre ralenti (T3-R1) par 5 sur 5 ; au moins 23 récits sur 25 sans écart matériel | 5, 5, 5 ; 24 |
-| **N2** | Le site joue ce que l'éditeur annonce | aucun « éclair » (élément visible avant son apparition) dans les visites instrumentées ; aucune phrase de résumé contredite par le site | éclair dans 5 visites sur 5 |
+| # | Usage | Critère | Vague 2 | Vague 3 (mesuré) | Verdict |
+|---|---|---|---|---|---|
+| U1 | « Les boutons après le titre » (T3) | réussite complète chez **au moins 4 sur 5**, sans aide de niveau 2 ou 3 ; et au moins 3 de ces réussites **sans ouvrir le mode Animation** | 1 sur 5 (en mode Animation) | 4 sur 5 sans aide, dont 3 sans ouvrir le mode Animation | **atteint** |
+| U2 | La scène de « La maison » (T4) | réussite complète ou partielle chez **au moins 2 designers sur 3** ; au moins 1 réussite complète sur 5 | 0 partielle, 0 complète | 0 partielle, 0 complète | manqué |
+| U3 | « Les plats ne bougent pas » (T2) | réussite complète chez **au moins 4 sur 5** ; cause identifiée (T2-a) par au moins 4 sur 5 ; aucun déclencheur en double ni réglage perdu (« une à une ») dans le journal chez au moins 4 sur 5 | 2 sur 5 ; 3 sur 5 ; 3 sur 5 | 3 sur 5 ; 4 sur 5 ; 4 sur 5 | manqué (2 volets sur 3) |
+| U4 | Rejouer à chaque passage, arrivée qui dépasse (T4) | critère C6 rempli par **au moins 3 sur 5** ; au moins un chiffre avec dépassement (partie « chiffres » de C5) chez au moins 3 sur 5 | 0 et 0 | C6 chez 2 sur 5 ; dépassement chez 1 sur 5 | manqué |
+| U5 | Débutants et mode Animation (T3, T4) | **aucun abandon** dont l'événement d'origine est dans le mode Animation | 2 (les deux débutants) | 1 abandon (P1-T3) | manqué |
+| U6 | Désigner ce qui bouge (toutes) | sélection du texte ou de l'image contenus au lieu de l'élément voulu chez **au plus 2 participants** | 5 sur 5 | 1 participant | **atteint** |
+| **N1** | À ne pas casser | T1 et T5 réussies par **5 sur 5** ; titre ralenti (T3-R1) par 5 sur 5 ; au moins 23 récits sur 25 sans écart matériel | 5, 5, 5 ; 24 | 5, 5, 5 ; 20 récits sur 25 | manqué (3 volets sur 4) |
+| **N2** | Le site joue ce que l'éditeur annonce | aucun « éclair » (élément visible avant son apparition) dans les visites instrumentées ; aucune phrase de résumé contredite par le site | éclair dans 5 visites sur 5 | 0 éclair ; 1 phrase de résumé contredite | manqué (volet « éclair » atteint) |
 
 Règles de lecture : un critère est **atteint**, **manqué** ou **non mesurable** (données manquantes, invalidation) ; aucune reformulation après coup. Tout résultat est « simulé » et reste à confirmer avec de vraies personnes. Les deux fins au budget amplifiées par le dispositif en vague 2 sont corrigées par la règle de la capture double pour tous (section 5) ; ce changement est signalé dans le rapport de comparaison.
 
@@ -48,7 +48,7 @@ Chaque lot : tests d'abord, code, parcours vérifié dans l'éditeur par de vrai
 | **3 · Dépasser, échelonner** ✅ | apparitions tout prêtes qui dépassent leur place ; enchaîner les éléments répétés (« les enfants un à un » repérable sur le bloc qui les contient) | PR8, PR6 | U2, U4 |
 | **4 · Mode Animation abordable** ✅ | ouverture sur l'état visible ; ce que règle chaque zone dit à l'arrivée, y compris depuis le panneau (constat 11 : l'encart « Comment ça marche » n'y est pas montré) ; cliquer un autre élément fait choisir entre ouvrir son animation et l'ajouter | PR2, PR5, R10 | U5 |
 | **5 · Désigner et composants** ✅ | un clic désigne l'élément (bouton, carte, occurrence de composant), un double-clic va dedans ; portée d'un réglage de composant dite | PR10, PR11, S1 | U6 |
-| **6 · Validation** | test simulé complet (section 5), rapport avant / après | — | tous |
+| **6 · Validation** ✅ | test simulé complet (section 5), rapport avant / après | — | tous |
 
 ---
 
@@ -82,9 +82,21 @@ Chaque lot : tests d'abord, code, parcours vérifié dans l'éditeur par de vrai
 - **Tests** : 20 ajoutés (modèle 14, rendu 5, éditeur 1) et 4 réécrits (script du site, sélection), plus des attentes de classes mises à jour ; `npm test`, `typecheck`, `lint` au vert. Non vérifié dans le navigateur : la fenêtre de l'application était réduite (addendum 3, point 8).
 - **Limites restantes** : fin d'une vue sans limite (une carte comptée) ; texte d'un composant dont l'occurrence apparaît (« Aucune ») ; suite lancée par plusieurs déclencheurs (non proposée comme point de départ).
 
+### Lot 6 · validation (15 et 16 septembre)
+
+- **Vague 3 menée** sur `08a6d1e` : mêmes personas, mêmes missions, mêmes critères, même ordre de passage (P3, P1, P5, P2, P4) ; cinq séances complètes, cinq observateurs indépendants, doubles codages de P3 et P5, synthèse à l'aveugle, puis comparaison avant / après. Rapport : `docs/validation-animation-2026-09.md` ; pièces dans `docs/validation-animation-2026-09/`.
+- **Dispositif réellement employé** (addendum 3) : le navigateur intégré à l'application s'est révélé inutilisable dès que sa fenêtre n'est pas au premier plan (document caché, captures déformées, clics décalés : T1 de P3 invalidée). Les séances sont passées sur un **Chrome sans fenêtre** piloté par le protocole DevTools, écran 1 440 × 900, captures 800 × 500. Conséquence : la capture attend le rendu, donc **capture simple** pour tous au lieu de la capture double prévue, et la loupe agrandit réellement. Deux autres incidents : une mise en veille de la machine (T1 de P5 invalidée, séance reprise de zéro) et une coupure réseau pendant T5 de P5 (reprise sur place avec une note technique neutre).
+- **Résultat** : 3 critères atteints sur 8 (U1, U6, et le volet « éclair » de N2). T3 passe de 1 à 4 réussites complètes, T2 de 2 à 3, T1 et T5 restent à 5 sur 5, aucune aide donnée en 25 missions. T4 reste en échec chez 5 sur 5, avec une **couverture en retrait** (14 éléments animés sur 30 contre 24) : le lot 5 a supprimé le raccourci involontaire par lequel trois participants animaient les trois chiffres en réglant le composant sans le savoir.
+- **Défaut rendu visible** : la touche Entrée, non transmise en vague 2 (PR13 classé artefact), l'est en vague 3 ; elle révèle que `NumberInput` valide deux fois (Entrée appelle `commit()` puis `blur()`, qui rappelle `commit()`). Un Ctrl+Z n'annule alors que le doublon, une piste peut être corrompue, et un abandon en découle.
+- **Suite** : lot 7 décrit dans `docs/validation-animation-2026-09.md` § 6 — d'abord les défauts (double validation, choix sans effet, croix identiques, zoom masqué), puis l'alignement du mode Animation sur la rubrique du panneau, puis ce qui manque pour U2 et U4 (désigner un bloc intermédiaire, réduire le nombre de gestes par élément).
+
+---
+
 ## 5. Test simulé de validation
 
 - Même protocole v1.0 (missions, critères, grille, hypothèses), mêmes personas, même ordre des tâches et même ordre de passage que la vague 2 ; nouvelles instances, nouvelles copies du site, sur la version livrée par les lots 0 à 5.
 - Corrections du dispositif, décidées ici : **capture double pour les cinq participants** (une capture double compte une action) ; loupe à règle unique ; onglet simulé pour l'Aperçu ; aides et reprises comme en vague 2.
 - Observateurs sans les hypothèses ni les critères de la section 1 ; synthèse à l'aveugle ; puis comparaison avant / après sur les critères U1 à U6, N1 et N2, et sur les problèmes PR1 à PR14.
 - Si un critère est manqué : le rapport dit lequel, pourquoi (codage), et le lot est repris avant toute autre fonctionnalité.
+
+**Ce qui s'est réellement passé** (15 et 16 septembre) : voir le journal du lot 6. Le dispositif a changé en cours de route (navigateur de test sans fenêtre, donc capture simple au lieu de la capture double prévue), trois incidents sont consignés dans l'addendum 3, et deux missions ont été invalidées puis reprises. Cinq critères sur huit sont manqués : le lot 7 les reprend avant toute autre fonctionnalité, conformément à cette règle.
