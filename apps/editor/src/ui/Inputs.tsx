@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type InputHTMLAttributes, type TextareaHTMLAttributes } from "react";
+import { useRef, useState, type InputHTMLAttributes, type TextareaHTMLAttributes } from "react";
 import { ChevronDown } from "lucide-react";
 import { cx } from "./cx";
 import { startDragValue } from "./controls/useDragValue";
@@ -44,14 +44,14 @@ export function TextArea({ value, onValueChange, className, ...rest }: Omit<Text
   );
 }
 
-export type SelectOption = { value: string; label: string };
+export type SelectOption = { value: string; label: string; disabled?: boolean };
 
 export function Select({ value, options, onValueChange, className, placeholder }: { value: string; options: SelectOption[]; onValueChange: (v: string) => void; className?: string; placeholder?: string }) {
   return (
     <div className={cx("relative", className)}>
       <select value={value} onChange={(e) => onValueChange(e.target.value)} className={cx(FIELD, "appearance-none pr-6")}>
         {placeholder ? <option value="">{placeholder}</option> : null}
-        {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+        {options.map((o) => <option key={o.value} value={o.value} disabled={o.disabled}>{o.label}</option>)}
       </select>
       <ChevronDown size={13} className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-dim" aria-hidden />
     </div>
@@ -68,6 +68,8 @@ export function NumberInput({ value, onValueChange, unit, min, max, step = 1, cl
   const [prev, setPrev] = useState(value);
   if (value !== prev) { setPrev(value); if (!focused) setDraft(value === "" ? "" : String(value)); }
   const clamp = (n: number) => Math.min(max ?? Infinity, Math.max(min ?? -Infinity, n));
+  // Entrée valide puis quitte le champ : la perte de focus qui suit ne doit pas valider une seconde fois (la valeur d'à côté n'a pas encore changé).
+  const settled = useRef(false);
   const commit = () => {
     const t = draft.trim().replace(",", ".");
     if (t === "") { onValueChange(""); return; }
@@ -87,11 +89,11 @@ export function NumberInput({ value, onValueChange, unit, min, max, step = 1, cl
         onPointerDown={(e) => { if (!focused) startDragValue(e, { from: value === "" ? (min ?? 0) : value, step, onChange: (n) => { const c = clamp(n); setDraft(String(c)); onValueChange(c); } }); }}
         title={focused ? title : "Glisser horizontalement pour ajuster, cliquer pour saisir"}
         onFocus={() => setFocused(true)}
-        onBlur={() => { setFocused(false); commit(); }}
+        onBlur={() => { setFocused(false); if (settled.current) { settled.current = false; return; } commit(); }}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Enter") { commit(); (e.target as HTMLInputElement).blur(); }
-          if (e.key === "Escape") { setDraft(value === "" ? "" : String(value)); (e.target as HTMLInputElement).blur(); }
+          if (e.key === "Enter") { commit(); settled.current = true; (e.target as HTMLInputElement).blur(); }
+          if (e.key === "Escape") { setDraft(value === "" ? "" : String(value)); settled.current = true; (e.target as HTMLInputElement).blur(); }
           if (e.key === "ArrowUp" || e.key === "ArrowDown") {
             e.preventDefault();
             const base = Number(draft) || (typeof value === "number" ? value : 0);

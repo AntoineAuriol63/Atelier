@@ -147,12 +147,21 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
     : (activeBp === BASE ? localSet?.base ?? {} : localSet?.breakpoints?.[activeBp] ?? {});
   const [newProp, setNewProp] = useState("");
 
+  const technical = ["collection", "form", "field"].includes(node.type);
+  const quickAnimation = editMode === "write" && !sharedDef && onOpenAnimation ? (
+    <Section title="Animation" defaultOpen={!!node.triggers?.length || !!appearanceOf(site, node.id) || !!inheritedAppearance(site, node.id)} hint="Faire arriver l'élément, le faire réagir au survol ou bouger en continu, en un choix.">
+      <QuickAnimations site={site} node={node} commit={commit} onPlay={onPlay ? (triggerId, hostId) => onPlay(hostId ?? node.id, triggerId) : undefined} onOpenAnimation={() => onOpenAnimation()} onTestOnSite={onTestOnSite} onSelectNode={onSelectNode} />
+    </Section>
+  ) : null;
+  const designAnimation = !sharedDef ? <AnimationsPanel site={site} node={node} commit={commit} onPlay={onPlay ? (triggerId, hostId) => onPlay(hostId ?? node.id, triggerId) : undefined} onOpenAnimation={onOpenAnimation} onTestOnSite={onTestOnSite} onSelectNode={onSelectNode} /> : null;
+
   return (
     <div className="flex flex-col">
       <div className="sticky top-0 z-10 bg-panel shadow-[0_1px_0_var(--color-line)]">
       <div className="flex items-center gap-2 h-10 px-3 border-b border-line">
         {createElement(nodeIcon(node), { size: 14, className: "text-accent shrink-0", "aria-hidden": true })}
         <span className="text-sm font-medium truncate">{nodeLabel(node)}</span>
+        {loc.parent && onSelectNode ? <IconButton size="sm" label={`Sélectionner le bloc qui contient : ${nodeLabel(loc.parent)} (⌥-clic dans l'aperçu remonte aussi d'un niveau)`} icon={ArrowUp} onClick={() => onSelectNode(loc.parent!.id)} /> : null}
         <Badge>{TYPE_LABEL[node.type]}</Badge>
         {node.triggers?.length && onOpenAnimation && !sharedDef ? (
           <button type="button" className="h-6 px-1.5 rounded-sm text-2xs font-medium text-accent bg-accent-soft hover:brightness-110 whitespace-nowrap"
@@ -258,6 +267,8 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
 
       {!sharedDef && node.type === "image" ? <ImagePanel site={site} node={node} commit={commit} editMode={editMode} /> : null}
       {!sharedDef && node.type === "link" ? <LinkPanel site={site} node={node} commit={commit} /> : null}
+      {/* Un élément technique (vue, formulaire, champ) : sa rubrique Animation avant ses longs réglages, pour qu'on la trouve (vague 3, § 6.7). */}
+      {technical ? (editMode === "write" ? quickAnimation : designAnimation) : null}
       {!sharedDef && node.type === "collection" ? <CollectionPanel site={site} node={node} commit={commit} editMode={editMode} /> : null}
       {!sharedDef && node.type === "form" ? <FormPanel site={site} node={node} commit={commit} /> : null}
       {!sharedDef && node.type === "field" ? <FieldPanel site={site} node={node} commit={commit} editMode={editMode} /> : null}
@@ -290,16 +301,12 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
       <TypographyPanel site={site} style={style} mode={mode} defaultOpen={node.type === "text" || node.type === "link"} />
       <AppearancePanel site={site} style={style} mode={mode} />
       <EffectsPanel site={site} style={style} node={sharedDef ? undefined : node} commit={commit} />
-      {!sharedDef ? <AnimationsPanel site={site} node={node} commit={commit} onPlay={onPlay ? (triggerId, hostId) => onPlay(hostId ?? node.id, triggerId) : undefined} onOpenAnimation={onOpenAnimation} onTestOnSite={onTestOnSite} onSelectNode={onSelectNode} /> : null}
+      {!technical ? designAnimation : null}
       {!sharedDef ? <InteractionsPanel site={site} node={node} pageRoot={pageRoot} commit={commit} /> : null}
 
         </>
       )}
-      {editMode === "write" && !sharedDef && onOpenAnimation ? (
-        <Section title="Animation" defaultOpen={!!node.triggers?.length || !!appearanceOf(site, node.id) || !!inheritedAppearance(site, node.id)} hint="Faire arriver l'élément, le faire réagir au survol ou bouger en continu, en un choix.">
-          <QuickAnimations site={site} node={node} commit={commit} onPlay={onPlay ? (triggerId, hostId) => onPlay(hostId ?? node.id, triggerId) : undefined} onOpenAnimation={() => onOpenAnimation()} onTestOnSite={onTestOnSite} onSelectNode={onSelectNode} />
-        </Section>
-      ) : null}
+      {!technical ? quickAnimation : null}
       {!sharedDef && editMode === "design" ? <SharedStylesPanel site={site} node={node} commit={commit} onEdit={setEditingShared} /> : null}
 
       {editMode === "design" ? <ResponsivePanel site={site} node={node} activeBp={activeBp} onGoTo={onGoToBreakpoint} onReveal={(bp, prop) => { onGoToBreakpoint(bp); window.setTimeout(() => revealProp(prop), 50); }} /> : null}

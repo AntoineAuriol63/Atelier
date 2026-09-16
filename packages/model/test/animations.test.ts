@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ANIMATION_PRESETS, BASE, QUICK_SPEEDS, animationLength, layoutTracks, planMoveKeyframe, planAnimateElement, animationById, animationFromPreset, animationUsages, applyOps, describeAnimation, describeTrigger, duplicateQuickTriggers, easingCss, isPresetIntact, keyframeAt, keyframeStyleAt, migrate, parseSpring, planAddPageTrigger, planFillTrackFromPreset, planAddTrack, planAddTrigger, planApplyPreset, planRemoveAnimation, planRemoveKeyframe, planRemoveKeyframes, planRemovePageTriggerWithAnimation, planRemoveTrack, planQuickAnimation, planQuickDetail, planRemoveTrigger, planRemoveTriggerWithAnimation, planScaleAnimation, planQuickSpeed, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUnsetKeyframeProp, planUpdateAnimation, planUpdatePageTrigger, planUpdateTrack, planUpdateTrigger, presetById, quickAnimation, quickSpeed, resolveTrackTarget, sampleSite, schema, shiftDelta, springDuration, springEasing, springSamples, staggerDelay, staggerRank, trackSpan, trackTargetFor, withTargetKind, type Animation, type Node, type Site, type Trigger } from "../src";
+import { newId, cloneWithNewIds, planDuplicateTrack, ANIMATION_PRESETS, BASE, QUICK_SPEEDS, animationLength, layoutTracks, planMoveKeyframe, planAnimateElement, animationById, animationFromPreset, animationUsages, applyOps, describeAnimation, describeTrigger, duplicateQuickTriggers, easingCss, isPresetIntact, keyframeAt, keyframeStyleAt, migrate, parseSpring, planAddPageTrigger, planFillTrackFromPreset, planAddTrack, planAddTrigger, planApplyPreset, planRemoveAnimation, planRemoveKeyframe, planRemoveKeyframes, planRemovePageTriggerWithAnimation, planRemoveTrack, planQuickAnimation, planQuickDetail, planRemoveTrigger, planRemoveTriggerWithAnimation, planScaleAnimation, planQuickSpeed, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUnsetKeyframeProp, planUpdateAnimation, planUpdatePageTrigger, planUpdateTrack, planUpdateTrigger, presetById, quickAnimation, quickSpeed, resolveTrackTarget, sampleSite, schema, shiftDelta, springDuration, springEasing, springSamples, staggerDelay, staggerRank, trackSpan, trackTargetFor, withTargetKind, type Animation, type Node, type Site, type Trigger } from "../src";
 const siteSchema = schema.site;
 
 const node = (site: Site, id: string): Node => { let out: Node | undefined; const dfs = (n: Node) => { if (n.id === id) out = n; n.children?.forEach(dfs); }; site.pages.forEach((p) => dfs(p.root)); return out!; };
@@ -413,6 +413,36 @@ describe("animations : animer un élément d'un geste (audit n°5 · R3)", () =>
     ({ site } = applyOps(site, plan));
     expect(node(site, "ae_title").triggers).toEqual([{ id: "tr_ae", on: "inView", animation: "an_ae" }]);
     expect(animationById(site, "an_ae")).toEqual({ id: "an_ae", name: "Animation · Titre", duration: 1000, tracks: [{ id: "tk_ae", target: { trigger: true }, keyframes: [{ at: 0, style: {} }] }] });
+    expect(siteSchema.safeParse(site).success).toBe(true);
+  });
+});
+
+describe("copie d'un élément qui lance des animations", () => {
+  it("la copie reçoit de nouveaux identifiants de déclencheur et lance les mêmes animations", () => {
+    const original: Node = { id: "orig", type: "box", props: {}, triggers: [{ id: "trX", on: "inView", animation: "an_1" }], children: [{ id: "kid", type: "box", props: {}, triggers: [{ id: "trY", on: "hover", animation: "an_2" }] }] };
+    const { node: copy } = cloneWithNewIds(original, newId);
+    expect(copy.triggers![0]!.id).not.toBe("trX");
+    expect(copy.triggers![0]!.animation).toBe("an_1");
+    expect(copy.children![0]!.triggers![0]!.id).not.toBe("trY");
+    expect(copy.children![0]!.triggers![0]!.animation).toBe("an_2");
+    expect(original.triggers![0]!.id).toBe("trX");
+  });
+});
+
+describe("dupliquer une piste pour un autre élément", () => {
+  it("la copie garde images-clés, décalage et courbes, vise l'autre élément et part après la piste d'origine", () => {
+    const src: Animation["tracks"][number] = { id: "t_src", target: { trigger: true }, stagger: { each: 30 }, keyframes: [{ at: 100, style: { opacity: "0" } }, { at: 600, style: { opacity: "1" }, easing: "ease-out" }] };
+    let site: Site = { ...sampleSite, animations: [anim("an_d", [src], { duration: 600 })] };
+    site = { ...site, pages: site.pages.map((p, i) => (i ? p : { ...p, root: { ...p.root, triggers: [{ id: "tr_d", on: "load", animation: "an_d" }] } })) };
+    ({ site } = applyOps(site, planDuplicateTrack(site, "an_d", "t_src", "hero_p", { trackId: "t_copy" })));
+    const a = animationById(site, "an_d")!;
+    expect(a.tracks).toHaveLength(2);
+    const copy = a.tracks[1]!;
+    expect(copy).toMatchObject({ id: "t_copy", target: { node: "hero_p" }, stagger: { each: 30 }, start: { after: "t_src" } });
+    expect(copy.keyframes.map((k) => k.at)).toEqual([600, 1100]);
+    expect(copy.keyframes[1]!.easing).toBe("ease-out");
+    expect(a.duration).toBe(1100);
+    expect(planDuplicateTrack(site, "an_d", "nope", "hero_p")).toEqual([]);
     expect(siteSchema.safeParse(site).success).toBe(true);
   });
 });

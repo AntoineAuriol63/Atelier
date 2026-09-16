@@ -5,11 +5,12 @@ import { ExternalLink, Film, Play } from "lucide-react";
 import type { AppearanceBegin, CommitOptions, Node, Op, QuickGroup, Site } from "@atelier/model";
 import {
   ANIMATION_PRESETS, TRIGGER_LABELS, animationLength, appearanceAnchors, appearanceOf, appearanceStartOptions, componentUsages, indexSite, inheritedAppearance, planAppearanceDelay, planAppearanceDetail, planAppearancePreset,
-  planAppearanceReplay, planAppearanceSpeed, planAppearanceStart, planQuickAnimation, planQuickSpeed, quickAnimation, quickSpeed, trackSpan, type QuickSpeed,
+  planAppearanceCascade, planAppearanceReplay, planAppearanceSpeed, planAppearanceStart, planQuickAnimation, planQuickSpeed, quickAnimation, quickSpeed, trackSpan, type QuickSpeed,
 } from "@atelier/model";
 import { Button, Field, FieldGroup, Hint, IconButton, NumberInput, Select, Toggle } from "@/ui";
 import { Segmented } from "@/ui/controls";
 import { formatMs, quoteLabel, summarizeAnimation } from "@/lib/timeline";
+import { appearanceOptions } from "@/lib/appearance-options";
 import { nodeLabel } from "../node-icons";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
@@ -104,11 +105,8 @@ function AppearanceFields({ site, node, run, onPlay, onSelectNode }: { site: Sit
   // Sans apparition propre, il arrive peut-être avec un autre élément (la carte d'une liste) : on le dit au lieu d'« Aucune » (tests simulés, PR3).
   const inherited = ap ? undefined : inheritedAppearance(site, node.id, index);
   const labelOf = (id: string) => { const n = index.get(id)?.node; return quoteLabel(n ? nodeLabel(n) : id); };
-  const options = [
-    { value: "", label: inherited ? `Avec ${labelOf(inherited.carrierId)}` : "Aucune" },
-    ...(ap && !ap.preset ? [{ value: "custom", label: ap.origin ? `Personnalisée (${ap.origin.label})` : "Personnalisée" }] : []),
-    ...ANIMATION_PRESETS.filter((p) => p.group === "Apparition").map((p) => ({ value: p.id, label: p.label })),
-  ];
+  // Le premier choix dit d'où vient l'apparition héritée, sans se laisser choisir (il n'écrirait rien) ; un préréglage s'applique à la liste pour une carte.
+  const choice = appearanceOptions(site, node.id);
   const canLetters = node.type === "text";
   const canChildren = node.type === "collection" || (node.children?.length ?? 0) > 1;
   const anchors = ap ? appearanceAnchors(site, node.id) : [];
@@ -134,12 +132,9 @@ function AppearanceFields({ site, node, run, onPlay, onSelectNode }: { site: Sit
     <>
       <Field label="Apparition" hint={ap && !ap.preset ? "L'élément arrive. Retouchée dans le mode Animation : choisir un préréglage la remplace, en gardant son départ." : "L'élément arrive quand il entre dans l'écran, ou après un autre élément"}>
         <div className="flex items-center gap-1 min-w-0">
-          <Select className="flex-1 min-w-0" value={ap ? ap.preset?.id ?? "custom" : inherited?.viaChildren ? inherited.appearance.preset?.id ?? "" : ""} options={options} onValueChange={(v) => {
-            if (v === "custom") return;
-            // Une carte qui arrive avec sa liste : l'effet se règle sur la liste, pour toutes les cartes (sinon deux apparitions se contrediraient).
-            const on = inherited?.viaChildren ? inherited.carrierId : node.id;
-            if (inherited?.viaChildren && !v) return;
-            run(planAppearancePreset(site, on, v), v ? `Apparition · ${ANIMATION_PRESETS.find((p) => p.id === v)?.label ?? v}` : "Apparition · aucune", v ? "Apparition" : undefined);
+          <Select className="flex-1 min-w-0" value={choice.value} options={choice.options} onValueChange={(v) => {
+            if (v === "custom" || v === choice.value) return;
+            run(planAppearancePreset(site, choice.applyTo, v), v ? `Apparition · ${ANIMATION_PRESETS.find((p) => p.id === v)?.label ?? v}` : "Apparition · aucune", v ? "Apparition" : undefined);
           }} />
           {ap && onPlay ? <IconButton size="sm" label="Jouer dans le canevas" icon={Play} onClick={() => onPlay(ap.trigger.id, ap.hostId)} /> : null}
         </div>
@@ -172,6 +167,12 @@ function AppearanceFields({ site, node, run, onPlay, onSelectNode }: { site: Sit
             </Row>
           ) : null}
           <Field label=""><p className="text-2xs text-muted leading-snug" data-anim-summary="">{summarizeAnimation(site, ap.trigger, ap.hostId, !!ap.page)}</p></Field>
+          {/* Une scène en un geste (lot 7) : les voisins qui suivent reçoivent la même apparition, l'un après l'autre. */}
+          {(() => { const siblings = index.get(node.id)?.parent?.children ?? []; const following = siblings.slice(siblings.indexOf(node) + 1).filter((n) => !appearanceOf(site, n.id, index)); return following.length ? (
+            <Field label="" hint="Les éléments qui suivent celui-ci reçoivent la même apparition, chacun 120 ms après le précédent ; chacun se règle ensuite à part">
+              <Button size="sm" variant="ghost" className="self-start" onClick={() => run(planAppearanceCascade(site, node.id, 120), `Apparition · pareil pour ${following.length > 1 ? `les ${following.length} suivants` : "le suivant"}`, "Apparition")}>{`Pareil pour ${following.length > 1 ? `les ${following.length} éléments qui suivent` : "l'élément qui suit"}`}</Button>
+            </Field>
+          ) : null; })()}
           {canLetters || canChildren ? (
             <Field label="" hint="Faire arriver l'élément d'un bloc, ou ses morceaux un à un">
               {canLetters

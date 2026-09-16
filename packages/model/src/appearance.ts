@@ -441,6 +441,30 @@ function planWithin(site: Site, cur: Appearance, loc: NodeLocation, ancestorId: 
   return plan.ops;
 }
 
+/**
+ * Faire pareil pour les voisins qui suivent (lot 7, réduire les gestes) : chaque voisin sans apparition propre reçoit une copie de la piste
+ * de l'élément dans la même animation, rattachée « avec » le précédent plus `gap` ms : ils partent l'un après l'autre. L'élément lançait sa
+ * propre animation : elle reste la sienne (les voisins la rejoignent) ; il était dans une scène : les voisins rejoignent la scène derrière lui.
+ */
+export function planAppearanceCascade(site: Site, nodeId: Id, gap = 120): Op[] {
+  const index = indexSite(site);
+  const cur = appearanceOf(site, nodeId);
+  const loc = index.get(nodeId);
+  if (!cur || !loc?.parent) return [];
+  const siblings = loc.parent.children ?? [];
+  const after = siblings.slice(siblings.indexOf(loc.node) + 1).filter((n) => !appearanceOf(site, n.id));
+  if (!after.length) return [];
+  if (animationUsages(site, cur.animation.id).length > 1) return [];
+  const source = toNodeTarget(cur.track, nodeId);
+  let prev = cur.track.id;
+  const group: Track[] = after.map((n) => {
+    const t: Track = { id: newId(), target: withTargetKind({ node: n.id }, "selector" in source.target ? "element" : source.target.split ?? (source.target.children ? "children" : "element")), ...(cur.track.stagger ? { stagger: cur.track.stagger } : {}), keyframes: sortedKeyframes(cur.track).map((k) => ({ ...k, style: structuredClone(k.style) })), start: startOf("with", prev, gap) };
+    prev = t.id;
+    return t;
+  });
+  return planAppendTracks(site, cur.animation.id, group);
+}
+
 // ---------------------------------------------------------------- suppression d'éléments
 
 /**

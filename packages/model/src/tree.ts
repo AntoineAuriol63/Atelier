@@ -57,6 +57,8 @@ export function cloneWithNewIds(node: Node, makeId: () => Id): { node: Node; map
     const id = makeId();
     mapping.set(n.id, id);
     const copy: Node = { ...structuredClone(n), id };
+    // Les déclencheurs de la copie sont les siens (même animation lancée, autre identifiant : deux réglages indépendants).
+    if (copy.triggers) copy.triggers = copy.triggers.map((t) => ({ ...t, id: makeId() }));
     if (n.children) copy.children = n.children.map(rec);
     return copy;
   };

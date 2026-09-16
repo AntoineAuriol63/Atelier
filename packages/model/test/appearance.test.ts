@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  animationById, animationUsages, appearanceAnchors, planAddTrigger, appearanceOf, appearanceStartOptions, applyOps, inheritedAppearance, planRemoveNode, planAppearanceDelay, planAppearanceDetail, planAppearancePreset, planAppearanceReplay,
+  animationById, animationUsages, appearanceAnchors, planAddTrigger, planAppearanceCascade, appearanceOf, appearanceStartOptions, applyOps, inheritedAppearance, planRemoveNode, planAppearanceDelay, planAppearanceDetail, planAppearancePreset, planAppearanceReplay,
   planAppearanceSpeed, planAppearanceStart, planQuickAnimation, planUpdateTrigger, presetById, sampleSite, schema, trackPresetMatch, trackSpan,
   type Node, type Site,
 } from "../src";
@@ -365,5 +365,28 @@ describe("apparition : scénarios de la revue de code (15 septembre)", () => {
     expect(appearanceOf(noTitle, "bt2")).toMatchObject({ hostId: "bt1", begin: { kind: "after", node: "bt1" }, start: 700 });
     expect(noTitle.animations.every((a) => animationUsages(noTitle, a.id).length > 0)).toBe(true);
     valid(noTitle); valid(noB1);
+  });
+});
+
+describe("apparition : faire pareil pour les voisins (lot 7, réduire les gestes)", () => {
+  it("les voisins qui suivent reçoivent la même apparition, l'un après l'autre, dans la même animation", () => {
+    let site = quick(base, "photo", "fade-up");
+    site = run(site, planAppearanceCascade(site, "photo", 120));
+    const a = appearanceOf(site, "photo")!;
+    expect(a.own).toBe(true);
+    expect(appearanceOf(site, "hh2")).toMatchObject({ hostId: "photo", begin: { kind: "with", node: "photo" }, delay: 120, preset: { id: "fade-up" } });
+    expect(appearanceOf(site, "pp2")).toMatchObject({ hostId: "photo", begin: { kind: "with", node: "hh2" }, delay: 120 });
+    expect(span(site, "hh2")).toEqual([120, 820]);
+    expect(span(site, "pp2")).toEqual([240, 940]);
+    expect(a.animation.tracks).toHaveLength(3);
+    valid(site);
+  });
+  it("un voisin qui a déjà sa propre apparition est laissé tel quel ; sans voisin après, rien", () => {
+    let site = quick(base, "photo", "fade-up");
+    site = quick(site, "hh2", "zoom");
+    site = run(site, planAppearanceCascade(site, "photo", 100));
+    expect(appearanceOf(site, "hh2")).toMatchObject({ own: true, preset: { id: "zoom" } });
+    expect(appearanceOf(site, "pp2")).toMatchObject({ hostId: "photo", begin: { kind: "with", node: "photo" } });
+    expect(planAppearanceCascade(site, "pp2", 100)).toEqual([]);
   });
 });

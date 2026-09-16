@@ -13,6 +13,7 @@ import { INTERACTION_SCRIPT, RenderPage, assetMap, memoryData, siteCss, type Ren
 type Call = { el: Element; delay: number; duration: number; easing?: string; kf: Keyframe[] };
 type Handle = { playbackRate: number; reversed: number; playState: string; currentTime: number; pause(): void; play(): void; cancel(): void; reverse(): void };
 const calls: Call[] = [];
+const fills: string[] = [];
 const handles: Handle[] = [];
 type Observer = { cb: (entries: { target: Element; isIntersecting: boolean }[]) => void; observed: Element[] };
 const ios: Observer[] = [];
@@ -41,11 +42,12 @@ function mount(site: Site) {
 }
 
 beforeEach(() => {
-  calls.length = 0; ios.length = 0; handles.length = 0;
+  calls.length = 0; ios.length = 0; handles.length = 0; fills.length = 0;
   const w = window as unknown as Record<string, unknown>;
   w.matchMedia = () => ({ matches: false });
   w.IntersectionObserver = class { observed: Element[] = []; constructor(cb: Observer["cb"]) { ios.push({ cb, observed: this.observed }); } observe(el: Element) { this.observed.push(el); } unobserve() { /* */ } disconnect() { /* */ } };
   (Element.prototype as unknown as { animate: unknown }).animate = function (this: Element, kf: Keyframe[], opts: { delay?: number; duration?: number; easing?: string }) {
+    fills.push(String((opts as { fill?: string }).fill ?? ""));
     calls.push({ el: this, delay: opts.delay ?? 0, duration: opts.duration ?? 0, easing: opts.easing, kf });
     const h: Handle = { playbackRate: 1, reversed: 0, playState: "running", currentTime: 0, pause() { /* */ }, play() { /* */ }, cancel() { /* */ }, reverse() { this.playbackRate = -this.playbackRate; this.reversed += 1; } };
     handles.push(h);
@@ -213,5 +215,15 @@ describe("script du site : retour et bascule", () => {
     const c = document.querySelector<HTMLElement>(".n-c")!;
     c.click(); c.click();
     expect(calls).toHaveLength(3);
+  });
+});
+
+describe("script du site : remplissage d'une piste en conflit", () => {
+  it("__atelierPlay prend le remplissage transmis par la piste (forwards) au lieu de both", () => {
+    const zoom = an("zoom", [tk("z", {}, [{ at: 0, style: { transform: "scale(.85)" } }, { at: 700, style: { transform: "none" } }])]);
+    const pulse = an("pulse", [tk("p", {}, [{ at: 0, style: { transform: "scale(1)" } }, { at: 1600, style: { transform: "scale(1)" } }])], { loop: "infinite" });
+    mount(page([box("b", [tr("t1", "inView", "zoom", { delay: 200 }), tr("t2", "load", "pulse")])], [zoom, pulse]));
+    enter(document.querySelector(".n-b")!);
+    expect(fills).toEqual(["forwards"]);
   });
 });

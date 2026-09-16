@@ -150,11 +150,14 @@ export function summarizeAnimation(site: Site, trigger: Trigger, hostId: string,
   const a = animationById(site, trigger.animation);
   const tracks = (a?.tracks ?? []).filter((t) => t.keyframes.length >= 2).sort((x, y) => trackSpan(x).start - trackSpan(y).start);
   if (!a || !tracks.length) return `${when}${delay} : rien ne bouge encore.`;
+  // Une piste sans images-clés ne bouge pas : on le dit, pour qu'on la remplisse (vague 3, § 6.10).
+  const empties = a.tracks.filter((t) => t.keyframes.length < 2).map((t) => { const r = resolveTrackTarget(t.target, hostId); if ("selector" in r) return quoted(r.selector); const n = index.get(r.node)?.node; return quoted(n ? nodeLabel(n) : r.node); });
+  const missing = empties.length ? ` ${empties.join(", ")} ${empties.length > 1 ? "n'ont" : "n'a"} pas encore d'images-clés.` : "";
   const length = Math.max(1, animationLength(a));
   const moment = (t: Track) => {
     const { start, end } = trackSpan(t);
     if (positional) return `de ${Math.round((start / length) * 100)} à ${Math.round((end / length) * 100)} % du parcours`;
-    return start === 0 ? `en ${formatMs(end)}` : `de ${tickLabel(start)} à ${formatMs(end)}`;
+    return start === 0 ? `en ${formatDuration(end)}` : `de ${tickLabel(start)} à ${formatDuration(end)}`;
   };
   const subject = (t: Track) => {
     const r = resolveTrackTarget(t.target, hostId);
@@ -184,11 +187,17 @@ export function summarizeAnimation(site: Site, trigger: Trigger, hostId: string,
       return `${sequential ? ", puis " : i === tracks.length - 1 ? " et " : ", "}${part}`;
     }).join("");
   const after = trigger.on === "inView" ? (trigger.once === false ? "à chaque passage" : "une seule fois")
-    : trigger.on === "hover" && trigger.reverseOnLeave ? "puis retour quand la souris part"
+    : trigger.on === "hover" ? (trigger.reverseOnLeave ? "puis retour quand la souris part" : "et reste ainsi quand la souris part")
     : trigger.on === "click" && trigger.toggle ? "un clic sur deux la rembobine"
     : a.loop === "infinite" ? `en boucle${a.alternate ? ", en aller-retour" : ""}`
     : typeof a.loop === "number" && a.loop > 1 ? `${a.loop} fois${a.alternate ? ", en aller-retour" : ""}` : "";
-  return `${when}${delay} : ${what}${after ? `, ${after}` : ""}.`;
+  return `${when}${delay} : ${what}${after ? `, ${after}` : ""}.${missing}`;
+}
+/** « 1 500 ms (1,5 s) » : au-delà d'une seconde, la durée se lit aussi en secondes (vague 3, § 6.10). */
+export function formatDuration(ms: number): string {
+  if (ms < 1000) return formatMs(ms);
+  const s = Math.round(ms / 100) / 10;
+  return `${formatMs(ms)} (${String(s).replace(".", ",")} s)`;
 }
 
 /** Nom d'une nouvelle animation : d'après ce qui la lance (« Animation · Texte », puis « Animation · Texte 2 »), sinon « Animation 3 », le premier libre. */

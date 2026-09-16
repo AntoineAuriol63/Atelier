@@ -49,3 +49,13 @@ export function pickSelection(chain: string[], compounds: Set<string>, selected:
   }
   return [...scope].reverse().find((id) => compounds.has(id)) ?? chain[0]!;
 }
+
+/**
+ * ⌥-clic dans l'aperçu (lot 7, désigner un bloc intermédiaire) : un niveau au-dessus. `chain` va de l'élément cliqué à la racine ; si la sélection
+ * courante est dans la chaîne, on prend l'élément au-dessus d'elle, sinon le parent de l'élément désigné. La racine reste la racine.
+ */
+export function climbSelection(chain: string[], picked: string, selected: string | null): string {
+  const from = selected && chain.includes(selected) ? chain.indexOf(selected) : chain.indexOf(picked);
+  const i = Math.min(chain.length - 1, Math.max(0, from) + 1);
+  return chain[i] ?? picked;
+}

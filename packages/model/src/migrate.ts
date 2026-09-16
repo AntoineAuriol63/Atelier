@@ -41,7 +41,10 @@ function toTriggers(n: AnyNode, defs: LegacyDef[], out: Animation[], counter: { 
     const track: Track = { id: `tk_${run.id}`, target, ...(run.stagger ? { stagger: run.stagger } : {}), keyframes: kfs.map((k, i) => ({ at: Math.round((k.at / 100) * run.duration), style: structuredClone(k.style), ...(i && run.easing ? { easing: run.easing } : {}) })) };
     counter.n += 1;
     const name = def?.name ?? presetById(run.preset)?.label ?? (run.preset && run.preset in REVEAL_LABEL ? REVEAL_LABEL[run.preset as RevealKind] : undefined) ?? `Animation ${counter.n}`;
-    const animation: Animation = { id: `an_${run.id}`, name, duration: run.duration, tracks: [track], ...(run.preset ? { preset: run.preset } : {}), ...(run.iterations && run.iterations !== 1 ? { loop: run.iterations } : {}), ...(run.direction?.startsWith("alternate") ? { alternate: true } : {}) };
+    // Un élément copié en version 2 gardait l'identifiant de son run : chaque animation reçoit un identifiant libre.
+    let id = `an_${run.id}`;
+    for (let k = 2; out.some((a) => a.id === id); k++) id = `an_${run.id}_${k}`;
+    const animation: Animation = { id, name, duration: run.duration, tracks: [track], ...(run.preset ? { preset: run.preset } : {}), ...(run.iterations && run.iterations !== 1 ? { loop: run.iterations } : {}), ...(run.direction?.startsWith("alternate") ? { alternate: true } : {}) };
     out.push(animation);
     const trigger: Trigger = { id: run.id, on: run.trigger, animation: animation.id, ...(run.delay ? { delay: run.delay } : {}), ...(run.once === false ? { once: false } : {}), ...(run.reverseOnLeave ? { reverseOnLeave: true } : {}), ...(run.toggle ? { toggle: true } : {}), ...(run.range ? { range: run.range } : {}), ...(run.pauseOnHover ? { pauseOnHover: true } : {}) };
     n.triggers = [...(n.triggers ?? []), trigger];
@@ -85,5 +88,28 @@ export function migrate(input: unknown): Site {
     doc = { ...step(doc), schemaVersion: version + 1 };
     version += 1;
   }
-  return doc as unknown as Site;
+  return repairAnimations(doc as unknown as Site);
+}
+
+/**
+ * Réparation à la lecture (sans changer de version) : des animations de même identifiant (documents convertis avant le 16 septembre 2026,
+ * après copie d'un élément). Des doubles identiques n'en gardent qu'un ; des doubles différents sont renommés, les déclencheurs restant
+ * sur le premier (on ne peut pas savoir lequel ils visaient). Rien à réparer : le document est rendu tel quel.
+ */
+export function repairAnimations(site: Site): Site {
+  const list = site.animations;
+  if (!Array.isArray(list) || new Set(list.map((a) => a.id)).size === list.length) return site;
+  const seen = new Map<string, Animation>();
+  const out: Animation[] = [];
+  const taken = new Set(list.map((a) => a.id));
+  for (const a of list) {
+    const first = seen.get(a.id);
+    if (!first) { seen.set(a.id, a); out.push(a); continue; }
+    if (JSON.stringify(first) === JSON.stringify(a)) continue;
+    let id = `${a.id}_2`;
+    for (let k = 3; taken.has(id); k++) id = `${a.id}_${k}`;
+    taken.add(id);
+    out.push({ ...a, id });
+  }
+  return { ...site, animations: out };
 }

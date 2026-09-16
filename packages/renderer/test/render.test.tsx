@@ -472,3 +472,36 @@ describe("animations (section 8.4, lignes de temps et déclencheurs)", () => {
     expect(h2).toContain('data-marquee="up"'); expect(h2).toContain("data-marquee-pause");
   });
 });
+
+describe("animations : une animation en attente n'impose pas son état de départ", () => {
+  type Tk = Site["animations"][number]["tracks"][number]; type An = Site["animations"][number]; type Tr = NonNullable<Node["triggers"]>[number];
+  const tk = (id: string, keyframes: Tk["keyframes"]): Tk => ({ id, target: { trigger: true }, keyframes });
+  const an = (id: string, tracks: Tk[], extra: Partial<An> = {}): An => ({ id, name: id, duration: Math.max(...tracks.flatMap((t) => t.keyframes.map((k) => k.at))), tracks, ...extra });
+  const tr = (id: string, on: Tr["on"], animation: string, extra: Partial<Tr> = {}): Tr => ({ id, on, animation, ...extra });
+  const page = (children: Node[], animations: An[]): Site => ({ ...sampleSite, animations, pages: [{ ...sampleSite.pages[0]!, root: { id: "r", type: "box", props: {}, children } }] });
+  const zoom = an("zoom", [tk("z", [{ at: 0, style: { opacity: "0", transform: "scale(.85)" } }, { at: 700, style: { opacity: "1", transform: "none" } }])]);
+  const pulse = an("pulse", [tk("p", [{ at: 0, style: { transform: "scale(1)" } }, { at: 800, style: { transform: "scale(1.05)" } }, { at: 1600, style: { transform: "scale(1)" } }])], { loop: "infinite" });
+  const fadeLate = an("late", [tk("f", [{ at: 0, style: { opacity: "0" } }, { at: 500, style: { opacity: "1" } }])]);
+  it("CSS : la piste en retard qui touche une propriété déjà animée sur la cible ne remplit pas en arrière ; seule, elle remplit des deux côtés", () => {
+    const both = page([{ id: "b", type: "box", props: {}, triggers: [tr("t1", "inView", "zoom"), tr("t2", "load", "pulse", { delay: 2000 })] }], [zoom, pulse]);
+    const css = siteCss(both);
+    expect(css).toContain("at-zoom-z 700ms ease 0ms 1 normal both");
+    expect(css).toContain("at-pulse-p 1600ms ease 2000ms infinite normal forwards");
+    const alone = page([{ id: "b", type: "box", props: {}, triggers: [tr("t2", "load", "pulse", { delay: 2000 })] }], [pulse]);
+    expect(siteCss(alone)).toContain("at-pulse-p 1600ms ease 2000ms infinite normal both");
+    // Deux propriétés différentes : pas de conflit, chacune remplit des deux côtés.
+    const distinct = page([{ id: "b", type: "box", props: {}, triggers: [tr("t1", "load", "pulse"), tr("t3", "load", "late", { delay: 300 })] }], [pulse, fadeLate]);
+    expect(siteCss(distinct)).toContain("at-late-f 500ms ease 300ms 1 normal both");
+  });
+  it("script : la même règle est transmise à la piste (remplissage « forwards » seulement quand toutes ses propriétés sont déjà animées)", () => {
+    const zoomT = an("zoom", [tk("z", [{ at: 0, style: { transform: "scale(.85)" } }, { at: 700, style: { transform: "none" } }])]);
+    const both = page([{ id: "b", type: "box", props: {}, triggers: [tr("t1", "inView", "zoom", { delay: 200 }), tr("t2", "load", "pulse")] }], [zoomT, pulse]);
+    const h = renderToStaticMarkup(createElement(RenderPage, { ctx: ctxOf(both, both.pages[0]!) }));
+    expect(h).toMatch(/&quot;i&quot;:&quot;t1&quot;.*?&quot;f&quot;:&quot;forwards&quot;/);
+    const alone = page([{ id: "b", type: "box", props: {}, triggers: [tr("t1", "inView", "zoom", { delay: 200 })] }], [zoom]);
+    expect(renderToStaticMarkup(createElement(RenderPage, { ctx: ctxOf(alone, alone.pages[0]!) }))).not.toContain("&quot;f&quot;:");
+    // Une apparition en retard garde l'opacité pour elle : elle montre son état de départ même si un flottement anime la transformation.
+    const owns = page([{ id: "b", type: "box", props: {}, triggers: [tr("t1", "inView", "zoom", { delay: 200 }), tr("t2", "load", "pulse")] }], [zoom, pulse]);
+    expect(renderToStaticMarkup(createElement(RenderPage, { ctx: ctxOf(owns, owns.pages[0]!) }))).not.toContain("&quot;f&quot;:");
+  });
+});

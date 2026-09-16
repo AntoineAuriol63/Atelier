@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { Node, Site } from "@atelier/model";
 import { sampleSite } from "@atelier/model";
 import { nodeLabel } from "../src/components/node-icons";
-import { compoundIds, pickSelection, selectionPath } from "../src/lib/selection";
+import { climbSelection, compoundIds, pickSelection, selectionPath } from "../src/lib/selection";
 
 const para = (id: string, v: string, name?: string): Node => ({ id, type: "text", name, props: { tag: "p", content: { fr: [{ t: "text", v }] } } });
 
@@ -54,5 +54,17 @@ describe("un clic désigne ce qu'on veut faire bouger (tests simulés, PR10)", (
   it("en mode Animation, un bloc nommé fait de textes n'est pas un composé : son titre se pioche directement", () => {
     expect(compoundIds(site, "animate").includes("badge")).toBe(false);
     expect(compoundIds(site, "animate").includes("btn")).toBe(true);
+  });
+});
+
+describe("remonter d'un niveau au clic (⌥-clic)", () => {
+  it("depuis l'élément désigné, ⌥-clic prend son parent ; si la sélection est déjà dans la chaîne, un niveau au-dessus d'elle ; jamais au-dessus de la racine", () => {
+    const chain = ["txt", "card", "cards", "section", "root"];
+    expect(climbSelection(chain, "txt", null)).toBe("card");
+    expect(climbSelection(chain, "txt", "card")).toBe("cards");
+    expect(climbSelection(chain, "txt", "cards")).toBe("section");
+    expect(climbSelection(chain, "txt", "root")).toBe("root");
+    expect(climbSelection(chain, "txt", "elsewhere")).toBe("card");
+    expect(climbSelection(["root"], "root", null)).toBe("root");
   });
 });

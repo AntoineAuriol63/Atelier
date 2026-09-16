@@ -1,7 +1,7 @@
-import type { Interaction, Node, Target, Trigger } from "@atelier/model";
+import type { Interaction, Node, Target, Track, Trigger } from "@atelier/model";
 import { animationById, animationLength, easingCss, resolveTrackTarget, trackSpan, variantClass, walk, type Site } from "@atelier/model";
 import { resolveHref, type RenderContext } from "./context";
-import { declarations, trackKeyframesName } from "./css";
+import { declarations, trackFill, trackKeyframesName } from "./css";
 
 /** Forme compacte d'une interaction pour le script du site : déclencheur, options, actions avec sélecteurs résolus. */
 type WireAction = { k: string; s?: string; css?: string; v?: [string, string][]; to?: string; tr?: string };
@@ -79,6 +79,12 @@ function componentRootOf(site: Site, id: string): string | undefined {
  * `s` début, `d` portée, `k` images `{ o, c, e }` (position 0-1, déclarations, courbe vers l'image suivante).
  * Déclencheur : `pg` quand il appartient à la page (au défilement, la progression de toute la page parcourt la ligne de temps).
  */
+/** Deux pistes visent-elles la même cible, résolue depuis le même hôte ? */
+function sameTarget(a: Track, b: Track, hostId: string): boolean {
+  const ra = resolveTrackTarget(a.target, hostId), rb = resolveTrackTarget(b.target, hostId);
+  if ("selector" in ra || "selector" in rb) return "selector" in ra && "selector" in rb && ra.selector === rb.selector;
+  return ra.node === rb.node && !!ra.children === !!rb.children && (ra.split ?? "") === (rb.split ?? "");
+}
 export function animationsAttr(node: Node, ctx: RenderContext, triggers: Trigger[] = node.triggers ?? []): string | undefined {
   if (!triggers.length) return undefined;
   const selOf = (id: string) => `.${ctx.classes?.node.get(id) ?? `n-${id}`}`;
@@ -100,7 +106,10 @@ export function animationsAttr(node: Node, ctx: RenderContext, triggers: Trigger
       const kfs = [...track.keyframes].sort((x, y) => x.at - y.at);
       const { start, end } = trackSpan(track);
       const span = end - start || 1;
-      return { tg, nm: trackKeyframesName(a.id, track.id), st: track.stagger ? [track.stagger.each, track.stagger.from ?? "start"] : undefined, s: start, d: end - start, k: kfs.map((k, i) => ({ o: Number(((k.at - start) / span).toFixed(4)), c: declarations(k.style, ctx.assets), e: kfs[i + 1]?.easing ? easingCss(kfs[i + 1]!.easing, kfs[i + 1]!.at - k.at) : undefined })) };
+      // Remplissage : `forwards` quand la piste attend et qu'une autre piste des déclencheurs du nœud anime déjà la même propriété sur la même cible (voir `trackFill`).
+      const others = triggers.flatMap((x) => animationById(ctx.site, x.animation)?.tracks.filter((o) => sameTarget(o, track, node.id)) ?? []);
+      const f = trackFill(track, (t.delay ?? 0) + start, others) === "forwards" ? "forwards" : undefined;
+      return { tg, f, nm: trackKeyframesName(a.id, track.id), st: track.stagger ? [track.stagger.each, track.stagger.from ?? "start"] : undefined, s: start, d: end - start, k: kfs.map((k, i) => ({ o: Number(((k.at - start) / span).toFixed(4)), c: declarations(k.style, ctx.assets), e: kfs[i + 1]?.easing ? easingCss(kfs[i + 1]!.easing, kfs[i + 1]!.at - k.at) : undefined })) };
     });
     // Déclencheur de page (porté par la racine) : au défilement, c'est la progression de toute la page qui parcourt la ligne de temps.
     const pg = node.id === ctx.page.root.id && ctx.page.triggers?.some((x) => x.id === t.id) ? 1 : undefined;
@@ -132,7 +141,7 @@ var pieces=function(el){return Array.prototype.slice.call(el.querySelectorAll(".
 var els=function(el,tr){var tg=tr.tg;if(!tg)return[el];if(tg==="children")return kids(el);if(tg==="pieces")return pieces(el);var scope=tg.r&&el.closest?el.closest(tg.r):null;var base=Array.prototype.slice.call((scope||document).querySelectorAll(tg.s));if(scope&&scope.matches(tg.s))base.unshift(scope);if(tg.m==="children")return base.reduce(function(o,b){return o.concat(kids(b));},[]);if(tg.m==="pieces")return base.reduce(function(o,b){return o.concat(pieces(b));},[]);return base;};
 var rank=function(i,n,from){return from==="end"?n-1-i:from==="center"?Math.abs(i-(n-1)/2):i;};
 var delay=function(a,tr,i,n){return a.dl+tr.s+(tr.st?rank(i,n,tr.st[1])*tr.st[0]:0);};
-var opts=function(a,tr,extra){var o={duration:tr.d,easing:"linear",iterations:a.loop==="infinite"?Infinity:a.loop,direction:a.alt?"alternate":"normal",fill:"both"};for(var k in extra)o[k]=extra[k];return o;};
+var opts=function(a,tr,extra){var o={duration:tr.d,easing:"linear",iterations:a.loop==="infinite"?Infinity:a.loop,direction:a.alt?"alternate":"normal",fill:tr.f||"both"};for(var k in extra)o[k]=extra[k];return o;};
 window.__atelierAnim={toKf:toKf,els:els,delay:delay,opts:opts};
 window.__atelierPlay=function(el,a,extra){var out=[];a.tr.forEach(function(tr){var list=els(el,tr);list.forEach(function(t,i){try{var o=opts(a,tr,extra||{});o.delay=delay(a,tr,i,list.length);out.push(t.animate(toKf(tr.k),o));}catch(e){}});});return out;};
 })();`;

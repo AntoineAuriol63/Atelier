@@ -376,6 +376,16 @@ export function planFillTrackFromPreset(site: Site, animationId: Id, trackId: Id
   const start = trackSpan(track).start;
   return withTrack(site, animationId, trackId, (t) => ({ ...t, keyframes: preset.keyframes.map((k) => ({ ...k, at: start + k.at, style: structuredClone(k.style) })) }));
 }
+/** Reprend une piste pour un autre élément (lot 7) : mêmes images-clés, décalage et courbes ; la copie vise l'élément et part après la piste d'origine (ou selon `start`). */
+export function planDuplicateTrack(site: Site, animationId: Id, trackId: Id, nodeId: Id, o: { trackId?: Id; start?: TrackStart } = {}): Op[] {
+  const a = animationById(site, animationId);
+  const src = a?.tracks.find((t) => t.id === trackId);
+  if (!a || !src) return [];
+  const hostId = animationHost(site, animationId) ?? "";
+  const kind = "selector" in src.target ? "element" : src.target.split ?? (src.target.children ? "children" : "element");
+  const copy: Track = { id: o.trackId ?? newId(), target: withTargetKind(trackTargetFor(hostId, nodeId), kind), ...(src.stagger ? { stagger: src.stagger } : {}), keyframes: [...src.keyframes].sort((x, y) => x.at - y.at).map((k) => ({ ...k, style: structuredClone(k.style) })), start: o.start ?? { after: trackId } };
+  return planTracks(site, animationId, (tracks) => [...tracks, copy]);
+}
 /** Règle une piste (cible, décalage) ; une clé à `undefined` est retirée. */
 export function planUpdateTrack(site: Site, animationId: Id, trackId: Id, patch: Partial<Pick<Track, "target" | "stagger">>): Op[] {
   return withTrack(site, animationId, trackId, (t) => {

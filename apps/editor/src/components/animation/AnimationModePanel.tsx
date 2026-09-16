@@ -4,15 +4,15 @@ import { useState } from "react";
 import { ChevronDown, ChevronRight, Plus, Sparkles, X } from "lucide-react";
 import type { Animation, CommitOptions, Node, Op, Page, Site, Trigger, TriggerOn } from "@atelier/model";
 import { ANIMATION_PRESETS, TRIGGER_LABELS, animationById, animationFromPreset, animationUsages, appearanceOf, describeAnimation, describeTrigger, duplicateQuickTriggers, indexSite, isSequence, newId, planAddAnimation, planAddPageTrigger, planAddTrigger, planAnimateElement, planRemovePageTriggerWithAnimation, planRemoveTriggerWithAnimation, planUpdatePageTrigger, planUpdateTrigger, presetById, triggerFromPreset } from "@atelier/model";
-import { Badge, Button, Eyebrow, Field, Hint, IconButton, NumberInput, PanelHeading, Section, Select, Toggle } from "@/ui";
+import { Badge, Button, Eyebrow, Hint, IconButton, PanelHeading, Section, Select } from "@/ui";
 import { animationLabel, nextAnimationName, openTrigger, quoteLabel, type OpenTimeline } from "@/lib/timeline";
 import { Timeline } from "./Timeline";
+import { PAGE_ONS, TriggerSettings } from "./TriggerSettings";
+import { arrivesWith } from "@/lib/appearance-options";
 import { ContinuousEffects } from "./ContinuousEffects";
 import { nodeLabel } from "../node-icons";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
-/** Ce que la page peut déclencher : son chargement, son défilement, la souris. */
-const PAGE_ONS: TriggerOn[] = ["load", "scroll", "pointer"];
 
 type Props = {
   site: Site; node: Node | null; commit: Commit;
@@ -69,10 +69,18 @@ export function AnimationModePanel({ site, node, commit, page, getSite, bp, mode
     setCreated(null);
     onOpen({ animationId, hostId: node.id, triggerId });
   };
+  // L'élément arrive avec un autre (la carte d'une liste, un élément d'une scène) : on le dit ici aussi, avec le chemin vers cette animation (vague 3, § 5.4).
+  const from = node ? arrivesWith(site, node.id) : undefined;
   const elementTriggers = node ? (
     <>
+      {from ? (
+        <div className="flex flex-col gap-1 rounded-sm border border-line bg-surface/60 p-1.5" role="status">
+          <span className="text-xs text-ink">{from.label}</span>
+          <Button size="sm" variant="ghost" className="self-start" onClick={() => { setCreated(null); onOpen({ animationId: from.animationId, hostId: from.hostId, triggerId: from.triggerId }); }} title="Ouvre la ligne de temps de l'animation qui fait arriver cet élément">Voir cette animation</Button>
+        </div>
+      ) : null}
       {!node.triggers?.length ? <Button variant="primary" size="sm" icon={Sparkles} className="self-start" onClick={animateSelected} title="Un déclencheur à l'entrée dans l'écran et une ligne de temps où l'élément est déjà une piste">{`Animer « ${nodeLabel(node).replace(/ « .*$/, "")} »`}</Button> : null}
-      <TriggerList site={site} triggers={node.triggers ?? []} hostId={node.id} duplicates={duplicates} open={open} onOpen={onOpen}
+      <TriggerList site={site} triggers={node.triggers ?? []} hostId={node.id} duplicates={duplicates} open={open} onOpen={onOpen} settings={!timelineOpen}
         onUpdate={(t, patch, label, key) => run(planUpdateTrigger(node, t.id, patch), label, key)}
         onRemove={(t) => { run(planRemoveTriggerWithAnimation(site, node, t.id), "Retirer le déclencheur"); if (open?.triggerId === t.id) onOpen(null); }} />
       <AddTrigger site={site} ons={Object.keys(TRIGGER_LABELS) as TriggerOn[]} hostLabel={nodeLabel(node)} title={`Lancer une animation depuis ${quoteLabel(nodeLabel(node))}`}
@@ -82,7 +90,7 @@ export function AnimationModePanel({ site, node, commit, page, getSite, bp, mode
   ) : null;
   const pageTriggers = (
     <>
-      <TriggerList site={site} triggers={page.triggers ?? []} hostId={page.root.id} pageLevel open={open} onOpen={onOpen}
+      <TriggerList site={site} triggers={page.triggers ?? []} hostId={page.root.id} pageLevel open={open} onOpen={onOpen} settings={!timelineOpen}
         onUpdate={(t, patch, label, key) => run(planUpdatePageTrigger(getSite(), page.id, t.id, patch), label, key)}
         onRemove={(t) => { run(planRemovePageTriggerWithAnimation(site, page.id, t.id), "Retirer le déclencheur de la page"); if (open?.triggerId === t.id) onOpen(null); }} />
       <AddTrigger site={site} ons={PAGE_ONS} defaultOn="scroll" hostLabel={`page ${pageName}`} title="Lancer une animation depuis la page"
@@ -97,7 +105,8 @@ export function AnimationModePanel({ site, node, commit, page, getSite, bp, mode
       {/* Le mode dit aussi comment se lit la ligne de temps quand on y arrive directement depuis la rubrique d'un élément (tests simulés, constat 11). */}
       {timelineOpen ? null : <HowItWorks />}
       {/* Une animation ouverte passe devant : c'est la surface de travail ; choisir un autre élément ne la déplace plus. */}
-      {timelineOpen ? <Timeline key={`${open!.triggerId}:${anim!.id}`} site={site} getSite={getSite} animation={anim!} hostId={open!.hostId} trigger={opened!.trigger} pageLevel={!!opened!.page} selected={node} bp={bp} mode={mode} commit={commit} scrub={scrub} onClose={() => { setCreated(null); onOpen(null); }} onSelect={onSelect} focusName={created === open!.triggerId} onPick={onPick} picking={picking} showTargets={showTargets} onTestOnSite={onTestOnSite ? () => onTestOnSite(open!.hostId) : undefined} onOpenElement={openElement} intro={<HowItWorks compact />} /> : null}
+      {timelineOpen ? <Timeline key={`${open!.triggerId}:${anim!.id}`} site={site} getSite={getSite} animation={anim!} hostId={open!.hostId} trigger={opened!.trigger} pageLevel={!!opened!.page} selected={node} bp={bp} mode={mode} commit={commit} scrub={scrub} onClose={() => { setCreated(null); onOpen(null); }} onSelect={onSelect} focusName={created === open!.triggerId} onPick={onPick} picking={picking} showTargets={showTargets} onTestOnSite={onTestOnSite ? () => onTestOnSite(open!.hostId) : undefined} onOpenElement={openElement} intro={<HowItWorks compact />}
+        onUpdateTrigger={(patch, label, key) => { if (opened!.page) run(planUpdatePageTrigger(getSite(), opened!.page.id, opened!.trigger.id, patch), label, key); else { const host = indexSite(getSite()).get(open!.hostId)?.node; if (host) run(planUpdateTrigger(host, opened!.trigger.id, patch), label, key); } }} /> : null}
 
       {node ? (
         timelineOpen
@@ -157,7 +166,7 @@ function animationGroups(site: Site, page: Page): { key: string; label: string; 
 }
 
 /** Liste des déclencheurs d'un élément ou d'une page ; le déclencheur ouvert montre ses réglages. */
-function TriggerList({ site, triggers, hostId, pageLevel, duplicates, open, onOpen, onUpdate, onRemove }: { site: Site; triggers: Trigger[]; hostId: string; pageLevel?: boolean; duplicates?: Set<string>; open: OpenTimeline; onOpen: (o: OpenTimeline) => void; onUpdate: (t: Trigger, patch: Partial<Trigger>, label: string, coalesceKey?: string) => void; onRemove: (t: Trigger) => void }) {
+function TriggerList({ site, triggers, hostId, pageLevel, duplicates, open, onOpen, onUpdate, onRemove, settings = true }: { site: Site; triggers: Trigger[]; hostId: string; pageLevel?: boolean; duplicates?: Set<string>; open: OpenTimeline; settings?: boolean; onOpen: (o: OpenTimeline) => void; onUpdate: (t: Trigger, patch: Partial<Trigger>, label: string, coalesceKey?: string) => void; onRemove: (t: Trigger) => void }) {
   if (!triggers.length) return null;
   return (
     <ul className="flex flex-col gap-1">
@@ -175,42 +184,11 @@ function TriggerList({ site, triggers, hostId, pageLevel, duplicates, open, onOp
               {duplicates?.has(t.id) ? <Badge tone="warning" title="Une autre animation de la même famille (apparition, survol, continu) est déjà posée sur cet élément : les deux se jouent.">en double</Badge> : null}
               {(() => { const a = animationById(site, t.animation); const n = a && isSequence(a) ? a.tracks.filter((k) => !("trigger" in k.target)).length : 0; return <IconButton size="sm" label={n ? `Retirer le déclencheur : ${n} autre${n > 1 ? "s" : ""} élément${n > 1 ? "s" : ""} ne bouger${n > 1 ? "ont" : "a"} plus` : "Retirer le déclencheur"} icon={X} onClick={() => onRemove(t)} />; })()}
             </div>
-            {active ? <TriggerSettings trigger={t} pageLevel={pageLevel} onUpdate={(patch, label, key) => onUpdate(t, patch, label, key)} /> : null}
+            {active && settings ? <TriggerSettings trigger={t} pageLevel={pageLevel} onUpdate={(patch, label, key) => onUpdate(t, patch, label, key)} /> : null}
           </li>
         );
       })}
     </ul>
-  );
-}
-
-/** Réglages d'un déclencheur : quand, délai, rejouer, retour, bascule, pause au survol ; plage du défilement et axe de la souris. */
-function TriggerSettings({ trigger: t, pageLevel, onUpdate }: { trigger: Trigger; pageLevel?: boolean; onUpdate: (patch: Partial<Trigger>, label: string, coalesceKey?: string) => void }) {
-  const ons = (pageLevel ? PAGE_ONS : (Object.keys(TRIGGER_LABELS) as TriggerOn[])).map((value) => ({ value, label: TRIGGER_LABELS[value] }));
-  const [lo, hi] = t.range ?? [0, 1];
-  const pct = (v: number) => Math.round(v * 100);
-  const setRange = (a: number, b: number) => onUpdate({ range: a === 0 && b === 1 ? undefined : [Math.min(a, b), Math.max(a, b)] }, "Plage du défilement", `tr-range:${t.id}`);
-  return (
-    <div className="flex flex-col gap-1.5">
-      <div className="grid grid-cols-2 gap-1">
-        <Field label="Quand" inline={false}><Select value={t.on} options={ons} onValueChange={(v) => onUpdate({ on: v as TriggerOn }, "Déclencheur")} /></Field>
-        {t.on !== "scroll" && t.on !== "pointer" ? <Field label="Délai" inline={false}><NumberInput unit="ms" step={50} min={0} value={t.delay ?? 0} onValueChange={(v) => onUpdate({ delay: v || undefined }, "Délai", `tr-dl:${t.id}`)} /></Field> : null}
-        {t.on === "inView" ? <Field label="Rejouer" inline={false}><Toggle checked={t.once === false} label={t.once === false ? "à chaque passage" : "une seule fois"} onChange={(b) => onUpdate({ once: b ? false : undefined }, "Rejouer")} /></Field> : null}
-        {t.on === "hover" ? <Field label="Au départ" inline={false}><Toggle checked={!!t.reverseOnLeave} label={t.reverseOnLeave ? "revient en arrière" : "se coupe"} onChange={(b) => onUpdate({ reverseOnLeave: b || undefined }, "Au départ de la souris")} /></Field> : null}
-        {t.on === "click" ? <Field label="Clic suivant" inline={false}><Toggle checked={!!t.toggle} label={t.toggle ? "revient en arrière" : "rejoue"} onChange={(b) => onUpdate({ toggle: b || undefined }, "Clic suivant")} /></Field> : null}
-        {t.on === "pointer" ? <Field label="Axe" inline={false}><Select value={t.axis ?? "y"} options={[{ value: "y", label: "Vertical (haut → bas)" }, { value: "x", label: "Horizontal (gauche → droite)" }]} onValueChange={(v) => onUpdate({ axis: v === "y" ? undefined : "x" }, "Axe de la souris")} /></Field> : null}
-        {t.on === "load" || t.on === "inView" ? <Field label="Au survol" inline={false}><Toggle checked={!!t.pauseOnHover} label={t.pauseOnHover ? "en pause" : "continue"} onChange={(b) => onUpdate({ pauseOnHover: b || undefined }, "Pause au survol")} /></Field> : null}
-      </div>
-      {t.on === "scroll" ? (
-        <>
-          <div className="grid grid-cols-[auto_1fr_auto_1fr] items-center gap-1">
-            <span className="text-xs text-muted">De</span><NumberInput unit="%" step={5} min={0} max={100} value={pct(lo)} onValueChange={(v) => setRange((v === "" ? 0 : v) / 100, hi)} />
-            <span className="text-xs text-muted">à</span><NumberInput unit="%" step={5} min={0} max={100} value={pct(hi)} onValueChange={(v) => setRange(lo, (v === "" ? 100 : v) / 100)} />
-          </div>
-          <Hint>{pageLevel ? "0 % : haut de la page ; 100 % : bas de la page." : "0 % : l'élément entre par le bas de l'écran ; 100 % : il sort par le haut."} La ligne de temps se déroule entre ces deux positions.</Hint>
-        </>
-      ) : null}
-      {t.on === "pointer" ? <Hint>La position de la souris dans la fenêtre parcourt la ligne de temps, du bord {t.axis === "x" ? "gauche au bord droit" : "haut au bord bas"}.</Hint> : null}
-    </div>
   );
 }
 

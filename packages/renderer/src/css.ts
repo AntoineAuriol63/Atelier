@@ -226,11 +226,26 @@ export function trackKeyframesCss(animation: Animation, track: Track, assets?: M
   return `@keyframes ${trackKeyframesName(animation.id, track.id)}{${blocks.join("")}}`;
 }
 type Entry = { trigger: Trigger; animation: Animation; track: Track; base: number; tsel: string; hsel: string; multi: boolean };
-/** Valeur `animation` d'une piste lancée par un déclencheur : portée, courbe de base, délai (déclencheur + début de portée), répétitions, sens, remplissage `both`. */
-export function trackAnimationValue(e: Entry): string {
+/** Propriétés qu'une piste anime. */
+export const trackProps = (t: Pick<Track, "keyframes">): Set<string> => new Set(t.keyframes.flatMap((k) => Object.keys(k.style)));
+/**
+ * Remplissage d'une piste parmi celles qui visent la même cible : `both` d'ordinaire (en attendant, l'élément montre la première image ;
+ * après, il garde la dernière). Une piste en retard dont toutes les propriétés sont déjà animées par d'autres pistes de la cible remplit
+ * seulement vers l'avant : sinon son état de départ écraserait les autres pendant l'attente (une pulsation en attente cachait un zoom).
+ * Une piste qui possède au moins une propriété à elle (l'opacité d'une apparition) garde son état de départ.
+ */
+export function trackFill(track: Track, delay: number, siblings: Track[]): "both" | "forwards" {
+  if (delay <= 0) return "both";
+  const mine = [...trackProps(track)];
+  if (!mine.length) return "both";
+  const covered = new Set(siblings.filter((o) => o !== track).flatMap((o) => [...trackProps(o)]));
+  return mine.every((p) => covered.has(p)) ? "forwards" : "both";
+}
+/** Valeur `animation` d'une piste lancée par un déclencheur : portée, courbe de base, délai (déclencheur + début de portée), répétitions, sens, remplissage (voir `trackFill`). */
+export function trackAnimationValue(e: Entry, fill: "both" | "forwards" = "both"): string {
   const { start, end } = trackSpan(e.track);
   const it = e.animation.loop === "infinite" ? "infinite" : String(e.animation.loop ?? 1);
-  return `${trackKeyframesName(e.animation.id, e.track.id)} ${end - start}ms ease ${e.base}ms ${it} ${e.animation.alternate ? "alternate" : "normal"} both`;
+  return `${trackKeyframesName(e.animation.id, e.track.id)} ${end - start}ms ease ${e.base}ms ${it} ${e.animation.alternate ? "alternate" : "normal"} ${fill}`;
 }
 /** Délai CSS d'une piste : fixe, ou en `calc()` avec le rang de l'élément (`--at-i` parmi `--at-n`) quand plusieurs éléments sont décalés. */
 export function trackDelayCss(e: Entry): string {
@@ -275,11 +290,12 @@ export function animationRulesCss(entries: Entry[], instanceRoots: Map<string, s
   for (const [t, own] of css) {
     const rootSel = instanceRoots.get(t);
     const list = rootSel ? [...(css.get(rootSel) ?? []), ...own] : own;
-    out.push(`${rootSel ? `${rootSel}${t}` : t}{animation:${list.map(trackAnimationValue).join(",")};animation-play-state:${list.map((e) => (e.trigger.on === "inView" ? "paused" : "running")).join(",")}${delays(list)}}`);
+    const values = list.map((e) => trackAnimationValue(e, trackFill(e.track, e.base, list.map((x) => x.track))));
+    out.push(`${rootSel ? `${rootSel}${t}` : t}{animation:${values.join(",")};animation-play-state:${list.map((e) => (e.trigger.on === "inView" ? "paused" : "running")).join(",")}${delays(list)}}`);
     if (list.some((e) => e.trigger.pauseOnHover && e.trigger.on === "load")) out.push(`${own[0]!.hsel}{animation-play-state:${list.map((e) => (e.trigger.pauseOnHover || e.trigger.on === "inView" ? "paused" : "running")).join(",")}}`);
   }
   for (const [, list] of groups(entries.filter((e) => e.trigger.on === "hover" && !e.trigger.reverseOnLeave), (e) => e.hsel)) {
-    out.push(`${list[0]!.hsel}{animation:${list.map(trackAnimationValue).join(",")}${delays(list)}}`);
+    out.push(`${list[0]!.hsel}{animation:${list.map((e) => trackAnimationValue(e, trackFill(e.track, e.base, list.map((x) => x.track)))).join(",")}${delays(list)}}`);
   }
   return out.join("\n");
 }

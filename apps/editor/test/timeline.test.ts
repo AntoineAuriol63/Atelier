@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { Animation, Keyframe, Node, Site } from "@atelier/model";
 import { sampleSite } from "@atelier/model";
-import { animatedNodes, animationLabel, canAddTrack, openTrigger, summarizeAnimation, formatMs, tickLabel, nextAnimationName, nextZoom, rulerTicks, snapTime, targetKindOf, targetKindOptions, trackLabel, triggerHosts, validOpenTimeline } from "../src/lib/timeline";
+import { animatedNodes, animationLabel, canAddTrack, openTrigger, summarizeAnimation, formatDuration, formatMs, tickLabel, nextAnimationName, nextZoom, rulerTicks, snapTime, targetKindOf, targetKindOptions, trackLabel, triggerHosts, validOpenTimeline } from "../src/lib/timeline";
 
 const text = (id: string, name?: string): Node => ({ id, type: "text", name, props: { tag: "p", content: { fr: [{ t: "text", v: id }] } } });
 const root: Node = { id: "root", type: "box", props: {}, children: [{ id: "card", type: "box", name: "Carte", props: {}, children: [text("inner")] }, text("txt_b", "Titre")] };
@@ -130,12 +130,12 @@ describe("phrase de résumé d'une animation (audit n°5 · R2)", () => {
     expect(summarizeAnimation(s, { id: "g", on: "inView", animation: "a_up", once: false, delay: 120 }, "ttl")).toBe("Quand Titre 1 « Bonjour » entre dans l'écran, après 120 ms : fondu en montant en 700 ms, à chaque passage.");
   });
   it("une composition : chaque élément, son moment, les décalages", () => {
-    expect(summarizeAnimation(s, { id: "g", on: "inView", animation: "a_comp" }, "col")).toBe("Quand « Colonne » entre dans l'écran : Titre 1 « Bonjour » en 700 ms, Paragraphe « Texte » de 150 à 850 ms et les enfants de « Boutons » un à un (tous les 80 ms) de 300 à 1\u202f000 ms, une seule fois.");
+    expect(summarizeAnimation(s, { id: "g", on: "inView", animation: "a_comp" }, "col")).toBe("Quand « Colonne » entre dans l'écran : Titre 1 « Bonjour » en 700 ms, Paragraphe « Texte » de 150 à 850 ms et les enfants de « Boutons » un à un (tous les 80 ms) de 300 à 1\u202f000 ms (1 s), une seule fois.");
   });
   it("un enchaînement : chaque élément avec son effet, « puis » quand il part après la fin du précédent", () => {
     const up = (from: number, to: number): Keyframe[] => [{ at: from, style: { opacity: "0", transform: "translateY(28px)" } }, { at: to, style: { opacity: "1", transform: "none", filter: "none" }, easing: "cubic-bezier(.22,1,.36,1)" }];
     const chain: Site = { ...s, animations: [...s.animations, { id: "a_chain", name: "Fondu en montant", preset: "fade-up", duration: 1400, tracks: [{ id: "c1", target: { trigger: true }, keyframes: up(0, 700) }, { id: "c2", target: { node: "par" }, keyframes: up(700, 1400) }, { id: "c3", target: { node: "crd" }, keyframes: kf(700, 1400) }] }] };
-    expect(summarizeAnimation(chain, { id: "g", on: "load", animation: "a_chain" }, "ttl")).toBe("Au chargement de la page : Titre 1 « Bonjour » (fondu en montant) en 700 ms, puis Paragraphe « Texte » (fondu en montant) de 700 à 1 400 ms et « Carte » de 700 à 1 400 ms.");
+    expect(summarizeAnimation(chain, { id: "g", on: "load", animation: "a_chain" }, "ttl")).toBe("Au chargement de la page : Titre 1 « Bonjour » (fondu en montant) en 700 ms, puis Paragraphe « Texte » (fondu en montant) de 700 à 1 400 ms (1,4 s) et « Carte » de 700 à 1 400 ms (1,4 s).");
   });
   it("des enfants visés sans décalage partent ensemble : la phrase ne dit pas « un à un »", () => {
     const together: Site = { ...s, animations: [...s.animations, { id: "a_kids", name: "Enfants", duration: 700, tracks: [{ id: "k8", target: { trigger: true, children: true }, keyframes: kf(0, 700) }] }] };
@@ -144,7 +144,29 @@ describe("phrase de résumé d'une animation (audit n°5 · R2)", () => {
   it("survol, défilement de la page, boucle, et animation encore vide", () => {
     expect(summarizeAnimation(s, { id: "g", on: "hover", animation: "a_grow", reverseOnLeave: true }, "crd")).toBe("Au survol de « Carte » : grossir en 250 ms, puis retour quand la souris part.");
     expect(summarizeAnimation(s, { id: "g", on: "scroll", animation: "a_bar" }, "rt", true)).toBe("Pendant le défilement de la page (de 0 à 100 %) : « Barre » de 0 à 100 % du parcours.");
-    expect(summarizeAnimation(s, { id: "g", on: "load", animation: "a_float" }, "crd")).toBe("Au chargement de la page : « Carte » en 3\u202f000 ms, en boucle.");
+    expect(summarizeAnimation(s, { id: "g", on: "load", animation: "a_float" }, "crd")).toBe("Au chargement de la page : « Carte » en 3\u202f000 ms (3 s), en boucle.");
     expect(summarizeAnimation(s, { id: "g", on: "click", animation: "a_empty" }, "crd")).toBe("Au clic sur « Carte » : rien ne bouge encore.");
+  });
+});
+
+describe("phrase de résumé : ce qui manque encore, la sortie du survol, les secondes", () => {
+  const text = (id: string, v: string, tag = "p"): Node => ({ id, type: "text", props: { tag, content: { fr: [{ t: "text", v }] } } });
+  const s: Site = { ...sampleSite, animations: [
+    { id: "a_half", name: "Scène", duration: 700, tracks: [{ id: "t1", target: { trigger: true }, keyframes: [{ at: 0, style: { opacity: "0" } }, { at: 700, style: { opacity: "1" } }] }, { id: "t2", target: { node: "par" }, keyframes: [{ at: 0, style: {} }] }] },
+    { id: "a_grow", name: "Grossir", preset: "grow", duration: 250, tracks: [{ id: "t3", target: { trigger: true }, keyframes: [{ at: 0, style: { transform: "scale(1)" } }, { at: 250, style: { transform: "scale(1.06)" }, easing: "ease-out" }] }] },
+    { id: "a_long", name: "Longue", duration: 1500, tracks: [{ id: "t4", target: { trigger: true }, keyframes: [{ at: 0, style: { opacity: "0" } }, { at: 1500, style: { opacity: "1" } }] }] },
+  ], pages: [{ ...sampleSite.pages[0]!, root: { id: "rt", type: "box", props: {}, children: [{ id: "ttl", type: "box", name: "Titre", props: {} }, text("par", "Texte")] } }] };
+  it("une piste sans images-clés est dite, pour qu'on la remplisse", () => {
+    expect(summarizeAnimation(s, { id: "g", on: "load", animation: "a_half" }, "ttl")).toBe("Au chargement de la page : « Titre » en 700 ms. Paragraphe « Texte » n'a pas encore d'images-clés.");
+  });
+  it("un survol composé à la main dit ce qui se passe quand la souris part", () => {
+    expect(summarizeAnimation(s, { id: "g", on: "hover", animation: "a_grow" }, "ttl")).toBe("Au survol de « Titre » : grossir en 250 ms, et reste ainsi quand la souris part.");
+    expect(summarizeAnimation(s, { id: "g", on: "hover", animation: "a_grow", reverseOnLeave: true }, "ttl")).toBe("Au survol de « Titre » : grossir en 250 ms, puis retour quand la souris part.");
+  });
+  it("au-delà d'une seconde, la durée se lit aussi en secondes", () => {
+    expect(formatDuration(700)).toBe("700 ms");
+    expect(formatDuration(1500)).toBe("1 500 ms (1,5 s)");
+    expect(formatDuration(3000)).toBe("3 000 ms (3 s)");
+    expect(summarizeAnimation(s, { id: "g", on: "load", animation: "a_long" }, "ttl")).toBe("Au chargement de la page : « Titre » en 1 500 ms (1,5 s).");
   });
 });

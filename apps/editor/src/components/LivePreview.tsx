@@ -6,7 +6,7 @@ import { serialize, isEmptyText } from "./preview/serialize";
 import { isAtelierMessage, type BlockPresetInfo, type EditMode, type FromPreview, type ToPreview } from "@/lib/preview-protocol";
 import { animationHost, applyScrub, type ScrubAt } from "@/lib/scrub";
 import { revealForTest } from "@/lib/test-on-site";
-import { pickSelection } from "@/lib/selection";
+import { pickSelection, climbSelection } from "@/lib/selection";
 import { ANIMATION_PLAY_SCRIPT, FORM_SCRIPT, INTERACTION_SCRIPT, RenderPage, applyInstantStates, assetMap, fontsHref, matchPath, memoryData, siteCss, type RenderContext } from "@atelier/renderer";
 
 type Props = { initialSite: Site; entries: Entry[]; path: string; mode?: string; editor: boolean };
@@ -577,8 +577,10 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       if (suppressClick || dragging || editing) return;
       // Une image vide, même dans un bouton ou une carte, s'ouvre directement sur la bibliothèque.
       const deepest = nodeOf(e.target);
-      const el = deepest?.getAttribute("data-empty") === "image" ? deepest : pickedOf(e.target);
+      let el = deepest?.getAttribute("data-empty") === "image" ? deepest : pickedOf(e.target);
       if (!el) return;
+      // ⌥-clic : un niveau au-dessus (le bloc qui contient), et encore au-dessus à chaque ⌥-clic (lot 7, désigner un bloc intermédiaire).
+      if (e.altKey) { const chain = chainOf(e.target instanceof Element ? e.target : null); const id = climbSelection(chain.map(idOf), idOf(el), selectedId.current); el = chain.find((c) => idOf(c) === id) ?? el; }
       select(el, true);
       // Une image vide s'ouvre sur la bibliothèque : on choisit ou on importe sans passer par le panneau.
       if (el.getAttribute("data-empty") === "image") send({ type: "atelier:pick-image", id: idOf(el) });
