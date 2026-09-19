@@ -21,6 +21,9 @@ Mesurés par le test simulé de validation (section 5), avec les **mêmes missio
 | **N1** | À ne pas casser | T1 et T5 réussies par **5 sur 5** ; titre ralenti (T3-R1) par 5 sur 5 ; au moins 23 récits sur 25 sans écart matériel | 5, 5, 5 ; 24 | 5, 5, 5 ; 20 récits sur 25 | manqué (3 volets sur 4) |
 | **N2** | Le site joue ce que l'éditeur annonce | aucun « éclair » (élément visible avant son apparition) dans les visites instrumentées ; aucune phrase de résumé contredite par le site | éclair dans 5 visites sur 5 | 0 éclair ; 1 phrase de résumé contredite | manqué (volet « éclair » atteint) |
 
+
+**Vague 4** (16 et 17 septembre, `99fb42a`, lot 7) : U1 atteint (5 sur 5, 4 sans le mode Animation) ; U2 manqué (0 et 0) ; U3 atteint (5 sur 5 ; diagnostic 5 sur 5 ; journal sain 5 sur 5) ; U4 manqué (C6 chez 2, dépassement chez 5) ; U5 atteint (0 abandon) ; U6 atteint (0 participant) ; N1 manqué (5, 5, 5 ; 21 récits sur 25) ; N2 atteint (0 éclair, 0 phrase contredite). **5 atteints sur 8.** Détail : `docs/validation-animation-2026-09-vague4.md` § 2.
+
 Règles de lecture : un critère est **atteint**, **manqué** ou **non mesurable** (données manquantes, invalidation) ; aucune reformulation après coup. Tout résultat est « simulé » et reste à confirmer avec de vraies personnes. Les deux fins au budget amplifiées par le dispositif en vague 2 sont corrigées par la règle de la capture double pour tous (section 5) ; ce changement est signalé dans le rapport de comparaison.
 
 ---
@@ -91,6 +94,15 @@ Chaque lot : tests d'abord, code, parcours vérifié dans l'éditeur par de vrai
 - **Suite** : lot 7 décrit dans `docs/validation-animation-2026-09.md` § 6 — d'abord les défauts (double validation, choix sans effet, croix identiques, zoom masqué), puis l'alignement du mode Animation sur la rubrique du panneau, puis ce qui manque pour U2 et U4 (désigner un bloc intermédiaire, réduire le nombre de gestes par élément).
 
 ---
+
+
+### Lot 7 · validation, vague 4 (16 et 17 septembre)
+
+- **Vague 4 menée** sur `99fb42a` (lot 7 complet) : mêmes personas, missions, critères et ordre de passage ; cinq séances en parallèle (un onglet par participant), sept codages (cinq observateurs, doubles codages de P3 et P5), synthèse à l'aveugle, comparaison vague 3 / vague 4. Rapport : `docs/validation-animation-2026-09-vague4.md` ; pièces dans `docs/validation-animation-2026-09-vague4/`.
+- **Résultat** : **5 critères atteints sur 8** (U1, U3, U5, U6, N2 ; 3 en vague 3). 20 réussites complètes, 0 partielle, 5 échecs ; T2 et T3 passent à 5 sur 5 ; aucune aide, aucun abandon, aucune collatérale. T4 reste en échec chez 5 sur 5 (U2, U4 manqués), avec une couverture en hausse (24 éléments animés sur 30 contre 14) ; N1 manqué de deux récits (21 sur 25).
+- **Ce qui commande T4** : désigner le groupe des chiffres (4 sur 5 n'y arrivent pas ; ⌥-clic non découvert) et voir la scène entière (aucune vue, aucune durée totale). Les trois aides du lot 7 pour composer n'ont été trouvées par personne.
+- **Défauts nouveaux, corrigés le 19 septembre (`dd29bcb`)** : la scène collante de la ligne de temps recouvrait les réglages de la piste dès cinq pistes ; les interrupteurs du déclencheur se lisaient à l'envers ; le triangle « Jouer » n'avait pas de mot.
+- **Suite** : lot 8 décrit dans `docs/validation-animation-2026-09-vague4.md` § 6 (désigner le groupe depuis un enfant, vue d'ensemble de la scène, faire découvrir ce qui existe, un mot par mot).
 
 ## 5. Test simulé de validation
 
