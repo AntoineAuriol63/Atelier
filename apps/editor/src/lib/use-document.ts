@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { canRedo, canUndo, commit as commitOp, createHistory, migrate, opAllowedForWriter, redo as redoOp, undo as undoOp, type CommitOptions, type History, type Op, type Role, type Site } from "@atelier/model";
+import { rebasePending } from "./rebase";
 
 export type SyncStatus = "saved" | "saving" | "offline" | "conflict" | "error";
 
@@ -13,14 +14,17 @@ type Doc = { site: Site; history: History };
  * L'état de référence vit dans un ref pour que deux commits d'un même événement s'enchaînent
  * sans dépendre du rendu ; les fonctions ci-dessous ne sont appelées que depuis des gestionnaires d'événements.
  *
- * Trois sortes d'incidents, trois réponses :
+ * Quatre sortes d'incidents, quatre réponses :
  * - coupure réseau : rien n'est perdu, le lot repart en tête de file, nouvel essai à délai croissant (`retryNow` force l'essai) ;
  * - refus du serveur pour une raison de rôle (403) : l'opération est annulée localement, le document est remis dans son état
  *   enregistré, l'éditeur reste utilisable ;
- * - conflit de version (409) ou erreur serveur : l'éditeur est figé (`blocked`) ; `copyPending` met les opérations non
- *   enregistrées dans le presse-papiers avant de recharger.
+ * - conflit de version (409, le site a été modifié ailleurs) : le document du serveur est relu et les opérations en attente
+ *   sont reposées dessus (`rebasePending`) puis renvoyées ; l'annulation repart de zéro et `onMerged` prévient. Si une
+ *   opération n'a plus de sens sur ce document (l'élément visé a disparu), ou si le renvoi est encore en conflit,
+ *   l'éditeur est figé (`blocked`) avec ses changements intacts ;
+ * - erreur serveur : l'éditeur est figé ; `copyPending` met les opérations non enregistrées dans le presse-papiers avant de recharger.
  */
-export function useDocument(initialSite: Site, initialVersion: number, options: { role?: Role; onRefused?: (message: string) => void } = {}) {
+export function useDocument(initialSite: Site, initialVersion: number, options: { role?: Role; onRefused?: (message: string) => void; onMerged?: (message: string) => void } = {}) {
   const initialDoc = useMemo<Doc>(() => ({ site: initialSite, history: createHistory() }), [initialSite]);
   const docRef = useRef<Doc>(initialDoc);
   const [doc, setDoc] = useState<Doc>(initialDoc);
@@ -65,6 +69,46 @@ export function useDocument(initialSite: Site, initialVersion: number, options: 
     } catch { return false; }
   }
 
+  /** Fige l'éditeur avec ses opérations en attente intactes (conflit insoluble ou erreur serveur). */
+  function freeze(ops: Op[], kind: "conflict" | "error", message: string) {
+    pending.current = [...ops, ...pending.current];
+    blocked.current = true; setIsBlocked(true);
+    setStatus(kind);
+    setError(message);
+  }
+
+  /**
+   * Conflit de version : relit le document du serveur, y repose les opérations en attente et les renvoie une fois.
+   * Rend vrai si le renvoi a abouti ; sinon l'éditeur est figé.
+   */
+  async function mergeAndResend(ops: Op[]): Promise<boolean> {
+    const stuck = "Le site a été modifié ailleurs. Copiez vos changements si besoin, puis rechargez la page.";
+    let remote: { site: Site; version: number };
+    try {
+      const res = await fetch(`/api/sites/${initialSite.id}`);
+      if (!res.ok) { freeze(ops, "conflict", stuck); return false; }
+      remote = (await res.json()) as { site: Site; version: number };
+    } catch { freeze(ops, "conflict", stuck); return false; }
+    const all = [...ops, ...pending.current];
+    const r = rebasePending(migrate(remote.site), all);
+    if (!r.ok) { freeze(ops, "conflict", `Le site a été modifié ailleurs et l'un de vos changements ne s'y applique plus (${r.reason}). Copiez vos changements si besoin, puis rechargez la page.`); return false; }
+    const res = await fetch(`/api/sites/${initialSite.id}/changes`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ops: r.ops, baseVersion: remote.version }),
+    });
+    if (!res.ok) { freeze(ops, "conflict", stuck); return false; }
+    const body = (await res.json()) as { version: number };
+    // Le document reposé devient l'état de référence ; l'historique local portait sur un document qui n'existe plus.
+    pending.current = [];
+    versionRef.current = body.version;
+    setVersion(body.version);
+    setLocal({ site: r.site, history: createHistory() });
+    setError(undefined);
+    setStatus("saved");
+    optionsRef.current.onMerged?.("Le site a été modifié ailleurs : vos changements ont été reposés par-dessus et enregistrés. L'annulation repart de zéro.");
+    return true;
+  }
+
   async function flush(): Promise<void> {
     if (inflight.current || blocked.current || pending.current.length === 0) return;
     inflight.current = true;
@@ -76,10 +120,7 @@ export function useDocument(initialSite: Site, initialVersion: number, options: 
         body: JSON.stringify({ ops, baseVersion: versionRef.current }),
       });
       if (res.status === 409) {
-        pending.current = [...ops, ...pending.current];
-        blocked.current = true; setIsBlocked(true);
-        setStatus("conflict");
-        setError("Le site a été modifié ailleurs. Copiez vos changements si besoin, puis rechargez la page.");
+        await mergeAndResend(ops);
         return;
       }
       if (res.status === 403) {
@@ -92,10 +133,7 @@ export function useDocument(initialSite: Site, initialVersion: number, options: 
       }
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string; issues?: string[] };
-        pending.current = [...ops, ...pending.current];
-        blocked.current = true; setIsBlocked(true);
-        setStatus("error");
-        setError(`${body.error ?? `Erreur ${res.status}`}${body.issues?.length ? ` (${body.issues.join(" ; ")})` : ""}. Vos dernières modifications ne sont pas enregistrées : copiez-les si besoin, puis rechargez la page.`);
+        freeze(ops, "error", `${body.error ?? `Erreur ${res.status}`}${body.issues?.length ? ` (${body.issues.join(" ; ")})` : ""}. Vos dernières modifications ne sont pas enregistrées : copiez-les si besoin, puis rechargez la page.`);
         return;
       }
       const body = (await res.json()) as { version: number };

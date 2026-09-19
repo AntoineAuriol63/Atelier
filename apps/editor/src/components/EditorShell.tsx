@@ -140,7 +140,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
     if (noticeTimer) window.clearTimeout(noticeTimer);
     noticeTimer = window.setTimeout(() => setNotice((n) => (n?.text === text ? null : n)), action ? 6000 : tone === "danger" ? 4000 : 3500);
   }, []);
-  const doc = useDocument(initialSite, initialVersion, { role, onRefused: (m) => notify(m) });
+  const doc = useDocument(initialSite, initialVersion, { role, onRefused: (m) => notify(m), onMerged: (m) => notify(m, "info") });
   const site = doc.site;
   // La page ouverte est mémorisée par site : au rechargement, on revient où l'on était.
   const pageKey = `atelier:page:${site.id}`;

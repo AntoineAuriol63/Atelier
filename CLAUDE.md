@@ -1,6 +1,6 @@
 # Atelier — consignes pour les agents
 
-Créateur de sites web designer-first, code-natif, sans verrou. Voir `docs/decisions.md` (59 décisions validées) et `docs/document-model.md` (spécification du modèle, la référence de tout le code).
+Créateur de sites web designer-first, code-natif, sans verrou. Voir `docs/decisions.md` (59 décisions validées) et `docs/document-model.md` (spécification du modèle, la référence de tout le code). `docs/architecture.md` est la carte de ce qui s'exécute où (trois paquets, un processus, quatre runtimes, journal et conflits, dépôt, publication) : la lire avant de raisonner sur l'architecture, la mettre à jour quand une frontière bouge.
 
 ## Structure
 
@@ -11,7 +11,7 @@ Créateur de sites web designer-first, code-natif, sans verrou. Voir `docs/decis
 - `apps/editor/src/ui` — système de design de l'éditeur (jetons dans `src/app/globals.css`, primitives : Button, IconButton, TextInput, TextArea, Select, NumberInput, Field, Tabs, Panel, Section, TreeRow, Badge, Kbd…). Toute interface de l'éditeur se construit avec ces primitives ; on les fait évoluer plutôt que de styler à la main.
 - `apps/editor/src/ui/controls` — contrôles de style (pastille de source, ligne de propriété, groupe exclusif, champ de longueur avec unité et jeton, schéma de boîte). `apps/editor/src/components/design` — panneaux Design (Disposition, Espacement, Dimensions, Responsive) branchés sur `useStyle`, qui lit `resolveNodeStyle` du modèle et écrit sur le point de rupture actif via `stylePath`.
 - `apps/editor/src/components/animation` — mode Animation (cadrage `docs/cadrage-animation.md`) : panneau (`AnimationModePanel`), ligne de temps (`Timeline`, avec `TrackSettings`, `KeyframePanels`, `TriggerSettings`), choix rapides (`QuickAnimations`, options d'apparition dans `lib/appearance-options.ts`), effets continus ; aides pures dans `apps/editor/src/lib/timeline.ts`, aperçu à la tête de lecture dans `apps/editor/src/lib/scrub.ts`, panneaux Design en mode image-clé par `components/design/useKeyframeStyle.ts`. Les aides du modèle sont dans `packages/model/src/animations.ts`.
-- `apps/editor/src/lib/use-document.ts` — état d'édition côté client : commit, annuler, rétablir (historique pur dans `packages/model/src/history.ts`), envoi séquentiel au journal.
+- `apps/editor/src/lib/use-document.ts` — état d'édition côté client : commit, annuler, rétablir (historique pur dans `packages/model/src/history.ts`), envoi séquentiel au journal ; sur un conflit de version, relecture du serveur et rebasage des opérations en attente (`lib/rebase.ts`).
 
 ## Règles
 

@@ -7,7 +7,7 @@ import {
   ANIMATION_PRESETS, TRIGGER_LABELS, animationLength, appearanceAnchors, appearanceOf, appearanceStartOptions, componentUsages, indexSite, inheritedAppearance, planAppearanceDelay, planAppearanceDetail, planAppearancePreset,
   planAppearanceCascade, planAppearanceReplay, planAppearanceSpeed, planAppearanceStart, planQuickAnimation, planQuickSpeed, quickAnimation, quickSpeed, trackSpan, type QuickSpeed,
 } from "@atelier/model";
-import { Button, Field, FieldGroup, Hint, IconButton, NumberInput, Select, Toggle } from "@/ui";
+import { Button, Field, FieldGroup, Hint, NumberInput, Select, Toggle } from "@/ui";
 import { Segmented } from "@/ui/controls";
 import { formatMs, quoteLabel, summarizeAnimation } from "@/lib/timeline";
 import { appearanceOptions } from "@/lib/appearance-options";
@@ -75,7 +75,7 @@ export function QuickAnimations({ site, node, commit, onOpenAnimation, onPlay, o
             <Field label={label} hint={q && !q.intact ? `${hint}. Retouchée dans le mode Animation : choisir un préréglage la remplace.` : hint}>
               <div className="flex items-center gap-1 min-w-0">
                 <Select className="flex-1 min-w-0" value={q ? (q.intact ? q.preset.id : "custom") : ""} options={options} onValueChange={(v) => { if (v !== "custom") run(planQuickAnimation(site, node, group, v), v ? `${label} · ${ANIMATION_PRESETS.find((p) => p.id === v)?.label ?? v}` : `${label} · ${none.toLowerCase()}`, v ? group : undefined); }} />
-                {q && onPlay ? <IconButton size="sm" label={`Jouer : ${q.preset.label}`} icon={Play} onClick={() => onPlay(q.trigger.id)} /> : null}
+                {q && onPlay ? <Button size="sm" variant="ghost" icon={Play} title={`Joue « ${q.preset.label} » dans l'aperçu`} onClick={() => onPlay(q.trigger.id)}>Voir l&apos;effet</Button> : null}
               </div>
             </Field>
             {q ? (
@@ -136,7 +136,7 @@ function AppearanceFields({ site, node, run, onPlay, onSelectNode }: { site: Sit
             if (v === "custom" || v === choice.value) return;
             run(planAppearancePreset(site, choice.applyTo, v), v ? `Apparition · ${ANIMATION_PRESETS.find((p) => p.id === v)?.label ?? v}` : "Apparition · aucune", v ? "Apparition" : undefined);
           }} />
-          {ap && onPlay ? <IconButton size="sm" label="Jouer dans le canevas" icon={Play} onClick={() => onPlay(ap.trigger.id, ap.hostId)} /> : null}
+          {ap && onPlay ? <Button size="sm" variant="ghost" icon={Play} title="Joue l'apparition dans l'aperçu" onClick={() => onPlay(ap.trigger.id, ap.hostId)}>Voir l&apos;effet</Button> : null}
         </div>
       </Field>
       {inherited ? (

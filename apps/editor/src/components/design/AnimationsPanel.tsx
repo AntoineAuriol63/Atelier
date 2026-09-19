@@ -3,7 +3,7 @@
 import { Film, Play, X } from "lucide-react";
 import type { CommitOptions, Node, Op, Site } from "@atelier/model";
 import { animationById, appearanceOf, describeTrigger, inheritedAppearance, duplicateQuickTriggers, isPresetIntact, isSequence, planAppearancePreset, planRemoveTriggerWithAnimation } from "@atelier/model";
-import { Badge, Hint, IconButton, Section } from "@/ui";
+import { Badge, Button, Hint, IconButton, Section } from "@/ui";
 import { QuickAnimations } from "../animation/QuickAnimations";
 import { ContinuousEffects } from "../animation/ContinuousEffects";
 
@@ -35,7 +35,7 @@ export function AnimationsPanel({ site, node, commit, onPlay, onOpenAnimation, o
                   : <span className="flex-1 min-w-0 text-xs text-ink truncate" title={describeTrigger(t, site)}>{describeTrigger(t, site)}</span>}
                 {custom ? <Badge title="Composée ou retouchée dans le mode Animation">personnalisée</Badge> : null}
                 {duplicates.has(t.id) ? <Badge tone="warning" title="Une autre animation de la même famille (apparition, survol, continu) est déjà posée sur cet élément : les deux se jouent.">en double</Badge> : null}
-                {onPlay && a ? <IconButton size="sm" label="Jouer dans le canevas" icon={Play} onClick={() => onPlay(t.id)} /> : null}
+                {onPlay && a ? <Button size="sm" variant="ghost" icon={Play} title="Joue cette animation dans l'aperçu" onClick={() => onPlay(t.id)}>Voir l&apos;effet</Button> : null}
                 {onOpenAnimation && a ? <IconButton size="sm" label="Ouvrir dans le mode Animation" icon={Film} onClick={() => onOpenAnimation(t.id)} /> : null}
                 {others ? <Badge title={`Cette animation fait aussi bouger ${others} autre${others > 1 ? "s" : ""} élément${others > 1 ? "s" : ""}`}>{`+ ${others}`}</Badge> : null}
                 {!others

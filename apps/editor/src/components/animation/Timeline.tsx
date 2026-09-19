@@ -10,6 +10,7 @@ import { nodeLabel } from "../node-icons";
 import { EasingField } from "./EasingField";
 import { KeyframePanels } from "./KeyframePanels";
 import { TrackSettings } from "./TrackSettings";
+import { revealBelowStage } from "./reveal";
 import { TriggerSettings } from "./TriggerSettings";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
@@ -69,6 +70,8 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
   // Largeur visible de la règle, pour espacer les repères selon la place réelle (panneau redimensionnable).
   const [railPx, setRailPx] = useState(0);
   const root = useRef<HTMLElement>(null);
+  // Réglages de la piste active : ramenés sous la scène collante quand la piste change (vague 4, P2 : « le champ Départ a disparu »).
+  const settingsRef = useRef<HTMLDivElement>(null);
   const [pickMsg, setPickMsg] = useState<string | null>(null);
   // Toujours les dernières fonctions de l'éditeur, sans relancer les effets qui les lisent (les refs se mettent à jour après le rendu, pas pendant).
   useEffect(() => { scrubRef.current = scrub; pickRef.current = onPick; targetsRef.current = showTargets; });
@@ -201,6 +204,8 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
   const targetId = trackNode?.id;
   const targetLabel = track ? trackLabel(track, hostId, site) : undefined;
   useEffect(() => { targetsRef.current?.(targetId ? [targetId] : [], targetLabel); }, [targetId, targetLabel]);
+  const trackId = track?.id;
+  useEffect(() => { if (trackId) revealBelowStage(settingsRef.current, root.current?.querySelector<HTMLElement>("[data-timeline-stage]") ?? null); }, [trackId]);
 
   return (
     <section ref={root} className="flex flex-col gap-2 scroll-mt-2" aria-label="Ligne de temps">
@@ -318,7 +323,7 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
         </Hint>
       ) : null}
 
-      {track ? <TrackSettings key={track.id} site={site} getSite={getSite} animation={animation} track={track} node={trackNode} hostId={hostId} run={run} onRemoved={() => { setPicked(null); setSelection(new Set()); }} /> : null}
+      {track ? <div ref={settingsRef}><TrackSettings key={track.id} site={site} getSite={getSite} animation={animation} track={track} node={trackNode} hostId={hostId} run={run} onRemoved={() => { setPicked(null); setSelection(new Set()); }} /></div> : null}
 
       {track && !playing ? (
         <section className="flex flex-col gap-2" aria-label="Image-clé">
