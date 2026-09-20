@@ -104,6 +104,13 @@ Chaque lot : tests d'abord, code, parcours vérifié dans l'éditeur par de vrai
 - **Défauts nouveaux, corrigés le 19 septembre (`dd29bcb`)** : la scène collante de la ligne de temps recouvrait les réglages de la piste dès cinq pistes ; les interrupteurs du déclencheur se lisaient à l'envers ; le triangle « Jouer » n'avait pas de mot.
 - **Suite** : lot 8 décrit dans `docs/validation-animation-2026-09-vague4.md` § 6 (désigner le groupe depuis un enfant, vue d'ensemble de la scène, faire découvrir ce qui existe, un mot par mot).
 
+
+### Lot 8 et vague 5 (20 septembre)
+
+- **Lot 8 livré** (`17505d3`) : groupe depuis un enfant (« Ses voisins », `planGroupAppearance`), scène entière (`lib/scene.ts`, `SceneOverview`), liste « Éléments de la scène » dans la ligne de temps, découvrabilité (« Pareil pour … » nommé, « Tester sur le site » avant la première animation), mots et durée saisissable.
+- **Vague 5** : T4 seule, en première position, cinq participants, sur `17505d3`. Rapport : `docs/validation-animation-2026-09-vague5.md`. **E chez 5 sur 5** ; C1 3 sur 5 (1 en vague 4), C3 0 sur 5, C4 0 sur 5 ; 26 éléments animés sur 30. Cause n° 1 levée, cause n° 2 à moitié (la scène se voit, ne se règle pas là où elle se voit).
+- **Suite** : lot 9 (§ 5 du rapport), puis fin des vagues simulées et test avec une vraie personne.
+
 ## 5. Test simulé de validation
 
 - Même protocole v1.0 (missions, critères, grille, hypothèses), mêmes personas, même ordre des tâches et même ordre de passage que la vague 2 ; nouvelles instances, nouvelles copies du site, sur la version livrée par les lots 0 à 5.
