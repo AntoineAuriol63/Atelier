@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import type { Animation, Keyframe, Node, Site } from "@atelier/model";
-import { sampleSite } from "@atelier/model";
-import { animatedNodes, animationLabel, canAddTrack, openTrigger, summarizeAnimation, formatDuration, formatMs, tickLabel, nextAnimationName, nextZoom, rulerTicks, snapTime, targetKindOf, targetKindOptions, trackLabel, triggerHosts, validOpenTimeline } from "../src/lib/timeline";
+import { restaurantSite, sampleSite } from "@atelier/model";
+import { animatedNodes, animationLabel, canAddTrack, openTrigger, summarizeAnimation, formatDuration, formatMs, tickLabel, nextAnimationName, nextZoom, rulerTicks, snapTime, targetKindOf, targetKindOptions, trackLabel, triggerHosts, validOpenTimeline , sceneElements } from "../src/lib/timeline";
 
 const text = (id: string, name?: string): Node => ({ id, type: "text", name, props: { tag: "p", content: { fr: [{ t: "text", v: id }] } } });
 const root: Node = { id: "root", type: "box", props: {}, children: [{ id: "card", type: "box", name: "Carte", props: {}, children: [text("inner")] }, text("txt_b", "Titre")] };
@@ -130,7 +130,7 @@ describe("phrase de résumé d'une animation (audit n°5 · R2)", () => {
     expect(summarizeAnimation(s, { id: "g", on: "inView", animation: "a_up", once: false, delay: 120 }, "ttl")).toBe("Quand Titre 1 « Bonjour » entre dans l'écran, après 120 ms : fondu en montant en 700 ms, à chaque passage.");
   });
   it("une composition : chaque élément, son moment, les décalages", () => {
-    expect(summarizeAnimation(s, { id: "g", on: "inView", animation: "a_comp" }, "col")).toBe("Quand « Colonne » entre dans l'écran : Titre 1 « Bonjour » en 700 ms, Paragraphe « Texte » de 150 à 850 ms et les enfants de « Boutons » un à un (tous les 80 ms) de 300 à 1\u202f000 ms (1 s), une seule fois.");
+    expect(summarizeAnimation(s, { id: "g", on: "inView", animation: "a_comp" }, "col")).toBe("Quand « Colonne » entre dans l'écran : Titre 1 « Bonjour » en 700 ms, Paragraphe « Texte » de 150 à 850 ms et les éléments de « Boutons » un à un (tous les 80 ms) de 300 à 1\u202f000 ms (1 s), une seule fois.");
   });
   it("un enchaînement : chaque élément avec son effet, « puis » quand il part après la fin du précédent", () => {
     const up = (from: number, to: number): Keyframe[] => [{ at: from, style: { opacity: "0", transform: "translateY(28px)" } }, { at: to, style: { opacity: "1", transform: "none", filter: "none" }, easing: "cubic-bezier(.22,1,.36,1)" }];
@@ -139,10 +139,10 @@ describe("phrase de résumé d'une animation (audit n°5 · R2)", () => {
   });
   it("des enfants visés sans décalage partent ensemble : la phrase ne dit pas « un à un »", () => {
     const together: Site = { ...s, animations: [...s.animations, { id: "a_kids", name: "Enfants", duration: 700, tracks: [{ id: "k8", target: { trigger: true, children: true }, keyframes: kf(0, 700) }] }] };
-    expect(summarizeAnimation(together, { id: "g", on: "load", animation: "a_kids" }, "btns")).toBe("Au chargement de la page : les enfants de « Boutons » ensemble en 700 ms.");
+    expect(summarizeAnimation(together, { id: "g", on: "load", animation: "a_kids" }, "btns")).toBe("Au chargement de la page : les éléments de « Boutons » ensemble en 700 ms.");
   });
   it("survol, défilement de la page, boucle, et animation encore vide", () => {
-    expect(summarizeAnimation(s, { id: "g", on: "hover", animation: "a_grow", reverseOnLeave: true }, "crd")).toBe("Au survol de « Carte » : grossir en 250 ms, puis retour quand la souris part.");
+    expect(summarizeAnimation(s, { id: "g", on: "hover", animation: "a_grow", reverseOnLeave: true }, "crd")).toBe("Quand la souris passe sur « Carte » : grossir en 250 ms, puis retour quand la souris part.");
     expect(summarizeAnimation(s, { id: "g", on: "scroll", animation: "a_bar" }, "rt", true)).toBe("Pendant le défilement de la page (de 0 à 100 %) : « Barre » de 0 à 100 % du parcours.");
     expect(summarizeAnimation(s, { id: "g", on: "load", animation: "a_float" }, "crd")).toBe("Au chargement de la page : « Carte » en 3\u202f000 ms (3 s), en boucle.");
     expect(summarizeAnimation(s, { id: "g", on: "click", animation: "a_empty" }, "crd")).toBe("Au clic sur « Carte » : rien ne bouge encore.");
@@ -160,13 +160,32 @@ describe("phrase de résumé : ce qui manque encore, la sortie du survol, les se
     expect(summarizeAnimation(s, { id: "g", on: "load", animation: "a_half" }, "ttl")).toBe("Au chargement de la page : « Titre » en 700 ms. Paragraphe « Texte » n'a pas encore d'images-clés.");
   });
   it("un survol composé à la main dit ce qui se passe quand la souris part", () => {
-    expect(summarizeAnimation(s, { id: "g", on: "hover", animation: "a_grow" }, "ttl")).toBe("Au survol de « Titre » : grossir en 250 ms, et reste ainsi quand la souris part.");
-    expect(summarizeAnimation(s, { id: "g", on: "hover", animation: "a_grow", reverseOnLeave: true }, "ttl")).toBe("Au survol de « Titre » : grossir en 250 ms, puis retour quand la souris part.");
+    expect(summarizeAnimation(s, { id: "g", on: "hover", animation: "a_grow" }, "ttl")).toBe("Quand la souris passe sur « Titre » : grossir en 250 ms, et reste ainsi quand la souris part.");
+    expect(summarizeAnimation(s, { id: "g", on: "hover", animation: "a_grow", reverseOnLeave: true }, "ttl")).toBe("Quand la souris passe sur « Titre » : grossir en 250 ms, puis retour quand la souris part.");
   });
   it("au-delà d'une seconde, la durée se lit aussi en secondes", () => {
     expect(formatDuration(700)).toBe("700 ms");
     expect(formatDuration(1500)).toBe("1 500 ms (1,5 s)");
     expect(formatDuration(3000)).toBe("3 000 ms (3 s)");
     expect(summarizeAnimation(s, { id: "g", on: "load", animation: "a_long" }, "ttl")).toBe("Au chargement de la page : « Titre » en 1 500 ms (1,5 s).");
+  });
+});
+
+describe("éléments de la scène (lot 8) : ajouter une piste sans viser dans la page", () => {
+  it("depuis une section : ses éléments dans l'ordre, un groupe de voisins avec son compte, sans la section elle-même", () => {
+    const list = sceneElements(restaurantSite, "rh_about");
+    const ids = list.map((e) => e.id);
+    expect(ids).not.toContain("rh_about");
+    expect(ids.indexOf("rh_about_img")).toBeLessThan(ids.indexOf("rh_about_h2"));
+    expect(ids.indexOf("rh_about_h2")).toBeLessThan(ids.indexOf("rh_about_p"));
+    expect(ids.indexOf("rh_about_p")).toBeLessThan(ids.indexOf("rh_stats"));
+    expect(list.find((e) => e.id === "rh_stats")).toMatchObject({ label: "Chiffres", count: 3 });
+    expect(list.find((e) => e.id === "rh_stat1")).toMatchObject({ label: "Années" });
+    expect(list.find((e) => e.id === "rh_stat1")!.depth).toBeGreaterThan(list.find((e) => e.id === "rh_stats")!.depth);
+  });
+  it("depuis un élément sans enfants : la scène est celle de la section qui le contient", () => {
+    const list = sceneElements(restaurantSite, "rh_about_img");
+    expect(list.map((e) => e.id)).toEqual(sceneElements(restaurantSite, "rh_about").map((e) => e.id));
+    expect(list.length).toBeLessThanOrEqual(40);
   });
 });

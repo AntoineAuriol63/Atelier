@@ -1,5 +1,5 @@
 import type { Animation, Node, Page, Site, Track, TrackTarget, Trigger } from "@atelier/model";
-import { animationById, animationLength, animationUsages, indexSite, isPresetIntact, presetById, resolveTrackTarget, trackPresetMatch, trackSpan } from "@atelier/model";
+import { animationById, animationLength, animationUsages, indexSite, isPresetIntact, presetById, resolveTrackTarget, siblingGroup, trackPresetMatch, trackSpan } from "@atelier/model";
 import { nodeLabel } from "@/components/node-icons";
 
 /** L'animation ouverte dans la ligne de temps : elle se joue depuis un hôte (l'élément qui porte le déclencheur). */
@@ -140,7 +140,7 @@ export function summarizeAnimation(site: Site, trigger: Trigger, hostId: string,
   const when = {
     load: "Au chargement de la page",
     inView: `Quand ${host} entre dans l'écran`,
-    hover: `Au survol de ${host}`,
+    hover: `Quand la souris passe sur ${host}`,
     click: `Au clic sur ${host}`,
     scroll: pageLevel ? `Pendant le défilement de la page (de ${lo} à ${hi} %)` : `Pendant que ${host} traverse l'écran (de ${lo} à ${hi} %)`,
     pointer: `Quand la souris se déplace ${trigger.axis === "x" ? "de gauche à droite" : "de haut en bas"} dans la fenêtre`,
@@ -167,7 +167,8 @@ export function summarizeAnimation(site: Site, trigger: Trigger, hostId: string,
     const from = t.stagger?.from === "end" ? ", depuis la fin" : t.stagger?.from === "center" ? ", depuis le centre" : "";
     const each = t.stagger ? ` (tous les ${formatMs(t.stagger.each)}${from})` : "";
     // Sans décalage, les enfants partent ensemble (constat 2 des tests simulés) : « un à un » ne se dit qu'avec un décalage réel.
-    if (r.children) return t.stagger?.each ? `les enfants de ${base} un à un${each}` : `les enfants de ${base} ensemble`;
+    // Les enfants se disent par leur nombre (vague 4, N1 : « les enfants de « Plats » » n'est pas un mot du métier) ; une vue dit ses cartes.
+    if (r.children) { const count = n?.type === "collection" ? undefined : n?.children?.length; const kids = n?.type === "collection" ? `les cartes de ${base}` : count ? `les ${count} éléments de ${base}` : `les éléments de ${base}`; return t.stagger?.each ? `${kids} ${n?.type === "collection" ? "une à une" : "un à un"}${each}` : `${kids} ensemble`; }
     if (r.split) return `${r.split === "letters" ? "les lettres" : "les mots"} de ${base}${each}`;
     return base;
   };
@@ -213,4 +214,36 @@ export function nextAnimationName(site: Pick<Site, "animations">, hostLabel?: st
   let n = site.animations.length + 1;
   while (site.animations.some((a) => a.name === `Animation ${n}`)) n += 1;
   return `Animation ${n}`;
+}
+
+/** Un élément de la scène, pour l'ajouter en piste sans viser dans la page : son nom, sa profondeur, et le nombre de ses enfants quand ils forment un groupe. */
+export type SceneElement = { id: string; depth: number; label: string; count?: number };
+
+/**
+ * Les éléments de la scène d'une animation (lot 8, vague 4 PR2 : « il n'y a pas de liste de calques à côté de la ligne de temps ») : ceux du
+ * bloc qui lance l'animation s'il en contient, sinon ceux de la section (ou du bloc nommé) qui le contient. Quatre niveaux, quarante au plus.
+ */
+export function sceneElements(site: Site, hostId: string): SceneElement[] {
+  const index = indexSite(site);
+  const loc = index.get(hostId);
+  if (!loc) return [];
+  let root: Node | undefined = loc.node.children?.length ? loc.node : undefined;
+  // Sans enfants : la section qui contient l'élément (ou la région de premier niveau de la page, sinon la racine).
+  for (let p = root ? undefined : (loc.parent ? index.get(loc.parent.id) : undefined); p && !root; p = p.parent ? index.get(p.parent.id) : undefined) {
+    const grand = p.parent ? index.get(p.parent.id) : undefined;
+    if (p.node.props.tag === "section" || !grand?.parent || !p.parent) root = p.node;
+  }
+  if (!root) return [];
+  const out: SceneElement[] = [];
+  const visit = (n: Node, depth: number) => {
+    for (const c of n.children ?? []) {
+      if (out.length >= 40) return;
+      const first = c.children?.[0];
+      const g = first ? siblingGroup(site, first.id) : undefined;
+      out.push({ id: c.id, depth, label: nodeLabel(c), ...(g && g.groupId === c.id ? { count: g.members.length } : {}) });
+      if (depth < 3) visit(c, depth + 1);
+    }
+  };
+  visit(root, 0);
+  return out;
 }

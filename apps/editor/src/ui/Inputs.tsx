@@ -62,7 +62,7 @@ export function Select({ value, options, onValueChange, className, placeholder }
  * Champ numérique avec unité. La valeur est validée à la fin de la saisie (Entrée ou sortie du champ),
  * jamais à chaque frappe, pour pouvoir effacer et retaper. Flèches haut/bas : ±pas (Maj : ×10). Échap : annule.
  */
-export function NumberInput({ value, onValueChange, unit, min, max, step = 1, className, placeholder, title }: { value: number | ""; onValueChange: (v: number | "") => void; unit?: string; min?: number; max?: number; step?: number; className?: string; placeholder?: string; title?: string }) {
+export function NumberInput({ value, onValueChange, unit, min, max, step = 1, className, placeholder, title, "aria-label": ariaLabel }: { value: number | ""; onValueChange: (v: number | "") => void; unit?: string; min?: number; max?: number; step?: number; className?: string; placeholder?: string; title?: string; "aria-label"?: string }) {
   const [draft, setDraft] = useState(value === "" ? "" : String(value));
   const [focused, setFocused] = useState(false);
   const [prev, setPrev] = useState(value);
@@ -82,6 +82,7 @@ export function NumberInput({ value, onValueChange, unit, min, max, step = 1, cl
   return (
     <div className={cx("relative", className)} title={title}>
       <input
+      aria-label={ariaLabel}
         type="text"
         inputMode="decimal"
         value={draft}

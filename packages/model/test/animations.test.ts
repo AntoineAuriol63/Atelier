@@ -81,7 +81,7 @@ describe("animations : préréglages, déclencheurs, lignes de temps", () => {
     const site: Site = { ...sampleSite, animations: [a] };
     expect(describeAnimation(a)).toBe("Arrivée du héros · 2 pistes · 1\u202f200 ms · en boucle");
     expect(describeTrigger({ id: "x", on: "inView", animation: "an_d", delay: 100 }, site)).toBe("À l'entrée dans l'écran · Arrivée du héros · +100 ms");
-    expect(describeTrigger({ id: "x", on: "hover", animation: "an_d", reverseOnLeave: true }, site)).toBe("Au survol · Arrivée du héros · revient au départ de la souris");
+    expect(describeTrigger({ id: "x", on: "hover", animation: "an_d", reverseOnLeave: true }, site)).toBe("Quand la souris passe dessus · Arrivée du héros · revient au départ de la souris");
     expect(describeTrigger({ id: "x", on: "click", animation: "an_d", toggle: true }, site)).toBe("Au clic · Arrivée du héros · bascule à chaque clic");
     expect(describeTrigger({ id: "x", on: "scroll", animation: "nope" }, site)).toBe("Au défilement · animation manquante");
   });

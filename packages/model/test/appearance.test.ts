@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   animationById, animationUsages, appearanceAnchors, planAddTrigger, planAppearanceCascade, appearanceOf, appearanceStartOptions, applyOps, inheritedAppearance, planRemoveNode, planAppearanceDelay, planAppearanceDetail, planAppearancePreset, planAppearanceReplay,
-  planAppearanceSpeed, planAppearanceStart, planQuickAnimation, planUpdateTrigger, presetById, sampleSite, schema, trackPresetMatch, trackSpan,
+  planAppearanceDuration, planAppearanceSpeed, planAppearanceStart, planGroupAppearance, planQuickAnimation, planUpdateTrigger, presetById, restaurantSite, sampleSite, schema, siblingGroup, trackPresetMatch, trackSpan,
   type Node, type Site,
 } from "../src";
 
@@ -388,5 +388,48 @@ describe("apparition : faire pareil pour les voisins (lot 7, réduire les gestes
     expect(appearanceOf(site, "hh2")).toMatchObject({ own: true, preset: { id: "zoom" } });
     expect(appearanceOf(site, "pp2")).toMatchObject({ hostId: "photo", begin: { kind: "with", node: "photo" } });
     expect(planAppearanceCascade(site, "pp2", 100)).toEqual([]);
+  });
+});
+
+describe("groupe de voisins : désigner le groupe depuis un enfant (lot 8, vague 4 PR2)", () => {
+  it("trois occurrences du même composant sous « Chiffres » forment un groupe ; des voisins de types mêlés, non", () => {
+    const g = siblingGroup(restaurantSite, "rh_stat1");
+    expect(g).toEqual({ groupId: "rh_stats", members: ["rh_stat1", "rh_stat2", "rh_stat3"], kind: "instances" });
+    expect(siblingGroup(base, "bt1")).toEqual({ groupId: "btns", members: ["bt1", "bt2"], kind: "children" });
+    expect(siblingGroup(base, "title")).toBeUndefined();
+    expect(siblingGroup(base, "hero")).toBeUndefined();
+  });
+  it("un effet choisi depuis un chiffre s'applique au groupe, un à un ; le chiffre n'a plus d'apparition à lui", () => {
+    let s = quick(restaurantSite, "rh_stat1", "fade-up");
+    expect(appearanceOf(s, "rh_stat1")?.own).toBe(true);
+    s = run(s, planGroupAppearance(s, "rh_stat1", "rise-bounce"));
+    valid(s);
+    const ap = appearanceOf(s, "rh_stats");
+    expect(ap?.preset?.id).toBe("rise-bounce");
+    expect(ap?.detail).toBe("children");
+    expect(appearanceOf(s, "rh_stat1")).toBeUndefined();
+    expect(inheritedAppearance(s, "rh_stat1")?.carrierId).toBe("rh_stats");
+    // Retirer depuis un chiffre retire l'apparition du groupe.
+    s = run(s, planGroupAppearance(s, "rh_stat2", ""));
+    expect(appearanceOf(s, "rh_stats")).toBeUndefined();
+  });
+  it("sans groupe, rien n'est écrit", () => {
+    expect(planGroupAppearance(base, "title", "fade")).toEqual([]);
+  });
+});
+
+describe("durée saisissable d'une apparition (lot 8, vague 4 N-11)", () => {
+  it("une durée en millisecondes : la piste est mise à cette longueur depuis son départ, ce qui la suit se replace", () => {
+    let s = quick(base, "title", "fade-up");
+    s = quick(s, "par", "fade"); s = run(s, planAppearanceStart(s, "par", { kind: "after", node: "title" }));
+    const before = span(s, "par");
+    s = run(s, planAppearanceDuration(s, "title", 1200));
+    valid(s);
+    expect(span(s, "title")).toEqual([0, 1200]);
+    expect(span(s, "par")[0]).toBe(before[0]! + (1200 - 700));
+    expect(appearanceOf(s, "title")?.speed).toBe("custom");
+    // Même durée qu'avant : rien à écrire.
+    expect(planAppearanceDuration(s, "title", 1200)).toEqual([]);
+    expect(planAppearanceDuration(s, "hero", 500)).toEqual([]);
   });
 });

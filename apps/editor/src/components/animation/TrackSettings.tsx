@@ -30,7 +30,7 @@ export function TrackSettings({ site, getSite, animation, track, node, hostId, r
           <Select value={kind} options={targetKindOptions(node)} onValueChange={(v) => setKind(v as TargetKind)} />
           {multi ? (
             <>
-              <span className="text-xs text-muted" title="Chaque élément part un peu plus tard que le précédent">Décalage</span>
+              <span className="text-xs text-muted" title="Écart entre le départ de chaque élément et celui du précédent">Intervalle</span>
               <div className="flex items-center gap-1">
                 <NumberInput className="w-[88px]" unit="ms" min={0} step={10} value={track.stagger?.each ?? ""} placeholder="aucun" onValueChange={(n) => run(planUpdateTrack(getSite(), animation.id, track.id, { stagger: n === "" || n === 0 ? undefined : { each: n, ...(track.stagger?.from ? { from: track.stagger.from } : {}) } }), "Décalage de la piste", `stagger:${animation.id}:${track.id}`)} />
                 {track.stagger ? <Select className="flex-1" value={track.stagger.from ?? "start"} options={Object.entries(STAGGER_FROM_LABELS).map(([value, label]) => ({ value, label }))} onValueChange={(v) => run(planUpdateTrack(getSite(), animation.id, track.id, { stagger: { each: track.stagger!.each, ...(v === "start" ? {} : { from: v as "end" | "center" }) } }), "Décalage de la piste")} /> : null}

@@ -239,6 +239,8 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
         {loc.parent ? <MakeComponentRow node={node} isInstance={node.type === "instance"} onMake={onMakeComponent} onDetach={onDetach} /> : null}
       </Section> : null}
 
+      {/* Une occurrence de composant : sa rubrique Animation d'abord (vague 4, PR2 : l'écran « Composant » faisait fuir avant qu'on la trouve). */}
+      {!sharedDef && node.type === "instance" && editMode === "write" ? quickAnimation : null}
       {!sharedDef && node.type === "instance" ? <InstancePanel site={site} node={node} commit={commit} onEnterComponent={onEnterComponent} /> : null}
       {!sharedDef && component && node.id === component.root.id && editMode === "design" ? <ComponentPanel site={site} component={component} commit={commit} onDeleted={onDeleted} notify={notify} /> : null}
       {!sharedDef && component && (node.type === "text" || node.type === "image" || node.type === "link") ? <PropBindingPanel site={site} node={node} component={component} commit={commit} /> : null}
@@ -306,7 +308,7 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
 
         </>
       )}
-      {!technical ? quickAnimation : null}
+      {!technical && node.type !== "instance" ? quickAnimation : null}
       {!sharedDef && editMode === "design" ? <SharedStylesPanel site={site} node={node} commit={commit} onEdit={setEditingShared} /> : null}
 
       {editMode === "design" ? <ResponsivePanel site={site} node={node} activeBp={activeBp} onGoTo={onGoToBreakpoint} onReveal={(bp, prop) => { onGoToBreakpoint(bp); window.setTimeout(() => revealProp(prop), 50); }} /> : null}

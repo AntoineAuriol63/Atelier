@@ -329,6 +329,18 @@ export function planAppearanceSpeed(site: Site, nodeId: Id, speed: QuickSpeed): 
   return planTrack(site, cur, (t) => ({ ...t, keyframes: sortedKeyframes(t).map((k) => ({ ...k, at: s + Math.round((k.at - s) * f) })), ...(t.stagger ? { stagger: { ...t.stagger, each: Math.round(t.stagger.each * f) } } : {}) }));
 }
 
+/** Durée d'une apparition en millisecondes (lot 8 : « Lente » donnait 1 120 ms sans qu'on puisse taper 400) : la piste est mise à cette longueur depuis son départ, décalage compris ; ce qui suit se replace. */
+export function planAppearanceDuration(site: Site, nodeId: Id, ms: number): Op[] {
+  const cur = appearanceOf(site, nodeId);
+  if (!cur) return [];
+  const s = cur.start;
+  const len = trackSpan(cur.track).end - s;
+  const want = Math.max(50, Math.round(ms));
+  if (!len || want === len) return [];
+  const f = want / len;
+  return planTrack(site, cur, (t) => ({ ...t, keyframes: sortedKeyframes(t).map((k) => ({ ...k, at: s + Math.round((k.at - s) * f) })), ...(t.stagger ? { stagger: { ...t.stagger, each: Math.round(t.stagger.each * f) } } : {}) }));
+}
+
 /**
  * Effet d'une apparition : un préréglage (départ, rattachement et vitesse gardés), ou « » pour la retirer (ce qui la suivait se raccroche).
  * Sans apparition : sur un élément qui lance une suite sans bouger lui-même, sa piste s'ajoute au départ de la suite ; sinon, un choix rapide.
@@ -463,6 +475,47 @@ export function planAppearanceCascade(site: Site, nodeId: Id, gap = 120): Op[] {
     return t;
   });
   return planAppendTracks(site, cur.animation.id, group);
+}
+
+// ---------------------------------------------------------------- groupe de voisins (lot 8)
+
+/** Un élément et ses voisins du même genre : occurrences d'un même composant, cartes d'une vue, ou enfants de même type d'un bloc nommé. */
+export type SiblingGroup = { groupId: Id; members: Id[]; kind: "instances" | "cards" | "children" };
+
+/**
+ * Le groupe que forme un élément avec ses voisins (les trois chiffres sous « Chiffres », les cartes d'une liste) : c'est lui qu'on règle pour
+ * les faire arriver un à un. Aucun groupe si l'élément n'a pas au moins un voisin du même genre, ou si son parent est une racine.
+ */
+export function siblingGroup(site: Site, nodeId: Id): SiblingGroup | undefined {
+  const { index } = cacheOf(site);
+  const loc = index.get(nodeId);
+  if (!loc?.parent || !index.get(loc.parent.id)?.parent) return undefined;
+  const parent = loc.parent;
+  const kids = parent.children ?? [];
+  const me = loc.node;
+  let members: Node[];
+  let kind: SiblingGroup["kind"];
+  if (parent.type === "collection") { members = kids; kind = "cards"; }
+  else if (me.type === "instance") { members = kids.filter((k) => k.type === "instance" && k.props.component === me.props.component); kind = "instances"; }
+  else if (parent.name || parent.props.tag === "section") { members = kids.filter((k) => k.type === me.type); kind = "children"; }
+  else return undefined;
+  if (members.length < 2 || members.length !== kids.length) return undefined;
+  return { groupId: parent.id, members: members.map((k) => k.id), kind };
+}
+
+/**
+ * Depuis un enfant, faire arriver tout son groupe un à un avec un préréglage : les apparitions propres des membres sont retirées, le groupe
+ * reçoit l'effet sur ses enfants, échelonnés. Un préréglage vide retire l'apparition du groupe.
+ */
+export function planGroupAppearance(site: Site, childId: Id, presetId: string): Op[] {
+  const g = siblingGroup(site, childId);
+  if (!g) return [];
+  const plan = new Plan(site);
+  if (!presetId) { plan.push(planAppearancePreset(plan.site, g.groupId, "")); return plan.ops; }
+  for (const id of g.members) { const ap = appearanceOf(plan.site, id); if (ap?.own) plan.push(planAppearancePreset(plan.site, id, "")); }
+  plan.push(planAppearancePreset(plan.site, g.groupId, presetId));
+  plan.push(planAppearanceDetail(plan.site, g.groupId, "children"));
+  return plan.ops;
 }
 
 // ---------------------------------------------------------------- suppression d'éléments

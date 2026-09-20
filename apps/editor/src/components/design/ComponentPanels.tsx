@@ -43,7 +43,7 @@ export function InstancePanel({ site, node, commit, onEnterComponent }: { site: 
   const setVariant = (axis: string, v: string) => commit({ op: "node.set", id: node.id, path: `props.variant.${axis}`, value: v }, { label: `Variante ${axis} : ${v}` });
   const usages = componentUsages(site, cmp.id).length;
   return (
-    <Section title={`Composant · ${cmp.name}`} hint="Une instance affiche le composant avec ses propres valeurs. Modifier le composant change toutes ses instances.">
+    <Section title={`Composant · ${cmp.name}`} hint="Cette occurrence a ses propres valeurs, ses propres animations et son propre style : ce que vous réglez ici ne touche qu'elle. Le texte et la structure du modèle se changent dans le composant, et là, modifier le composant change toutes ses occurrences.">
       <FieldGroup>
         {(cmp.variants ?? []).map((axis) => (
           <Field key={axis.name} label={axis.name}><Select value={variant[axis.name] ?? axis.default} options={axis.values.map((v) => ({ value: v, label: v }))} onValueChange={(v) => setVariant(axis.name, v)} /></Field>

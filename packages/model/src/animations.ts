@@ -8,7 +8,7 @@ export const ANIM_EASINGS: { value: string; label: string }[] = [
   { value: "cubic-bezier(.22,1,.36,1)", label: "Doux (sortie)" }, { value: "ease-out", label: "Sortie" }, { value: "ease-in-out", label: "Entrée-sortie" }, { value: "ease-in", label: "Entrée" },
   { value: "linear", label: "Linéaire" }, { value: "cubic-bezier(.34,1.56,.64,1)", label: "Rebond" }, { value: "steps(4)", label: "Par paliers" },
 ];
-export const TRIGGER_LABELS: Record<TriggerOn, string> = { load: "Au chargement", inView: "À l'entrée dans l'écran", hover: "Au survol", click: "Au clic", scroll: "Au défilement", pointer: "À la souris" };
+export const TRIGGER_LABELS: Record<TriggerOn, string> = { load: "Au chargement", inView: "À l'entrée dans l'écran", hover: "Quand la souris passe dessus", click: "Au clic", scroll: "Au défilement", pointer: "À la souris" };
 
 /** Préréglage : une animation complète à cible relative, et le déclencheur qui va avec. */
 export type AnimationPreset = {

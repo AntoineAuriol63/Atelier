@@ -3,9 +3,9 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Copy, Crosshair, Diamond, ExternalLink, Pause, Play, Plus, Repeat, SkipBack, Snail, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { Animation, CommitOptions, Node, Op, Site, Track, Trigger } from "@atelier/model";
-import { animationById, animationLength, describeAnimation, indexSite, keyframeAt, newId, planAddTrack, planDuplicateTrack, planScaleAnimation, planRemoveKeyframes, planSetKeyframeEasing, planShiftKeyframes, planUpdateAnimation, resolveTrackTarget, shiftDelta, trackSpan, trackTargetFor } from "@atelier/model";
+import { animationById, animationLength, describeAnimation, indexSite, keyframeAt, newId, planAddTrack, planDuplicateTrack, planScaleAnimation, planRemoveKeyframes, planSetKeyframeEasing, planShiftKeyframes, planUpdateAnimation, resolveTrackTarget, shiftDelta, trackSpan, trackTargetFor, withTargetKind } from "@atelier/model";
 import { Badge, Button, Eyebrow, Hint, IconButton, NumberInput, PanelHeading, Select, TextInput, Toggle } from "@/ui";
-import { canAddTrack, formatMs, nextZoom, quoteLabel, rulerTicks, summarizeAnimation, tickLabel, snapTime, trackLabel } from "@/lib/timeline";
+import { canAddTrack, formatMs, nextZoom, quoteLabel, rulerTicks, sceneElements, summarizeAnimation, tickLabel, snapTime, trackLabel } from "@/lib/timeline";
 import { nodeLabel } from "../node-icons";
 import { EasingField } from "./EasingField";
 import { KeyframePanels } from "./KeyframePanels";
@@ -73,6 +73,8 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
   // Réglages de la piste active : ramenés sous la scène collante quand la piste change (vague 4, P2 : « le champ Départ a disparu »).
   const settingsRef = useRef<HTMLDivElement>(null);
   const [pickMsg, setPickMsg] = useState<string | null>(null);
+  // Liste des éléments de la scène (lot 8) : ouverte tant que l'animation a moins de deux pistes.
+  const [listOpen, setListOpen] = useState(animation.tracks.length < 2);
   // Toujours les dernières fonctions de l'éditeur, sans relancer les effets qui les lisent (les refs se mettent à jour après le rendu, pas pendant).
   useEffect(() => { scrubRef.current = scrub; pickRef.current = onPick; targetsRef.current = showTargets; });
   // À l'ouverture : la ligne de temps vient à l'écran ; juste créée, son nom est prêt à être tapé.
@@ -180,16 +182,18 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
   const update = (patch: Partial<Animation>, label: string, coalesceKey?: string) => run(planUpdateAnimation(getSite(), animation.id, patch), label, coalesceKey);
   const canAdd = canAddTrack(site, animation, hostId, selected?.id);
   /** Ajoute une piste pour un élément (sélectionné, ou pris à la pioche) : elle devient la piste active. */
-  const addTrackFor = (nodeId: string) => {
+  const addTrackFor = (nodeId: string, kind?: "children") => {
     const current = getSite();
     const a = animationById(current, animation.id);
     if (!a) return;
     const ok = canAddTrack(current, a, hostId, nodeId);
     if (!ok.ok) { setPickMsg(ok.reason); return; }
     setPickMsg(null);
-    const t: Track = { id: newId(), target: trackTargetFor(hostId, nodeId), keyframes: [{ at: 0, style: {} }] };
+    const base = trackTargetFor(hostId, nodeId);
+    // Un groupe (les trois chiffres) : sa piste vise ses enfants, échelonnés de 100 ms (lot 8).
+    const t: Track = { id: newId(), target: kind === "children" ? withTargetKind(base, "children") : base, ...(kind === "children" ? { stagger: { each: 100 } } : {}), keyframes: [{ at: 0, style: {} }] };
     const n = indexSite(current).get(nodeId)?.node;
-    run(planAddTrack(current, animation.id, t), `Ajouter une piste · ${n ? nodeLabel(n) : nodeId}`);
+    run(planAddTrack(current, animation.id, t), `Ajouter une piste · ${kind === "children" ? "les enfants de " : ""}${n ? nodeLabel(n) : nodeId}`);
     setPicked({ track: t.id, forNode: selected?.id ?? null });
   };
   const addTrack = () => { if (selected && canAdd.ok) addTrackFor(selected.id); };
@@ -219,11 +223,7 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
       </div>
       {/* Ce qui va se passer sur le site, en une phrase (audit n°5 · R2) : se relit à chaque réglage. */}
       {trigger ? (
-        <p className="-mt-1 text-xs text-muted leading-snug">
-          <span data-anim-summary="">{summarizeAnimation(site, trigger, hostId, pageLevel)}</span>
-          {/* Le canevas montre la ligne de temps ; le vrai déclenchement (écran, défilement, survol, clic) se vérifie sur le site. */}
-          {onTestOnSite ? <> <button type="button" className="inline-flex items-center gap-0.5 text-accent hover:underline whitespace-nowrap" title="Ouvre l'onglet Aperçu : l'élément arrive à l'écran et l'animation se joue comme pour un visiteur" onClick={onTestOnSite}>Tester sur le site<ExternalLink size={11} aria-hidden /></button></> : null}
-        </p>
+        <p className="-mt-1 text-xs text-muted leading-snug"><span data-anim-summary="">{summarizeAnimation(site, trigger, hostId, pageLevel)}</span></p>
       ) : null}
       {/* Le déclencheur se règle ici aussi (vague 3, § 5.4) : quand, délai, rejouer, retour, bascule, comme dans la rubrique de l'élément. */}
       {trigger && onUpdateTrigger ? <TriggerSettings trigger={trigger} pageLevel={pageLevel} onUpdate={onUpdateTrigger} /> : null}
@@ -295,11 +295,40 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
           </div>
         </div>
       </div>
+      {/* Personne ne le savait (vague 4, P4 : découvert par accident à la dernière mission) : la tête de lecture pilote l'aperçu. */}
+      <p className="text-2xs text-muted leading-snug">L&apos;aperçu montre l&apos;instant de la tête de lecture : glissez-la (ou ▷) pour voir la scène se jouer.</p>
       <div className="flex flex-wrap items-center gap-1 pt-1">
+        {onTestOnSite ? <Button size="sm" variant="ghost" icon={ExternalLink} onClick={onTestOnSite} title="Ouvre l'onglet Aperçu : l'élément arrive à l'écran et l'animation se joue comme pour un visiteur">Tester sur le site</Button> : null}
         {onPick ? <Button size="sm" icon={Crosshair} active={picking} onClick={() => (picking ? onPick(null) : startPick())} title="Cliquez ensuite l'élément à animer dans l'aperçu, les calques ou le fil d'Ariane, sans changer la sélection">{picking ? "Cliquez un élément… (Échap)" : "Choisir un élément"}</Button> : null}
         {canAdd.ok && selected && !outside ? <Button size="sm" variant="ghost" icon={Plus} onClick={addTrack} title="Animer l'élément sélectionné dans cette ligne de temps">{`Ajouter « ${nodeLabel(selected)} »`}</Button> : null}
         {pickMsg ? <span className="text-2xs text-warning truncate" title={pickMsg}>{pickMsg}</span> : null}
       </div>
+      {/* Les éléments de la scène (lot 8, vague 4 PR2) : ajouter une piste par son nom, sans viser dans la page ; un groupe s'ajoute d'un coup, enfants un à un. */}
+      {(() => {
+        const list = sceneElements(site, hostId);
+        if (!list.length) return null;
+        const tracked = (id: string) => animation.tracks.some((t) => { const r = resolveTrackTarget(t.target, hostId); return !("selector" in r) && r.node === id; });
+        return (
+          <div className="flex flex-col gap-0.5" data-scene-elements="">
+            <button type="button" className="self-start text-2xs text-muted hover:text-ink" aria-expanded={listOpen} onClick={() => setListOpen((o) => !o)}>{listOpen ? "▾" : "▸"} Éléments de la scène ({list.length})</button>
+            {listOpen ? (
+              <ul className="flex flex-col max-h-[26vh] overflow-y-auto rounded-sm border border-line bg-surface/60" aria-label="Éléments de la scène">
+                {list.map((e) => (
+                  <li key={e.id} className="flex items-center gap-1 h-7 pr-1 text-xs border-b border-line/60 last:border-b-0" style={{ paddingLeft: 6 + e.depth * 12 }}>
+                    <span className="flex-1 min-w-0 truncate text-ink">{e.label}{e.count ? <span className="text-muted">{` · ${e.count} éléments`}</span> : null}</span>
+                    {tracked(e.id) ? <Badge title="Cet élément a déjà sa piste">◆ piste</Badge> : (
+                      <>
+                        <Button size="sm" variant="ghost" icon={Plus} onClick={() => addTrackFor(e.id)} title={`Ajouter une piste pour ${quoteLabel(e.label)}`}>Ajouter</Button>
+                        {e.count ? <Button size="sm" variant="ghost" onClick={() => addTrackFor(e.id, "children")} title={`Une seule piste pour ses ${e.count} éléments, qui partent l'un après l'autre (100 ms d'écart)`}>{`les ${e.count} un à un`}</Button> : null}
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        );
+      })()}
       {/* Un autre élément sélectionné (tests simulés, PR5) : on dit qu'il n'est pas dans cette animation et on laisse choisir entre ouvrir les siennes et l'ajouter ici. */}
       {outside ? (
         <div className="flex flex-col gap-1 rounded-sm border border-accent/50 bg-accent-soft/20 p-1.5" role="status">

@@ -5,12 +5,14 @@ import { ExternalLink, Film, Play } from "lucide-react";
 import type { AppearanceBegin, CommitOptions, Node, Op, QuickGroup, Site } from "@atelier/model";
 import {
   ANIMATION_PRESETS, TRIGGER_LABELS, animationLength, appearanceAnchors, appearanceOf, appearanceStartOptions, componentUsages, indexSite, inheritedAppearance, planAppearanceDelay, planAppearanceDetail, planAppearancePreset,
-  planAppearanceCascade, planAppearanceReplay, planAppearanceSpeed, planAppearanceStart, planQuickAnimation, planQuickSpeed, quickAnimation, quickSpeed, trackSpan, type QuickSpeed,
+  planAppearanceCascade, planAppearanceDuration, planAppearanceReplay, planAppearanceSpeed, planAppearanceStart, planGroupAppearance, planQuickAnimation, planQuickSpeed, quickAnimation, quickSpeed, siblingGroup, trackSpan, type QuickSpeed,
 } from "@atelier/model";
 import { Button, Field, FieldGroup, Hint, NumberInput, Select, Toggle } from "@/ui";
 import { Segmented } from "@/ui/controls";
-import { formatMs, quoteLabel, summarizeAnimation } from "@/lib/timeline";
+import { formatDuration, formatMs, quoteLabel, summarizeAnimation } from "@/lib/timeline";
 import { appearanceOptions } from "@/lib/appearance-options";
+import { sceneContainerFor, sceneOf } from "@/lib/scene";
+import { SceneOverview } from "./SceneOverview";
 import { nodeLabel } from "../node-icons";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
@@ -21,7 +23,7 @@ const SPEEDS = [{ value: "fast", label: "Rapide" }, { value: "normal", label: "N
 const REPLAY = [{ value: "once", label: "une seule fois" }, { value: "every", label: "à chaque passage" }];
 
 const QUICK: { group: QuickGroup; label: string; none: string; hint: string }[] = [
-  { group: "Survol", label: "Au survol", none: "Aucun", hint: "Réagit à la souris et revient quand elle part" },
+  { group: "Survol", label: "Quand la souris passe dessus", none: "Aucun", hint: "Réagit au passage de la souris et revient quand elle part" },
   { group: "Continue", label: "En continu", none: "Aucun", hint: "En boucle dès le chargement" },
 ];
 
@@ -63,8 +65,18 @@ export function QuickAnimations({ site, node, commit, onOpenAnimation, onPlay, o
   const owner = indexSite(site).get(node.id)?.owner;
   const cmp = owner && "component" in owner ? site.components.find((c) => c.id === owner.component) : undefined;
   const uses = cmp ? componentUsages(site, cmp.id).length : 0;
+  // La scène de la section (lot 8) : sur un bloc qui contient plusieurs éléments animés, tout en une vue ; sur un élément, le chemin vers elle.
+  const scene = node.children?.length ? sceneOf(site, node.id) : undefined;
+  const sceneContainer = scene ? undefined : sceneContainerFor(site, node.id);
+  const sceneContainerLabel = sceneContainer ? quoteLabel(nodeLabel(indexSite(site).get(sceneContainer)!.node)) : "";
   return (
     <FieldGroup>
+      {scene ? (
+        <Field label="Scène" inline={false} hint="Tout ce qui bouge dans ce bloc, sur une même règle : le départ et la fin de chaque élément, la durée totale. Chaque élément se règle en le sélectionnant.">
+          <SceneOverview scene={scene} onSelectNode={onSelectNode} />
+        </Field>
+      ) : null}
+      {sceneContainer && onSelectNode ? <Button size="sm" variant="ghost" className="self-start" onClick={() => onSelectNode(sceneContainer)} title="Sélectionne la section : sa rubrique Animation montre tous les éléments qui bougent, leur ordre et la durée totale">{`Voir la scène de ${sceneContainerLabel}`}</Button> : null}
       {cmp ? <Hint>{`Dans le composant « ${cmp.name} » : ce réglage vaudra pour ${uses > 1 ? `ses ${uses} occurrences` : "chacune de ses occurrences"}. Pour une seule, cliquez l'occurrence dans la page.`}</Hint> : null}
       <AppearanceFields site={site} node={node} run={run} onPlay={onPlay} onSelectNode={onSelectNode} />
       {QUICK.map(({ group, label, none, hint }) => {
@@ -90,7 +102,8 @@ export function QuickAnimations({ site, node, commit, onOpenAnimation, onPlay, o
       })}
       <div className="flex flex-wrap items-center gap-1">
         {/* Le canevas joue l'animation ; le vrai déclenchement (entrée dans l'écran, survol) se vérifie sur le site (audit n°5 · R4). */}
-        {onTestOnSite && (node.triggers?.length || appearance) ? <Button size="sm" variant="ghost" icon={ExternalLink} onClick={() => onTestOnSite(appearance && !appearance.page && appearance.hostId !== node.id ? appearance.hostId : undefined)} title="Ouvre l'onglet Aperçu : ce qui lance l'animation arrive à l'écran et elle se joue comme pour un visiteur">Tester sur le site</Button> : null}
+        {/* Avant même la première animation (vague 4, P5 : « il n'apparaît qu'une fois qu'on a déjà posé une animation, c'est-à-dire trop tard »). */}
+        {onTestOnSite ? <Button size="sm" variant="ghost" icon={ExternalLink} onClick={() => onTestOnSite(appearance && !appearance.page && appearance.hostId !== node.id ? appearance.hostId : undefined)} title={node.triggers?.length || appearance ? "Ouvre l'onglet Aperçu : ce qui lance l'animation arrive à l'écran et elle se joue comme pour un visiteur" : "Ouvre l'onglet Aperçu sur cet élément : la page telle qu'un visiteur la voit, avec ses mouvements"}>Tester sur le site</Button> : null}
         {onOpenAnimation ? <Button size="sm" variant="ghost" icon={Film} onClick={onOpenAnimation}>Ouvrir dans le mode Animation</Button> : null}
       </div>
     </FieldGroup>
@@ -139,6 +152,32 @@ function AppearanceFields({ site, node, run, onPlay, onSelectNode }: { site: Sit
           {ap && onPlay ? <Button size="sm" variant="ghost" icon={Play} title="Joue l'apparition dans l'aperçu" onClick={() => onPlay(ap.trigger.id, ap.hostId)}>Voir l&apos;effet</Button> : null}
         </div>
       </Field>
+      {/* Une scène en un geste (lot 7 ; lot 8 : nommé et placé sous l'effet, personne ne l'avait trouvé) : les voisins qui suivent reçoivent la même apparition, l'un après l'autre. */}
+      {ap ? (() => { const siblings = index.get(node.id)?.parent?.children ?? []; const following = siblings.slice(siblings.indexOf(node) + 1).filter((n) => !appearanceOf(site, n.id, index)); if (!following.length) return null;
+        const names = following.map((n) => labelOf(n.id)); const list = names.length > 1 ? `${names.slice(0, -1).join(", ")} et ${names[names.length - 1]}` : names[0];
+        return (
+          <Field label="" hint="Copie l'effet de cet élément sur ceux qui le suivent">
+            <Button size="sm" variant="ghost" className="self-start whitespace-normal text-left" onClick={() => run(planAppearanceCascade(site, node.id, 120), `Apparition · pareil pour ${following.length > 1 ? `les ${following.length} suivants` : "le suivant"}`, "Apparition")} title={`Le même effet (${ap.preset?.label ?? ap.origin?.label ?? "cette apparition"}) sur ${list}, chacun 120 ms après le précédent ; chacun se règle ensuite à part`}>{`Pareil pour ${list}`}</Button>
+          </Field>
+        ); })() : null}
+      {/* Le groupe de l'élément (lot 8, vague 4 PR2) : depuis un chiffre ou une carte, on règle les trois d'un coup, sans avoir à atteindre le groupe. */}
+      {(() => {
+        const g = siblingGroup(site, node.id);
+        if (!g) return null;
+        const groupAp = appearanceOf(site, g.groupId, index);
+        const value = groupAp && groupAp.detail === "children" ? (groupAp.preset?.id ?? "custom") : "";
+        const options = [{ value: "", label: "Chacun à part" }, ...(value === "custom" ? [{ value: "custom", label: "Personnalisée" }] : []), ...ANIMATION_PRESETS.filter((p) => p.group === "Apparition").map((p) => ({ value: p.id, label: p.label }))];
+        const what = g.kind === "cards" ? "les cartes" : `les ${g.members.length} éléments`;
+        return (
+          <Field label="Ses voisins" hint={`${quoteLabel(nodeLabel(node))} fait partie du groupe ${labelOf(g.groupId)} : un effet choisi ici fait arriver ${what} un à un, l'un après l'autre`}>
+            <div className="flex flex-col gap-1 min-w-0">
+              <Select value={value} options={options} onValueChange={(v) => { if (v === "custom" || v === value) return; run(planGroupAppearance(site, node.id, v), v ? `Apparition du groupe ${labelOf(g.groupId)} · ${ANIMATION_PRESETS.find((p) => p.id === v)?.label ?? v}` : `Apparition du groupe ${labelOf(g.groupId)} · aucune`, v ? "Apparition" : undefined); }} />
+              <p className="text-2xs text-muted leading-snug">{`Avec ${g.members.filter((id) => id !== node.id).map(labelOf).join(", ")} dans le groupe ${labelOf(g.groupId)} : ${what} un à un.`}</p>
+              {onSelectNode ? <Button size="sm" variant="ghost" className="self-start" onClick={() => onSelectNode(g.groupId)} title="Sélectionne le groupe, pour régler l'ordre, l'écart et le reste">{`Régler sur ${labelOf(g.groupId)}`}</Button> : null}
+            </div>
+          </Field>
+        );
+      })()}
       {inherited ? (
         <Field label="">
           <div className="flex flex-col gap-1 min-w-0">
@@ -152,14 +191,15 @@ function AppearanceFields({ site, node, run, onPlay, onSelectNode }: { site: Sit
           {ap.preset || ap.origin ? (
             <Row label="Vitesse" title="Vitesse de l'apparition, par rapport au préréglage ; ce qui démarre après elle suit">
               <Segmented size="sm" required label="Vitesse · Apparition" className="w-full" value={ap.speed === "custom" ? undefined : ap.speed} options={SPEEDS} onChange={(v) => { if (v) run(planAppearanceSpeed(site, node.id, v as QuickSpeed), `Apparition · ${SPEEDS.find((o) => o.value === v)?.label.toLowerCase()}`, "Apparition"); }} />
-              {ap.speed === "custom" ? <span className="text-2xs text-muted">Sur mesure : {formatMs(len)}</span> : null}
+              {/* La durée se tape aussi (vague 4, N-11 : « quand une maquette dit 400 ms, il me faut un champ où taper 400 »). */}
+              <div className="flex items-center gap-1"><NumberInput className="w-[110px]" unit="ms" min={50} step={50} value={len} aria-label="Durée de l'apparition" title="Durée du mouvement, en millisecondes ; ce qui démarre après suit" onValueChange={(v) => { if (v !== "" && v !== len) run(planAppearanceDuration(site, node.id, v), `Apparition · ${formatMs(v)}`, "Apparition", `appear-dur:${node.id}`); }} />{len >= 1000 ? <span className="text-2xs text-muted">{formatDuration(len).replace(/^[^(]*/, "")}</span> : null}</div>
             </Row>
-          ) : <Row label="Vitesse"><span className="text-2xs text-muted">Sur mesure : {formatMs(len)}</span></Row>}
+          ) : <Row label="Vitesse"><div className="flex items-center gap-1"><NumberInput className="w-[110px]" unit="ms" min={50} step={50} value={len} aria-label="Durée de l'apparition" title="Durée du mouvement, en millisecondes ; ce qui démarre après suit" onValueChange={(v) => { if (v !== "" && v !== len) run(planAppearanceDuration(site, node.id, v), `Apparition · ${formatMs(v)}`, "Apparition", `appear-dur:${node.id}`); }} /><span className="text-2xs text-muted">Sur mesure</span></div></Row>}
           <Field label="Démarre" hint="Ce qui fait partir l'apparition : l'élément lui-même, ou la fin (ou le début) de l'apparition d'un autre élément de la page">
             <Select value={beginValue(ap.begin)} options={beginOptions} onValueChange={setBegin} />
           </Field>
           <Field label="Délai" hint="Attente avant de partir, après ce qui la fait démarrer">
-            <NumberInput unit="ms" step={50} min={0} value={ap.delay} onValueChange={(v) => run(planAppearanceDelay(site, node.id, v === "" ? 0 : v), "Apparition · délai", undefined, `appear-delay:${node.id}`)} />
+            <div className="flex items-center gap-1"><NumberInput unit="ms" step={50} min={0} value={ap.delay} onValueChange={(v) => run(planAppearanceDelay(site, node.id, v === "" ? 0 : v), "Apparition · délai", undefined, `appear-delay:${node.id}`)} />{ap.delay >= 1000 ? <span className="text-2xs text-muted">{formatDuration(ap.delay).replace(/^[^(]*/, "")}</span> : null}</div>
           </Field>
           {ap.trigger.on === "inView" ? (
             <Row label="Rejouer" title={ap.own ? "Rejouer l'apparition chaque fois que l'élément revient à l'écran" : `Se règle sur ce qui lance l'apparition (${labelOf(ap.hostId)}), pour tout l'enchaînement`}>
@@ -167,17 +207,11 @@ function AppearanceFields({ site, node, run, onPlay, onSelectNode }: { site: Sit
             </Row>
           ) : null}
           <Field label=""><p className="text-2xs text-muted leading-snug" data-anim-summary="">{summarizeAnimation(site, ap.trigger, ap.hostId, !!ap.page)}</p></Field>
-          {/* Une scène en un geste (lot 7) : les voisins qui suivent reçoivent la même apparition, l'un après l'autre. */}
-          {(() => { const siblings = index.get(node.id)?.parent?.children ?? []; const following = siblings.slice(siblings.indexOf(node) + 1).filter((n) => !appearanceOf(site, n.id, index)); return following.length ? (
-            <Field label="" hint="Les éléments qui suivent celui-ci reçoivent la même apparition, chacun 120 ms après le précédent ; chacun se règle ensuite à part">
-              <Button size="sm" variant="ghost" className="self-start" onClick={() => run(planAppearanceCascade(site, node.id, 120), `Apparition · pareil pour ${following.length > 1 ? `les ${following.length} suivants` : "le suivant"}`, "Apparition")}>{`Pareil pour ${following.length > 1 ? `les ${following.length} éléments qui suivent` : "l'élément qui suit"}`}</Button>
-            </Field>
-          ) : null; })()}
           {canLetters || canChildren ? (
             <Field label="" hint="Faire arriver l'élément d'un bloc, ou ses morceaux un à un">
               {canLetters
                 ? <Toggle checked={ap.detail === "letters"} label="lettre par lettre" onChange={(b) => run(planAppearanceDetail(site, node.id, b ? "letters" : "one"), b ? "Apparition lettre par lettre" : "Apparition d'un bloc", "Apparition")} />
-                : <Toggle checked={ap.detail === "children"} label={node.type === "collection" ? "les cartes une à une" : "les enfants un à un"} onChange={(b) => run(planAppearanceDetail(site, node.id, b ? "children" : "one"), b ? "Apparition enfant par enfant" : "Apparition d'un bloc", "Apparition")} />}
+                : <Toggle checked={ap.detail === "children"} label={node.type === "collection" ? "les cartes une à une" : `les ${node.children?.length ?? 0} éléments un à un`} onChange={(b) => run(planAppearanceDetail(site, node.id, b ? "children" : "one"), b ? "Apparition enfant par enfant" : "Apparition d'un bloc", "Apparition")} />}
             </Field>
           ) : null}
         </>
