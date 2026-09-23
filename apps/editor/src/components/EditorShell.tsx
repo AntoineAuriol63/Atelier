@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { AlertTriangle, CheckCircle2, Command as CommandIcon, Database as DatabaseIcon, ExternalLink, Info, FileText, Grid3x3, Layers, Moon, Palette, Plus, Puzzle, Redo2, Sparkles, Sun, Undo2, UploadCloud, X, Settings2, Maximize2, Minimize2, Columns2, PanelLeftClose, PanelLeftOpen, Zap } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Database as DatabaseIcon, ExternalLink, Info, FileText, Grid3x3, Layers, Moon, Palette, Plus, Puzzle, Redo2, Sparkles, Sun, Undo2, UploadCloud, X, Settings2, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, Zap } from "lucide-react";
 import type { DropPosition, Entry, Node, Page, Site, StyleValue, Role } from "@atelier/model";
 import { animationById, appearanceOf, planAppearancePreset, planRemoveNode, BASE, breakpointForWidth, canInsertUnder, cloneWithNewIds, dataSourceFor, entryPath, fitHeadings as fitHeadingsInPage, indexSite, layoutGridAt, newId, planDetach, planDrop, planInsert, planMakeComponent, planMergePrev, planMove, planSlashInsert, planSplit, stylePath, templateOf, type ComponentPlan, type TextPlan, ANIMATION_PRESETS } from "@atelier/model";
 import type { Op } from "@atelier/model";
@@ -12,7 +12,7 @@ import Link from "next/link";
 import { PRODUCT_NAME } from "@/lib/product";
 import { isEditableTarget, mod } from "@/lib/keys";
 import type { BlockPreset } from "@/lib/blocks";
-import { Badge, Breadcrumb, Button, Hint, IconButton, NumberInput, Panel, PanelHeading, Separator, Tabs, TreeRow, type DropIndicator, Select, ConfirmProvider, askConfirm, Eyebrow } from "@/ui";
+import { Badge, Breadcrumb, Button, Hint, IconButton, Panel, PanelHeading, Separator, Tabs, TreeRow, type DropIndicator, ConfirmProvider, askConfirm } from "@/ui";
 import { NodeInspector } from "./NodeInspector";
 import { AddPanel } from "./AddPanel";
 import { ThemePanel } from "./ThemePanel";
@@ -33,6 +33,7 @@ import { useEntries } from "@/lib/use-entries";
 import { findForms, formDatabase, formDatabaseId } from "@/lib/forms";
 import { uniqueFieldName } from "@/lib/forms";
 import { nodeIcon, nodeLabel } from "./node-icons";
+import { CanvasBar } from "./CanvasBar";
 
 const PRESETS: { id: string; label: string; width: number | null }[] = [
   { id: "base", label: "Bureau", width: 1280 },
@@ -179,7 +180,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
   const clipboard = useRef<Node | null>(null);
   const activeBpRef = useRef<string>(BASE);
   const frame = useRef<HTMLIFrameElement>(null);
-  const canvas = useRef<HTMLElement>(null);
+  const canvas = useRef<HTMLDivElement>(null);
   const page: Page = site.pages.find((p) => p.id === pageId) ?? site.pages[0]!;
   const previewKey = `${page.id}:${page.path}`;
   const index = useMemo(() => indexSite(site), [site]);
@@ -533,7 +534,8 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
   const effective = width ?? (measured || 1280);
   // Au-delà de la zone visible, le cadre garde sa vraie largeur et est réduit à l'échelle pour tenir.
   const scale = measured > 0 && effective > measured ? measured / effective : 1;
-  const frameHeight = `calc((100vh - 40px - 16px) / ${scale})`;
+  // Barre du haut (48 px), barre du canevas (36 px) et marges du canevas (16 px).
+  const frameHeight = `calc((100vh - 100px) / ${scale})`;
   // L'interface dessinée dans l'aperçu (barres, poignée, menu) compense l'échelle pour garder sa taille réelle.
   useEffect(() => { if (frameReady) post({ type: "atelier:zoom", scale }); }, [scale, frameReady, post]);
   const activeBp = useMemo(() => breakpointForWidth(site.settings.breakpoints, effective), [site.settings.breakpoints, effective]);
@@ -611,54 +613,24 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
     <ConfirmProvider><MediaLibraryProvider site={site} entries={ents.entries} commit={doc.commit} saveEntry={ents.save} onGoTo={goToUsage} readOnly={writer}>
     {/* En mode Animation, la colonne de droite s'élargit en poussant le canevas quand une ligne de temps est ouverte (cadrage § 4.1). */}
     <div className="h-full grid grid-rows-[48px_1fr]" style={{ gridTemplateColumns: focusMode ? "minmax(0,1fr)" : `${leftCollapsed ? "" : "300px "}minmax(0,1fr) ${editMode === "animate" && openTl ? animPanelW : 360}px` }}>
-      <header className="flex items-center gap-2 px-3 border-b border-line bg-panel min-w-0 overflow-hidden" style={{ gridColumn: "1 / -1" }}>
-        <Link href="/" className="font-semibold text-base tracking-tight text-ink hover:text-accent" title="Retour à vos sites">{PRODUCT_NAME}</Link>
-        <Separator vertical />
-        {/* Sous 1440 px, la barre du haut garde l'essentiel : le nom du site, les images et la palette (⌘K) passent en retrait. */}
-        <span className="hidden min-[1440px]:inline text-sm text-muted truncate max-w-[200px]" title={site.name}>{site.name}</span>
-        <span className="hidden min-[1440px]:inline text-dim">/</span>
-        <span className="text-sm text-ink truncate max-w-[160px]">{page.name[locale]}</span>
-        {page.kind === "template" ? <Badge tone="accent" title="Cette page s'affiche une fois par entrée de sa base">page par entrée</Badge> : null}
-        {template ? (
-          <div className="flex items-center gap-1 ml-2" title="Modèle de page : quelle entrée afficher dans l'aperçu">
-            <Eyebrow as="span">Entrée</Eyebrow>
-            {templateEntries.length ? <Select className="max-w-[220px]" value={previewEntry?.id ?? ""} options={templateEntries.map((e) => ({ value: e.id, label: String(e.values[template.database.titleField] ?? "") || "Sans titre" }))} onValueChange={(id) => { setPreviewEntryByPage((m) => ({ ...m, [page.id]: id })); select(null); setFrameReady(false); }} /> : <Badge tone="warning" title="Sans entrée publiée, la page s'affiche avec ses textes de repli">Aucune entrée publiée dans {template.database.name[locale] ?? template.database.slug}</Badge>}
-          </div>
-        ) : null}
-        <div className="ml-4 shrink-0"><Tabs variant="pill" label="Mode" tabs={MODES.map((m) => ({ ...m, disabled: m.id === "code" || (writer && m.id !== "write"), hint: writer && (m.id === "design" || m.id === "animate") ? "Réservé aux éditeurs du site" : m.hint }))} value={editMode} onChange={(m) => switchMode(m as EditMode)} /></div>
-
-        <div className="ml-auto flex items-center gap-2 shrink-0">
-          <div className="hidden min-[1440px]:block"><Tabs variant="pill" label="Largeur de l'aperçu" tabs={PRESETS.map((x) => ({ id: x.id, label: x.label }))} value={customWidth === null ? preset : ""} onChange={(id) => { setPreset(id); setCustomWidth(null); }} /></div>
-          {/* Sous 1100 px : la largeur se règle à la poignée du canevas ; sous 1200 px, grille, panneau gauche et concentration restent au clavier et dans la palette. */}
-          <Select className="hidden min-[1100px]:block min-[1440px]:hidden w-[104px]" value={customWidth === null ? preset : ""} placeholder="Libre" options={PRESETS.map((x) => ({ value: x.id, label: x.label }))} onValueChange={(id) => { setPreset(id); setCustomWidth(null); }} />
-          {/* Sous 1440 px : la largeur se règle à la poignée du canevas, qui rappelle aussi la taille d'écran active. */}
-          <span className="hidden min-[1440px]:contents">{editMode === "design" ? <><NumberInput className="w-[92px]" unit="px" min={MIN_WIDTH} max={MAX_WIDTH} step={10} title="Largeur de l'aperçu (320 à 4000 px)" value={Math.round(effective) || ""} onValueChange={(v) => setCustomWidth(v === "" ? null : v)} />
-          <Badge tone="accent" title="Taille d'écran active : les réglages de style se posent dessus">{breakpoint}</Badge></> : null}</span>
-          {scale < 1 ? <span className="hidden min-[1440px]:contents"><Badge title="Aperçu réduit pour tenir dans la zone">{Math.round(scale * 100)} %</Badge></span> : null}
-          <span className="hidden min-[1200px]:contents">
-          <IconButton label={showGrid ? "Masquer la grille de mise en page (⌃G)" : "Afficher la grille de mise en page (⌃G)"} icon={Grid3x3} active={showGrid} onClick={toggleGrid} />
-          {focusMode ? null : <IconButton label={leftCollapsed ? "Afficher le panneau de gauche (pages, calques, ajouter…)" : "Masquer le panneau de gauche"} icon={leftCollapsed ? PanelLeftOpen : PanelLeftClose} active={!leftCollapsed} onClick={toggleLeft} />}
-          <IconButton label={focusMode ? "Quitter le mode concentration" : "Mode concentration : masquer les panneaux"} icon={focusMode ? Minimize2 : Maximize2} active={focusMode} onClick={() => setFocusMode((v) => !v)} />
-          </span>
-          <span className="hidden min-[1440px]:contents">{editMode === "design" ? <IconButton label={compareMode ? "Quitter la comparaison responsive" : "Comparer avec le mobile"} icon={Columns2} active={compareMode} onClick={() => setCompareMode((v) => !v)} /> : null}</span>
+      {/* Barre du haut en trois zones (23 septembre 2026) : le site et la page, les modes, la publication. La vue de l'aperçu se règle dans la barre du canevas. */}
+      <header className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-3 border-b border-line bg-panel min-w-0 overflow-hidden" style={{ gridColumn: "1 / -1" }}>
+        <div className="flex items-center gap-2 min-w-0">
+          <Link href="/" className="font-semibold text-base tracking-tight text-ink hover:text-accent shrink-0" title="Retour à vos sites">{PRODUCT_NAME}</Link>
           <Separator vertical />
+          <span className="hidden min-[1100px]:inline text-sm text-muted truncate max-w-[200px]" title={site.name}>{site.name}</span>
+          <span className="hidden min-[1100px]:inline text-dim">›</span>
+          <span className="text-sm text-ink truncate max-w-[200px]" title={page.name[locale]}>{page.name[locale]}</span>
+          {page.kind === "template" ? <Badge tone="accent" title="Cette page s'affiche une fois par entrée de sa base">page par entrée</Badge> : null}
+        </div>
+        <Tabs variant="pill" label="Mode" tabs={MODES.map((m) => ({ ...m, disabled: m.id === "code" || (writer && m.id !== "write"), hint: writer && (m.id === "design" || m.id === "animate") ? "Réservé aux éditeurs du site" : m.hint }))} value={editMode} onChange={(m) => switchMode(m as EditMode)} />
+        <div className="flex items-center justify-end gap-2 min-w-0">
           <div className="flex items-center gap-0.5">
             <IconButton label={`Annuler (${mod()}Z)`} icon={Undo2} disabled={!doc.canUndo} onClick={doc.undo} />
             <IconButton label={`Rétablir (⇧${mod()}Z)`} icon={Redo2} disabled={!doc.canRedo} onClick={doc.redo} />
           </div>
           <Badge tone={status.tone} title={doc.error ?? `Version ${doc.version}`}>{status.label}<span className="hidden min-[1440px]:inline"> · v{doc.version}</span></Badge>
-          <span className="hidden min-[1440px]:contents">
           <Separator vertical />
-          <div className="flex items-center gap-0.5">
-            {site.theme.modes.map((m) => <IconButton key={m.id} label={`Aperçu en mode ${m.name.toLowerCase()}`} icon={m.id === "dark" ? Moon : Sun} active={mode === m.id} onClick={() => setMode(m.id)} />)}
-          </div>
-          </span>
-          <Separator vertical />
-          {/* Sous 1440 px : images et palette restent au clavier (⌘K), la barre garde la publication. */}
-          <span className="hidden min-[1440px]:contents">
-            <IconButton label="Images du site" icon={ImagesIcon} onClick={() => openMediaLibrary()} />
-            <IconButton label={`Palette de commandes (${mod()}K)`} icon={CommandIcon} onClick={() => setPaletteOpen(true)} />
-          </span>
           <Button variant="ghost" icon={ExternalLink} title="Aperçu dans un nouvel onglet" aria-label="Aperçu dans un nouvel onglet" onClick={() => window.open(previewPath, "_blank")}><span className="hidden min-[1440px]:inline">Aperçu</span></Button>
           {writer ? null : <IconButton label="Réglages du site (adresse, référencement, redirections, export, partage)" icon={Settings2} onClick={() => { setPublishTab("settings"); setPublishOpen(true); }} />}
           <Button variant="primary" icon={UploadCloud} onClick={() => setPublishOpen(true)} title={writer ? "Publier les contenus (entrées des bases)" : "Publier le site, voir l'historique, revenir en arrière"}>{writer ? "Publier les contenus" : "Publier"}</Button>
@@ -706,8 +678,11 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
         </div>
       </Panel>}
 
-      <main ref={canvas} className="relative min-w-0 overflow-auto bg-app flex justify-center items-start p-3">
-        {editMode === "design" ? <div className="absolute top-3 left-1/2 -translate-x-1/2 z-30 rounded-md border border-accent bg-panel/95 px-3 py-1.5 text-xs font-semibold text-accent shadow-lg backdrop-blur" title="Les styles ajoutés maintenant s’appliquent à cette taille d’écran">Vous modifiez : {breakpoint}</div> : null}
+      <main className="relative min-w-0 min-h-0 flex flex-col bg-app">
+        <CanvasBar presets={PRESETS} preset={preset} customWidth={customWidth} onPreset={setPreset} onCustomWidth={setCustomWidth} effective={effective} minWidth={MIN_WIDTH} maxWidth={MAX_WIDTH} breakpoint={breakpoint} scale={scale}
+          editMode={editMode === "animate" ? "design" : editMode} showGrid={showGrid} onToggleGrid={toggleGrid} compare={compareMode} onCompare={() => setCompareMode((v) => !v)} modes={site.theme.modes} mode={mode} onMode={setMode} focus={focusMode} onFocus={() => setFocusMode((v) => !v)}
+          entries={template ? templateEntries.map((e) => ({ id: e.id, label: String(e.values[template.database.titleField] ?? "") })) : undefined} entry={previewEntry?.id} onEntry={template ? (id) => { setPreviewEntryByPage((m) => ({ ...m, [page.id]: id })); select(null); } : undefined} />
+        <div ref={canvas} className="relative flex-1 min-h-0 min-w-0 overflow-auto flex justify-center items-start p-3">
         {picking ? <div role="status" className="absolute top-3 left-1/2 -translate-x-1/2 z-30 rounded-md border border-accent bg-accent text-accent-ink px-3 py-1.5 text-xs font-semibold shadow-lg">Cliquez l&apos;élément à animer dans le canevas ou les calques · Échap pour annuler</div> : null}
         {doc.error ? (
           <div role="alert" className={`fixed top-14 left-1/2 -translate-x-1/2 z-[60] max-w-[640px] flex items-center gap-2 rounded-md border px-3.5 py-2.5 text-sm font-medium shadow-2xl ${doc.status === "offline" ? "bg-warning text-warning-ink border-warning" : "bg-danger text-danger-ink border-danger"}`}>
@@ -742,6 +717,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
           {compareMode ? null : <div role="separator" aria-label="Redimensionner l'aperçu" title="Glisser pour changer la largeur" onPointerDown={startResize} className="absolute top-0 -right-2.5 w-2.5 h-full cursor-col-resize group">
             <div className="absolute top-1/2 -translate-y-1/2 left-0.5 w-1 h-12 rounded-full bg-line-strong group-hover:bg-accent" />
           </div>}
+        </div>
         </div>
       </main>
 
