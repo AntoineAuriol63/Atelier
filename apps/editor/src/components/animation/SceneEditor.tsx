@@ -212,7 +212,8 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
             </div>
             {/* La règle et les pistes : zoomées, elles s'élargissent et défilent de côté (⌘ + molette, ou les boutons de l'en-tête). */}
             <div ref={scroller} className="min-w-0 overflow-x-auto overflow-y-hidden" data-scene-scroll="">
-              <div data-scene-lanes="" style={{ width: `${zoom * 100}%` }}>
+              {/* Une petite marge à gauche : le « 0 » et le premier losange se voient en entier, rien n'invite à défiler vers la gauche. */}
+              <div data-scene-lanes="" className="box-border pl-4 pr-4" style={{ width: `${zoom * 100}%` }}>
                 <div ref={rail} data-scene-rail="" role="slider" aria-label="Tête de lecture" aria-valuemin={0} aria-valuemax={length} aria-valuenow={Math.round(playhead ?? 0)} tabIndex={0}
                   className="relative h-5 border-b border-line cursor-ew-resize select-none text-2xs text-dim"
                   onPointerDown={(e) => { if (e.button !== 0) return; place(timeAt(e.clientX)); (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); }}
