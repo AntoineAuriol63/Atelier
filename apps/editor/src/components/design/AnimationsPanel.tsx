@@ -18,7 +18,7 @@ export function AnimationsPanel({ site, node, commit, onPlay, onOpenAnimation, o
   const triggers = node.triggers ?? [];
   const duplicates = duplicateQuickTriggers(site, node);
   return (
-    <Section title="Animations" defaultOpen={triggers.length > 0 || !!appearanceOf(site, node.id) || !!inheritedAppearance(site, node.id)} hint="Choisissez une apparition, une réaction au survol ou un mouvement continu. Le outil Animation règle les déclencheurs et compose des lignes de temps sur plusieurs éléments.">
+    <Section title="Animations" defaultOpen={triggers.length > 0 || !!appearanceOf(site, node.id) || !!inheritedAppearance(site, node.id)} hint="Choisissez une apparition, une réaction au survol ou un mouvement continu. L'outil Animation règle les déclencheurs et compose des lignes de temps sur plusieurs éléments.">
       <QuickAnimations site={site} node={node} commit={commit} onPlay={onPlay} onOpenAnimation={onOpenAnimation ? () => onOpenAnimation() : undefined} onTestOnSite={onTestOnSite} onSelectNode={onSelectNode} />
       {triggers.length ? (
         <ul className="flex flex-col gap-1 pt-2" aria-label="Déclencheurs de l'élément">
@@ -31,7 +31,7 @@ export function AnimationsPanel({ site, node, commit, onPlay, onOpenAnimation, o
             return (
               <li key={t.id} className="flex items-center gap-1 rounded-sm border border-line bg-surface/60 px-2 py-1">
                 {onOpenAnimation && a
-                  ? <button type="button" className="flex-1 min-w-0 min-h-7 text-left text-xs text-ink truncate rounded-xs hover:text-accent" title={`Modifier dans le outil Animation · ${describeTrigger(t, site)}`} onClick={() => onOpenAnimation(t.id)}>{describeTrigger(t, site)}</button>
+                  ? <button type="button" className="flex-1 min-w-0 min-h-7 text-left text-xs text-ink truncate rounded-xs hover:text-accent" title={`Modifier dans l'outil Animation · ${describeTrigger(t, site)}`} onClick={() => onOpenAnimation(t.id)}>{describeTrigger(t, site)}</button>
                   : <span className="flex-1 min-w-0 text-xs text-ink truncate" title={describeTrigger(t, site)}>{describeTrigger(t, site)}</span>}
                 {custom ? <Badge title="Composée ou retouchée dans l'outil Animation">personnalisée</Badge> : null}
                 {duplicates.has(t.id) ? <Badge tone="warning" title="Une autre animation de la même famille (apparition, survol, continu) est déjà posée sur cet élément : les deux se jouent.">en double</Badge> : null}

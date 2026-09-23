@@ -23,6 +23,8 @@ export type SceneEditorProps = {
   /** Joue un lancement (déclencheur d'un hôte) dans l'aperçu. */
   onPlay: (triggerId: string, hostId: string) => void;
   onTestOnSite?: (nodeId?: string) => void;
+  /** Survol d'un nom d'élément dans l'outil : le montrer dans l'aperçu (`null` : ne plus rien montrer). */
+  onHover?: (id: string | null) => void;
   onClose: () => void;
 };
 
@@ -32,10 +34,20 @@ export type SceneEditorProps = {
  * propriété à la tête de lecture ; à droite, ses réglages en mots (Apparition, Vitesse, Démarre, Délai) et l'image-clé à cet instant.
  * Ni animation nommée, ni piste, ni pioche : le modèle est le même, il ne se montre plus.
  */
-export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSelect, scrub, onPlay, onTestOnSite, onClose }: SceneEditorProps) {
+export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSelect, scrub, onPlay, onTestOnSite, onHover, onClose }: SceneEditorProps) {
   const view = useMemo(() => sceneView(site, selectedId ?? undefined), [site, selectedId]);
   const length = Math.max(100, view?.total ?? 0);
   const [playhead, setPlayhead] = useState<number | null>(null);
+  // La liste des éléments à ajouter est une liste maison : une liste native ne dit pas quel choix est survolé, et le survol montre l'élément dans l'aperçu.
+  const [addOpen, setAddOpen] = useState(false);
+  const addRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!addOpen) return;
+    const off = (e: PointerEvent) => { if (!addRef.current?.contains(e.target as globalThis.Node)) { setAddOpen(false); onHover?.(null); } };
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") { setAddOpen(false); onHover?.(null); } };
+    window.addEventListener("pointerdown", off); window.addEventListener("keydown", key);
+    return () => { window.removeEventListener("pointerdown", off); window.removeEventListener("keydown", key); };
+  }, [addOpen, onHover]);
   const rail = useRef<HTMLDivElement>(null);
   const run = (ops: Op[], label: string, coalesceKey?: string) => { if (ops.length) commit({ op: "batch", ops, label }, { label, coalesceKey }); };
   const index = useMemo(() => indexSite(site), [site]);
@@ -147,7 +159,7 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
           <ul className="px-3 pb-2" aria-label={`Scène de ${quoteLabel(view.sectionLabel)}`}>
             {visible.map((row) => { const i = view.rows.indexOf(row); return (
               <li key={row.id} data-scene-row={row.id} data-still={row.still || undefined} className={`grid grid-cols-[220px_minmax(0,1fr)] items-center h-8 border-b border-line/60 ${row.selected ? "bg-accent-soft/40" : ""}`}>
-                <button type="button" data-scene-name="" className={`flex items-center gap-1.5 min-w-0 pr-2 text-left text-xs truncate ${row.selected ? "text-accent font-medium" : row.still ? "text-dim hover:text-ink" : "text-ink hover:text-accent"}`} style={{ paddingLeft: row.depth * 12 }} title={`Sélectionner ${quoteLabel(row.label)}`} onClick={() => onSelect(row.id)}>
+                <button type="button" data-scene-name="" className={`flex items-center gap-1.5 min-w-0 pr-2 text-left text-xs truncate ${row.selected ? "text-accent font-medium" : row.still ? "text-dim hover:text-ink" : "text-ink hover:text-accent"}`} style={{ paddingLeft: row.depth * 12 }} title={`Sélectionner ${quoteLabel(row.label)}`} onClick={() => onSelect(row.id)} onMouseEnter={() => onHover?.(row.id)} onMouseLeave={() => onHover?.(null)}>
                   <span className="truncate">{row.label}</span>{row.count ? <span className="text-muted shrink-0">×{row.count}</span> : null}
                 </button>
                 <div className="relative h-8 min-w-0">
@@ -177,8 +189,21 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
             ); })}
           </ul>
           {addable.length ? (
-            <div className="px-3 pb-3" data-scene-add="">
-              <Select className="w-[260px]" value="" placeholder="+ Ajouter un élément à la scène…" options={addable.map((r) => ({ value: r.id, label: `${"  ".repeat(r.depth)}${r.label}${r.count ? ` ×${r.count}` : ""}` }))} onValueChange={(id) => { const row = view.rows.find((r) => r.id === id); if (row) appear(row, view.rows.indexOf(row)); }} />
+            <div ref={addRef} className="relative px-3 pb-3" data-scene-add="">
+              <button type="button" aria-haspopup="listbox" aria-expanded={addOpen} className="h-7 px-2 rounded-sm border border-dashed border-accent/60 text-xs text-accent hover:bg-accent-soft" onClick={() => setAddOpen((o) => !o)}>+ Ajouter un élément à la scène…</button>
+              {addOpen ? (
+                <ul role="listbox" aria-label="Éléments de la section qui ne bougent pas" className="absolute left-3 bottom-full mb-1 z-40 max-h-64 w-72 overflow-auto rounded-md border border-line bg-raised shadow-xl py-1">
+                  {addable.map((r) => (
+                    <li key={r.id}>
+                      <button type="button" role="option" aria-selected={false} data-scene-add-item={r.id} className="w-full text-left text-xs h-7 px-2 truncate hover:bg-accent-soft hover:text-accent" style={{ paddingLeft: 8 + r.depth * 12 }}
+                        onMouseEnter={() => onHover?.(r.id)} onMouseLeave={() => onHover?.(null)}
+                        onClick={() => { setAddOpen(false); onHover?.(null); appear(r, view.rows.indexOf(r)); }}>
+                        {r.label}{r.count ? <span className="text-muted"> ×{r.count}</span> : null}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
             </div>
           ) : null}
           {playhead !== null ? <span className="pointer-events-none absolute" aria-hidden /> : null}

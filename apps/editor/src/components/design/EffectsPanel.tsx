@@ -65,7 +65,7 @@ export function EffectsPanel({ site, style, node, commit, defaultOpen = false }:
         );
       })()}
       {animating ? null : row("cursor", "Curseur", <Select className="flex-1" value={str(s.value("cursor")) ?? ""} placeholder="Auto" options={CURSORS} onValueChange={(v) => s.set("cursor", v || undefined, false)} />)}
-      {animating ? null : <Hint>Pour animer un changement au survol (couleur, taille…), réglez une transition ici : elle s&apos;applique au passage d&apos;un état à l&apos;autre. Les apparitions et les animations se règlent dans la section Animations et dans le outil Animation.</Hint>}
+      {animating ? null : <Hint>Pour animer un changement au survol (couleur, taille…), réglez une transition ici : elle s&apos;applique au passage d&apos;un état à l&apos;autre. Les apparitions et les animations se règlent dans la section Animations et dans l&apos;outil Animation.</Hint>}
       {node && commit && !animating ? (
         <>
           <div className="h-px bg-line my-1" />

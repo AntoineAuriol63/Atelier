@@ -14,6 +14,8 @@ export type ToPreview =
   | { type: "atelier:mode"; mode: string }
   | { type: "atelier:editmode"; editMode: EditMode }
   | { type: "atelier:highlight"; id: string | null }
+  /** Survol depuis l'éditeur (liste des éléments à ajouter à la scène, calques) : un cadre en pointillé sur l'élément, `null` l'efface. */
+  | { type: "atelier:hover"; id: string | null }
   | { type: "atelier:state"; id: string | null; state: string | null }
   | { type: "atelier:grid"; show: boolean; columns: number; gutter: string; margin: string; maxWidth: string }
   | { type: "atelier:zoom"; scale: number }

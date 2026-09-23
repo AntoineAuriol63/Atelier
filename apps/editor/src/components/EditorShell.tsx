@@ -287,6 +287,8 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
     if (target.pageId && target.pageId !== pageId) { setPageId(target.pageId); setFrameReady(false); }
     if (target.nodeId) { const id = target.nodeId; window.setTimeout(() => select(id), 50); }
   }, [pageId, setPageId, select]);
+  /** Montre un élément dans l'aperçu au survol d'un nom dans l'éditeur (cadre en pointillé), `null` l'efface. */
+  const hoverNode = useCallback((id: string | null) => post({ type: "atelier:hover", id }), [post]);
   const goToUsage = useCallback((u: AssetUsage) => {
     if (u.kind === "entry") { setDbOpen(u.database); return; }
     goTo({ pageId: "pageId" in u ? u.pageId : undefined, nodeId: "nodeId" in u ? u.nodeId : undefined });
@@ -716,7 +718,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
               onPointerDown={(e) => { e.preventDefault(); const startY = e.clientY, startH = animH; const onMove = (ev: PointerEvent) => setAnimH(Math.round(Math.min(640, Math.max(200, startH - (ev.clientY - startY))))); const onUp = (ev: PointerEvent) => { window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); saveAnimH(startH - (ev.clientY - startY)); }; window.addEventListener("pointermove", onMove); window.addEventListener("pointerup", onUp); }}
               onKeyDown={(e) => { if (e.key === "ArrowUp") { e.preventDefault(); saveAnimH(animH + (e.shiftKey ? 80 : 20)); } if (e.key === "ArrowDown") { e.preventDefault(); saveAnimH(animH - (e.shiftKey ? 80 : 20)); } }} />
             <div className="flex-1 min-h-0 overflow-x-auto">
-              <SceneEditor site={site} getSite={doc.getSite} selectedId={selected} bp={activeBp} mode={mode} commit={doc.commit} onSelect={select} scrub={scrub} onPlay={(triggerId, hostId) => post({ type: "atelier:play", id: hostId, trigger: triggerId })} onTestOnSite={testOnSite} onClose={closeAnim} />
+              <SceneEditor site={site} getSite={doc.getSite} selectedId={selected} bp={activeBp} mode={mode} commit={doc.commit} onSelect={select} scrub={scrub} onPlay={(triggerId, hostId) => post({ type: "atelier:play", id: hostId, trigger: triggerId })} onTestOnSite={testOnSite} onHover={hoverNode} onClose={closeAnim} />
             </div>
           </div>
         ) : null}

@@ -70,6 +70,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
   useEffect(() => {
     if (!editor) return;
     let hovered: HTMLElement | null = null;
+    let remoteHover: HTMLElement | null = null;
     let barHover: HTMLElement | null = null;
     const send = (msg: FromPreview) => parent.postMessage(msg, window.location.origin);
     let pages: { path: string; name: string }[] = [];
@@ -645,6 +646,12 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
         if (el && a && play) play(el, a, playOptions(a));
       }
       if (m?.type === "atelier:grid") renderGrid(m as unknown as { show: boolean; columns: number; gutter: string; margin: string; maxWidth: string });
+      if (m?.type === "atelier:hover") {
+        // Survol venu de l'éditeur : le même cadre en pointillé que la souris dans le canevas, effacé à la sortie.
+        if (remoteHover && remoteHover !== hovered) clear(remoteHover);
+        remoteHover = m.id ? document.querySelector<HTMLElement>(`[data-node="${m.id}"]`) : null;
+        if (remoteHover && idOf(remoteHover) !== selectedId.current) { outline(remoteHover, "hover"); remoteHover.scrollIntoView({ block: "nearest" }); }
+      }
       if (m?.type === "atelier:highlight") {
         const el = m.id ? document.querySelector<HTMLElement>(`[data-node="${m.id}"]`) : null;
         if (editing && el !== editing) endEdit(true);

@@ -26,14 +26,14 @@ function animated(): Site {
 }
 
 function mount(site: Site, selectedId: string | null) {
-  const ops: Op[] = []; const selected: string[] = []; const scrubs: (number | null)[] = []; const plays: string[] = [];
+  const ops: Op[] = []; const selected: string[] = []; const scrubs: (number | null)[] = []; const plays: string[] = []; const hovers: (string | null)[] = [];
   let current = site;
   const host = document.createElement("div");
   document.body.appendChild(host);
   const root = createRoot(host);
-  const render = (s: Site, sel: string | null) => createElement(SceneEditor, { site: s, getSite: () => current, selectedId: sel, bp: "base", commit: (op) => { ops.push(op); current = applyOps(current, [op]).site; }, onSelect: (id) => selected.push(id), scrub: (t) => scrubs.push(t), onPlay: (triggerId, hostId) => plays.push(`${hostId}:${triggerId}`), onClose: () => {} });
+  const render = (s: Site, sel: string | null) => createElement(SceneEditor, { site: s, getSite: () => current, selectedId: sel, bp: "base", commit: (op) => { ops.push(op); current = applyOps(current, [op]).site; }, onSelect: (id) => selected.push(id), scrub: (t) => scrubs.push(t), onPlay: (triggerId, hostId) => plays.push(`${hostId}:${triggerId}`), onHover: (id) => hovers.push(id), onClose: () => {} });
   act(() => { root.render(render(site, selectedId)); });
-  return { host, ops, selected, scrubs, plays, text: () => host.textContent ?? "", buttons: () => [...host.querySelectorAll<HTMLButtonElement>("button")], rerender: (s: Site, sel: string | null) => act(() => { current = s; root.render(render(s, sel)); }), current: () => current };
+  return { host, ops, selected, scrubs, plays, hovers, text: () => host.textContent ?? "", buttons: () => [...host.querySelectorAll<HTMLButtonElement>("button")], rerender: (s: Site, sel: string | null) => act(() => { current = s; root.render(render(s, sel)); }), current: () => current };
 }
 
 describe("tiroir Animation : la scène", () => {
@@ -46,8 +46,17 @@ describe("tiroir Animation : la scène", () => {
     const rows = [...m.host.querySelectorAll("[data-scene-row]")].map((r) => r.getAttribute("data-scene-row"));
     expect(rows).toEqual(["photo", "hh2", "stats"]);
     expect(m.host.querySelector('[data-scene-row="photo"] [data-scene-bar]')).toBeTruthy();
-    const add = m.host.querySelector<HTMLSelectElement>("[data-scene-add] select")!;
-    expect([...add.options].map((o) => o.value)).toEqual(["", "pp2"]);
+    act(() => { m.host.querySelector<HTMLButtonElement>("[data-scene-add] > button")!.click(); });
+    expect([...m.host.querySelectorAll("[data-scene-add-item]")].map((b) => b.getAttribute("data-scene-add-item"))).toEqual(["pp2"]);
+  });
+
+  it("dans la liste des éléments à ajouter, survoler un nom le montre dans l'aperçu (cadre en pointillé) ; sortir l'efface", () => {
+    const m = mount(animated(), "hh2");
+    act(() => { m.host.querySelector<HTMLButtonElement>("[data-scene-add] > button")!.click(); });
+    const item = m.host.querySelector<HTMLElement>('[data-scene-add-item="pp2"]')!;
+    act(() => { item.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })); });
+    act(() => { item.dispatchEvent(new MouseEvent("mouseout", { bubbles: true })); });
+    expect(m.hovers).toEqual(["pp2", null]);
   });
 
   it("l'élément sélectionné a sa ligne même s'il ne bouge pas encore, avec « Faire apparaître »", () => {
@@ -67,8 +76,8 @@ describe("tiroir Animation : la scène", () => {
 
   it("« Ajouter un élément » crée son apparition, après l'élément qui le précède dans la page", () => {
     const m = mount(animated(), "hh2");
-    const add = m.host.querySelector<HTMLSelectElement>("[data-scene-add] select")!;
-    act(() => { add.value = "pp2"; add.dispatchEvent(new Event("change", { bubbles: true })); });
+    act(() => { m.host.querySelector<HTMLButtonElement>("[data-scene-add] > button")!.click(); });
+    act(() => { m.host.querySelector<HTMLElement>('[data-scene-add-item="pp2"]')!.click(); });
     const ap = appearanceOf(m.current(), "pp2");
     expect(ap).toBeTruthy();
     expect(ap!.begin).toEqual({ kind: "after", node: "hh2" });
