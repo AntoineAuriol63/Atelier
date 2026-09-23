@@ -21,6 +21,16 @@ for (const table of ["sites", "changes", "entries", "snapshots"]) {
   check("fonction commit_change", !rpc.error && rpc.data?.ok === true && rpc.data?.version === 1, rpc.error?.message ?? JSON.stringify(rpc.data));
   const conflict = await sb.rpc("commit_change", { p_site_id: id, p_base_version: 0, p_document: doc, p_ops: [], p_author: "check", p_label: null });
   check("détection de conflit", !conflict.error && conflict.data?.ok === false, conflict.error?.message ?? JSON.stringify(conflict.data));
+  // Compactage révisé (23 septembre 2026) : trois lots, un instantané au dernier, `keep` = 1 ; l'ancienne règle vidait le journal,
+  // la nouvelle garde le dernier lot (jamais moins que `keep`, jamais au-delà d'un instantané).
+  const c2 = await sb.rpc("commit_change", { p_site_id: id, p_base_version: 1, p_document: { ...doc, name: "check3" }, p_ops: [{ op: "site.set", path: "name", value: "check3" }], p_author: "check", p_label: null });
+  const c3 = await sb.rpc("commit_change", { p_site_id: id, p_base_version: 2, p_document: { ...doc, name: "check4" }, p_ops: [{ op: "site.set", path: "name", value: "check4" }], p_author: "check", p_label: null });
+  const snap = await sb.from("snapshots").insert({ site_id: id, version: 3, document: { site: doc, entries: [] }, kind: "auto" });
+  const compact = await sb.rpc("compact_changes", { p_site_id: id, p_keep: 1 });
+  const left = await sb.from("changes").select("version").eq("site_id", id);
+  const kept = (left.data ?? []).map((r) => r.version);
+  const revised = !c2.error && !c3.error && !snap.error && !compact.error && !left.error && kept.length === 1 && kept[0] === 3;
+  check("compactage révisé (compact_changes garde les `keep` derniers lots)", revised, compact.error?.message ?? snap.error?.message ?? left.error?.message ?? (kept.length === 0 ? "ancienne règle : journal vidé jusqu'à l'instantané → relancer le bloc « compactage » de supabase/schema.sql" : `lots restants : ${JSON.stringify(kept)}`));
   const del = await sb.from("sites").delete().eq("id", id);
   check("nettoyage du site de test", !del.error, del.error?.message);
 }
