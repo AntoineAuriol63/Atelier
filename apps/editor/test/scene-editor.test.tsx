@@ -102,4 +102,42 @@ describe("tiroir Animation : la scène", () => {
     expect(m.host.querySelector("[data-scene-row]")).toBeNull();
     expect(m.text()).toMatch(/Sélectionnez un élément/);
   });
+
+});
+
+/** Lot 2 : les barres et les losanges se tirent. Le rail mesure 1 000 px pour une scène de 1 300 ms ; un déplacement se lit en ms, arrondi à 10. */
+describe("tiroir Animation : tirer", () => {
+  beforeEach(() => { document.body.innerHTML = ""; });
+  const railOf = (host: HTMLElement) => { const rail = host.querySelector<HTMLElement>("[data-scene-rail]")!; rail.getBoundingClientRect = () => ({ left: 0, width: 1000, top: 0, height: 20, right: 1000, bottom: 20, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect; return rail; };
+  const drag = (el: Element, from: number, to: number) => {
+    act(() => { el.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: from, button: 0 })); });
+    act(() => { window.dispatchEvent(new MouseEvent("pointermove", { clientX: to })); });
+    act(() => { window.dispatchEvent(new MouseEvent("pointerup", { clientX: to })); });
+  };
+
+  it("tirer une barre change le départ de l'élément (son délai après ce qui le lance)", () => {
+    const m = mount(animated(), "hh2"); railOf(m.host);
+    drag(m.host.querySelector('[data-scene-row="photo"] [data-scene-bar]')!, 100, 200);
+    expect(appearanceOf(m.current(), "photo")!.delay).toBe(130);
+    expect(m.ops.length).toBe(1);
+  });
+
+  it("tirer le bord droit d'une barre change la durée", () => {
+    const m = mount(animated(), "hh2"); railOf(m.host);
+    drag(m.host.querySelector('[data-scene-row="hh2"] [data-scene-bar-end]')!, 500, 600);
+    const ap = appearanceOf(m.current(), "hh2")!;
+    expect(ap.end - ap.start).toBe(830);
+  });
+
+  it("tirer un losange déplace l'image-clé ; un simple clic place la tête de lecture sans rien changer", () => {
+    const m = mount(animated(), "hh2"); railOf(m.host);
+    const last = [...m.host.querySelectorAll('[data-scene-row="hh2"] [data-scene-kf]')].pop()!;
+    drag(last, 900, 800);
+    expect(appearanceOf(m.current(), "hh2")!.track.keyframes.map((k) => k.at)).toEqual([600, 1170]);
+    const first = m.host.querySelector('[data-scene-row="hh2"] [data-scene-kf]')!;
+    const before = m.ops.length;
+    drag(first, 400, 402);
+    expect(m.ops.length).toBe(before);
+    expect(m.scrubs[m.scrubs.length - 1]).toBe(600);
+  });
 });
