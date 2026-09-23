@@ -202,7 +202,7 @@ export function RenderNode({ node, ctx }: { node: Node; ctx: RenderContext }): R
       const candidates = [...(asset.variants ?? []), ...(asset.width ? [{ width: asset.width, url: asset.url }] : [])].sort((a, b) => a.width - b.width);
       const srcSet = candidates.length > 1 ? candidates.map((c) => `${c.url} ${c.width}w`).join(", ") : undefined;
       const sizes = srcSet ? (typeof node.props.sizes === "string" ? node.props.sizes : "(max-width: 1152px) 100vw, 1152px") : undefined;
-      return createElement("img", attrs(node, ctx, { src: asset.url, srcSet, sizes, alt, width: asset.width, height: asset.height, loading: node.props.priority ? "eager" : "lazy", decoding: "async", style }));
+      return createElement("img", attrs(node, ctx, { src: asset.url, srcSet, sizes, alt, width: asset.width, height: asset.height, loading: node.props.priority ? "eager" : "lazy", fetchPriority: node.props.priority ? "high" : undefined, decoding: "async", style }));
     }
     case "video": {
       const asset = node.props.asset ? ctx.assets.get(String(node.props.asset)) : undefined;

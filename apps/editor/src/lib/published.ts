@@ -46,3 +46,11 @@ export async function basePathFor(sub: string): Promise<string> {
 export async function canServeHere(): Promise<boolean> {
   return (await servedFromSitesDomain()) || pathFallbackAllowed();
 }
+
+/**
+ * En-têtes d'une page publiée. Le CDN peut la garder une minute et la resservir jusqu'à dix minutes pendant qu'elle se régénère :
+ * une publication se voit au plus une minute après (Lighthouse, 23 septembre : avec `no-cache`, chaque visite refaisait le rendu).
+ */
+export function publishedHeaders(version: number): Record<string, string> {
+  return { "content-type": "text/html; charset=utf-8", "cache-control": "public, max-age=0, s-maxage=60, stale-while-revalidate=600", "x-atelier-version": String(version) };
+}

@@ -49,7 +49,9 @@ export function htmlDocument(ctx: RenderContext, opts: HtmlDocumentOptions): str
     image ? `<meta property="og:image" content="${esc(abs(image.url))}">${image.width ? `<meta property="og:image:width" content="${image.width}">` : ""}${image.height ? `<meta property="og:image:height" content="${image.height}">` : ""}` : "",
     `<meta name="twitter:card" content="${image ? "summary_large_image" : "summary"}">`,
     favicon ? `<link rel="icon" href="${esc(favicon.url)}">` : "",
-    fonts ? `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="${esc(fonts)}">` : "",
+    // Les polices ne bloquent pas le premier rendu (Lighthouse, 23 septembre : 2,1 s de gain estimé sur mobile) : la feuille est demandée
+    // comme feuille d'impression puis appliquée une fois chargée ; sans script, elle se charge comme avant.
+    fonts ? `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="${esc(fonts)}" media="print" onload="this.media='all'"><noscript><link rel="stylesheet" href="${esc(fonts)}"></noscript>` : "",
     "href" in opts.css ? `<link rel="stylesheet" href="${esc(opts.css.href)}">` : `<style>${opts.css.inline}</style>`,
     site.settings.head?.trim() ?? "",
   ].filter(Boolean).join("\n    ");

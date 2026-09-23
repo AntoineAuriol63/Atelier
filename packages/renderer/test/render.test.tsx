@@ -95,6 +95,20 @@ describe("image", () => {
     expect(html).toContain('srcSet="/w480.webp 480w, /w960.webp 960w, https://picsum.photos/id/1027/1200/1500 1200w"');
     expect(html).toContain('sizes="(max-width: 1152px) 100vw, 1152px"');
   });
+  it("une image prioritaire (le héros) se charge tout de suite et en priorité ; les autres attendent d'approcher de l'écran", () => {
+    const site = structuredClone(sampleSite);
+    const walk = (n: typeof site.pages[0]["root"]) => { if (n.id === "hero_img") n.props.priority = true; n.children?.forEach(walk); };
+    site.pages.forEach((p) => walk(p.root));
+    const m = matchPath(site, data, "/")!;
+    const ctx: RenderContext = { site, page: m.page, entry: m.entry, params: m.params, locale: "fr", data, assets: assetMap(site), basePath: "" };
+    const html = renderToStaticMarkup(createElement(RenderPage, { ctx }));
+    const hero = html.match(/<img[^>]*class="[^"]*n-hero_img[^"]*"[^>]*>/)?.[0] ?? "";
+    expect(hero).toContain('loading="eager"');
+    expect(hero).toMatch(/fetchpriority="high"/i);
+    const other = html.match(/<img[^>]*n-work_item_img[^>]*>/)?.[0] ?? "";
+    expect(other).toContain('loading="lazy"');
+    expect(other).not.toContain("fetchpriority");
+  });
 });
 
 describe("classes lisibles (export)", () => {

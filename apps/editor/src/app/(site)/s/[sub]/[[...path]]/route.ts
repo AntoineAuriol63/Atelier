@@ -1,6 +1,6 @@
 import { matchRedirect, NOT_FOUND_PATH } from "@atelier/model";
 import { assetMap, matchPath, memoryData, siteCss, type RenderContext } from "@atelier/renderer";
-import { basePathFor, canServeHere, getPublished, getSiteIdBySub, publicUrl } from "@/lib/published";
+import { basePathFor, canServeHere, getPublished, getSiteIdBySub, publicUrl, publishedHeaders } from "@/lib/published";
 import { escapeHtml, htmlDocument } from "@/lib/html-document";
 
 const HTML = { "content-type": "text/html; charset=utf-8", "cache-control": "no-cache" };
@@ -36,5 +36,5 @@ export async function GET(_req: Request, { params }: { params: Promise<{ sub: st
   }
   const ctx: RenderContext = { site, page: m.page, entry: m.entry, params: m.params, locale: site.settings.defaultLocale, data, assets: assetMap(site), basePath };
   const html = htmlDocument(ctx, { path: urlPath, isEntry: !!m.entry, base: await publicUrl(site), css: { inline: siteCss(site, { pageId: m.page.id }) }, noindex: status === 404 });
-  return new Response(html, { status, headers: { ...HTML, "x-atelier-version": String(pub.version) } });
+  return new Response(html, { status, headers: status === 200 ? publishedHeaders(pub.version) : { ...HTML, "x-atelier-version": String(pub.version) } });
 }
