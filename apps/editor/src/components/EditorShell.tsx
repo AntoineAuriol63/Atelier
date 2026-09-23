@@ -308,11 +308,15 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
     notify(`Base « ${name} » supprimée${entryIds.length ? ` avec ${entryIds.length} entrée${entryIds.length > 1 ? "s" : ""}` : ""}.`, "info");
   }, [site, locale, ents, doc, notify, page.id, setPageId, select]);
 
+  /** Aller à une page et, après le changement de page, à un élément (bibliothèque, bilan avant publication). */
+  const goTo = useCallback((target: { pageId?: string; nodeId?: string }) => {
+    if (target.pageId && target.pageId !== pageId) { setPageId(target.pageId); setFrameReady(false); }
+    if (target.nodeId) { const id = target.nodeId; window.setTimeout(() => select(id), 50); }
+  }, [pageId, setPageId, select]);
   const goToUsage = useCallback((u: AssetUsage) => {
     if (u.kind === "entry") { setDbOpen(u.database); return; }
-    if ("pageId" in u && u.pageId && u.pageId !== pageId) { setPageId(u.pageId); setFrameReady(false); }
-    if ("nodeId" in u && u.nodeId) window.setTimeout(() => select(u.nodeId), 50);
-  }, [pageId, setPageId, select]);
+    goTo({ pageId: "pageId" in u ? u.pageId : undefined, nodeId: "nodeId" in u ? u.nodeId : undefined });
+  }, [goTo]);
 
   // --- déplacement (calques et canvas) et insertion
   const moveNode = useCallback((id: string, targetId: string, position: DropPosition) => {
@@ -759,7 +763,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
       {paletteOpen ? <CommandPalette open onClose={() => setPaletteOpen(false)} commands={commands} /> : null}
       {dbOpen && site.databases.some((d) => d.id === dbOpen) ? <DatabaseTable site={site} db={site.databases.find((d) => d.id === dbOpen)!} entries={ents.entries} save={ents.save} saveMany={ents.saveMany} remove={ents.remove} commit={doc.commit} onClose={() => setDbOpen(null)} canEditSchema={!writer} publishedEntries={publishedEntries} saving={ents.saving} onDeleteDatabase={() => void deleteDatabase(dbOpen)} notify={notify} /> : null}
       {dbOpen && formForOpen ? <DatabaseTable site={site} db={formDatabase(site, formForOpen)} entries={ents.entries} save={ents.save} remove={ents.remove} commit={doc.commit} onClose={() => setDbOpen(null)} saving={ents.saving} readOnly /> : null}
-      {publishOpen ? <PublishDialog site={site} role={role} initialTab={publishTab} version={doc.version} dirty={doc.status !== "saved" && !doc.blocked} broken={doc.blocked} commit={doc.commit} onClose={() => { setPublishOpen(false); setPublishTab("publish"); loadPublished(); }} notify={notify} /> : null}
+      {publishOpen ? <PublishDialog site={site} role={role} initialTab={publishTab} version={doc.version} dirty={doc.status !== "saved" && !doc.blocked} broken={doc.blocked} commit={doc.commit} onClose={() => { setPublishOpen(false); setPublishTab("publish"); loadPublished(); }} notify={notify} onGoTo={goTo} /> : null}
 
     </div>
     </MediaLibraryProvider></ConfirmProvider>

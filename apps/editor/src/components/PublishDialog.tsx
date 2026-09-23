@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Check, Download, ExternalLink, FileText, History, Plus, UploadCloud, Users, X } from "lucide-react";
-import type { CommitOptions, Op, Redirect, Role, Site } from "@atelier/model";
+import type { CommitOptions, Finding, Op, Redirect, Role, Site } from "@atelier/model";
 import { NOT_FOUND_PATH, ROLE_LABEL, validRedirect } from "@atelier/model";
 import { Badge, Button, Dialog, Field, FieldGroup, Hint, IconButton, Select, TextArea, TextInput, Toggle, askConfirm, Eyebrow, Tabs } from "@/ui";
 import { notFoundPage } from "@/components/PagesPanel";
 import { AssetPicker } from "@/components/design/AppearancePanel";
+import { CheckupSection } from "@/components/CheckupSection";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
 type State = { publishedVersion: number | null; publishedAt: string | null; publications: { version: number; label?: string; createdAt: string }[]; url: string | null; version: number | null; sitesDomain?: string | null };
@@ -19,10 +20,11 @@ const when = (iso: string) => new Date(iso).toLocaleString("fr-FR", { day: "nume
 /** Publier, voir l'historique, revenir en arrière, régler l'adresse et le référencement du site (D34, D36, D38). */
 type Member = { email: string; role: "editor" | "writer" };
 
-export function PublishDialog({ site, role = "owner", version, dirty, broken, commit, onClose, notify, initialTab = "publish" }: { /** Onglet ouvert : « Publier » ou « Réglages du site ». */ initialTab?: "publish" | "settings"; site: Site; /** Rôle du compte : un rédacteur ne publie que les contenus, seul le propriétaire partage. */ role?: Role; version: number; dirty: boolean; /** L'enregistrement est bloqué (conflit) : il faut recharger avant de publier. */ broken?: boolean; commit: Commit; onClose: () => void; notify: (text: string, tone?: "danger" | "success" | "info") => void }) {
+export function PublishDialog({ site, role = "owner", version, dirty, broken, commit, onClose, notify, initialTab = "publish", onGoTo }: { /** Aller à la page ou à l'élément d'un constat du bilan (la fenêtre se ferme). */ onGoTo?: (f: Finding) => void; /** Onglet ouvert : « Publier » ou « Réglages du site ». */ initialTab?: "publish" | "settings"; site: Site; /** Rôle du compte : un rédacteur ne publie que les contenus, seul le propriétaire partage. */ role?: Role; version: number; dirty: boolean; /** L'enregistrement est bloqué (conflit) : il faut recharger avant de publier. */ broken?: boolean; commit: Commit; onClose: () => void; notify: (text: string, tone?: "danger" | "success" | "info") => void }) {
   const writer = role === "writer";
   const locale = site.settings.defaultLocale;
   const [tab, setTab] = useState<"publish" | "settings">(writer ? "publish" : initialTab);
+  const goTo = (f: Finding) => { if (f.rule.startsWith("settings-")) { if (!writer) setTab("settings"); return; } onGoTo?.(f); onClose(); };
   // Sous-domaine : ce qui est tapé, ce qui est retenu, et sa disponibilité (vérifiée après une courte pause).
   const [subDraft, setSubDraft] = useState(site.settings.subdomain ?? "");
   const [subCheck, setSubCheck] = useState<{ sub: string; available: boolean; reason: string | null } | null>(null);
@@ -137,6 +139,8 @@ export function PublishDialog({ site, role = "owner", version, dirty, broken, co
             <span className="text-xs text-muted">Les entrées des bases passent en ligne, le site publié reste tel quel : les changements de design en cours n&apos;y vont pas.</span>
           </div>
         </section>
+
+        <CheckupSection site={site} onGoTo={goTo} />
 
         <section className="flex flex-col gap-1 border-t border-line pt-3">
           <Eyebrow as="h3" className="flex items-center gap-1.5"><History size={12} />Historique</Eyebrow>

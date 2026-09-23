@@ -146,7 +146,7 @@ export const sampleSite: Site = {
                   { id: "hero_cta", type: "box", props: { tag: "div" }, style: { base: { display: "flex", gap: { token: "space.3" }, flexWrap: "wrap" } },
                     children: [button("hero_b1", "Voir les galeries", { kind: "page", page: "p_galeries" }), button("hero_b2", "Me contacter", { kind: "page", page: "p_contact" }, "st_button_secondary")] },
                 ] },
-              { id: "hero_img", type: "image", name: "Photo", props: { asset: "as_hero", alt: { fr: "Portrait en lumière naturelle" }, fit: "cover", ratio: "4 / 5" }, style: { base: { borderRadius: { token: "radius.lg" }, overflow: "hidden" } } },
+              { id: "hero_img", type: "image", name: "Photo", props: { asset: "as_hero", alt: { fr: "Portrait en lumière naturelle" }, priority: true, fit: "cover", ratio: "4 / 5" }, style: { base: { borderRadius: { token: "radius.lg" }, overflow: "hidden" } } },
             ],
           },
           {
