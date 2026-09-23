@@ -161,6 +161,16 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
   const visible = view.rows.filter((r) => r.bar || r.selected);
   const addable = view.rows.filter((r) => r.still && !r.selected);
   const addKeyframe = () => { if (ap && at !== null) run(planSetKeyframe(getSite(), ap.animation.id, ap.track.id, at, {}), `État fixé à ${at} ms`); };
+  // « Fixer un nouvel état », toujours à côté du nom : à la tête de lecture si elle est libre ; sinon à mi-chemin du prochain état, ou 200 ms après le dernier.
+  const addKeyframeAnywhere = () => {
+    if (!ap) return;
+    const kfs = [...ap.track.keyframes].map((k) => k.at).sort((a, b) => a - b);
+    const cur = at ?? kfs[kfs.length - 1] ?? 0;
+    let where = cur;
+    if (at === null || kfs.includes(cur)) { const next = kfs.find((k) => k > cur); where = next !== undefined ? snapTime((cur + next) / 2) : cur + 200; }
+    run(planSetKeyframe(getSite(), ap.animation.id, ap.track.id, where, {}), `État fixé à ${where} ms`);
+    place(where + (ap.trigger.delay ?? 0));
+  };
   // Retirer une image-clé ; s'il n'en restait qu'une, plus rien ne bouge : l'apparition entière s'en va et l'élément redevient immobile.
   const removeKeyframe = (kfAt: number) => {
     if (!ap) return;
@@ -196,6 +206,7 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
                   <button type="button" data-scene-name="" data-scene-name-of={row.id} className={`flex items-center gap-1.5 min-w-0 pr-2 text-left text-xs truncate ${row.selected ? "text-accent font-medium" : row.still ? "text-dim hover:text-ink" : "text-ink hover:text-accent"}`} style={{ paddingLeft: row.depth * 12 }} title={`Sélectionner ${quoteLabel(row.label)}`} onClick={() => onSelect(row.id)} onMouseEnter={() => onHover?.(row.id)} onMouseLeave={() => onHover?.(null)}>
                     <span className="truncate">{row.label}</span>{row.count ? <span className="text-muted shrink-0">×{row.count}</span> : null}
                   </button>
+                  {row.selected && row.bar ? <IconButton size="sm" className="ml-auto mr-1 shrink-0" data-scene-new-state="" label="Fixer un nouvel état (image-clé)" icon={Plus} title="Fixe un nouvel état de l'élément : à la tête de lecture, ou juste après le dernier état si elle est déjà sur l'un d'eux" onClick={addKeyframeAnywhere} /> : null}
                 </div>
               ))}
             </div>

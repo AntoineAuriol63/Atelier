@@ -143,6 +143,27 @@ describe("tiroir Animation : la scène", () => {
     expect(del().disabled).toBe(true);
   });
 
+  it("« Fixer un nouvel état » à côté du nom : toujours là ; à la tête de lecture si elle est libre, sinon juste après le dernier état", () => {
+    const m = mount(animated(), "hh2");
+    const btn = () => m.host.querySelector<HTMLButtonElement>('[data-scene-name-of="hh2"] ~ [aria-label="Fixer un nouvel état (image-clé)"], [data-scene-new-state]')!;
+    expect(btn()).toBeTruthy();
+    // La tête de lecture est sur le dernier état (1 300 ms) : le nouvel état va 200 ms plus loin, et la tête de lecture s'y place.
+    act(() => { btn().click(); });
+    expect(appearanceOf(m.current(), "hh2")!.track.keyframes.map((k) => k.at)).toEqual([600, 1300, 1500]);
+    expect(m.scrubs[m.scrubs.length - 1]).toBe(1500);
+    m.rerender(m.current(), "hh2");
+    // Entre deux états (700 ms, libre) : le nouvel état se pose là. La règle fait maintenant 2 500 ms (scène de 1 500 ms plus la marge) : 28 % = 700 ms.
+    const rail = m.host.querySelector<HTMLElement>("[data-scene-rail]")!;
+    rail.getBoundingClientRect = () => ({ left: 0, width: 1000, top: 0, height: 20, right: 1000, bottom: 20, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+    act(() => { rail.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 280, button: 0 })); });
+    act(() => { btn().click(); });
+    expect(appearanceOf(m.current(), "hh2")!.track.keyframes.map((k) => k.at)).toEqual([600, 700, 1300, 1500]);
+    // Sur un état qui en a un après lui (700 → 1 300) : le nouveau se pose à mi-chemin.
+    m.rerender(m.current(), "hh2");
+    act(() => { btn().click(); });
+    expect(appearanceOf(m.current(), "hh2")!.track.keyframes.map((k) => k.at)).toEqual([600, 700, 1000, 1300, 1500]);
+  });
+
   it("un élément qui ne bouge pas encore : l'encart dit qu'il faut d'abord le faire apparaître", () => {
     const m = mount(animated(), "pp2");
     expect(m.host.querySelector("[data-scene-keyframe]")!.textContent).toMatch(/Faites d'abord apparaître/);
