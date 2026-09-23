@@ -114,14 +114,16 @@ describe("tiroir Animation : la scène", () => {
     expect(m.host.querySelector<HTMLElement>("[data-scene-lanes]")!.style.width).toBe("125%");
     const lanes = m.host.querySelector<HTMLElement>("[data-scene-scroll]")!;
     const wheel = (deltaY: number) => { const ev = new WheelEvent("wheel", { bubbles: true, cancelable: true }); Object.defineProperty(ev, "deltaY", { value: deltaY }); Object.defineProperty(ev, "ctrlKey", { value: true }); lanes.dispatchEvent(ev); };
-    act(() => { wheel(100); });
-    expect(Number(editor.getAttribute("data-scene-zoom"))).toBeCloseTo(1.08, 2);
+    // Un cran de molette (Δ = 100) fait ×1,28 ; le zoom ne descend pas sous ×1 ; l'événement est consommé (le navigateur ne zoome pas la page).
     act(() => { wheel(100); });
     expect(editor.getAttribute("data-scene-zoom")).toBe("1");
     act(() => { wheel(-100); });
-    expect(Number(editor.getAttribute("data-scene-zoom"))).toBeCloseTo(1.16, 2);
+    expect(Number(editor.getAttribute("data-scene-zoom"))).toBeCloseTo(1.28, 2);
     act(() => { wheel(-100); });
-    expect(Number(editor.getAttribute("data-scene-zoom"))).toBeCloseTo(1.35, 2);
+    expect(Number(editor.getAttribute("data-scene-zoom"))).toBeCloseTo(1.64, 2);
+    const ev = new WheelEvent("wheel", { bubbles: true, cancelable: true }); Object.defineProperty(ev, "deltaY", { value: -100 }); Object.defineProperty(ev, "ctrlKey", { value: true });
+    act(() => { lanes.dispatchEvent(ev); });
+    expect(ev.defaultPrevented).toBe(true);
   });
 
   it("l'image-clé a sa place fixe à droite : « Image-clé ici » et « Supprimer » toujours présents, l'un ou l'autre actif ; « Lire » ne perd pas la tête de lecture", () => {

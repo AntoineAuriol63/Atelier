@@ -81,13 +81,22 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
   // La tête de lecture se pose en cliquant ou glissant la règle ; l'aperçu montre cet instant pour l'élément sélectionné.
   const place = (t: number | null) => { setPlayhead(t); scrub(t, t === null || !view ? undefined : view.scrub(t)); };
   const timeAt = (clientX: number) => { const r = rail.current?.getBoundingClientRect(); if (!r || r.width <= 0) return 0; return snapTime(Math.max(0, Math.min(1, (clientX - r.left) / r.width)) * length); };
-  const onWheel = (e: React.WheelEvent) => {
-    if (!(e.ctrlKey || e.metaKey)) return;
-    e.preventDefault();
-    const sc = scroller.current; const r = sc?.getBoundingClientRect();
-    if (sc && r) zoomAnchor.current = { t: timeAt(e.clientX), x: e.clientX - r.left };
-    setZoom((z) => clampZoom(z * Math.exp(-e.deltaY * 0.0015)));
-  };
+  // ⌘ ou ⌃ + molette : un écouteur natif, non passif. React pose les siens en passif, où preventDefault est ignoré : le navigateur
+  // zoomait la page entière au lieu de la règle. Un cran de molette classique (Δ = 100) fait ×1,28 ; un trackpad, des pas plus fins.
+  useEffect(() => {
+    const sc = scroller.current;
+    if (!sc) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      const r = sc.getBoundingClientRect(); const rr = rail.current?.getBoundingClientRect();
+      const t = rr && rr.width > 0 ? Math.max(0, Math.min(1, (e.clientX - rr.left) / rr.width)) * length : 0;
+      zoomAnchor.current = { t, x: e.clientX - r.left };
+      setZoom((z) => clampZoom(z * Math.exp(-e.deltaY * 0.0025)));
+    };
+    sc.addEventListener("wheel", onWheel, { passive: false });
+    return () => sc.removeEventListener("wheel", onWheel);
+  }, [length, view]);
   const zoomBy = (f: number) => { const sc = scroller.current; if (sc) zoomAnchor.current = { t: ((sc.scrollLeft + sc.clientWidth / 2) / Math.max(1, sc.scrollWidth)) * length, x: sc.clientWidth / 2 }; setZoom((z) => clampZoom(z * f)); };
   useEffect(() => () => scrub(null), [scrub]);
   // À la sélection d'un élément qui bouge, la tête de lecture se pose à la fin de son mouvement : l'image-clé d'arrivée est sous la main.
@@ -191,7 +200,7 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
               ))}
             </div>
             {/* La règle et les pistes : zoomées, elles s'élargissent et défilent de côté (⌘ + molette, ou les boutons de l'en-tête). */}
-            <div ref={scroller} className="min-w-0 overflow-x-auto overflow-y-hidden" data-scene-scroll="" onWheel={onWheel}>
+            <div ref={scroller} className="min-w-0 overflow-x-auto overflow-y-hidden" data-scene-scroll="">
               <div data-scene-lanes="" style={{ width: `${zoom * 100}%` }}>
                 <div ref={rail} data-scene-rail="" role="slider" aria-label="Tête de lecture" aria-valuemin={0} aria-valuemax={length} aria-valuenow={Math.round(playhead ?? 0)} tabIndex={0}
                   className="relative h-5 border-b border-line cursor-ew-resize select-none text-2xs text-dim"
@@ -223,7 +232,7 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
                     </button>
                   ))}
                   {row.selected && ap && playhead !== null && !kfHere ? (
-                    <button type="button" aria-label="Ajouter une image-clé ici" title="Pose une image-clé à la tête de lecture ; régler une propriété à droite en pose une aussi" className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 h-5 px-1.5 rounded-full border border-dashed border-accent bg-panel text-2xs text-accent whitespace-nowrap hover:bg-accent-soft" style={{ left: pct(playhead) }} onClick={addKeyframe}>+ image-clé</button>
+                    <button type="button" aria-label="Ajouter une image-clé ici" title="Pose une image-clé à la tête de lecture ; régler une propriété à droite en pose une aussi" className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 h-5 px-1.5 rounded-full border border-dashed border-accent bg-panel text-2xs text-accent whitespace-nowrap shadow-md hover:bg-accent hover:text-accent-ink hover:border-solid" style={{ left: pct(playhead) }} onClick={addKeyframe}>+ image-clé</button>
                   ) : null}
                       {playhead !== null ? <span className="absolute top-0 bottom-0 w-px bg-accent/60 pointer-events-none" style={{ left: pct(playhead) }} aria-hidden /> : null}
                     </li>
