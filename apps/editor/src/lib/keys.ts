@@ -15,3 +15,13 @@ export function isEditableTarget(target: EventTarget | null): boolean {
   if (el.closest("input, textarea, select")) return true;
   return !!el.closest("[contenteditable='true'], [contenteditable='']") || el.isContentEditable === true;
 }
+
+/**
+ * Vrai quand la touche part de l'outil Animation (tiroir sous le canevas) : Suppr, les flèches et Entrée y appartiennent à la ligne
+ * de temps (images-clés, tête de lecture), jamais à l'élément sélectionné (constat d'Antoine, 23 septembre 2026 : Suppr effaçait l'élément
+ * et fermait l'outil).
+ */
+export function insideAnimationTool(target: EventTarget | null): boolean {
+  const el = target as Element | null;
+  return !!el && typeof el.closest === "function" && !!el.closest("[data-animation-drawer]");
+}

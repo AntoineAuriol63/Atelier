@@ -217,27 +217,12 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
   return (
     <section ref={root} className="grid grid-cols-[minmax(360px,1fr)_minmax(280px,380px)] h-full min-h-0 min-w-[640px]" aria-label="Ligne de temps" onKeyDown={(e) => { const t = e.target as HTMLElement; if (e.key === " " && !["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName) && !t.isContentEditable) { e.preventDefault(); if (playing) pause(); else { if (playhead >= length) setPlayhead(0); setPlaying(true); } } }}>
       {/* Deux colonnes dans le tiroir (23 septembre 2026, chantier 3) : la scène (nom, lecteur, règle, pistes) à gauche, les réglages de la piste et de l'image-clé à droite. Chacune défile seule : plus de scène collante. */}
-      <div className="flex flex-col gap-2 p-3 min-h-0 min-w-0 overflow-auto border-r border-line" data-timeline-stage="">
-      <div className="flex items-center gap-1">
+      <div className="@container flex flex-col min-h-0 min-w-0 border-r border-line" data-timeline-stage="">
+      <div className="flex items-center gap-1 px-3 h-9 shrink-0 border-b border-line">
         <Eyebrow as="span">Animation</Eyebrow>
-        <TextInput className="flex-1" value={animation.name} aria-label="Nom de l'animation" data-anim-name="" title="Nom de l'animation (Entrée pour valider)" onValueChange={(v) => update({ name: v || animation.name }, "Renommer l'animation", `anim-name:${animation.id}`)} />
+        <TextInput className="w-[180px] min-w-0" value={animation.name} aria-label="Nom de l'animation" data-anim-name="" title="Nom de l'animation (Entrée pour valider)" onValueChange={(v) => update({ name: v || animation.name }, "Renommer l'animation", `anim-name:${animation.id}`)} />
         <Badge title={describeAnimation(animation)}>{formatMs(length)}</Badge>
-        <IconButton size="sm" label="Fermer la ligne de temps" icon={X} onClick={onClose} />
-      </div>
-      {/* Ce qui va se passer sur le site, en une phrase (audit n°5 · R2) : se relit à chaque réglage. */}
-      {/* Deux lignes au plus dans le bloc collant (vague 5, P4 : une ligne de plus par piste décalait tout sous la souris) ; un clic déplie. */}
-      {trigger ? (
-        <p className={`-mt-1 text-xs text-muted leading-snug cursor-pointer ${summaryOpen ? "" : "line-clamp-2"}`} title={summaryOpen ? "Replier" : "Tout lire"} onClick={() => setSummaryOpen((o) => !o)}><span data-anim-summary="">{summarizeAnimation(site, trigger, hostId, pageLevel)}</span></p>
-      ) : null}
-      {/* Le déclencheur se règle ici aussi (vague 3, § 5.4) : quand, délai, rejouer, retour, bascule, comme dans la rubrique de l'élément. */}
-      {trigger && onUpdateTrigger ? <TriggerSettings trigger={trigger} pageLevel={pageLevel} onUpdate={onUpdateTrigger} /> : null}
-      <div className="grid grid-cols-[auto_1fr_auto] items-center gap-1.5">
-        {/* Durée = vitesse (audit n°5 · R1) : la changer ralentit ou accélère toute l'animation, images-clés et décalages compris. */}
-        <NumberInput className="w-[92px]" unit="ms" min={100} step={100} value={length} title="Durée : la changer ralentit ou accélère toute l'animation (images-clés et décalages suivent)" onValueChange={(n) => { if (n === "" || n === length) return; run(planScaleAnimation(getSite(), animation.id, Math.max(100, n)), "Durée de l'animation", `anim-dur:${animation.id}`); setPlayhead((p) => Math.round((p * Math.max(100, n)) / length)); }} />
-        <Select value={String(animation.loop ?? 1)} options={LOOPS} onValueChange={(v) => update({ loop: v === "1" ? undefined : v === "infinite" ? "infinite" : Number(v), ...(v === "1" ? { alternate: undefined } : {}) }, "Répétitions")} />
-        <Toggle checked={!!animation.alternate} disabled={!animation.loop || animation.loop === 1} label="aller-retour" title={!animation.loop || animation.loop === 1 ? "Choisissez d'abord des répétitions (2, 3 ou en boucle)" : "Rejoue à l'envers une fois sur deux"} onChange={(b) => update({ alternate: b || undefined }, "Aller-retour")} />
-      </div>
-      <div className="flex items-center gap-1">
+        <span className="mx-1 h-4 w-px bg-line" aria-hidden />
         <IconButton size="sm" label="Revenir au début" icon={SkipBack} onClick={() => { setPlaying(false); setPlayhead(0); }} />
         <Button size="sm" variant={playing ? "default" : "primary"} icon={playing ? Pause : Play} title={playing ? "Pause (Espace)" : "Joue la scène dans l'aperçu (Espace)"} onClick={() => { if (playing) pause(); else { if (playhead >= length) setPlayhead(0); setPlaying(true); } }}>{playing ? "Pause" : "Lire"}</Button>
         <IconButton size="sm" label="Lire en boucle" icon={Repeat} active={loop} onClick={() => setLoop((l) => !l)} />
@@ -247,9 +232,10 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
         <button type="button" className="h-7 min-w-9 px-1 rounded-sm text-2xs tabular-nums text-muted hover:text-ink hover:bg-hover disabled:opacity-40" disabled={zoom === 1} title="Ajuster : toute la ligne de temps dans la largeur" onClick={() => zoomTo(1)}>{zoom === 1 ? "×1" : `×${String(zoom).replace(".", ",")}`}</button>
         <IconButton size="sm" label="Zoomer la ligne de temps (⌘ + molette)" icon={ZoomIn} disabled={zoom >= 8} onClick={() => zoomTo(nextZoom(zoom, 1))} />
         <span className="ml-auto text-xs tabular-nums text-muted" aria-live="off">{tickLabel(playhead)} / {formatMs(length)}</span>
+        <IconButton size="sm" label="Fermer la ligne de temps" icon={X} onClick={onClose} />
       </div>
 
-      <div className="flex text-xs min-h-0 overflow-y-auto" onKeyDown={onTimelineKey}>
+      <div className="flex-1 min-h-0 overflow-auto px-3 py-2 flex text-xs" onKeyDown={onTimelineKey}>
         {/* Noms des pistes, alignés sur la règle et les lignes de droite. */}
         <div className="w-[104px] shrink-0 flex flex-col pr-2">
           <span className="h-5 shrink-0" aria-hidden />
@@ -300,16 +286,29 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
           </div>
         </div>
       </div>
-      {/* Personne ne le savait (vague 4, P4 : découvert par accident à la dernière mission) : la tête de lecture pilote l'aperçu. */}
-      <p className="text-2xs text-muted leading-snug">L&apos;aperçu montre l&apos;instant de la tête de lecture : glissez-la (ou ▷) pour voir la scène se jouer.</p>
-      <div className="flex flex-wrap items-center gap-1 pt-1">
+      <div className="shrink-0 flex flex-wrap items-center gap-1 px-3 py-1.5 border-t border-line">
         {onTestOnSite ? <Button size="sm" variant="ghost" icon={ExternalLink} onClick={onTestOnSite} title="Ouvre l'onglet Aperçu : l'élément arrive à l'écran et l'animation se joue comme pour un visiteur">Tester sur le site</Button> : null}
         {onPick ? <Button size="sm" icon={Crosshair} active={picking} onClick={() => (picking ? onPick(null) : startPick())} title="Cliquez ensuite l'élément à animer dans l'aperçu, les calques ou le fil d'Ariane, sans changer la sélection">{picking ? "Cliquez un élément… (Échap)" : "Choisir un élément"}</Button> : null}
         {canAdd.ok && selected && !outside ? <Button size="sm" variant="ghost" icon={Plus} onClick={addTrack} title="Animer l'élément sélectionné dans cette ligne de temps">{`Une piste pour « ${nodeLabel(selected)} »`}</Button> : null}
         {pickMsg ? <span className="text-2xs text-warning truncate" title={pickMsg}>{pickMsg}</span> : null}
+        <span className="ml-auto text-2xs text-muted leading-snug hidden @[720px]:inline" title="La tête de lecture pilote l'aperçu">L&apos;aperçu montre l&apos;instant de la tête de lecture.</span>
       </div>
       </div>
       <div className="flex flex-col gap-2 p-3 min-h-0 min-w-0 overflow-auto" data-timeline-settings="">
+      {/* Le déclencheur et le rythme de l'animation en tête des réglages (23 septembre 2026) : la scène de gauche ne montre plus que les pistes. */}
+      {/* Ce qui va se passer sur le site, en une phrase (audit n°5 · R2) : se relit à chaque réglage. */}
+      {/* Deux lignes au plus dans le bloc collant (vague 5, P4 : une ligne de plus par piste décalait tout sous la souris) ; un clic déplie. */}
+      {trigger ? (
+        <p className={`-mt-1 text-xs text-muted leading-snug cursor-pointer ${summaryOpen ? "" : "line-clamp-2"}`} title={summaryOpen ? "Replier" : "Tout lire"} onClick={() => setSummaryOpen((o) => !o)}><span data-anim-summary="">{summarizeAnimation(site, trigger, hostId, pageLevel)}</span></p>
+      ) : null}
+      {/* Le déclencheur se règle ici aussi (vague 3, § 5.4) : quand, délai, rejouer, retour, bascule, comme dans la rubrique de l'élément. */}
+      {trigger && onUpdateTrigger ? <TriggerSettings trigger={trigger} pageLevel={pageLevel} onUpdate={onUpdateTrigger} /> : null}
+      <div className="grid grid-cols-[auto_1fr_auto] items-center gap-1.5">
+        {/* Durée = vitesse (audit n°5 · R1) : la changer ralentit ou accélère toute l'animation, images-clés et décalages compris. */}
+        <NumberInput className="w-[92px]" unit="ms" min={100} step={100} value={length} title="Durée : la changer ralentit ou accélère toute l'animation (images-clés et décalages suivent)" onValueChange={(n) => { if (n === "" || n === length) return; run(planScaleAnimation(getSite(), animation.id, Math.max(100, n)), "Durée de l'animation", `anim-dur:${animation.id}`); setPlayhead((p) => Math.round((p * Math.max(100, n)) / length)); }} />
+        <Select value={String(animation.loop ?? 1)} options={LOOPS} onValueChange={(v) => update({ loop: v === "1" ? undefined : v === "infinite" ? "infinite" : Number(v), ...(v === "1" ? { alternate: undefined } : {}) }, "Répétitions")} />
+        <Toggle checked={!!animation.alternate} disabled={!animation.loop || animation.loop === 1} label="aller-retour" title={!animation.loop || animation.loop === 1 ? "Choisissez d'abord des répétitions (2, 3 ou en boucle)" : "Rejoue à l'envers une fois sur deux"} onChange={(b) => update({ alternate: b || undefined }, "Aller-retour")} />
+      </div>
       {/* Les réglages de la piste active avant la liste des éléments (vague 5 : le champ « Départ » était rogné sous elle). */}
       {track ? <div ref={settingsRef}><TrackSettings key={track.id} site={site} getSite={getSite} animation={animation} track={track} node={trackNode} hostId={hostId} run={run} onFilled={(end) => { pause(); setPlayhead(Math.min(end, Math.max(length, end))); }} onRemoved={() => { setPicked(null); setSelection(new Set()); }} /></div> : null}
       {/* Les éléments de la scène (lot 8, vague 4 PR2) : ajouter une piste par son nom, sans viser dans la page ; un groupe s'ajoute d'un coup, enfants un à un. */}

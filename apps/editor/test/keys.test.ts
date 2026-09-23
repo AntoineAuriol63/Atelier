@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect } from "vitest";
-import { isEditableTarget } from "../src/lib/keys";
+import { insideAnimationTool, isEditableTarget } from "../src/lib/keys";
 
 describe("raccourcis de l'éditeur", () => {
   it("une touche partie d'un champ appartient au champ, même s'il s'est quitté entre-temps (Entrée qui valide un nombre)", () => {
@@ -28,5 +28,12 @@ describe("raccourcis de l'éditeur", () => {
     input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     window.removeEventListener("keydown", onWindow);
     expect(seen).toEqual({ editable: true, activeIsBody: true });
+  });
+
+  it("dans l'outil Animation, Suppr et les flèches ne touchent pas à l'élément sélectionné", () => {
+    document.body.innerHTML = `<div data-animation-drawer=""><button id="in">piste</button></div><div id="out"><button id="b">ok</button></div>`;
+    expect(insideAnimationTool(document.getElementById("in"))).toBe(true);
+    expect(insideAnimationTool(document.getElementById("b"))).toBe(false);
+    expect(insideAnimationTool(null)).toBe(false);
   });
 });

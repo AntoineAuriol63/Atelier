@@ -10,7 +10,7 @@ import type { Inline } from "@atelier/model";
 import { useDocument } from "@/lib/use-document";
 import Link from "next/link";
 import { PRODUCT_NAME } from "@/lib/product";
-import { isEditableTarget, mod } from "@/lib/keys";
+import { insideAnimationTool, isEditableTarget, mod } from "@/lib/keys";
 import type { BlockPreset } from "@/lib/blocks";
 import { Badge, Breadcrumb, Button, Eyebrow, Hint, IconButton, Panel, PanelHeading, Separator, Tabs, TreeRow, type DropIndicator, ConfirmProvider, askConfirm } from "@/ui";
 import { NodeInspector } from "./NodeInspector";
@@ -493,6 +493,8 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
       const loc = selected ? index.get(selected) : undefined;
       if (e.key === "Escape") { if (pickRef.current) { setPick(null); return; } select(null); return; }
       if (!loc) return;
+      // Dans l'outil Animation, Suppr, les flèches et Entrée appartiennent à la ligne de temps (images-clés, tête de lecture), jamais à l'élément sélectionné (constat d'Antoine, 23 septembre 2026).
+      if (!e.fromPreview && !meta && insideAnimationTool(e.target ?? null)) return;
       // Supprimer, les flèches et Entrée ne pilotent les calques que depuis l'espace de travail (calques, aperçu, rien de focalisé) :
       // sur un bouton ou un onglet focalisé, ces touches gardent leur sens natif.
       if (!e.fromPreview && !focusInWorkspace() && !meta) return;
