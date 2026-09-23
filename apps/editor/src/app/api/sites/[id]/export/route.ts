@@ -4,7 +4,7 @@ import { buildExport } from "@/lib/export-site";
 import { zip } from "@/lib/zip";
 
 /** Export du code (D15) : archive zip du site statique (HTML, CSS aux classes lisibles, médias, données), depuis la version publiée, sinon la version de travail. */
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const denied = await guardSite(id, "editor");
   if (denied) return denied;
@@ -16,7 +16,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     return { site: stored.site, entries: await store.entries(id), version: null, publishedAt: null };
   })();
   if (!src) return Response.json({ error: "Site introuvable" }, { status: 404 });
-  const result = await buildExport(src);
+  // Les formulaires de l'export postent vers cette instance d'Atelier, en adresse absolue.
+  const result = await buildExport({ ...src, origin: new URL(req.url).origin });
   const sub = src.site.settings.subdomain ?? src.site.id.replace(/[^a-z0-9-]/gi, "-").toLowerCase();
   const name = `${sub}-${new Date().toISOString().slice(0, 10)}.zip`;
   const body = zip(result.files);

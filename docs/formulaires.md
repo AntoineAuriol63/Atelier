@@ -9,6 +9,12 @@ Un bloc « Formulaire » est un formulaire HTML ordinaire : ses champs (`field`)
 
 Le message de succès et les champs se règlent dans l'inspecteur (sections « Formulaire » et « Champ »). Fichiers joints, choix du destinataire par formulaire et réponse automatique : plus tard (v1).
 
+## Service d'envoi et site exporté (23 septembre 2026)
+
+Le panneau Formulaire propose « Service d'envoi » (`props.endpoint`). Vide, le formulaire poste sur la route d'Atelier ; renseigné (Formspree, Netlify Forms, une fonction maison), il poste directement à cette adresse et ne dépend plus d'Atelier, sur le site publié comme dans l'export. Le script du site envoie alors les champs à ce service avec `Accept: application/json` et affiche le message de succès s'il répond 2xx.
+
+Dans l'export, les formulaires sans service d'envoi visent Atelier en adresse absolue (`https://<instance>/api/forms/…`, l'origine de l'instance qui a produit l'archive) : un site déposé chez Netlify, Cloudflare Pages ou nginx continue d'envoyer ses messages dans Données → Messages reçus et par email. La route accepte les envois depuis n'importe quelle origine (CORS `*`, sans cookies : rien de privé n'y transite, la limite de débit et le piège à robots restent) et répond à la pré-vérification `OPTIONS`. Sans script, le retour après envoi revient à la page d'origine, en chemin relatif sur la même origine, en adresse complète (http ou https) sur un autre domaine. Le README de l'archive dit, formulaire par formulaire, où vont les envois.
+
 ## Destinataire par formulaire
 
 Le panneau Formulaire propose « Destinataire » (`props.notifyTo`, adresses séparées par des virgules). La notification part vers ces adresses, sinon vers `FORM_NOTIFY_TO`. L'expéditeur reste `MAIL_FROM` (domaine vérifié chez Resend pour la production).

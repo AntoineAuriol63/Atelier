@@ -43,3 +43,26 @@ describe("export statique", () => {
     expect(css).not.toMatch(/\.n-[a-z]/);
   }, 60000);
 });
+
+describe("export statique : formulaires", () => {
+  it("les formulaires visent Atelier à l'adresse absolue de l'export, et le README le dit", async () => {
+    const r = await buildExport({ site: sampleSite, entries: sampleEntries, version: 3, publishedAt: null, origin: "https://atelier.example" });
+    const contact = r.files.find((f) => f.path === "contact/index.html")!.data as string;
+    expect(contact).toContain('action="https://atelier.example/api/forms/site_marie/');
+    const readme = r.files.find((f) => f.path === "README.md")!.data as string;
+    expect(readme).toContain("https://atelier.example/api/forms/");
+    expect(readme).toContain("Service d'envoi");
+  });
+  it("un formulaire branché sur un service externe garde cette adresse, et le README ne parle plus d'Atelier pour lui", async () => {
+    const site = structuredClone(sampleSite);
+    const form = (function find(n: import("@atelier/model").Node): import("@atelier/model").Node | undefined { if (n.type === "form") return n; for (const c of n.children ?? []) { const f = find(c); if (f) return f; } return undefined; })(site.pages.find((p) => p.path === "/contact")!.root)!;
+    form.props.endpoint = "https://formspree.io/f/abc";
+    const r = await buildExport({ site, entries: sampleEntries, version: 3, publishedAt: null, origin: "https://atelier.example" });
+    const contact = r.files.find((f) => f.path === "contact/index.html")!.data as string;
+    expect(contact).toContain('action="https://formspree.io/f/abc"');
+    const readme = r.files.find((f) => f.path === "README.md")!.data as string;
+    expect(readme).toContain("https://formspree.io/f/abc");
+    expect(readme).not.toContain("https://atelier.example/api/forms/");
+  });
+});
+

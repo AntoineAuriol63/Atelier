@@ -230,7 +230,7 @@ export function RenderNode({ node, ctx }: { node: Node; ctx: RenderContext }): R
     case "form": {
       const formId = String(node.props.formId ?? node.id);
       const success = localized<string>(node.props.successMessage, ctx) ?? "Merci, votre message est bien envoyé.";
-      return createElement("form", attrs(node, ctx, { method: "post", action: `/api/forms/${ctx.site.id}/${formId}`, "data-form": formId, noValidate: false }),
+      return createElement("form", attrs(node, ctx, { method: "post", action: formAction(node, ctx), "data-form": formId, noValidate: false }),
         // Piège à robots : un champ que personne ne voit ; rempli, l'envoi est ignoré en silence.
         createElement("input", { type: "text", name: "_hp", tabIndex: -1, autoComplete: "off", "aria-hidden": true, style: { position: "absolute", left: "-10000px", width: 1, height: 1, opacity: 0 } }),
         createElement("input", { type: "hidden", name: "_page", value: ctx.page.path }),
@@ -300,6 +300,13 @@ function renderInstance(node: Node, cmp: ComponentDef, ctx: RenderContext): Reac
 }
 
 // ---------------------------------------------------------------- page
+
+/** Où un formulaire envoie : son service d'envoi s'il en a un (`props.endpoint`, Formspree ou autre), sinon la route d'Atelier, absolue si l'hôte l'a demandé. */
+export function formAction(node: Node, ctx: RenderContext): string {
+  const endpoint = typeof node.props.endpoint === "string" ? node.props.endpoint.trim() : "";
+  if (endpoint) return endpoint;
+  return `${ctx.formsOrigin ?? ""}/api/forms/${ctx.site.id}/${String(node.props.formId ?? node.id)}`;
+}
 
 /** Script des formulaires (D47) : envoi sans rechargement, message de succès ou d'erreur en place ; sans script, le serveur redirige avec `?envoye=`. */
 export const FORM_SCRIPT = `(function(){var q=new URLSearchParams(location.search).get("envoye");document.querySelectorAll("form[data-form]").forEach(function(f){var ok=f.querySelector("[data-form-success]"),ko=f.querySelector("[data-form-error]");function show(el,msg){if(!el)return;if(msg)el.textContent=msg;el.hidden=false;}if(q&&q===f.getAttribute("data-form")){show(ok);f.querySelectorAll("input:not([type=hidden]),textarea,select,button").forEach(function(c){c.hidden=true;});}f.addEventListener("submit",function(e){if(!f.checkValidity())return;e.preventDefault();var b=f.querySelector("button[type=submit]");if(b){b.disabled=true;}if(ko)ko.hidden=true;fetch(f.action,{method:"POST",headers:{accept:"application/json"},body:new FormData(f)}).then(function(r){return r.json().then(function(j){return{ok:r.ok,j:j};});}).then(function(x){if(x.ok){f.querySelectorAll("input:not([type=hidden]),textarea,select,button").forEach(function(c){c.hidden=true;});show(ok);}else{show(ko,(x.j&&x.j.error)||"L'envoi a échoué, réessayez.");if(b)b.disabled=false;}}).catch(function(){show(ko,"Pas de connexion, réessayez.");if(b)b.disabled=false;});});});})();`;

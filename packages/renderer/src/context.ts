@@ -32,6 +32,8 @@ export type RenderContext = {
   assets: Map<string, Asset>;
   /** Préfixe des URLs (ex. "/preview") */
   basePath?: string;
+  /** Origine absolue de la route des formulaires d'Atelier (`https://…`), pour un HTML servi depuis un autre domaine (export). À défaut, chemin relatif. */
+  formsOrigin?: string;
   /** Classes lisibles (export) à la place des classes techniques `n-<id>` / `s-<id>`. */
   classes?: ClassMap;
   /** Classes supplémentaires par nœud (variantes d'une instance sur la racine du composant). */

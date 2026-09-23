@@ -1,12 +1,13 @@
 import type { Asset, Entry, Site } from "@atelier/model";
 import { classMap, NOT_FOUND_PATH, slugify, type ClassMap } from "@atelier/model";
 import { assetMap, entryUrl, memoryData, siteCss, type RenderContext } from "@atelier/renderer";
+import { findForms } from "@/lib/forms";
 import { htmlDocument } from "@/lib/html-document";
 import { FileAssetStorage, getAssetStorage } from "@/lib/store";
 import type { ZipEntry } from "@/lib/zip";
 import { fetchPublicBytes } from "@/lib/safe-fetch";
 
-export type ExportSource = { site: Site; entries: Entry[]; version: number | null; publishedAt: string | null };
+export type ExportSource = { site: Site; entries: Entry[]; version: number | null; publishedAt: string | null; /** Origine d'Atelier (`https://…`) : les formulaires sans service d'envoi y postent en adresse absolue. */ origin?: string };
 export type ExportResult = { files: ZipEntry[]; pages: number; assets: number; external: string[] };
 
 const MIME_EXT: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/avif": "avif", "image/gif": "gif", "image/svg+xml": "svg", "video/mp4": "mp4", "application/pdf": "pdf" };
@@ -79,7 +80,7 @@ export async function buildExport(src: ExportSource): Promise<ExportResult> {
     // Page « introuvable » : aussi à la racine, où les hébergeurs statiques la cherchent.
     if (urlPath === NOT_FOUND_PATH) files.push({ path: "404.html", data: html });
   };
-  for (const page of site.pages) if (page.kind === "static") add({ site, page, locale, data, params: {}, assets, basePath: "", classes }, page.path, false);
+  for (const page of site.pages) if (page.kind === "static") add({ site, page, locale, data, params: {}, assets, basePath: "", classes, formsOrigin: src.origin }, page.path, false);
   for (const db of site.databases) {
     for (const tpl of db.pageTemplates ?? []) {
       const page = site.pages.find((p) => p.id === tpl.page);
@@ -87,7 +88,7 @@ export async function buildExport(src: ExportSource): Promise<ExportResult> {
       const keys = [...tpl.slugPattern.matchAll(/\{(\w+)\}/g)].map((m) => m[1]!);
       for (const entry of data.entries(db, { layout: "list" }, { site, page, locale, data, params: {}, assets })) {
         const params: Record<string, string> = {}; keys.forEach((k) => { params[k] = String(entry.values[k] ?? ""); });
-        add({ site, page, entry, params, locale, data, assets, basePath: "", classes }, entryUrl(site, db, entry), true);
+        add({ site, page, entry, params, locale, data, assets, basePath: "", classes, formsOrigin: src.origin }, entryUrl(site, db, entry), true);
       }
     }
   }
@@ -101,7 +102,10 @@ export async function buildExport(src: ExportSource): Promise<ExportResult> {
 }
 
 function readme(site: Site, src: ExportSource, pages: number, assetCount: number, external: string[]): string {
-  const forms = JSON.stringify(site).includes('"type":"form"');
+  const forms = findForms(site);
+  const atelierForms = forms.filter((f) => !(typeof f.node.props.endpoint === "string" && f.node.props.endpoint.trim()));
+  const externalForms = forms.filter((f) => typeof f.node.props.endpoint === "string" && f.node.props.endpoint.trim());
+  const formsSection = forms.length ? `\n## Formulaires\n\n${atelierForms.length ? `${atelierForms.length > 1 ? "Les formulaires envoient" : "Le formulaire envoie"} vers Atelier, à l'adresse \`${src.origin ?? ""}/api/forms/…\` : les messages arrivent dans Données → Messages reçus et par email, d'où que le site soit hébergé. Pour vous en passer, renseignez « Service d'envoi » dans les réglages du formulaire (Formspree, Netlify Forms, une fonction maison) et exportez à nouveau, ou remplacez l'attribut \`action\` à la main.\n` : ""}${externalForms.map((f) => `- « ${f.node.name ?? f.where} » envoie vers \`${String(f.node.props.endpoint).trim()}\`, votre propre service : rien ne dépend d'Atelier.`).join("\n")}${externalForms.length ? "\n" : ""}` : "";
   return `# ${site.name} — export Atelier
 
 ${src.version !== null ? `Version publiée ${src.version}${src.publishedAt ? ` (${src.publishedAt.slice(0, 10)})` : ""}.` : "Version de travail (le site n'avait pas encore été publié)."}
@@ -118,5 +122,5 @@ ${site.redirects.length ? "- `_redirects` : les redirections, au format Netlify/
 ## Mettre en ligne
 
 Les liens sont absolus depuis la racine (\`/galeries\`, \`/styles.css\`) : déposez le contenu de cette archive à la racine d'un hébergement statique (Netlify, Cloudflare Pages, Vercel, GitHub Pages, un serveur nginx…). Ouvrir \`index.html\` directement depuis le disque ne résoudra pas ces chemins.
-${forms ? "\n## Formulaires\n\nLes formulaires envoient vers `/api/forms/…`, une route d'Atelier. Hébergé ailleurs, remplacez l'attribut `action` par votre propre service (Formspree, Netlify Forms, une fonction maison) ou gardez le site publié par Atelier pour cette partie.\n" : ""}${external.length ? `\n## Médias externes conservés tels quels\n\n${external.map((u) => `- ${u}`).join("\n")}\n` : ""}`;
+${formsSection}${external.length ? `\n## Médias externes conservés tels quels\n\n${external.map((u) => `- ${u}`).join("\n")}\n` : ""}`;
 }

@@ -73,6 +73,21 @@ describe("formulaire", () => {
     const inEditor = renderToStaticMarkup(createElement(RenderPage, { ctx: { ...ctx, editor: true } }));
     expect(inEditor).not.toContain("<script>");
   });
+
+  it("envoie vers Atelier en adresse absolue quand l'hôte le demande (export), ou vers le service d'envoi du formulaire s'il en a un", () => {
+    const site = structuredClone(sampleSite);
+    const contact = site.pages.find((p) => p.path === "/contact")!;
+    const main = contact.root.children!.find((c) => c.type === "box")!;
+    main.children!.push({ id: "frm2", type: "form", props: { formId: "frm_abs" }, children: [] });
+    const m = matchPath(site, data, "/contact")!;
+    const ctx: RenderContext = { site, page: m.page, entry: m.entry, params: m.params, locale: "fr", data, assets: assetMap(site), basePath: "", formsOrigin: "https://atelier.example" };
+    expect(renderToStaticMarkup(createElement(RenderPage, { ctx }))).toContain('action="https://atelier.example/api/forms/site_marie/frm_abs"');
+    main.children!.pop();
+    main.children!.push({ id: "frm3", type: "form", props: { formId: "frm_ext", endpoint: "https://formspree.io/f/abc" }, children: [] });
+    const html = renderToStaticMarkup(createElement(RenderPage, { ctx: { ...ctx, site } }));
+    expect(html).toContain('action="https://formspree.io/f/abc"');
+    expect(html).not.toContain("/api/forms/site_marie/frm_ext");
+  });
 });
 
 describe("image", () => {

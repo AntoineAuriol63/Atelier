@@ -1,9 +1,8 @@
 import { newId, type Entry, type Node } from "@atelier/model";
 import { getStore } from "@/lib/store";
 import { LIMITS, tooLarge } from "@/lib/limits";
-import { findForms, formDatabaseId } from "@/lib/forms";
+import { corsHeaders, findForms, formDatabaseId, returnUrl } from "@/lib/forms";
 import { sendMail } from "@/lib/mail";
-import { safePath } from "@/lib/safe-path";
 import { isProduction } from "@/lib/env";
 
 const MAX_LEN = 5000;
@@ -18,13 +17,16 @@ function fieldsOf(form: Node, locale: string): FieldSpec[] {
   return out;
 }
 
+/** Pré-vérification CORS d'un site exporté sur un autre domaine. */
+export function OPTIONS() { return new Response(null, { status: 204, headers: corsHeaders() }); }
+
 /** Réception d'un envoi de formulaire (D47) : validation, piège à robots, enregistrement comme entrée, notification. */
 export async function POST(req: Request, { params }: { params: Promise<{ siteId: string; formId: string }> }) {
   const { siteId, formId } = await params;
   const wantsJson = (req.headers.get("accept") ?? "").includes("application/json");
   const reply = (status: number, body: Record<string, unknown>, redirectTo?: string) => {
-    if (wantsJson || !redirectTo) return Response.json(body, { status });
-    return new Response(null, { status: 303, headers: { location: redirectTo } });
+    if (wantsJson || !redirectTo) return Response.json(body, { status, headers: corsHeaders() });
+    return new Response(null, { status: 303, headers: { location: redirectTo, ...corsHeaders() } });
   };
   const big = tooLarge(req, LIMITS.formBytes, "Ce message");
   if (big) return reply(413, { error: "Message trop long." });
@@ -41,9 +43,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ siteId:
   const form = findForms(site).find((f) => f.formId === formId);
   if (!form) return reply(404, { error: "Formulaire introuvable" });
   const locale = site.settings.defaultLocale;
-  const referer = req.headers.get("referer");
-  // Retour sans script : uniquement vers la page d'origine si elle est sur la même origine que l'appel.
-  const back = (() => { try { if (!referer) return undefined; const u = new URL(referer); if (u.origin !== new URL(req.url).origin) return undefined; u.searchParams.set("envoye", formId); return safePath(u.pathname + u.search) + `#f-${form.node.id}`; } catch { return undefined; } })();
+  // Retour sans script : la page d'origine, sur cette instance ou sur un site exporté ailleurs.
+  const back = returnUrl(req.headers.get("referer"), req.url, formId, form.node.id);
   // Piège à robots : on répond comme si tout allait bien, sans rien garder.
   if (data._hp) return reply(200, { ok: true }, back);
   // Dix envois par minute et par adresse, comptés dans le dépôt (donc partagés entre instances). L'adresse vient de la plateforme.

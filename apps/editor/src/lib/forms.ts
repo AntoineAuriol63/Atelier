@@ -1,4 +1,5 @@
 import type { Database, Field, Node, Site } from "@atelier/model";
+import { safePath } from "@/lib/safe-path";
 
 export type FormInfo = { formId: string; node: Node; where: string };
 
@@ -40,4 +41,25 @@ export function uniqueFieldName(siblings: Node[], base: string, except?: string)
   let name = root, i = 2;
   while (taken.has(name)) name = `${root}-${i++}`;
   return name;
+}
+
+/** La route des formulaires répond à un site exporté sur n'importe quel domaine : origine ouverte, sans cookies (rien de privé n'y transite). */
+export function corsHeaders(): Record<string, string> {
+  return { "access-control-allow-origin": "*", "access-control-allow-methods": "POST, OPTIONS", "access-control-allow-headers": "accept, content-type", "access-control-max-age": "86400" };
+}
+
+/**
+ * Retour sans script après un envoi : la page d'origine avec `?envoye=<formulaire>` et l'ancre du formulaire.
+ * Même origine que la route : un chemin relatif ; autre origine (site exporté) : l'adresse complète, http ou https seulement.
+ */
+export function returnUrl(referer: string | null, reqUrl: string, formId: string, nodeId: string): string | undefined {
+  try {
+    if (!referer) return undefined;
+    const u = new URL(referer);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return undefined;
+    u.searchParams.set("envoye", formId);
+    u.hash = "";
+    if (u.origin === new URL(reqUrl).origin) return safePath(u.pathname + u.search) + `#f-${nodeId}`;
+    return `${u.href}#f-${nodeId}`;
+  } catch { return undefined; }
 }
