@@ -1,16 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Diamond, ExternalLink, Play, Plus, SkipBack, X } from "lucide-react";
+import { Diamond, ExternalLink, Play, Plus, SkipBack, Trash2, X } from "lucide-react";
 import type { CommitOptions, Node, Op, Site } from "@atelier/model";
-import { ANIMATION_PRESETS, TRIGGER_LABELS, animationUsages, appearanceOf, applyOps, indexSite, keyframeAt, newId, planAddTrigger, planAppearanceStart, planQuickAnimation, planAppearanceDelay, planAppearanceDuration, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, trackPresetMatch } from "@atelier/model";
+import { ANIMATION_PRESETS, TRIGGER_LABELS, animationUsages, appearanceOf, applyOps, indexSite, keyframeAt, newId, planAddTrigger, planAppearanceStart, planQuickAnimation, planAppearanceDelay, planAppearanceDuration, planRemoveTriggerWithAnimation, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUpdateTrigger, trackPresetMatch } from "@atelier/model";
 import { Badge, Button, Eyebrow, Hint, IconButton, PanelHeading, Select } from "@/ui";
-import { formatMs, quoteLabel, rulerTicks, snapTime, tickLabel } from "@/lib/timeline";
+import { formatMs, quoteLabel, rulerTicks, snapTime, summarizeAnimation, tickLabel } from "@/lib/timeline";
 import { sceneView, type SceneRow } from "@/lib/scene-view";
 import { nodeLabel } from "../node-icons";
 import { QuickAnimations } from "./QuickAnimations";
 import { KeyframePanels } from "./KeyframePanels";
 import { EasingField } from "./EasingField";
+import { TriggerSettings } from "./TriggerSettings";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
 
@@ -103,6 +104,8 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
   // Les apparitions préréglées ne s'y trouvent pas : elles se choisissent dans « Apparition ». Restent le clic, le survol, et tout ce qui est composé à la main.
   const reusable = site.animations.filter((a) => a.id !== ap?.animation.id && a.tracks.length && a.tracks.every((t) => "trigger" in t.target)).map((a) => ({ a, u: animationUsages(site, a.id).find((x) => x.node && x.node.id !== selected.id) })).filter((x) => x.u && !(selected.triggers ?? []).some((t) => t.animation === x.a.id) && !((x.u!.trigger.on === "inView" || x.u!.trigger.on === "load") && trackPresetMatch(x.a.tracks[0]!)));
   const presetLabel = (id?: string) => ANIMATION_PRESETS.find((p) => p.id === id)?.label;
+  // Ce que l'élément lance lui-même hors de son apparition (survol, clic, défilement, souris) : ses réglages fins et le retrait.
+  const others = (selected.triggers ?? []).filter((t) => t.id !== ap?.trigger.id && t.on !== "load" && t.on !== "inView");
 
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_360px] h-full min-h-0 min-w-0" data-scene-editor="">
@@ -176,6 +179,20 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
               onValueChange={(v) => { const r = reusable.find((x) => x.a.id === v); if (!r) return; run(planAddTrigger(selected, { id: newId(), on: r.u!.trigger.on, animation: r.a.id, ...(r.u!.trigger.once === false ? { once: false } : {}), ...(r.u!.trigger.reverseOnLeave ? { reverseOnLeave: true } : {}) }), `Réutiliser « ${r.a.name} »`); }} />
             <Hint>La même animation, partagée : la retoucher sur un élément la change pour tous.</Hint>
           </div>
+        ) : null}
+        {others.length ? (
+          <section className="flex flex-col gap-2 border-t border-line pt-3" aria-label="Déclencheurs" data-scene-triggers="">
+            <Eyebrow as="span">Déclencheurs</Eyebrow>
+            {others.map((t) => (
+              <div key={t.id} className="flex flex-col gap-1.5 rounded-sm border border-line p-2">
+                <div className="flex items-start gap-1">
+                  <span className="flex-1 text-xs text-ink leading-snug">{summarizeAnimation(site, t, selected.id)}</span>
+                  <IconButton size="sm" label={`Retirer « ${TRIGGER_LABELS[t.on]} »`} icon={Trash2} onClick={() => run(planRemoveTriggerWithAnimation(getSite(), selected, t.id), "Retirer le déclencheur")} />
+                </div>
+                <TriggerSettings trigger={t} onUpdate={(patch, label, key) => run(planUpdateTrigger(selected, t.id, patch), label, key)} />
+              </div>
+            ))}
+          </section>
         ) : null}
         {ap ? (
           <section className="flex flex-col gap-2 border-t border-line pt-3" aria-label="Image-clé" data-scene-keyframe="">

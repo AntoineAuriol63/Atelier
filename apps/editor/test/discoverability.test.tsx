@@ -3,9 +3,8 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import type { Node, Site } from "@atelier/model";
-import { appearanceOf, applyOps, findNode, planQuickAnimation, sampleSite } from "@atelier/model";
+import { applyOps, findNode, planQuickAnimation, sampleSite } from "@atelier/model";
 import { QuickAnimations } from "../src/components/animation/QuickAnimations";
-import { Timeline } from "../src/components/animation/Timeline";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 // La ligne de temps mesure sa règle : le DOM simulé n'a pas d'observateur de taille.
@@ -51,21 +50,5 @@ describe("faire découvrir ce qui existe (lot 8, temps 3)", () => {
     expect(b).toBeTruthy();
     act(() => { b!.click(); });
     expect(m.tested).toEqual([undefined]);
-  });
-
-  it("la ligne de temps dit que l'aperçu suit la tête de lecture, et « Tester sur le site » y est un bouton", () => {
-    const ap = appearanceOf(withPhoto, "photo")!;
-    const host = document.createElement("div");
-    document.body.appendChild(host);
-    act(() => {
-      createRoot(host).render(createElement(Timeline, {
-        site: withPhoto, getSite: () => withPhoto, animation: ap.animation, hostId: "photo", trigger: ap.trigger, selected: node(withPhoto, "photo"), bp: "base",
-        commit: () => {}, scrub: () => {}, onClose: () => {}, onSelect: () => {}, onTestOnSite: () => {},
-      }));
-    });
-    expect(host.textContent).toMatch(/L'aperçu montre l'instant de la tête de lecture/);
-    const b = [...host.querySelectorAll<HTMLButtonElement>("button")].find((x) => (x.textContent ?? "").includes("Tester sur le site"));
-    expect(b).toBeTruthy();
-    expect(b!.closest("p")).toBeNull();
   });
 });

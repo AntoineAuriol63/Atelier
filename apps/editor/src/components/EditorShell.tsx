@@ -223,23 +223,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
   const previewEditMode: EditMode = animOpen && openTl ? "animate" : editMode === "write" ? "write" : "design";
   /** « Animer cet élément » : ouvre l'outil Animation sur l'élément (sa section, sa ligne, ses images-clés). */
   const animateNode = useCallback((node: Node) => { if (writer) return; setAnimOpen(true); select(node.id); }, [writer, select]);
-  // Pioche de la ligne de temps : le prochain élément cliqué (aperçu, calques, fil d'Ariane) devient une piste, sans changer la sélection.
-  const pickRef = useRef<((id: string) => void) | null>(null);
-  const [picking, setPicking] = useState(false);
-  const selectedRef = useRef<string | null>(null);
-  useEffect(() => { selectedRef.current = selected; }, [selected]);
-  const setPick = useCallback((handler: ((id: string) => void) | null) => { pickRef.current = handler; setPicking(!!handler); }, []);
-  /** Remet l'élément à la pioche s'il y en a une ; l'aperçu retrouve alors le contour de la sélection. Rend faux sinon. */
-  const consumePick = useCallback((id: string) => {
-    const handler = pickRef.current;
-    if (!handler) return false;
-    setPick(null);
-    handler(id);
-    post({ type: "atelier:highlight", id: selectedRef.current });
-    return true;
-  }, [setPick, post]);
-  const selectOrPick = useCallback((id: string) => { if (!consumePick(id)) select(id); }, [consumePick, select]);
-  /** Ferme l'outil Animation. La ligne de temps, en se démontant, rend la pioche, retire les repères et arrête l'instant montré. */
+  /** Ferme l'outil Animation ; la scène, en se démontant, arrête l'instant montré dans l'aperçu. */
   const closeAnim = useCallback(() => { setAnimOpen(false); }, []);
   const toggleAnim = useCallback(() => { if (animOpen) closeAnim(); else setAnimOpen(true); }, [animOpen, closeAnim]);
   // L'aperçu montre l'instant de la tête de lecture ; la valeur est gardée pour la reposer quand l'aperçu se recharge.
@@ -388,7 +372,6 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
     const onMsg = (e: MessageEvent) => {
       if (!isAtelierMessage(e)) return;
       const m = e.data as FromPreview;
-      if (m.type === "atelier:select" && m.id && pickRef.current) { consumePick(m.id); return; }
       if (m.type === "atelier:select" && m.id) {
         select(m.id);
         const n = index.get(m.id)?.node;
@@ -413,7 +396,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
     };
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
-  }, [moveNode, select, dropBlock, setNodeContent, splitNode, mergePrev, slashInsert, switchMode, doc, index, site, locale, page.id, notify, consumePick]);
+  }, [moveNode, select, dropBlock, setNodeContent, splitNode, mergePrev, slashInsert, switchMode, doc, index, site, locale, page.id, notify]);
 
   useEffect(() => { if (frameReady) post({ type: "atelier:site", site, containers: [...index.values()].filter((l) => ["box", "list", "listItem", "link", "form", "item", "slot"].includes(l.node.type)).map((l) => l.node.id), links: [...index.values()].filter((l) => l.node.type === "link" || (editMode === "write" && l.node.type === "collection")).map((l) => l.node.id), textNodes: textNodeIds, compounds: compoundIds(site, previewEditMode), editMode: previewEditMode, blocks: blockInfos, pages: site.pages.filter((p) => p.kind === "static").map((p) => ({ path: p.path, name: p.name[locale] ?? p.path })) }); }, [site, index, textNodeIds, frameReady, post, editMode, previewEditMode, blockInfos, locale]);
   // Les entrées voyagent à part, et seulement celles des bases que la page utilise (vues et modèle) : le message ne pèse plus le site entier.
@@ -465,7 +448,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
       if (paletteOpen) return;
       if (meta && e.key.toLowerCase() === "z") { e.preventDefault(); if (e.shiftKey) doc.redo(); else doc.undo(); return; }
       const loc = selected ? index.get(selected) : undefined;
-      if (e.key === "Escape") { if (pickRef.current) { setPick(null); return; } select(null); return; }
+      if (e.key === "Escape") { select(null); return; }
       if (!loc) return;
       // Dans l'outil Animation, Suppr, les flèches et Entrée appartiennent à la ligne de temps (images-clés, tête de lecture), jamais à l'élément sélectionné (constat d'Antoine, 23 septembre 2026).
       if (!e.fromPreview && !meta && insideAnimationTool(e.target ?? null)) return;
@@ -507,7 +490,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
     window.addEventListener("keydown", onWindowKey);
     window.addEventListener("message", onMsg);
     return () => { window.removeEventListener("keydown", onWindowKey); window.removeEventListener("message", onMsg); };
-  }, [doc, selected, index, openMap, select, paletteOpen, page.root, notify, toggleGrid, editMode, post, locale, setPick]);
+  }, [doc, selected, index, openMap, select, paletteOpen, page.root, notify, toggleGrid, editMode, post, locale]);
 
   // --- largeur de l'aperçu : préréglage, valeur libre, poignée, point de rupture actif
   useEffect(() => {
@@ -645,7 +628,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
                 </div>
               ) : null}
               <Layer
-                node={treeRoot} depth={0} selected={selected} onSelect={selectOrPick} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }}
+                node={treeRoot} depth={0} selected={selected} onSelect={select} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }}
                 openMap={openMap} setOpen={setOpen}
                 editing={editing} onEditStart={setEditing} onRename={rename}
                 drop={drop} marks={layerMarks}
@@ -677,7 +660,6 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
           editMode={editMode} showGrid={showGrid} onToggleGrid={toggleGrid} compare={compareMode} onCompare={() => setCompareMode((v) => !v)} modes={site.theme.modes} mode={mode} onMode={setMode} focus={focusMode} onFocus={() => setFocusMode((v) => !v)} animation={writer ? undefined : { open: animOpen, onToggle: toggleAnim }}
           entries={template ? templateEntries.map((e) => ({ id: e.id, label: String(e.values[template.database.titleField] ?? "") })) : undefined} entry={previewEntry?.id} onEntry={template ? (id) => { setPreviewEntryByPage((m) => ({ ...m, [page.id]: id })); select(null); } : undefined} />
         <div ref={canvas} className="relative flex-1 min-h-0 min-w-0 overflow-auto flex justify-center items-start p-3">
-        {picking ? <div role="status" className="absolute top-3 left-1/2 -translate-x-1/2 z-30 rounded-md border border-accent bg-accent text-accent-ink px-3 py-1.5 text-xs font-semibold shadow-lg">Cliquez l&apos;élément à animer dans le canevas ou les calques · Échap pour annuler</div> : null}
         {doc.error ? (
           <div role="alert" className={`fixed top-14 left-1/2 -translate-x-1/2 z-[60] max-w-[640px] flex items-center gap-2 rounded-md border px-3.5 py-2.5 text-sm font-medium shadow-2xl ${doc.status === "offline" ? "bg-warning text-warning-ink border-warning" : "bg-danger text-danger-ink border-danger"}`}>
             <AlertTriangle size={16} aria-hidden />
@@ -716,7 +698,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
       </main>
 
       {focusMode ? null : <Panel side="right" className="relative">
-        {selectionTrail.length > 1 ? <Breadcrumb label="Chemin de la sélection" items={selectionTrail} onSelect={selectOrPick} className="shrink-0" /> : null}
+        {selectionTrail.length > 1 ? <Breadcrumb label="Chemin de la sélection" items={selectionTrail} onSelect={select} className="shrink-0" /> : null}
         {selectedLoc ? (
           <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} onPlay={(id, trigger) => post({ type: "atelier:play", id, trigger })} site={site} loc={selectedLoc} dataSource={dataSource} activeBp={activeBp} mode={mode} editMode={editMode === "write" ? "write" : "design"} onSwitchMode={switchMode} onOpenAnimation={writer ? undefined : () => animateNode(selectedLoc.node)} onTestOnSite={(id) => testOnSite(id ?? selectedLoc.node.id)} onSelectNode={(id) => select(id)} onGoToBreakpoint={goToBreakpoint} onPreviewState={setPreviewState} onEditInPreview={() => post({ type: "atelier:edit-text", id: selectedLoc.node.id })} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }} onMakeComponent={makeComponent} onDetach={detachInstance} notify={notify} commit={doc.commit} onDeleted={() => { select(selectedLoc.parent?.id ?? null); notify(`${nodeLabel(selectedLoc.node)} supprimé`, "info", { label: "Annuler", run: () => doc.undo() }); }} /></div>
         ) : (

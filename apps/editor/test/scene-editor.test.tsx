@@ -140,4 +140,26 @@ describe("tiroir Animation : tirer", () => {
     expect(m.ops.length).toBe(before);
     expect(m.scrubs[m.scrubs.length - 1]).toBe(600);
   });
+
+});
+
+/** Lot 3 : le survol et le clic de l'élément se règlent dans le tiroir (retour au départ, bascule, pause…), et se retirent. */
+describe("tiroir Animation : déclencheurs de l'élément", () => {
+  beforeEach(() => { document.body.innerHTML = ""; });
+  it("un survol posé sur l'élément apparaît dans « Déclencheurs » avec ses réglages, et un bouton le retire", () => {
+    let s = animated();
+    s = run(s, planQuickAnimation(s, node(s, "hh2"), "Survol", "grow"));
+    const m = mount(s, "hh2");
+    const section = m.host.querySelector("[data-scene-triggers]")!;
+    expect(section).toBeTruthy();
+    expect(section.textContent).toContain("Quand la souris passe dessus");
+    expect(section.textContent).toContain("revient en arrière");
+    const remove = [...section.querySelectorAll<HTMLButtonElement>("button")].find((b) => (b.getAttribute("aria-label") ?? "").includes("Retirer"))!;
+    act(() => { remove.click(); });
+    expect((findNode(m.current(), "hh2")!.node.triggers ?? []).some((t) => t.on === "hover")).toBe(false);
+  });
+  it("sans survol ni clic, pas de section", () => {
+    const m = mount(animated(), "hh2");
+    expect(m.host.querySelector("[data-scene-triggers]")).toBeNull();
+  });
 });
