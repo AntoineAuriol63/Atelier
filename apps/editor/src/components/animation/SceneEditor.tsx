@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Diamond, ExternalLink, Play, Plus, SkipBack, Trash2, X } from "lucide-react";
 import type { CommitOptions, Node, Op, Site } from "@atelier/model";
 import { ANIMATION_PRESETS, TRIGGER_LABELS, animationUsages, appearanceOf, applyOps, indexSite, keyframeAt, newId, planAddTrigger, planAppearanceStart, planQuickAnimation, planAppearanceDelay, planAppearanceDuration, planRemoveKeyframes, planRemoveTriggerWithAnimation, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUpdateTrigger, trackPresetMatch } from "@atelier/model";
@@ -39,12 +40,22 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
   const length = Math.max(100, view?.total ?? 0);
   const [playhead, setPlayhead] = useState<number | null>(null);
   // La liste des éléments à ajouter est une liste maison : une liste native ne dit pas quel choix est survolé, et le survol montre l'élément dans l'aperçu.
-  const [addOpen, setAddOpen] = useState(false);
+  // La liste est rendue hors de la zone qui défile (sinon elle y est rognée), ancrée au bouton : au-dessus s'il y a la place, sinon en dessous.
+  const [addPos, setAddPos] = useState<{ left: number; top?: number; bottom?: number; maxHeight: number } | null>(null);
+  const addOpen = addPos !== null;
+  const setAddOpen = (open: boolean | ((o: boolean) => boolean), btn?: HTMLElement | null) => {
+    const next = typeof open === "function" ? open(addOpen) : open;
+    if (!next) { setAddPos(null); return; }
+    const r = btn?.getBoundingClientRect();
+    if (!r) { setAddPos({ left: 0, top: 0, maxHeight: 320 }); return; }
+    const above = r.top - 8, below = window.innerHeight - r.bottom - 8;
+    setAddPos(above >= 160 || above >= below ? { left: r.left, bottom: window.innerHeight - r.top + 4, maxHeight: Math.max(80, Math.min(320, above)) } : { left: r.left, top: r.bottom + 4, maxHeight: Math.max(80, Math.min(320, below)) });
+  };
   const addRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!addOpen) return;
-    const off = (e: PointerEvent) => { if (!addRef.current?.contains(e.target as globalThis.Node)) { setAddOpen(false); onHover?.(null); } };
-    const key = (e: KeyboardEvent) => { if (e.key === "Escape") { setAddOpen(false); onHover?.(null); } };
+    const off = (e: PointerEvent) => { if (!addRef.current?.contains(e.target as globalThis.Node)) { setAddPos(null); onHover?.(null); } };
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") { setAddPos(null); onHover?.(null); } };
     window.addEventListener("pointerdown", off); window.addEventListener("keydown", key);
     return () => { window.removeEventListener("pointerdown", off); window.removeEventListener("keydown", key); };
   }, [addOpen, onHover]);
@@ -190,9 +201,10 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
           </ul>
           {addable.length ? (
             <div ref={addRef} className="relative px-3 pb-3" data-scene-add="">
-              <button type="button" aria-haspopup="listbox" aria-expanded={addOpen} className="h-7 px-2 rounded-sm border border-dashed border-accent/60 text-xs text-accent hover:bg-accent-soft" onClick={() => setAddOpen((o) => !o)}>+ Ajouter un élément à la scène…</button>
-              {addOpen ? (
-                <ul role="listbox" aria-label="Éléments de la section qui ne bougent pas" className="absolute left-3 bottom-full mb-1 z-40 max-h-64 w-72 overflow-auto rounded-md border border-line bg-raised shadow-xl py-1">
+              <button type="button" aria-haspopup="listbox" aria-expanded={addOpen} className="h-7 px-2 rounded-sm border border-dashed border-accent/60 text-xs text-accent hover:bg-accent-soft" onClick={(e) => setAddOpen((o) => !o, e.currentTarget)}>+ Ajouter un élément à la scène…</button>
+              {addOpen && addPos ? createPortal(
+                <ul role="listbox" aria-label="Éléments de la section qui ne bougent pas" data-scene-add-list="" className="fixed z-[90] w-72 overflow-auto rounded-md border border-line bg-raised shadow-xl py-1" style={{ left: addPos.left, top: addPos.top, bottom: addPos.bottom, maxHeight: addPos.maxHeight }}
+                  onPointerDown={(e) => e.stopPropagation()}>
                   {addable.map((r) => (
                     <li key={r.id}>
                       <button type="button" role="option" aria-selected={false} data-scene-add-item={r.id} className="w-full text-left text-xs h-7 px-2 truncate hover:bg-accent-soft hover:text-accent" style={{ paddingLeft: 8 + r.depth * 12 }}
@@ -202,8 +214,7 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
                       </button>
                     </li>
                   ))}
-                </ul>
-              ) : null}
+                </ul>, document.body) : null}
             </div>
           ) : null}
           {playhead !== null ? <span className="pointer-events-none absolute" aria-hidden /> : null}

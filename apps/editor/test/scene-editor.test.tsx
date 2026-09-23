@@ -47,16 +47,21 @@ describe("tiroir Animation : la scène", () => {
     expect(rows).toEqual(["photo", "hh2", "stats"]);
     expect(m.host.querySelector('[data-scene-row="photo"] [data-scene-bar]')).toBeTruthy();
     act(() => { m.host.querySelector<HTMLButtonElement>("[data-scene-add] > button")!.click(); });
-    expect([...m.host.querySelectorAll("[data-scene-add-item]")].map((b) => b.getAttribute("data-scene-add-item"))).toEqual(["pp2"]);
+    // La liste est rendue hors de la zone qui défile (sinon elle y est rognée) : on la cherche dans le document.
+    expect([...document.querySelectorAll("[data-scene-add-item]")].map((b) => b.getAttribute("data-scene-add-item"))).toEqual(["pp2"]);
+    // Échap referme la liste (et la retire du document, qui est partagé entre les tests).
+    act(() => { window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })); });
+    expect(document.querySelector("[data-scene-add-item]")).toBeNull();
   });
 
   it("dans la liste des éléments à ajouter, survoler un nom le montre dans l'aperçu (cadre en pointillé) ; sortir l'efface", () => {
     const m = mount(animated(), "hh2");
     act(() => { m.host.querySelector<HTMLButtonElement>("[data-scene-add] > button")!.click(); });
-    const item = m.host.querySelector<HTMLElement>('[data-scene-add-item="pp2"]')!;
+    const item = document.querySelector<HTMLElement>('[data-scene-add-item="pp2"]')!;
     act(() => { item.dispatchEvent(new MouseEvent("mouseover", { bubbles: true })); });
     act(() => { item.dispatchEvent(new MouseEvent("mouseout", { bubbles: true })); });
     expect(m.hovers).toEqual(["pp2", null]);
+    act(() => { window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" })); });
   });
 
   it("l'élément sélectionné a sa ligne même s'il ne bouge pas encore, avec « Faire apparaître »", () => {
@@ -77,7 +82,7 @@ describe("tiroir Animation : la scène", () => {
   it("« Ajouter un élément » crée son apparition, après l'élément qui le précède dans la page", () => {
     const m = mount(animated(), "hh2");
     act(() => { m.host.querySelector<HTMLButtonElement>("[data-scene-add] > button")!.click(); });
-    act(() => { m.host.querySelector<HTMLElement>('[data-scene-add-item="pp2"]')!.click(); });
+    act(() => { document.querySelector<HTMLElement>('[data-scene-add-item="pp2"]')!.click(); });
     const ap = appearanceOf(m.current(), "pp2");
     expect(ap).toBeTruthy();
     expect(ap!.begin).toEqual({ kind: "after", node: "hh2" });
