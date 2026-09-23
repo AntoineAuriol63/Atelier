@@ -128,7 +128,7 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
       if (!cur) return;
       if (kind === "move") run(planAppearanceDelay(current, id, Math.max(0, cur.delay + delta)), `Départ de ${quoteLabel(nodeLabel(nodeOf(id)!))}`);
       else if (kind === "end") run(planAppearanceDuration(current, id, Math.max(50, cur.end - cur.start + delta)), `Durée de ${quoteLabel(nodeLabel(nodeOf(id)!))}`);
-      else if (kfAt !== undefined) { run(planShiftKeyframes(current, cur.animation.id, [{ track: cur.track.id, at: kfAt }], delta), "Déplacer l'image-clé"); if (playhead !== null) place(Math.max(0, playhead + delta)); }
+      else if (kfAt !== undefined) { run(planShiftKeyframes(current, cur.animation.id, [{ track: cur.track.id, at: kfAt }], delta), "Déplacer l'état"); if (playhead !== null) place(Math.max(0, playhead + delta)); }
     };
     window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
   };
@@ -160,13 +160,13 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
   // La scène ne montre que ce qui bouge, plus l'élément sélectionné (retour d'Antoine : tout afficher était illisible) ; le reste s'ajoute par son nom.
   const visible = view.rows.filter((r) => r.bar || r.selected);
   const addable = view.rows.filter((r) => r.still && !r.selected);
-  const addKeyframe = () => { if (ap && at !== null) run(planSetKeyframe(getSite(), ap.animation.id, ap.track.id, at, {}), `Image-clé à ${at} ms`); };
+  const addKeyframe = () => { if (ap && at !== null) run(planSetKeyframe(getSite(), ap.animation.id, ap.track.id, at, {}), `État fixé à ${at} ms`); };
   // Retirer une image-clé ; s'il n'en restait qu'une, plus rien ne bouge : l'apparition entière s'en va et l'élément redevient immobile.
   const removeKeyframe = (kfAt: number) => {
     if (!ap) return;
     const current = getSite();
     if (ap.track.keyframes.length <= 2) { run(planQuickAnimation(current, selected, "Apparition", ""), `Ne plus faire bouger ${quoteLabel(nodeLabel(selected))}`); return; }
-    run(planRemoveKeyframes(current, ap.animation.id, [{ track: ap.track.id, at: kfAt }]), "Retirer l'image-clé");
+    run(planRemoveKeyframes(current, ap.animation.id, [{ track: ap.track.id, at: kfAt }]), "Retirer l'état");
   };
   // Ce que l'élément lance lui-même hors de son apparition (survol, clic, défilement, souris) : ses réglages fins et le retrait.
   const others = (selected.triggers ?? []).filter((t) => t.id !== ap?.trigger.id && t.on !== "load" && t.on !== "inView");
@@ -226,13 +226,13 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
                     <button type="button" className="absolute top-1.5 left-0 h-5 px-2 rounded-sm border border-dashed border-accent/60 text-2xs text-accent hover:bg-accent-soft" onClick={() => appear(row, i)} title="Un fondu en montant, après l'élément qui précède ; l'effet se change ensuite à droite">+ Faire apparaître</button>
                   )}
                   {row.keyframes?.map((k) => (
-                    <button key={k.at} type="button" data-scene-kf={k.at} aria-label={`Image-clé à ${tickLabel(k.sceneAt)} ms`} aria-pressed={at === k.at} title={`${k.sceneAt} ms${k.easing ? ` · ${k.easing}` : ""}`}
+                    <button key={k.at} type="button" data-scene-kf={k.at} aria-label={`État fixé à ${tickLabel(k.sceneAt)} ms`} aria-pressed={at === k.at} title={`${k.sceneAt} ms${k.easing ? ` · ${k.easing}` : ""}`}
                       className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 p-1 rounded-xs cursor-grab active:cursor-grabbing ${at === k.at ? "text-warning" : "text-accent-ink hover:text-warning"}`} style={{ left: `calc(${pct(k.sceneAt)} + ${shift("kf", row.id, k.at)}px)` }} onPointerDown={(e) => { place(k.sceneAt); startDrag(e, "kf", row.id, k.at); }} onKeyDown={(e) => { if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); e.stopPropagation(); removeKeyframe(k.at); } }}>
                       <Diamond size={11} fill="currentColor" aria-hidden />
                     </button>
                   ))}
                   {row.selected && ap && playhead !== null && !kfHere ? (
-                    <button type="button" aria-label="Ajouter une image-clé ici" title="Pose une image-clé à la tête de lecture ; régler une propriété à droite en pose une aussi" className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 h-5 px-1.5 rounded-full border border-dashed border-accent bg-panel text-2xs text-accent whitespace-nowrap shadow-md hover:bg-accent hover:text-accent-ink hover:border-solid" style={{ left: pct(playhead) }} onClick={addKeyframe}>+ image-clé</button>
+                    <button type="button" aria-label="Fixer l'état ici (une image-clé)" title="Enregistre à quoi ressemble l'élément à cet instant : une image-clé. Régler une propriété à droite fait pareil." className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 h-5 px-1.5 rounded-full border border-dashed border-accent bg-panel text-2xs text-accent whitespace-nowrap shadow-md hover:bg-accent hover:text-accent-ink hover:border-solid" style={{ left: pct(playhead) }} onClick={addKeyframe}>+ Fixer l&apos;état ici</button>
                   ) : null}
                       {playhead !== null ? <span className="absolute top-0 bottom-0 w-px bg-accent/60 pointer-events-none" style={{ left: pct(playhead) }} aria-hidden /> : null}
                     </li>
@@ -295,25 +295,25 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
             ))}
           </section>
         ) : null}
-        <section className="flex flex-col gap-2 border-t border-line pt-3" aria-label="Image-clé" data-scene-keyframe="">
+        <section className="flex flex-col gap-2 border-t border-line pt-3" aria-label="État de l'élément" data-scene-keyframe="">
           {!ap ? (
-            <Hint>Faites d&apos;abord apparaître {quoteLabel(nodeLabel(selected))} : choisissez une Apparition ci-dessus, ou « + Faire apparaître » sur sa ligne. Ses images-clés se régleront ici.</Hint>
+            <Hint>Faites d&apos;abord apparaître {quoteLabel(nodeLabel(selected))} : choisissez une Apparition ci-dessus, ou « + Faire apparaître » sur sa ligne. Ses états se fixeront ici.</Hint>
           ) : (<>
             <PanelHeading className="px-0" actions={
               <div className="flex items-center gap-0.5">
-                <Button size="sm" variant="ghost" icon={Plus} aria-label="Ajouter une image-clé ici" title={at === null ? "Cliquez d'abord la règle pour choisir l'instant" : kfHere ? "Il y a déjà une image-clé à cet instant" : `Pose une image-clé à ${tickLabel(playhead!)} ms`} disabled={at === null || !!kfHere} onClick={addKeyframe}>Image-clé ici</Button>
-                <IconButton size="sm" label="Supprimer l'image-clé" icon={Trash2} tone="danger" disabled={!kfHere} onClick={() => kfHere && removeKeyframe(at!)} />
+                <Button size="sm" variant="ghost" icon={Plus} aria-label="Fixer l'état ici (une image-clé)" title={at === null ? "Cliquez d'abord la règle pour choisir l'instant" : kfHere ? "L'état est déjà fixé à cet instant" : `Enregistre l'état de l'élément à ${tickLabel(playhead!)} ms (une image-clé)`} disabled={at === null || !!kfHere} onClick={addKeyframe}>Fixer l&apos;état ici</Button>
+                <IconButton size="sm" label="Supprimer cet état (image-clé)" icon={Trash2} tone="danger" disabled={!kfHere} onClick={() => kfHere && removeKeyframe(at!)} />
               </div>}>
-              {at === null ? "Image-clé" : kfHere ? `◆ Image-clé à ${tickLabel(playhead!)} ms` : `Instant ${tickLabel(playhead!)} ms`}
+              {at === null ? "État de l'élément" : kfHere ? `◆ État fixé à ${tickLabel(playhead!)} ms` : `Instant ${tickLabel(playhead!)} ms`}
             </PanelHeading>
-            {at === null ? <Hint>Cliquez la règle ou un losange pour vous placer à un instant : ce qui se règle ici s&apos;y enregistre en image-clé.</Hint> : (<>
+            {at === null ? <Hint>Cliquez la règle ou un losange pour vous placer à un instant : ce qui se règle ici y fixe l&apos;état de l&apos;élément (une image-clé).</Hint> : (<>
               {kfHere && prevKf ? (
                 <div className="grid grid-cols-[80px_1fr] items-start gap-1.5">
                   <span className="text-xs text-muted pt-1.5" title="Courbe pour atteindre cette image-clé depuis la précédente">Courbe</span>
                   <EasingField value={kfHere.easing} segment={at - prevKf.at} onChange={(e) => run(planSetKeyframeEasing(getSite(), ap.animation.id, ap.track.id, at, e), "Courbe du segment", `kf-ease:${ap.animation.id}:${ap.track.id}:${at}`)} />
                 </div>
               ) : null}
-              {!kfHere ? <Hint>Aucune image-clé à cet instant : « Image-clé ici », ou réglez une propriété ci-dessous, elle se crée.</Hint> : null}
+              {!kfHere ? <Hint>Aucun état fixé à cet instant : « Fixer l&apos;état ici », ou réglez une propriété ci-dessous, il se fixe.</Hint> : null}
               <KeyframePanels site={site} getSite={getSite} node={selected} bp={bp} mode={mode} animationId={ap.animation.id} track={ap.track} at={at} commit={commit} />
             </>)}
           </>)}
