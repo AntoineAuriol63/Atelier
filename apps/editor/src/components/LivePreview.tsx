@@ -6,6 +6,7 @@ import { serialize, isEmptyText } from "./preview/serialize";
 import { isAtelierMessage, type BlockPresetInfo, type EditMode, type FromPreview, type ToPreview } from "@/lib/preview-protocol";
 import { animationHost, applyScrub, type ScrubAt } from "@/lib/scrub";
 import { revealForTest } from "@/lib/test-on-site";
+import { playOptions } from "@/lib/play";
 import { pickSelection, climbSelection } from "@/lib/selection";
 import { ANIMATION_PLAY_SCRIPT, FORM_SCRIPT, INTERACTION_SCRIPT, RenderPage, applyInstantStates, assetMap, fontsHref, matchPath, memoryData, siteCss, type RenderContext } from "@atelier/renderer";
 
@@ -667,7 +668,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
         try { triggers = JSON.parse(el?.getAttribute("data-anim") ?? "[]"); } catch { triggers = []; }
         const a = triggers.find((r) => r.i === m.trigger);
         const play = (window as unknown as { __atelierPlay?: (host: HTMLElement, trigger: unknown, extra: Record<string, unknown>) => unknown }).__atelierPlay;
-        if (el && a && play) play(el, a, { iterations: a.loop === "infinite" ? 3 : a.loop, fill: "none" });
+        if (el && a && play) play(el, a, playOptions(a));
       }
       if (m?.type === "atelier:grid") renderGrid(m as unknown as { show: boolean; columns: number; gutter: string; margin: string; maxWidth: string });
       if (m?.type === "atelier:highlight") {
