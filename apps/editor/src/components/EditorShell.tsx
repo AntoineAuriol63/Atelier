@@ -572,6 +572,8 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
       { id: "mode:write", group: "Affichage", label: "Mode Écriture", run: () => switchMode("write") },
       ...(writer ? [] : [{ id: "mode:design", group: "Affichage", label: "Mode Design", run: () => switchMode("design") }, { id: "mode:animate", group: "Affichage", label: "Mode Animation", icon: Zap, keywords: "animation ligne de temps déclencheur images-clés", run: () => switchMode("animate") }]),
       { id: "grid", group: "Affichage", label: showGrid ? "Masquer la grille de mise en page" : "Afficher la grille de mise en page", keys: "⌃G", icon: Grid3x3, run: toggleGrid },
+      { id: "left", group: "Affichage", label: leftCollapsed ? "Afficher le panneau de gauche" : "Masquer le panneau de gauche", icon: leftCollapsed ? PanelLeftOpen : PanelLeftClose, keywords: "pages calques ajouter données thème", run: toggleLeft },
+      { id: "focus", group: "Affichage", label: focusMode ? "Quitter le mode concentration" : "Mode concentration : masquer les panneaux", icon: focusMode ? Minimize2 : Maximize2, run: () => setFocusMode((v) => !v) },
       ...site.theme.modes.map((m) => ({ id: `mode:${m.id}`, group: "Affichage", label: `Aperçu en mode ${m.name.toLowerCase()}`, icon: m.id === "dark" ? Moon : Sun, run: () => setMode(m.id) })),
       ...PRESETS.map((p) => ({ id: `width:${p.id}`, group: "Affichage", label: `Largeur ${p.label.toLowerCase()}`, run: () => { setPreset(p.id); setCustomWidth(null); } })),
       ...[{ id: "pages", label: "Pages", icon: FileText }, { id: "layers", label: "Calques", icon: Layers }, { id: "add", label: "Ajouter", icon: Plus }, { id: "data", label: "Données", icon: DatabaseIcon }, { id: "theme", label: "Thème", icon: Palette }].map((t) => ({ id: `tab:${t.id}`, group: "Panneaux", label: `Afficher ${t.label}`, icon: t.icon, run: () => { setLeftTab(t.id); showLeft(); } })),
@@ -595,7 +597,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
     const visit = (n: Node) => { const label = nodeLabel(n); if (!seen.has(n.id)) { seen.add(n.id); nodes.push({ id: `sel:${n.id}`, group: "Sélectionner un calque", label, icon: nodeIcon(n), keywords: n.type, run: () => select(n.id) }); } n.children?.forEach(visit); };
     visit(page.root);
     return [...cmds, ...nodes.slice(0, 80)];
-  }, [doc, site, locale, page.root, previewPath, selected, index, select, addBlock, showGrid, toggleGrid, switchMode, setPageId, makeComponent, detachInstance, writer, animateNode, showLeft]);
+  }, [doc, site, locale, page.root, previewPath, selected, index, select, addBlock, showGrid, toggleGrid, switchMode, setPageId, makeComponent, detachInstance, writer, animateNode, showLeft, leftCollapsed, toggleLeft, focusMode]);
   const setOpen = useCallback((id: string, open: boolean) => setOpenMap((m) => ({ ...m, [id]: open })), []);
   const rename = useCallback((id: string, name: string | null | undefined) => {
     setEditing(null);
@@ -609,7 +611,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
     <ConfirmProvider><MediaLibraryProvider site={site} entries={ents.entries} commit={doc.commit} saveEntry={ents.save} onGoTo={goToUsage} readOnly={writer}>
     {/* En mode Animation, la colonne de droite s'élargit en poussant le canevas quand une ligne de temps est ouverte (cadrage § 4.1). */}
     <div className="h-full grid grid-rows-[48px_1fr]" style={{ gridTemplateColumns: focusMode ? "minmax(0,1fr)" : `${leftCollapsed ? "" : "300px "}minmax(0,1fr) ${editMode === "animate" && openTl ? animPanelW : 360}px` }}>
-      <header className="flex items-center gap-2 px-3 border-b border-line bg-panel" style={{ gridColumn: "1 / -1" }}>
+      <header className="flex items-center gap-2 px-3 border-b border-line bg-panel min-w-0 overflow-hidden" style={{ gridColumn: "1 / -1" }}>
         <Link href="/" className="font-semibold text-base tracking-tight text-ink hover:text-accent" title="Retour à vos sites">{PRODUCT_NAME}</Link>
         <Separator vertical />
         {/* Sous 1440 px, la barre du haut garde l'essentiel : le nom du site, les images et la palette (⌘K) passent en retrait. */}
@@ -623,18 +625,21 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
             {templateEntries.length ? <Select className="max-w-[220px]" value={previewEntry?.id ?? ""} options={templateEntries.map((e) => ({ value: e.id, label: String(e.values[template.database.titleField] ?? "") || "Sans titre" }))} onValueChange={(id) => { setPreviewEntryByPage((m) => ({ ...m, [page.id]: id })); select(null); setFrameReady(false); }} /> : <Badge tone="warning" title="Sans entrée publiée, la page s'affiche avec ses textes de repli">Aucune entrée publiée dans {template.database.name[locale] ?? template.database.slug}</Badge>}
           </div>
         ) : null}
-        <div className="ml-4"><Tabs variant="pill" label="Mode" tabs={MODES.map((m) => ({ ...m, disabled: m.id === "code" || (writer && m.id !== "write"), hint: writer && (m.id === "design" || m.id === "animate") ? "Réservé aux éditeurs du site" : m.hint }))} value={editMode} onChange={(m) => switchMode(m as EditMode)} /></div>
+        <div className="ml-4 shrink-0"><Tabs variant="pill" label="Mode" tabs={MODES.map((m) => ({ ...m, disabled: m.id === "code" || (writer && m.id !== "write"), hint: writer && (m.id === "design" || m.id === "animate") ? "Réservé aux éditeurs du site" : m.hint }))} value={editMode} onChange={(m) => switchMode(m as EditMode)} /></div>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2 shrink-0">
           <div className="hidden min-[1440px]:block"><Tabs variant="pill" label="Largeur de l'aperçu" tabs={PRESETS.map((x) => ({ id: x.id, label: x.label }))} value={customWidth === null ? preset : ""} onChange={(id) => { setPreset(id); setCustomWidth(null); }} /></div>
-          <Select className="min-[1440px]:hidden w-[104px]" value={customWidth === null ? preset : ""} placeholder="Libre" options={PRESETS.map((x) => ({ value: x.id, label: x.label }))} onValueChange={(id) => { setPreset(id); setCustomWidth(null); }} />
+          {/* Sous 1100 px : la largeur se règle à la poignée du canevas ; sous 1200 px, grille, panneau gauche et concentration restent au clavier et dans la palette. */}
+          <Select className="hidden min-[1100px]:block min-[1440px]:hidden w-[104px]" value={customWidth === null ? preset : ""} placeholder="Libre" options={PRESETS.map((x) => ({ value: x.id, label: x.label }))} onValueChange={(id) => { setPreset(id); setCustomWidth(null); }} />
           {/* Sous 1440 px : la largeur se règle à la poignée du canevas, qui rappelle aussi la taille d'écran active. */}
           <span className="hidden min-[1440px]:contents">{editMode === "design" ? <><NumberInput className="w-[92px]" unit="px" min={MIN_WIDTH} max={MAX_WIDTH} step={10} title="Largeur de l'aperçu (320 à 4000 px)" value={Math.round(effective) || ""} onValueChange={(v) => setCustomWidth(v === "" ? null : v)} />
           <Badge tone="accent" title="Taille d'écran active : les réglages de style se posent dessus">{breakpoint}</Badge></> : null}</span>
           {scale < 1 ? <span className="hidden min-[1440px]:contents"><Badge title="Aperçu réduit pour tenir dans la zone">{Math.round(scale * 100)} %</Badge></span> : null}
+          <span className="hidden min-[1200px]:contents">
           <IconButton label={showGrid ? "Masquer la grille de mise en page (⌃G)" : "Afficher la grille de mise en page (⌃G)"} icon={Grid3x3} active={showGrid} onClick={toggleGrid} />
           {focusMode ? null : <IconButton label={leftCollapsed ? "Afficher le panneau de gauche (pages, calques, ajouter…)" : "Masquer le panneau de gauche"} icon={leftCollapsed ? PanelLeftOpen : PanelLeftClose} active={!leftCollapsed} onClick={toggleLeft} />}
           <IconButton label={focusMode ? "Quitter le mode concentration" : "Mode concentration : masquer les panneaux"} icon={focusMode ? Minimize2 : Maximize2} active={focusMode} onClick={() => setFocusMode((v) => !v)} />
+          </span>
           <span className="hidden min-[1440px]:contents">{editMode === "design" ? <IconButton label={compareMode ? "Quitter la comparaison responsive" : "Comparer avec le mobile"} icon={Columns2} active={compareMode} onClick={() => setCompareMode((v) => !v)} /> : null}</span>
           <Separator vertical />
           <div className="flex items-center gap-0.5">
