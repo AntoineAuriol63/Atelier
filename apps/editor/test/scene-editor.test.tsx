@@ -39,16 +39,22 @@ function mount(site: Site, selectedId: string | null) {
 describe("tiroir Animation : la scène", () => {
   beforeEach(() => { document.body.innerHTML = ""; });
 
-  it("une ligne par élément de la section dans l'ordre de la page, une barre pour ceux qui bougent, « Faire apparaître » pour les autres", () => {
+  it("seuls les éléments qui bougent ont une ligne, dans l'ordre de la page ; les autres s'ajoutent par « Ajouter un élément »", () => {
     const m = mount(animated(), "hh2");
     expect(m.host.querySelector("[data-scene-editor]")).toBeTruthy();
     expect(m.text()).toContain("La maison");
     const rows = [...m.host.querySelectorAll("[data-scene-row]")].map((r) => r.getAttribute("data-scene-row"));
-    expect(rows).toEqual(["photo", "hh2", "pp2", "stats", "c1", "c2", "c3"]);
+    expect(rows).toEqual(["photo", "hh2", "stats"]);
     expect(m.host.querySelector('[data-scene-row="photo"] [data-scene-bar]')).toBeTruthy();
-    expect(m.host.querySelector('[data-scene-row="pp2"] [data-scene-bar]')).toBeNull();
+    const add = m.host.querySelector<HTMLSelectElement>("[data-scene-add] select")!;
+    expect([...add.options].map((o) => o.value)).toEqual(["", "pp2"]);
+  });
+
+  it("l'élément sélectionné a sa ligne même s'il ne bouge pas encore, avec « Faire apparaître »", () => {
+    const m = mount(animated(), "pp2");
+    const rows = [...m.host.querySelectorAll("[data-scene-row]")].map((r) => r.getAttribute("data-scene-row"));
+    expect(rows).toEqual(["photo", "hh2", "pp2", "stats"]);
     expect(m.host.querySelector('[data-scene-row="pp2"]')!.textContent).toContain("Faire apparaître");
-    expect(m.host.querySelector('[data-scene-row="c1"]')!.textContent).toContain("avec");
   });
 
   it("l'élément sélectionné montre ses images-clés ; cliquer une autre ligne la sélectionne", () => {
@@ -59,10 +65,10 @@ describe("tiroir Animation : la scène", () => {
     expect(m.selected).toEqual(["photo"]);
   });
 
-  it("« Faire apparaître » sur une ligne immobile crée son apparition, après l'élément qui la précède", () => {
+  it("« Ajouter un élément » crée son apparition, après l'élément qui le précède dans la page", () => {
     const m = mount(animated(), "hh2");
-    const b = [...m.host.querySelectorAll<HTMLButtonElement>('[data-scene-row="pp2"] button')].find((x) => (x.textContent ?? "").includes("Faire apparaître"))!;
-    act(() => { b.click(); });
+    const add = m.host.querySelector<HTMLSelectElement>("[data-scene-add] select")!;
+    act(() => { add.value = "pp2"; add.dispatchEvent(new Event("change", { bubbles: true })); });
     const ap = appearanceOf(m.current(), "pp2");
     expect(ap).toBeTruthy();
     expect(ap!.begin).toEqual({ kind: "after", node: "hh2" });
@@ -77,9 +83,31 @@ describe("tiroir Animation : la scène", () => {
     act(() => { rail.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 500, button: 0 })); });
     expect(m.scrubs[m.scrubs.length - 1]).toBe(650);
     const add = m.buttons().find((b) => (b.getAttribute("aria-label") ?? "").includes("Ajouter une image-clé"))!;
+    expect(add.textContent).toContain("image-clé");
     act(() => { add.click(); });
     const ap = appearanceOf(m.current(), "hh2")!;
     expect(ap.track.keyframes.map((k) => k.at)).toContain(650);
+  });
+
+  it("une image-clé se retire par son bouton « Supprimer » ou par Suppr sur son losange", () => {
+    const m = mount(animated(), "hh2"); 
+    const rail = m.host.querySelector<HTMLElement>("[data-scene-rail]")!;
+    rail.getBoundingClientRect = () => ({ left: 0, width: 1000, top: 0, height: 20, right: 1000, bottom: 20, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+    act(() => { rail.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 500, button: 0 })); });
+    act(() => { m.buttons().find((b) => (b.getAttribute("aria-label") ?? "").includes("Ajouter une image-clé"))!.click(); });
+    expect(appearanceOf(m.current(), "hh2")!.track.keyframes.map((k) => k.at)).toEqual([600, 650, 1300]);
+    m.rerender(m.current(), "hh2");
+    const del = m.buttons().find((b) => (b.getAttribute("aria-label") ?? "").includes("Supprimer l'image-clé"))!;
+    expect(del).toBeTruthy();
+    act(() => { del.click(); });
+    expect(appearanceOf(m.current(), "hh2")!.track.keyframes.map((k) => k.at)).toEqual([600, 1300]);
+    m.rerender(m.current(), "hh2");
+    const last = [...m.host.querySelectorAll<HTMLElement>('[data-scene-row="hh2"] [data-scene-kf]')].pop()!;
+    act(() => { last.dispatchEvent(new KeyboardEvent("keydown", { key: "Delete", bubbles: true })); });
+    // Il ne resterait qu'une image-clé, donc aucun mouvement : l'apparition est retirée, l'élément redevient immobile et le dit.
+    expect(appearanceOf(m.current(), "hh2")).toBeUndefined();
+    m.rerender(m.current(), "hh2");
+    expect(m.host.querySelector('[data-scene-row="hh2"]')!.textContent).toContain("Faire apparaître");
   });
 
   it("à droite : les réglages de l'élément (Apparition, Vitesse, Démarre, Délai) et l'image-clé à la tête de lecture", () => {

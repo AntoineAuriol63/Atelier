@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Diamond, ExternalLink, Play, Plus, SkipBack, Trash2, X } from "lucide-react";
 import type { CommitOptions, Node, Op, Site } from "@atelier/model";
-import { ANIMATION_PRESETS, TRIGGER_LABELS, animationUsages, appearanceOf, applyOps, indexSite, keyframeAt, newId, planAddTrigger, planAppearanceStart, planQuickAnimation, planAppearanceDelay, planAppearanceDuration, planRemoveTriggerWithAnimation, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUpdateTrigger, trackPresetMatch } from "@atelier/model";
+import { ANIMATION_PRESETS, TRIGGER_LABELS, animationUsages, appearanceOf, applyOps, indexSite, keyframeAt, newId, planAddTrigger, planAppearanceStart, planQuickAnimation, planAppearanceDelay, planAppearanceDuration, planRemoveKeyframes, planRemoveTriggerWithAnimation, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUpdateTrigger, trackPresetMatch } from "@atelier/model";
 import { Badge, Button, Eyebrow, Hint, IconButton, PanelHeading, Select } from "@/ui";
 import { formatMs, quoteLabel, rulerTicks, snapTime, summarizeAnimation, tickLabel } from "@/lib/timeline";
 import { sceneView, type SceneRow } from "@/lib/scene-view";
@@ -104,6 +104,17 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
   // Les apparitions préréglées ne s'y trouvent pas : elles se choisissent dans « Apparition ». Restent le clic, le survol, et tout ce qui est composé à la main.
   const reusable = site.animations.filter((a) => a.id !== ap?.animation.id && a.tracks.length && a.tracks.every((t) => "trigger" in t.target)).map((a) => ({ a, u: animationUsages(site, a.id).find((x) => x.node && x.node.id !== selected.id) })).filter((x) => x.u && !(selected.triggers ?? []).some((t) => t.animation === x.a.id) && !((x.u!.trigger.on === "inView" || x.u!.trigger.on === "load") && trackPresetMatch(x.a.tracks[0]!)));
   const presetLabel = (id?: string) => ANIMATION_PRESETS.find((p) => p.id === id)?.label;
+  // La scène ne montre que ce qui bouge, plus l'élément sélectionné (retour d'Antoine : tout afficher était illisible) ; le reste s'ajoute par son nom.
+  const visible = view.rows.filter((r) => r.bar || r.selected);
+  const addable = view.rows.filter((r) => r.still && !r.selected);
+  const addKeyframe = () => { if (ap && at !== null) run(planSetKeyframe(getSite(), ap.animation.id, ap.track.id, at, {}), `Image-clé à ${at} ms`); };
+  // Retirer une image-clé ; s'il n'en restait qu'une, plus rien ne bouge : l'apparition entière s'en va et l'élément redevient immobile.
+  const removeKeyframe = (kfAt: number) => {
+    if (!ap) return;
+    const current = getSite();
+    if (ap.track.keyframes.length <= 2) { run(planQuickAnimation(current, selected, "Apparition", ""), `Ne plus faire bouger ${quoteLabel(nodeLabel(selected))}`); return; }
+    run(planRemoveKeyframes(current, ap.animation.id, [{ track: ap.track.id, at: kfAt }]), "Retirer l'image-clé");
+  };
   // Ce que l'élément lance lui-même hors de son apparition (survol, clic, défilement, souris) : ses réglages fins et le retrait.
   const others = (selected.triggers ?? []).filter((t) => t.id !== ap?.trigger.id && t.on !== "load" && t.on !== "inView");
 
@@ -134,7 +145,7 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
             </div>
           </div>
           <ul className="px-3 pb-2" aria-label={`Scène de ${quoteLabel(view.sectionLabel)}`}>
-            {view.rows.map((row, i) => (
+            {visible.map((row) => { const i = view.rows.indexOf(row); return (
               <li key={row.id} data-scene-row={row.id} data-still={row.still || undefined} className={`grid grid-cols-[220px_minmax(0,1fr)] items-center h-8 border-b border-line/60 ${row.selected ? "bg-accent-soft/40" : ""}`}>
                 <button type="button" data-scene-name="" className={`flex items-center gap-1.5 min-w-0 pr-2 text-left text-xs truncate ${row.selected ? "text-accent font-medium" : row.still ? "text-dim hover:text-ink" : "text-ink hover:text-accent"}`} style={{ paddingLeft: row.depth * 12 }} title={`Sélectionner ${quoteLabel(row.label)}`} onClick={() => onSelect(row.id)}>
                   <span className="truncate">{row.label}</span>{row.count ? <span className="text-muted shrink-0">×{row.count}</span> : null}
@@ -154,17 +165,22 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
                   )}
                   {row.keyframes?.map((k) => (
                     <button key={k.at} type="button" data-scene-kf={k.at} aria-label={`Image-clé à ${tickLabel(k.sceneAt)} ms`} aria-pressed={at === k.at} title={`${k.sceneAt} ms${k.easing ? ` · ${k.easing}` : ""}`}
-                      className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 p-1 rounded-xs cursor-grab active:cursor-grabbing ${at === k.at ? "text-warning" : "text-accent-ink hover:text-warning"}`} style={{ left: `calc(${pct(k.sceneAt)} + ${shift("kf", row.id, k.at)}px)` }} onPointerDown={(e) => { place(k.sceneAt); startDrag(e, "kf", row.id, k.at); }}>
+                      className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 p-1 rounded-xs cursor-grab active:cursor-grabbing ${at === k.at ? "text-warning" : "text-accent-ink hover:text-warning"}`} style={{ left: `calc(${pct(k.sceneAt)} + ${shift("kf", row.id, k.at)}px)` }} onPointerDown={(e) => { place(k.sceneAt); startDrag(e, "kf", row.id, k.at); }} onKeyDown={(e) => { if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); e.stopPropagation(); removeKeyframe(k.at); } }}>
                       <Diamond size={11} fill="currentColor" aria-hidden />
                     </button>
                   ))}
                   {row.selected && ap && playhead !== null && !kfHere ? (
-                    <IconButton size="sm" className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 h-5 w-5 rounded-full border border-dashed border-accent bg-panel" label="Ajouter une image-clé ici" icon={Plus} onClick={() => run(planSetKeyframe(getSite(), ap.animation.id, ap.track.id, at!, {}), `Image-clé à ${at} ms`)} />
+                    <button type="button" aria-label="Ajouter une image-clé ici" title="Pose une image-clé à la tête de lecture ; régler une propriété à droite en pose une aussi" className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 h-5 px-1.5 rounded-full border border-dashed border-accent bg-panel text-2xs text-accent whitespace-nowrap hover:bg-accent-soft" style={{ left: pct(playhead) }} onClick={addKeyframe}>+ image-clé</button>
                   ) : null}
                 </div>
               </li>
-            ))}
+            ); })}
           </ul>
+          {addable.length ? (
+            <div className="px-3 pb-3" data-scene-add="">
+              <Select className="w-[260px]" value="" placeholder="+ Ajouter un élément à la scène…" options={addable.map((r) => ({ value: r.id, label: `${"  ".repeat(r.depth)}${r.label}${r.count ? ` ×${r.count}` : ""}` }))} onValueChange={(id) => { const row = view.rows.find((r) => r.id === id); if (row) appear(row, view.rows.indexOf(row)); }} />
+            </div>
+          ) : null}
           {playhead !== null ? <span className="pointer-events-none absolute" aria-hidden /> : null}
         </div>
       </div>
@@ -197,7 +213,7 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
         {ap ? (
           <section className="flex flex-col gap-2 border-t border-line pt-3" aria-label="Image-clé" data-scene-keyframe="">
             {at === null ? <Hint>Cliquez la règle ou un losange pour vous placer à un instant : ce qui se règle ici s&apos;y enregistre en image-clé.</Hint> : (<>
-              <PanelHeading className="px-0" actions={!kfHere ? <Button size="sm" variant="ghost" icon={Plus} onClick={() => run(planSetKeyframe(getSite(), ap.animation.id, ap.track.id, at, {}), `Image-clé à ${at} ms`)}>Image-clé ici</Button> : undefined}>
+              <PanelHeading className="px-0" actions={kfHere ? <IconButton size="sm" label="Supprimer l'image-clé" icon={Trash2} tone="danger" onClick={() => removeKeyframe(at)} /> : <Button size="sm" variant="ghost" icon={Plus} onClick={addKeyframe}>Image-clé ici</Button>}>
                 {kfHere ? `◆ Image-clé à ${tickLabel(playhead!)} ms` : `Instant ${tickLabel(playhead!)} ms`}
               </PanelHeading>
               {kfHere && prevKf ? (
