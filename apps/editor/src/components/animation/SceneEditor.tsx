@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Diamond, ExternalLink, Play, Plus, SkipBack, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { CommitOptions, Node, Op, Site } from "@atelier/model";
 import { ANIMATION_PRESETS, TRIGGER_LABELS, animationUsages, appearanceOf, applyOps, indexSite, keyframeAt, newId, planAddTrigger, planAppearanceStart, planQuickAnimation, planAppearanceDelay, planAppearanceDuration, planRemoveKeyframes, planRemoveTriggerWithAnimation, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUpdateTrigger, trackPresetMatch } from "@atelier/model";
 import { Badge, Button, Eyebrow, Hint, IconButton, PanelHeading, Select } from "@/ui";
-import { formatMs, nextZoom, quoteLabel, rulerTicks, snapTime, summarizeAnimation, tickLabel } from "@/lib/timeline";
+import { formatMs, quoteLabel, rulerTicks, snapTime, summarizeAnimation, tickLabel } from "@/lib/timeline";
 import { sceneView, type SceneRow } from "@/lib/scene-view";
 import { nodeLabel } from "../node-icons";
 import { QuickAnimations } from "./QuickAnimations";
@@ -41,6 +41,16 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
   // Elle se zoome (boutons, ⌘ ou ⌃ + molette) : la scène s'élargit et défile de côté, les noms restent en place.
   const length = Math.max(1000, Math.ceil(((view?.total ?? 0) * 1.3 + 200) / 500) * 500);
   const [zoom, setZoom] = useState(1);
+  const scroller = useRef<HTMLDivElement>(null);
+  // Le zoom est continu et doux (molette : un facteur par cran ; boutons : ×1,25), et garde sous la souris l'instant qu'elle survolait.
+  const zoomAnchor = useRef<{ t: number; x: number } | null>(null);
+  const clampZoom = (z: number) => Math.round(Math.max(1, Math.min(8, z)) * 100) / 100;
+  useLayoutEffect(() => {
+    const a = zoomAnchor.current; const sc = scroller.current;
+    if (!a || !sc) return;
+    zoomAnchor.current = null;
+    sc.scrollLeft = (a.t / length) * sc.scrollWidth - a.x;
+  }, [zoom, length]);
   const [playhead, setPlayhead] = useState<number | null>(null);
   // La liste des éléments à ajouter est une liste maison : une liste native ne dit pas quel choix est survolé, et le survol montre l'élément dans l'aperçu.
   // La liste est rendue hors de la zone qui défile (sinon elle y est rognée), ancrée au bouton : au-dessus s'il y a la place, sinon en dessous.
@@ -71,7 +81,14 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
   // La tête de lecture se pose en cliquant ou glissant la règle ; l'aperçu montre cet instant pour l'élément sélectionné.
   const place = (t: number | null) => { setPlayhead(t); scrub(t, t === null || !view ? undefined : view.scrub(t)); };
   const timeAt = (clientX: number) => { const r = rail.current?.getBoundingClientRect(); if (!r || r.width <= 0) return 0; return snapTime(Math.max(0, Math.min(1, (clientX - r.left) / r.width)) * length); };
-  const onWheel = (e: React.WheelEvent) => { if (!(e.ctrlKey || e.metaKey)) return; e.preventDefault(); setZoom((z) => nextZoom(z, e.deltaY < 0 ? 1 : -1)); };
+  const onWheel = (e: React.WheelEvent) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    e.preventDefault();
+    const sc = scroller.current; const r = sc?.getBoundingClientRect();
+    if (sc && r) zoomAnchor.current = { t: timeAt(e.clientX), x: e.clientX - r.left };
+    setZoom((z) => clampZoom(z * Math.exp(-e.deltaY * 0.0015)));
+  };
+  const zoomBy = (f: number) => { const sc = scroller.current; if (sc) zoomAnchor.current = { t: ((sc.scrollLeft + sc.clientWidth / 2) / Math.max(1, sc.scrollWidth)) * length, x: sc.clientWidth / 2 }; setZoom((z) => clampZoom(z * f)); };
   useEffect(() => () => scrub(null), [scrub]);
   // À la sélection d'un élément qui bouge, la tête de lecture se pose à la fin de son mouvement : l'image-clé d'arrivée est sous la main.
   const lastSel = useRef<string | null>(null);
@@ -155,7 +172,7 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
           {view.launches.length > 1 ? <Badge tone="warning" title="Chaque lancement compte son temps depuis sa propre entrée à l'écran ; « Démarre après » un autre élément les réunit">{view.launches.length} lancements</Badge> : null}
           <span className="mx-1 h-4 w-px bg-line" aria-hidden />
           <IconButton size="sm" label="Revenir au début" icon={SkipBack} onClick={() => place(0)} />
-          <Button size="sm" variant="primary" icon={Play} title="Joue la scène dans l'aperçu" onClick={() => { place(null); playAll(); }}>Lire</Button>
+          <Button size="sm" variant="primary" icon={Play} title="Joue la scène dans l'aperçu" onClick={() => { scrub(null); playAll(); }}>Lire</Button>
           {onTestOnSite ? <Button size="sm" variant="ghost" icon={ExternalLink} onClick={() => onTestOnSite(ap && !ap.page ? ap.hostId : selected.id)} title="Ouvre l'onglet Aperçu : la section arrive à l'écran comme pour un visiteur">Tester sur le site</Button> : null}
           <span className="ml-auto text-xs tabular-nums text-muted">{playhead !== null ? `${tickLabel(playhead)} ms` : ""}</span>
           <IconButton size="sm" label="Fermer l'outil Animation" icon={X} onClick={onClose} />
@@ -174,7 +191,7 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
               ))}
             </div>
             {/* La règle et les pistes : zoomées, elles s'élargissent et défilent de côté (⌘ + molette, ou les boutons de l'en-tête). */}
-            <div className="min-w-0 overflow-x-auto overflow-y-hidden" data-scene-scroll="" onWheel={onWheel}>
+            <div ref={scroller} className="min-w-0 overflow-x-auto overflow-y-hidden" data-scene-scroll="" onWheel={onWheel}>
               <div data-scene-lanes="" style={{ width: `${zoom * 100}%` }}>
                 <div ref={rail} data-scene-rail="" role="slider" aria-label="Tête de lecture" aria-valuemin={0} aria-valuemax={length} aria-valuenow={Math.round(playhead ?? 0)} tabIndex={0}
                   className="relative h-5 border-b border-line cursor-ew-resize select-none text-2xs text-dim"
@@ -235,9 +252,9 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
             </div>
           ) : null}
             <span className="ml-auto flex items-center gap-0.5">
-              <IconButton size="sm" label="Dézoomer la ligne de temps (⌘ + molette)" icon={ZoomOut} disabled={zoom <= 1} onClick={() => setZoom((z) => nextZoom(z, -1))} />
-              <button type="button" className="h-7 min-w-9 px-1 rounded-sm text-2xs tabular-nums text-muted hover:text-ink hover:bg-hover disabled:opacity-40" disabled={zoom === 1} title="Ajuster : toute la règle dans la largeur" onClick={() => setZoom(1)}>{zoom === 1 ? "×1" : `×${String(zoom).replace(".", ",")}`}</button>
-              <IconButton size="sm" label="Zoomer la ligne de temps (⌘ + molette)" icon={ZoomIn} disabled={zoom >= 8} onClick={() => setZoom((z) => nextZoom(z, 1))} />
+              <IconButton size="sm" label="Dézoomer la ligne de temps (⌘ + molette)" icon={ZoomOut} disabled={zoom <= 1} onClick={() => zoomBy(1 / 1.25)} />
+              <button type="button" className="h-7 min-w-9 px-1 rounded-sm text-2xs tabular-nums text-muted hover:text-ink hover:bg-hover disabled:opacity-40" disabled={zoom === 1} title="Ajuster : toute la règle dans la largeur" onClick={() => setZoom(1)}>{zoom === 1 ? "×1" : `×${zoom.toFixed(2).replace(/\.?0+$/, "").replace(".", ",")}`}</button>
+              <IconButton size="sm" label="Zoomer la ligne de temps (⌘ + molette)" icon={ZoomIn} disabled={zoom >= 8} onClick={() => zoomBy(1.25)} />
             </span>
           </div>
           {playhead !== null ? <span className="pointer-events-none absolute" aria-hidden /> : null}
@@ -269,23 +286,29 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
             ))}
           </section>
         ) : null}
-        {ap ? (
-          <section className="flex flex-col gap-2 border-t border-line pt-3" aria-label="Image-clé" data-scene-keyframe="">
+        <section className="flex flex-col gap-2 border-t border-line pt-3" aria-label="Image-clé" data-scene-keyframe="">
+          {!ap ? (
+            <Hint>Faites d&apos;abord apparaître {quoteLabel(nodeLabel(selected))} : choisissez une Apparition ci-dessus, ou « + Faire apparaître » sur sa ligne. Ses images-clés se régleront ici.</Hint>
+          ) : (<>
+            <PanelHeading className="px-0" actions={
+              <div className="flex items-center gap-0.5">
+                <Button size="sm" variant="ghost" icon={Plus} aria-label="Ajouter une image-clé ici" title={at === null ? "Cliquez d'abord la règle pour choisir l'instant" : kfHere ? "Il y a déjà une image-clé à cet instant" : `Pose une image-clé à ${tickLabel(playhead!)} ms`} disabled={at === null || !!kfHere} onClick={addKeyframe}>Image-clé ici</Button>
+                <IconButton size="sm" label="Supprimer l'image-clé" icon={Trash2} tone="danger" disabled={!kfHere} onClick={() => kfHere && removeKeyframe(at!)} />
+              </div>}>
+              {at === null ? "Image-clé" : kfHere ? `◆ Image-clé à ${tickLabel(playhead!)} ms` : `Instant ${tickLabel(playhead!)} ms`}
+            </PanelHeading>
             {at === null ? <Hint>Cliquez la règle ou un losange pour vous placer à un instant : ce qui se règle ici s&apos;y enregistre en image-clé.</Hint> : (<>
-              <PanelHeading className="px-0" actions={kfHere ? <IconButton size="sm" label="Supprimer l'image-clé" icon={Trash2} tone="danger" onClick={() => removeKeyframe(at)} /> : <Button size="sm" variant="ghost" icon={Plus} onClick={addKeyframe}>Image-clé ici</Button>}>
-                {kfHere ? `◆ Image-clé à ${tickLabel(playhead!)} ms` : `Instant ${tickLabel(playhead!)} ms`}
-              </PanelHeading>
               {kfHere && prevKf ? (
                 <div className="grid grid-cols-[80px_1fr] items-start gap-1.5">
                   <span className="text-xs text-muted pt-1.5" title="Courbe pour atteindre cette image-clé depuis la précédente">Courbe</span>
                   <EasingField value={kfHere.easing} segment={at - prevKf.at} onChange={(e) => run(planSetKeyframeEasing(getSite(), ap.animation.id, ap.track.id, at, e), "Courbe du segment", `kf-ease:${ap.animation.id}:${ap.track.id}:${at}`)} />
                 </div>
               ) : null}
-              {!kfHere ? <Hint>Aucune image-clé ici : réglez une propriété ci-dessous, elle se crée.</Hint> : null}
+              {!kfHere ? <Hint>Aucune image-clé à cet instant : « Image-clé ici », ou réglez une propriété ci-dessous, elle se crée.</Hint> : null}
               <KeyframePanels site={site} getSite={getSite} node={selected} bp={bp} mode={mode} animationId={ap.animation.id} track={ap.track} at={at} commit={commit} />
             </>)}
-          </section>
-        ) : null}
+          </>)}
+        </section>
       </div>
     </div>
   );

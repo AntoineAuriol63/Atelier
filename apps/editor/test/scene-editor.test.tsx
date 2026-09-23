@@ -108,17 +108,42 @@ describe("tiroir Animation : la scène", () => {
     const m = mount(animated(), "hh2");
     const editor = m.host.querySelector("[data-scene-editor]")!;
     expect(editor.getAttribute("data-scene-zoom")).toBe("1");
+    // Progressif : un bouton fait ×1,25 ; la molette (⌘ ou ⌃) un facteur doux, continu.
     act(() => { m.buttons().find((b) => (b.getAttribute("aria-label") ?? "").startsWith("Zoomer"))!.click(); });
-    expect(editor.getAttribute("data-scene-zoom")).toBe("1.5");
-    expect(m.host.querySelector<HTMLElement>("[data-scene-lanes]")!.style.width).toBe("150%");
+    expect(editor.getAttribute("data-scene-zoom")).toBe("1.25");
+    expect(m.host.querySelector<HTMLElement>("[data-scene-lanes]")!.style.width).toBe("125%");
     const lanes = m.host.querySelector<HTMLElement>("[data-scene-scroll]")!;
     const wheel = (deltaY: number) => { const ev = new WheelEvent("wheel", { bubbles: true, cancelable: true }); Object.defineProperty(ev, "deltaY", { value: deltaY }); Object.defineProperty(ev, "ctrlKey", { value: true }); lanes.dispatchEvent(ev); };
     act(() => { wheel(100); });
-    expect(editor.getAttribute("data-scene-zoom")).toBe("1");
+    expect(Number(editor.getAttribute("data-scene-zoom"))).toBeCloseTo(1.08, 2);
     act(() => { wheel(100); });
     expect(editor.getAttribute("data-scene-zoom")).toBe("1");
     act(() => { wheel(-100); });
-    expect(editor.getAttribute("data-scene-zoom")).toBe("1.5");
+    expect(Number(editor.getAttribute("data-scene-zoom"))).toBeCloseTo(1.16, 2);
+    act(() => { wheel(-100); });
+    expect(Number(editor.getAttribute("data-scene-zoom"))).toBeCloseTo(1.35, 2);
+  });
+
+  it("l'image-clé a sa place fixe à droite : « Image-clé ici » et « Supprimer » toujours présents, l'un ou l'autre actif ; « Lire » ne perd pas la tête de lecture", () => {
+    const m = mount(animated(), "hh2");
+    // À l'ouverture, la tête de lecture est à la fin du mouvement (1 300 ms), sur une image-clé : Supprimer actif, Ajouter inactif.
+    const add = () => m.host.querySelector<HTMLButtonElement>('[data-scene-keyframe] [aria-label="Ajouter une image-clé ici"]')!;
+    const del = () => m.host.querySelector<HTMLButtonElement>('[data-scene-keyframe] [aria-label="Supprimer l\'image-clé"]')!;
+    expect(add().disabled).toBe(true);
+    expect(del().disabled).toBe(false);
+    act(() => { m.buttons().find((b) => (b.textContent ?? "").trim() === "Lire")!.click(); });
+    expect(m.text()).toMatch(/Image-clé à 1\u202f300 ms/);
+    expect(m.scrubs[m.scrubs.length - 1]).toBeNull();
+    const rail = m.host.querySelector<HTMLElement>("[data-scene-rail]")!;
+    rail.getBoundingClientRect = () => ({ left: 0, width: 1000, top: 0, height: 20, right: 1000, bottom: 20, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+    act(() => { rail.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 250, button: 0 })); });
+    expect(add().disabled).toBe(false);
+    expect(del().disabled).toBe(true);
+  });
+
+  it("un élément qui ne bouge pas encore : l'encart dit qu'il faut d'abord le faire apparaître", () => {
+    const m = mount(animated(), "pp2");
+    expect(m.host.querySelector("[data-scene-keyframe]")!.textContent).toMatch(/Faites d'abord apparaître/);
   });
 
   it("une image-clé se retire par son bouton « Supprimer » ou par Suppr sur son losange", () => {
