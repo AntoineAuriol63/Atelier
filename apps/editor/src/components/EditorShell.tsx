@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { AlertTriangle, CheckCircle2, Command as CommandIcon, Database as DatabaseIcon, ExternalLink, Info, FileText, Grid3x3, Layers, Moon, Palette, Plus, Puzzle, Redo2, Sparkles, Sun, Undo2, UploadCloud, X, Settings2, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, Zap, Film, type LucideIcon } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Command as CommandIcon, Database as DatabaseIcon, ExternalLink, Info, FileText, Grid3x3, Layers, Moon, Palette, Plus, Puzzle, Redo2, Sparkles, Sun, Undo2, UploadCloud, X, Settings2, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, Zap, type LucideIcon } from "lucide-react";
 import type { DropPosition, Entry, Node, Page, Site, StyleValue, Role } from "@atelier/model";
 import { animationById, appearanceOf, planAppearancePreset, planRemoveNode, BASE, breakpointForWidth, canInsertUnder, cloneWithNewIds, dataSourceFor, entryPath, fitHeadings as fitHeadingsInPage, indexSite, layoutGridAt, newId, planDetach, planDrop, planInsert, planMakeComponent, planMergePrev, planMove, planSlashInsert, planSplit, stylePath, templateOf, type ComponentPlan, type TextPlan, ANIMATION_PRESETS } from "@atelier/model";
 import type { Op } from "@atelier/model";
@@ -12,7 +12,7 @@ import Link from "next/link";
 import { PRODUCT_NAME } from "@/lib/product";
 import { insideAnimationTool, isEditableTarget, mod } from "@/lib/keys";
 import type { BlockPreset } from "@/lib/blocks";
-import { Badge, Breadcrumb, Button, Eyebrow, Hint, IconButton, Panel, PanelHeading, Separator, Tabs, TreeRow, type DropIndicator, ConfirmProvider, askConfirm } from "@/ui";
+import { Badge, Breadcrumb, Button, Hint, IconButton, Panel, PanelHeading, Separator, Tabs, TreeRow, type DropIndicator, ConfirmProvider, askConfirm } from "@/ui";
 import { NodeInspector } from "./NodeInspector";
 import { AddPanel } from "./AddPanel";
 import { ThemePanel } from "./ThemePanel";
@@ -22,10 +22,10 @@ import { allPresets } from "@/lib/blocks";
 import { ImagesIcon, MediaLibraryProvider, openMediaLibrary } from "@/components/MediaLibrary";
 import type { AssetUsage } from "@/lib/asset-usage";
 import { isAtelierMessage, type EditMode, type FromPreview, type ToPreview } from "@/lib/preview-protocol";
-import { animatedNodes, triggerHosts, validOpenTimeline, type OpenTimeline } from "@/lib/timeline";
+import { animatedNodes, triggerHosts, type OpenTimeline } from "@/lib/timeline";
 import { compoundIds, selectionPath } from "@/lib/selection";
 import { testOnSiteUrl } from "@/lib/test-on-site";
-import { AnimationModePanel } from "./animation/AnimationModePanel";
+import { SceneEditor } from "./animation/SceneEditor";
 import { PublishDialog } from "@/components/PublishDialog";
 import { DataPanel } from "@/components/data/DataPanel";
 import { DatabaseTable } from "@/components/data/DatabaseTable";
@@ -217,34 +217,12 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
 
   // --- outil Animation : l'animation ouverte dans la ligne de temps, rattachée à la page où elle a été ouverte.
   // Elle se referme d'elle-même si l'on change de page ou si son déclencheur disparaît (annuler, retirer, supprimer l'élément).
-  const [timeline, setTimeline] = useState<{ page: string; open: OpenTimeline }>({ page: "", open: null });
-  const openTl = useMemo(() => (timeline.page === page.id ? validOpenTimeline(site, timeline.open) : null), [timeline, page.id, site]);
+  // L'animation « ouverte » (repères des calques, aperçu en sélection seule) : celle qui fait bouger l'élément sélectionné, tant que l'outil est ouvert.
+  const openTl = useMemo<OpenTimeline>(() => { if (!animOpen || !selected) return null; const ap = appearanceOf(site, selected); return ap ? { animationId: ap.animation.id, hostId: ap.hostId, triggerId: ap.trigger.id } : null; }, [animOpen, selected, site]);
   // L'aperçu connaît trois façons d'être piloté : écrire, disposer, et « animate » quand une ligne de temps est ouverte (sélection seule, l'instant montré).
   const previewEditMode: EditMode = animOpen && openTl ? "animate" : editMode === "write" ? "write" : "design";
-  /** Ouvre une animation (ou referme la ligne de temps) et sélectionne son hôte ; s'il est sur une autre page, on y va. */
-  const openAnimation = useCallback((o: OpenTimeline) => {
-    const owner = o ? index.get(o.hostId)?.owner : undefined;
-    const target = owner && "page" in owner ? owner.page : page.id;
-    if (target !== page.id) {
-      setPageId(target); setFrameReady(false);
-      // Changer de page en ouvrant une animation se dit (tests simulés, PR4 : le changement était passé inaperçu).
-      const p = site.pages.find((x) => x.id === target);
-      if (p) notify(`Page « ${p.name[site.settings.defaultLocale] ?? p.path} » : cette animation est lancée depuis cette page`, "info");
-    }
-    setTimeline({ page: target, open: o });
-    if (o) select(o.hostId);
-  }, [index, page.id, setPageId, select, site, notify]);
-  /** « Animer cet élément » : ouvre l'outil Animation sur l'élément, avec l'animation du déclencheur demandé (sinon du premier). */
-  const animateNode = useCallback((node: Node, triggerId?: string) => {
-    if (writer) return;
-    const t = (node.triggers ?? []).find((x) => x.id === triggerId) ?? node.triggers?.[0];
-    setAnimOpen(true);
-    // Un élément enchaîné n'a pas de déclencheur à lui : on ouvre l'animation qui le fait apparaître.
-    const ap = t ? undefined : appearanceOf(site, node.id);
-    if (t) openAnimation({ animationId: t.animation, hostId: node.id, triggerId: t.id });
-    else if (ap) { openAnimation({ animationId: ap.animation.id, hostId: ap.hostId, triggerId: ap.trigger.id }); select(node.id); }
-    else select(node.id);
-  }, [writer, openAnimation, select, site]);
+  /** « Animer cet élément » : ouvre l'outil Animation sur l'élément (sa section, sa ligne, ses images-clés). */
+  const animateNode = useCallback((node: Node) => { if (writer) return; setAnimOpen(true); select(node.id); }, [writer, select]);
   // Pioche de la ligne de temps : le prochain élément cliqué (aperçu, calques, fil d'Ariane) devient une piste, sans changer la sélection.
   const pickRef = useRef<((id: string) => void) | null>(null);
   const [picking, setPicking] = useState(false);
@@ -261,21 +239,17 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
     return true;
   }, [setPick, post]);
   const selectOrPick = useCallback((id: string) => { if (!consumePick(id)) select(id); }, [consumePick, select]);
-  // Repère de la piste active dans l'aperçu, reposé quand l'aperçu se recharge.
-  const targetsRef = useRef<{ ids: string[]; label?: string }>({ ids: [] });
-  const showTargets = useCallback((ids: string[], label?: string) => { targetsRef.current = { ids, label }; post({ type: "atelier:anim-targets", ids, label }); }, [post]);
-  useEffect(() => { if (frameReady && targetsRef.current.ids.length) post({ type: "atelier:anim-targets", ...targetsRef.current }); }, [frameReady, post]);
   /** Ferme l'outil Animation. La ligne de temps, en se démontant, rend la pioche, retire les repères et arrête l'instant montré. */
-  const closeAnim = useCallback(() => { setAnimOpen(false); setTimeline({ page: "", open: null }); }, []);
+  const closeAnim = useCallback(() => { setAnimOpen(false); }, []);
   const toggleAnim = useCallback(() => { if (animOpen) closeAnim(); else setAnimOpen(true); }, [animOpen, closeAnim]);
   // L'aperçu montre l'instant de la tête de lecture ; la valeur est gardée pour la reposer quand l'aperçu se recharge.
-  const scrubTime = useRef<number | null>(null);
-  const scrub = useCallback((time: number | null) => {
-    scrubTime.current = time;
-    if (time === null || !openTl) post({ type: "atelier:scrub-stop" });
-    else post({ type: "atelier:scrub", id: openTl.hostId, trigger: openTl.triggerId, time });
-  }, [openTl, post]);
-  useEffect(() => { if (frameReady && openTl && scrubTime.current !== null) post({ type: "atelier:scrub", id: openTl.hostId, trigger: openTl.triggerId, time: scrubTime.current }); }, [frameReady, openTl, post]);
+  const scrubTime = useRef<{ hostId: string; triggerId: string; time: number } | null>(null);
+  const scrub = useCallback((_sceneTime: number | null, at?: { hostId: string; triggerId: string; time: number }) => {
+    scrubTime.current = at ?? null;
+    if (!at) post({ type: "atelier:scrub-stop" });
+    else post({ type: "atelier:scrub", id: at.hostId, trigger: at.triggerId, time: at.time });
+  }, [post]);
+  useEffect(() => { const a = scrubTime.current; if (frameReady && a) post({ type: "atelier:scrub", id: a.hostId, trigger: a.triggerId, time: a.time }); }, [frameReady, post]);
 
 
   // Entrées de la version publiée (id → date) : le tableau compte ce qui est publié ici mais pas encore en ligne.
@@ -744,7 +718,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
       {focusMode ? null : <Panel side="right" className="relative">
         {selectionTrail.length > 1 ? <Breadcrumb label="Chemin de la sélection" items={selectionTrail} onSelect={selectOrPick} className="shrink-0" /> : null}
         {selectedLoc ? (
-          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} onPlay={(id, trigger) => post({ type: "atelier:play", id, trigger })} site={site} loc={selectedLoc} dataSource={dataSource} activeBp={activeBp} mode={mode} editMode={editMode === "write" ? "write" : "design"} onSwitchMode={switchMode} onOpenAnimation={writer ? undefined : (triggerId) => animateNode(selectedLoc.node, triggerId)} onTestOnSite={(id) => testOnSite(id ?? selectedLoc.node.id)} onSelectNode={(id) => select(id)} onGoToBreakpoint={goToBreakpoint} onPreviewState={setPreviewState} onEditInPreview={() => post({ type: "atelier:edit-text", id: selectedLoc.node.id })} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }} onMakeComponent={makeComponent} onDetach={detachInstance} notify={notify} commit={doc.commit} onDeleted={() => { select(selectedLoc.parent?.id ?? null); notify(`${nodeLabel(selectedLoc.node)} supprimé`, "info", { label: "Annuler", run: () => doc.undo() }); }} /></div>
+          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} onPlay={(id, trigger) => post({ type: "atelier:play", id, trigger })} site={site} loc={selectedLoc} dataSource={dataSource} activeBp={activeBp} mode={mode} editMode={editMode === "write" ? "write" : "design"} onSwitchMode={switchMode} onOpenAnimation={writer ? undefined : () => animateNode(selectedLoc.node)} onTestOnSite={(id) => testOnSite(id ?? selectedLoc.node.id)} onSelectNode={(id) => select(id)} onGoToBreakpoint={goToBreakpoint} onPreviewState={setPreviewState} onEditInPreview={() => post({ type: "atelier:edit-text", id: selectedLoc.node.id })} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }} onMakeComponent={makeComponent} onDetach={detachInstance} notify={notify} commit={doc.commit} onDeleted={() => { select(selectedLoc.parent?.id ?? null); notify(`${nodeLabel(selectedLoc.node)} supprimé`, "info", { label: "Annuler", run: () => doc.undo() }); }} /></div>
         ) : (
           <div className="p-3 flex flex-col gap-2">
             <PanelHeading className="px-0">Sélection</PanelHeading>
@@ -759,14 +733,8 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
               className="absolute left-0 right-0 -top-1 h-2 z-40 cursor-row-resize hover:bg-accent/40 focus-visible:bg-accent/60" title="Glisser pour changer la hauteur"
               onPointerDown={(e) => { e.preventDefault(); const startY = e.clientY, startH = animH; const onMove = (ev: PointerEvent) => setAnimH(Math.round(Math.min(640, Math.max(200, startH - (ev.clientY - startY))))); const onUp = (ev: PointerEvent) => { window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); saveAnimH(startH - (ev.clientY - startY)); }; window.addEventListener("pointermove", onMove); window.addEventListener("pointerup", onUp); }}
               onKeyDown={(e) => { if (e.key === "ArrowUp") { e.preventDefault(); saveAnimH(animH + (e.shiftKey ? 80 : 20)); } if (e.key === "ArrowDown") { e.preventDefault(); saveAnimH(animH - (e.shiftKey ? 80 : 20)); } }} />
-            <div className="flex items-center gap-2 h-8 px-3 border-b border-line shrink-0">
-              <Film size={13} className="text-accent" aria-hidden />
-              <Eyebrow as="h2">Animation</Eyebrow>
-              <span className="text-xs text-muted truncate">{openTl ? animationById(site, openTl.animationId)?.name ?? "" : "Déclencheurs et lignes de temps"}</span>
-              <IconButton size="sm" className="ml-auto" label="Fermer l'outil Animation" icon={X} onClick={closeAnim} />
-            </div>
             <div className="flex-1 min-h-0 overflow-x-auto">
-              <AnimationModePanel site={site} node={selectedLoc?.node ?? null} commit={doc.commit} page={page} getSite={doc.getSite} bp={activeBp} mode={mode} open={openTl} onOpen={openAnimation} scrub={scrub} onSelect={select} onPick={setPick} picking={picking} showTargets={showTargets} onTestOnSite={testOnSite} />
+              <SceneEditor site={site} getSite={doc.getSite} selectedId={selected} bp={activeBp} mode={mode} commit={doc.commit} onSelect={select} scrub={scrub} onPlay={(triggerId, hostId) => post({ type: "atelier:play", id: hostId, trigger: triggerId })} onTestOnSite={testOnSite} onClose={closeAnim} />
             </div>
           </div>
         ) : null}
