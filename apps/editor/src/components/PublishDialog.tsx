@@ -1,16 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, Download, ExternalLink, FileText, History, Plus, UploadCloud, Users, X } from "lucide-react";
+import { Check, Download, ExternalLink, FileText, History, Plus, RotateCcw, UploadCloud, Users, X } from "lucide-react";
 import type { CommitOptions, Finding, Op, Redirect, Role, Site } from "@atelier/model";
 import { NOT_FOUND_PATH, ROLE_LABEL, validRedirect } from "@atelier/model";
 import { Badge, Button, Dialog, Field, FieldGroup, Hint, IconButton, Select, TextArea, TextInput, Toggle, askConfirm, Eyebrow, Tabs } from "@/ui";
 import { notFoundPage } from "@/components/PagesPanel";
 import { AssetPicker } from "@/components/design/AppearancePanel";
 import { CheckupSection } from "@/components/CheckupSection";
+import { historyRows } from "@/lib/history";
 
 type Commit = (op: Op, opts?: CommitOptions) => void;
-type State = { publishedVersion: number | null; publishedAt: string | null; publications: { version: number; label?: string; createdAt: string }[]; url: string | null; version: number | null; sitesDomain?: string | null };
+type State = { publishedVersion: number | null; publishedAt: string | null; publications: { version: number; label?: string; createdAt: string }[]; checkpoints?: { version: number; createdAt: string }[]; url: string | null; version: number | null; sitesDomain?: string | null };
 
 /** Ce que le sous-domaine devient : minuscules, accents et espaces retirés, tirets aux jointures. */
 const normalizeSub = (v: string) => v.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[\s_]+/g, "-").replace(/[^a-z0-9-]/g, "").replace(/-+/g, "-").replace(/^-|-$/g, "");
@@ -86,14 +87,27 @@ export function PublishDialog({ site, role = "owner", version, dirty, broken, co
     } catch (e) { notify(e instanceof Error ? e.message : "Publication impossible"); } finally { setBusy(null); }
   };
   const restore = async (v: number) => {
-    if (!(await askConfirm({ title: `Remettre en ligne la version ${v} ?`, message: "Le site public affichera cet état. L'éditeur ne change pas : vous continuez sur la version de travail.", action: "Remettre en ligne" }))) return;
+    if (!(await askConfirm({ title: "Remettre cette publication en ligne ?", message: "Le site public affichera cet état. L'éditeur ne change pas : vous continuez sur la version de travail.", action: "Remettre en ligne" }))) return;
     setBusy("Retour arrière…");
     try {
       const res = await fetch(`/api/sites/${site.id}/publish/restore`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ version: v }) });
       const body = (await res.json()) as { error?: string };
       if (!res.ok) throw new Error(body.error ?? "Retour arrière impossible");
-      notify(`Version ${v} remise en ligne.`, "success"); await load();
+      notify("Publication remise en ligne.", "success"); await load();
     } catch (e) { notify(e instanceof Error ? e.message : "Retour arrière impossible"); } finally { setBusy(null); }
+  };
+  /** Reprendre un instantané comme version de travail : un changement du journal, puis l'éditeur se recharge sur le document ramené. */
+  const resume = async (v: number, title: string) => {
+    if (!(await askConfirm({ title: `Reprendre « ${title} » comme version de travail ?`, message: "Les pages, le design et les réglages reviennent à cet état ; les entrées des bases ne changent pas. Le site en ligne ne bouge pas tant que vous ne republiez pas. ⌘Z pourra l'annuler.", action: "Reprendre" }))) return;
+    setBusy("Reprise…");
+    try {
+      const res = await fetch(`/api/sites/${site.id}/publish/resume`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ version: v }) });
+      const body = (await res.json()) as { error?: string; unchanged?: boolean };
+      if (!res.ok) throw new Error(body.error ?? "Reprise impossible");
+      if (body.unchanged) { notify("La version de travail est déjà dans cet état.", "info"); return; }
+      notify(`« ${title} » reprise comme version de travail.`, "success");
+      window.location.reload();
+    } catch (e) { notify(e instanceof Error ? e.message : "Reprise impossible"); } finally { setBusy(null); }
   };
   const exportCode = async () => {
     setBusy("Préparation de l'archive…");
@@ -125,7 +139,7 @@ export function PublishDialog({ site, role = "owner", version, dirty, broken, co
         {tab === "publish" ? (<>
         <section className="flex flex-col gap-3 rounded-md border border-line bg-surface/50 p-4">
           <div className="flex items-center gap-2 flex-wrap">
-            {state?.publishedVersion === null ? <Badge tone="warning">Jamais publié</Badge> : state ? <Badge tone={upToDate ? "success" : "accent"}>{upToDate ? "En ligne, à jour" : `En ligne : version ${state.publishedVersion}${behind ? ` · ${behind} changement${behind > 1 ? "s" : ""} depuis` : ""}`}</Badge> : <Badge>Lecture…</Badge>}
+            {state?.publishedVersion === null ? <Badge tone="warning">Jamais publié</Badge> : state ? <Badge tone={upToDate ? "success" : "accent"}>{upToDate ? "En ligne, à jour" : behind ? `En ligne · ${behind} modification${behind > 1 ? "s" : ""} depuis la mise en ligne` : "En ligne"}</Badge> : <Badge>Lecture…</Badge>}
             {state?.publishedAt ? <span className="text-xs text-muted">publié le {when(state.publishedAt)}</span> : null}
             {broken ? <span className="text-xs text-danger">Enregistrement bloqué : rechargez la page avant de publier.</span> : dirty ? <span className="text-xs text-warning">Enregistrement en cours…</span> : null}
           </div>
@@ -144,23 +158,24 @@ export function PublishDialog({ site, role = "owner", version, dirty, broken, co
 
         <section className="flex flex-col gap-1 border-t border-line pt-3">
           <Eyebrow as="h3" className="flex items-center gap-1.5"><History size={12} />Historique</Eyebrow>
-          {!state?.publications.length ? <p className="text-sm text-dim">Aucune publication pour l&apos;instant.</p> : (
-            <ul className="flex flex-col">
-              {state.publications.map((p) => {
-                const live = p.version === state.publishedVersion;
-                return (
-                  <li key={p.version} className="flex items-center gap-2 h-8 text-sm">
-                    <span className={`h-2 w-2 rounded-full ${live ? "bg-success" : "border border-line-strong"}`} title={live ? "En ligne" : undefined} />
-                    <span className="font-mono text-xs text-muted w-16">v{p.version}</span>
-                    <span className="text-xs text-muted w-32">{when(p.createdAt)}</span>
-                    <span className="flex-1 truncate text-ink">{p.label ?? ""}</span>
-                    {live ? <Badge tone="success">en ligne</Badge> : <Button size="sm" variant="ghost" disabled={!!busy} onClick={() => restore(p.version)}>Remettre en ligne</Button>}
+          {(() => {
+            const rows = state ? historyRows(state.publications, state.checkpoints ?? [], state.publishedVersion) : [];
+            if (!rows.length) return <p className="text-sm text-dim">Aucune publication ni point de reprise pour l&apos;instant. Un point de reprise est pris de lui-même, au plus une fois par jour de travail.</p>;
+            return (
+              <ul className="flex flex-col" data-history="">
+                {rows.map((r) => (
+                  <li key={r.version} className="flex items-center gap-2 h-8 text-sm" data-history-row={r.kind} title={`Lot ${r.version} du journal`}>
+                    <span className={`h-2 w-2 shrink-0 rounded-full ${r.live ? "bg-success" : r.kind === "publish" ? "bg-accent" : "border border-line-strong"}`} title={r.live ? "En ligne" : r.kind === "publish" ? "Publication" : "Point de reprise"} />
+                    <span className="text-xs text-muted w-32 shrink-0">{when(r.createdAt)}</span>
+                    <span className={`flex-1 truncate ${r.kind === "publish" ? "text-ink" : "text-muted"}`}>{r.title}</span>
+                    {r.live ? <Badge tone="success">en ligne</Badge> : r.kind === "publish" && !writer ? <Button size="sm" variant="ghost" disabled={!!busy} onClick={() => restore(r.version)}>Remettre en ligne</Button> : null}
+                    {!writer ? <IconButton size="sm" label={`Reprendre « ${r.title} » comme version de travail`} icon={RotateCcw} disabled={!!busy || dirty || !!broken} onClick={() => void resume(r.version, r.title)} /> : null}
                   </li>
-                );
-              })}
-            </ul>
-          )}
-          <Hint>Remettre une version en ligne ne touche pas à l&apos;éditeur : vous continuez sur la version de travail, et vous republiez quand vous voulez.</Hint>
+                ))}
+              </ul>
+            );
+          })()}
+          <Hint>Remettre une version en ligne ne touche pas à l&apos;éditeur. Reprendre (↺) ramène l&apos;éditeur à cet état, sans toucher au site en ligne. Les points de reprise sont pris d&apos;eux-mêmes, un par jour de travail, trente gardés ; les publications restent.</Hint>
         </section>
         </>) : (<>
 

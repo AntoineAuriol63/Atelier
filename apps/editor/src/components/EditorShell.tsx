@@ -34,6 +34,7 @@ import { findForms, formDatabase, formDatabaseId } from "@/lib/forms";
 import { uniqueFieldName } from "@/lib/forms";
 import { nodeIcon, nodeLabel } from "./node-icons";
 import { CanvasBar } from "./CanvasBar";
+import { savedLabel } from "@/lib/history";
 import { LeftRail } from "./LeftRail";
 
 const PRESETS: { id: string; label: string; width: number | null }[] = [
@@ -643,7 +644,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
             <IconButton label={`Annuler (${mod()}Z)`} icon={Undo2} disabled={!doc.canUndo} onClick={doc.undo} />
             <IconButton label={`Rétablir (⇧${mod()}Z)`} icon={Redo2} disabled={!doc.canRedo} onClick={doc.redo} />
           </div>
-          <Badge tone={status.tone} title={doc.error ?? `Version ${doc.version}`}>{status.label}<span className="hidden min-[1440px]:inline"> · v{doc.version}</span></Badge>
+          <Badge tone={status.tone} title={doc.error ?? `Enregistré dans le journal du site (lot ${doc.version})`}>{savedLabel(doc.status, doc.savedAt)}</Badge>
           <Separator vertical />
           <Button variant="ghost" icon={ExternalLink} title="Aperçu dans un nouvel onglet" aria-label="Aperçu dans un nouvel onglet" onClick={() => window.open(previewPath, "_blank")}><span className="hidden min-[1440px]:inline">Aperçu</span></Button>
           {writer ? null : <IconButton label="Réglages du site (adresse, référencement, redirections, export, partage)" icon={Settings2} onClick={() => { setPublishTab("settings"); setPublishOpen(true); }} />}

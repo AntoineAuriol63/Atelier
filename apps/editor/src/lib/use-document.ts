@@ -29,6 +29,8 @@ export function useDocument(initialSite: Site, initialVersion: number, options: 
   const docRef = useRef<Doc>(initialDoc);
   const [doc, setDoc] = useState<Doc>(initialDoc);
   const [status, setStatus] = useState<SyncStatus>("saved");
+  // Heure du dernier envoi réussi : le badge la dit plutôt qu'un compteur de versions (23 septembre 2026).
+  const [savedAt, setSavedAt] = useState<number | null>(null);
   const [error, setError] = useState<string | undefined>();
   const [version, setVersion] = useState(initialVersion);
   const [retryAt, setRetryAt] = useState<number | null>(null);
@@ -141,6 +143,7 @@ export function useDocument(initialSite: Site, initialVersion: number, options: 
       retries.current = 0;
       setRetryAt(null);
       setVersion(body.version);
+      setSavedAt(Date.now());
       setError(undefined);
       setStatus(pending.current.length ? "saving" : "saved");
     } catch {
@@ -213,5 +216,5 @@ export function useDocument(initialSite: Site, initialVersion: number, options: 
   /** Le document tel qu'il est après la dernière opération, sans attendre le rendu : pour les aides qui réécrivent un tableau entier (animations). */
   const getSite = () => docRef.current.site;
 
-  return { site: doc.site, history: doc.history, version, status, error, retryAt, blocked: isBlocked, commit, getSite, undo, redo, retryNow, copyPending, canUndo: canUndo(doc.history), canRedo: canRedo(doc.history) };
+  return { site: doc.site, history: doc.history, version, status, savedAt, error, retryAt, blocked: isBlocked, commit, getSite, undo, redo, retryNow, copyPending, canUndo: canUndo(doc.history), canRedo: canRedo(doc.history) };
 }

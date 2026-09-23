@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { applyOps, migrate, validateSite, type Change, type Entry, type Site } from "@atelier/model";
-import type { ChangeInput, ChangeResult, Member, PublicationMeta, Published, SiteStore, SiteSummary, StoredSite } from "./types";
+import { CHECKPOINT_DEFAULTS, type ChangeInput, type ChangeResult, type CheckpointOptions, type Member, type PublicationMeta, type Published, type SiteStore, type SiteSummary, type Snapshot, type SnapshotMeta, type StoredSite } from "./types";
 import { isProduction } from "@/lib/env";
 
 const SUBDOMAIN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
@@ -214,6 +214,44 @@ export class SupabaseSiteStore implements SiteStore {
     const up = await this.client.from("sites").update({ published_version: version }).eq("id", id);
     if (up.error) this.missingColumn(up.error);
     return { version, label: (data.label as string | null) ?? undefined, createdAt: data.created_at as string };
+  }
+  async checkpoint(id: string, opts: CheckpointOptions = {}): Promise<SnapshotMeta | null> {
+    const now = opts.now ?? Date.now();
+    const keep = opts.keep ?? CHECKPOINT_DEFAULTS.keep;
+    const keepChanges = opts.keepChanges ?? CHECKPOINT_DEFAULTS.keepChanges;
+    const current = await this.get(id);
+    if (!current) throw new Error(`Site introuvable : ${id}`);
+    const at = await this.client.from("snapshots").select("version").eq("site_id", id).eq("version", current.version).maybeSingle();
+    if (at.error) throw new Error(at.error.message);
+    const last = await this.client.from("snapshots").select("created_at").eq("site_id", id).eq("kind", "auto").order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (last.error) throw new Error(last.error.message);
+    const lastAt = last.data ? new Date(last.data.created_at as string).getTime() : 0;
+    let meta: SnapshotMeta | null = null;
+    if (!at.data && now - lastAt >= CHECKPOINT_DEFAULTS.minIntervalMs) {
+      const entries = await this.entries(id);
+      const createdAt = new Date(now).toISOString();
+      const ins = await this.client.from("snapshots").insert({ site_id: id, version: current.version, document: { site: current.site, entries }, kind: "auto", created_at: createdAt });
+      if (ins.error) throw new Error(ins.error.message);
+      meta = { version: current.version, createdAt, kind: "auto" };
+      const old = await this.client.from("snapshots").select("version").eq("site_id", id).eq("kind", "auto").order("version", { ascending: false }).range(keep, keep + 999);
+      const stale = (old.data ?? []).map((r) => r.version as number);
+      if (stale.length) await this.client.from("snapshots").delete().eq("site_id", id).eq("kind", "auto").in("version", stale);
+    }
+    const c = await this.client.rpc("compact_changes", { p_site_id: id, p_keep: keepChanges });
+    if (c.error) throw new Error(c.error.message);
+    return meta;
+  }
+  async checkpoints(id: string): Promise<SnapshotMeta[]> {
+    const { data, error } = await this.client.from("snapshots").select("version, created_at").eq("site_id", id).eq("kind", "auto").order("version", { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((r) => ({ version: r.version as number, createdAt: r.created_at as string, kind: "auto" as const }));
+  }
+  async snapshot(id: string, version: number): Promise<Snapshot | null> {
+    const { data, error } = await this.client.from("snapshots").select("document, kind, label, created_at").eq("site_id", id).eq("version", version).maybeSingle();
+    if (error) throw new Error(error.message);
+    if (!data) return null;
+    const doc = data.document as { site: unknown; entries?: Entry[] };
+    return { version, createdAt: data.created_at as string, kind: data.kind as "auto" | "publish", label: (data.label as string | null) ?? undefined, site: migrate(doc.site), entries: doc.entries ?? [] };
   }
   async rateLimit(key: string, windowSeconds: number, max: number): Promise<boolean> {
     const { data, error } = await this.client.rpc("rate_limit_hit", { p_key: key, p_window_seconds: windowSeconds, p_max: max });

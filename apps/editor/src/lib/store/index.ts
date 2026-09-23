@@ -11,7 +11,7 @@ export type { AssetStorage } from "./assets";
 export { FileAssetStorage } from "./assets";
 
 /** À incrémenter quand l'interface `SiteStore` change. */
-const STORE_VERSION = 10;
+const STORE_VERSION = 11;
 
 declare global {
   var __atelierStore: { key: string; store: SiteStore } | undefined;

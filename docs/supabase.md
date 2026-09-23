@@ -38,6 +38,8 @@ Les images importées vont dans le seau Storage `assets` (créé par `supabase/s
 
 ## Publication (M6)
 
+Le 23 septembre 2026, la fonction `compact_changes` a changé de règle (garde les 500 derniers lots, ne retire que ce qu'un instantané couvre) et la table `snapshots` a gagné un index : relancer ces deux blocs de `supabase/schema.sql` sur un projet créé avant.
+
 Le schéma a gagné deux colonnes sur `sites` (`published_version`, `subdomain`) : relancer le bloc « publication » de `supabase/schema.sql` sur un projet créé avant, puis vérifier avec `scripts/check-supabase.mjs`. Les instantanés publiés vont dans `snapshots` (`kind = 'publish'`). `ATELIER_STORE=file` force le mode fichier même avec Supabase configuré (essais locaux).
 
 ## Comptes et connexion (D50, première version)

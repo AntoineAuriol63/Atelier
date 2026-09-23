@@ -4,6 +4,16 @@ import { guardRole, guardSite } from "@/lib/site-access";
 import { opAllowedForWriter, schema, type Op } from "@atelier/model";
 import { getStore } from "@/lib/store";
 
+// Point de reprise automatique (23 septembre 2026) : au plus une vérification par site et par heure dans ce processus ; le dépôt
+// décide ensuite (un point par jour au plus, trente gardés, journal compacté). Une erreur ici n'empêche jamais l'enregistrement.
+const lastCheck = new Map<string, number>();
+async function maybeCheckpoint(id: string): Promise<void> {
+  const now = Date.now();
+  if (now - (lastCheck.get(id) ?? 0) < 3_600_000) return;
+  lastCheck.set(id, now);
+  try { await getStore().checkpoint(id); } catch (e) { console.warn(`[point de reprise ${id}] ${e instanceof Error ? e.message : e}`); }
+}
+
 /** Journal des changements d'un site. GET ?since=<version> ; POST { ops, baseVersion, label? }. */
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -36,6 +46,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const author = (await getSessionUser())?.email ?? "local";
     const result = await getStore().appendChange(id, { ops, baseVersion: body.baseVersion, author, label: typeof body.label === "string" ? body.label : undefined });
     if (!result.ok) return Response.json({ error: "Conflit de version", version: result.version }, { status: 409 });
+    void maybeCheckpoint(id);
     return Response.json({ version: result.version });
   } catch (e) {
     return Response.json({ error: e instanceof Error ? e.message : "Erreur" }, { status: 422 });

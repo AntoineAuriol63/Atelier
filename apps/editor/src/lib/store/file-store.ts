@@ -2,10 +2,10 @@ import { mkdir, readFile, writeFile, appendFile, rename, readdir, rm } from "nod
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { applyOps, migrate, validateSite, type Change, type Entry, type Site } from "@atelier/model";
-import type { ChangeInput, ChangeResult, Member, PublicationMeta, Published, SiteStore, SiteSummary, StoredSite } from "./types";
+import { CHECKPOINT_DEFAULTS, type ChangeInput, type ChangeResult, type CheckpointOptions, type Member, type PublicationMeta, type Published, type SiteStore, type SiteSummary, type Snapshot, type SnapshotMeta, type StoredSite } from "./types";
 
 type Publication = PublicationMeta & { site: Site; entries: Entry[] };
-type FileDoc = { site: Site; version: number; entries: Entry[]; publications?: Publication[]; publishedVersion?: number; owner?: string | null; members?: Member[]; updatedAt?: string };
+type FileDoc = { site: Site; version: number; entries: Entry[]; publications?: Publication[]; checkpoints?: Publication[]; publishedVersion?: number; owner?: string | null; members?: Member[]; updatedAt?: string };
 
 /**
  * Dépôt sur fichiers JSON : `<dir>/sites/<id>.json` (document courant) et `<dir>/sites/<id>.changes.jsonl` (journal).
@@ -189,6 +189,48 @@ export class FileSiteStore implements SiteStore {
       await this.write(id, { ...d, publishedVersion: version });
       return { version: p.version, label: p.label, createdAt: p.createdAt };
     });
+  }
+  async checkpoint(id: string, opts: CheckpointOptions = {}): Promise<SnapshotMeta | null> {
+    const now = opts.now ?? Date.now();
+    const keep = opts.keep ?? CHECKPOINT_DEFAULTS.keep;
+    const keepChanges = opts.keepChanges ?? CHECKPOINT_DEFAULTS.keepChanges;
+    return this.serialize(id, async () => {
+      const d = await this.read(id);
+      if (!d) throw new Error(`Site introuvable : ${id}`);
+      const cps = d.checkpoints ?? [];
+      const all = [...cps, ...(d.publications ?? [])];
+      const last = cps.reduce<number>((m, c) => Math.max(m, new Date(c.createdAt).getTime()), 0);
+      const taken = !all.some((x) => x.version === d.version) && now - last >= CHECKPOINT_DEFAULTS.minIntervalMs;
+      let next = cps;
+      let meta: SnapshotMeta | null = null;
+      if (taken) {
+        meta = { version: d.version, createdAt: new Date(now).toISOString(), kind: "auto" };
+        next = [...cps, { version: d.version, createdAt: meta.createdAt, site: d.site, entries: d.entries }].sort((a, b) => b.version - a.version).slice(0, keep);
+      }
+      await this.write(id, { ...d, checkpoints: next });
+      await this.compact(id, d.version, Math.max(0, ...next.map((c) => c.version), ...(d.publications ?? []).map((p) => p.version)), keepChanges);
+      return meta;
+    });
+  }
+  /** Retire du journal les lots à la fois plus vieux que les `keepChanges` derniers et couverts par un instantané. */
+  private async compact(id: string, version: number, lastSnapshot: number, keepChanges: number): Promise<void> {
+    const f = this.journal(id);
+    if (!existsSync(f)) return;
+    const floor = Math.min(lastSnapshot, version - keepChanges);
+    if (floor <= 0) return;
+    const lines = (await readFile(f, "utf8")).split("\n").filter(Boolean).filter((l) => (JSON.parse(l) as Change).version > floor);
+    await writeFile(f, lines.length ? lines.join("\n") + "\n" : "", "utf8");
+  }
+  async checkpoints(id: string): Promise<SnapshotMeta[]> {
+    const d = await this.read(id);
+    return (d?.checkpoints ?? []).map(({ version, createdAt }) => ({ version, createdAt, kind: "auto" as const })).sort((a, b) => b.version - a.version);
+  }
+  async snapshot(id: string, version: number): Promise<Snapshot | null> {
+    const d = await this.read(id);
+    const p = d?.publications?.find((x) => x.version === version);
+    if (p) return { version, createdAt: p.createdAt, kind: "publish", label: p.label, site: migrate(p.site), entries: p.entries };
+    const c = d?.checkpoints?.find((x) => x.version === version);
+    return c ? { version, createdAt: c.createdAt, kind: "auto", site: migrate(c.site), entries: c.entries } : null;
   }
   private hits = new Map<string, number[]>();
   /** Mémoire du processus : suffisant pour un seul serveur de développement ; nettoyée à chaque appel. */

@@ -63,6 +63,45 @@ function contract(name: string, make: () => Promise<{ store: SiteStore; cleanup:
       expect(await store.findBySubdomain(id.replace(/_/g, "-"))).toBe(id);
       expect(await store.findBySubdomain("n'importe,quoi")).toBeNull();
     });
+    it("points de reprise : un par jour au plus, trente gardés, lisibles, et le journal compacté au-delà du nombre gardé", async () => {
+      const t0 = new Date("2026-09-23T10:00:00.000Z").getTime();
+      // La version courante (2) est déjà figée par la publication « seconde » : rien à prendre.
+      expect(await store.checkpoint(id, { now: t0 })).toBeNull();
+      await store.appendChange(id, { ops: [{ op: "site.set", path: "name", value: "Contrat 4" }], baseVersion: 2, author: "test" });
+      const c1 = await store.checkpoint(id, { now: t0 });
+      expect(c1?.version).toBe(3);
+      // Même jour, même après un changement : pas de second point ; le lendemain sans changement : rien non plus.
+      await store.appendChange(id, { ops: [{ op: "site.set", path: "name", value: "Contrat 5" }], baseVersion: 3, author: "test" });
+      expect(await store.checkpoint(id, { now: t0 + 3_600_000 })).toBeNull();
+      const c2 = await store.checkpoint(id, { now: t0 + 25 * 3_600_000 });
+      expect(c2?.version).toBe(4);
+      expect(await store.checkpoint(id, { now: t0 + 50 * 3_600_000 })).toBeNull();
+      // La liste va du plus récent au plus ancien et chaque instantané se relit ; une publication aussi ; une version inconnue : null.
+      expect((await store.checkpoints(id)).map((c) => c.version)).toEqual([4, 3]);
+      expect((await store.snapshot(id, 3))?.site.name).toBe("Contrat 4");
+      expect((await store.snapshot(id, 4))?.site.name).toBe("Contrat 5");
+      expect((await store.snapshot(id, 1))?.site.name).toBe("Contrat 2");
+      expect((await store.snapshot(id, 1))?.kind).toBe("publish");
+      expect(await store.snapshot(id, 999)).toBeNull();
+      // Trente gardés : un de plus et le plus ancien s'en va (journées successives).
+      for (let i = 0; i < 30; i++) {
+        const v = (await store.get(id))!.version;
+        await store.appendChange(id, { ops: [{ op: "site.set", path: "name", value: `Contrat ${6 + i}` }], baseVersion: v, author: "test" });
+        await store.checkpoint(id, { now: t0 + (2 + i) * 24 * 3_600_000 });
+      }
+      const list = await store.checkpoints(id);
+      expect(list.length).toBe(30);
+      expect(list.some((c) => c.version === 3)).toBe(false);
+      // Le journal ne garde que les `keepChanges` derniers lots (ici 5) une fois un instantané pris au-delà.
+      await store.appendChange(id, { ops: [{ op: "site.set", path: "name", value: "Contrat fin" }], baseVersion: (await store.get(id))!.version, author: "test" });
+      await store.checkpoint(id, { now: t0 + 40 * 24 * 3_600_000, keepChanges: 5 });
+      const changes = await store.changes(id, 0);
+      expect(changes.length).toBeLessThanOrEqual(5);
+      expect(changes[changes.length - 1]!.version).toBe((await store.get(id))!.version);
+      // Le nom courant est bien celui du dernier changement, et la publication 1 est toujours là.
+      expect((await store.get(id))?.site.name).toBe("Contrat fin");
+      expect((await store.publications(id)).some((p) => p.version === 1)).toBe(true);
+    });
     it("publie les contenus seuls sous la version en ligne", async () => {
       const before = await store.published(id);
       await store.upsertEntries(id, [{ id: "e_9", database: "db_x", status: "published", values: { title: "T9" }, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }]);
@@ -92,7 +131,7 @@ function contract(name: string, make: () => Promise<{ store: SiteStore; cleanup:
       expect(ok).toBe(3);
     });
     it("refuse de publier un document invalide", async () => {
-      await store.appendChange(id, { ops: [{ op: "site.set", path: "settings.locales", value: 42 }], baseVersion: 2, author: "test" });
+      await store.appendChange(id, { ops: [{ op: "site.set", path: "settings.locales", value: 42 }], baseVersion: (await store.get(id))!.version, author: "test" });
       await expect(store.publish(id)).rejects.toThrow(/invalide/);
     });
     it("supprime le site", async () => {

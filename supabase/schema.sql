@@ -69,15 +69,19 @@ create table if not exists snapshots (
   primary key (site_id, version)
 );
 alter table snapshots enable row level security;
+create index if not exists snapshots_by_kind on snapshots (site_id, kind, version desc);
 
--- Compactage : supprime les changements antérieurs au dernier instantané, en gardant `keep` versions récentes.
+-- Compactage (révisé le 23 septembre 2026) : supprime les changements à la fois plus vieux que les `keep` derniers et couverts
+-- par un instantané (publication ou point de reprise). Le journal garde donc toujours ses `keep` derniers lots, et jamais rien
+-- n'est retiré sans instantané qui le couvre. Relancer ce bloc sur un projet créé avant.
 create or replace function compact_changes(p_site_id text, p_keep integer default 500) returns integer language plpgsql as $$
 declare
   v_floor integer;
   v_deleted integer;
 begin
-  select greatest(coalesce(max(version), 0), (select version from sites where id = p_site_id) - p_keep)
+  select least(coalesce(max(version), 0), (select version from sites where id = p_site_id) - p_keep)
     into v_floor from snapshots where site_id = p_site_id;
+  if v_floor is null or v_floor <= 0 then return 0; end if;
   delete from changes where site_id = p_site_id and version <= v_floor;
   get diagnostics v_deleted = row_count;
   return v_deleted;
