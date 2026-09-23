@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { AlertTriangle, CheckCircle2, Database as DatabaseIcon, ExternalLink, Info, FileText, Grid3x3, Layers, Moon, Palette, Plus, Puzzle, Redo2, Sparkles, Sun, Undo2, UploadCloud, X, Settings2, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, Zap } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Command as CommandIcon, Database as DatabaseIcon, ExternalLink, Info, FileText, Grid3x3, Layers, Moon, Palette, Plus, Puzzle, Redo2, Sparkles, Sun, Undo2, UploadCloud, X, Settings2, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, Zap, type LucideIcon } from "lucide-react";
 import type { DropPosition, Entry, Node, Page, Site, StyleValue, Role } from "@atelier/model";
 import { animationById, appearanceOf, planAppearancePreset, planRemoveNode, BASE, breakpointForWidth, canInsertUnder, cloneWithNewIds, dataSourceFor, entryPath, fitHeadings as fitHeadingsInPage, indexSite, layoutGridAt, newId, planDetach, planDrop, planInsert, planMakeComponent, planMergePrev, planMove, planSlashInsert, planSplit, stylePath, templateOf, type ComponentPlan, type TextPlan, ANIMATION_PRESETS } from "@atelier/model";
 import type { Op } from "@atelier/model";
@@ -34,6 +34,7 @@ import { findForms, formDatabase, formDatabaseId } from "@/lib/forms";
 import { uniqueFieldName } from "@/lib/forms";
 import { nodeIcon, nodeLabel } from "./node-icons";
 import { CanvasBar } from "./CanvasBar";
+import { LeftRail } from "./LeftRail";
 
 const PRESETS: { id: string; label: string; width: number | null }[] = [
   { id: "base", label: "Bureau", width: 1280 },
@@ -41,6 +42,11 @@ const PRESETS: { id: string; label: string; width: number | null }[] = [
   { id: "mobile", label: "Mobile", width: 390 },
 ];
 const MODES = [{ id: "write", label: "Écriture", hint: "Écrire et organiser le contenu, comme dans un document" }, { id: "design", label: "Design", hint: "Régler la disposition et le style de chaque élément" }, { id: "animate", label: "Animation", hint: "Déclencheurs et lignes de temps : voir l'état exact à chaque instant" }, { id: "code", label: "Code", hint: "Bientôt" }];
+/** Les panneaux du rail de gauche ; Calques et Thème n'ont pas de sens en Écriture. */
+const LEFT_PANELS: { id: string; label: string; icon: LucideIcon; designOnly?: boolean }[] = [
+  { id: "pages", label: "Pages", icon: FileText }, { id: "layers", label: "Calques", icon: Layers, designOnly: true }, { id: "add", label: "Ajouter", icon: Plus },
+  { id: "data", label: "Données", icon: DatabaseIcon }, { id: "theme", label: "Thème", icon: Palette, designOnly: true },
+];
 const MIN_WIDTH = 320;
 const MAX_WIDTH = 4000;
 
@@ -612,7 +618,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
   return (
     <ConfirmProvider><MediaLibraryProvider site={site} entries={ents.entries} commit={doc.commit} saveEntry={ents.save} onGoTo={goToUsage} readOnly={writer}>
     {/* En mode Animation, la colonne de droite s'élargit en poussant le canevas quand une ligne de temps est ouverte (cadrage § 4.1). */}
-    <div className="h-full grid grid-rows-[48px_1fr]" style={{ gridTemplateColumns: focusMode ? "minmax(0,1fr)" : `${leftCollapsed ? "" : "300px "}minmax(0,1fr) ${editMode === "animate" && openTl ? animPanelW : 360}px` }}>
+    <div className="h-full grid grid-rows-[48px_1fr]" style={{ gridTemplateColumns: focusMode ? "minmax(0,1fr)" : `44px ${leftCollapsed ? "" : "280px "}minmax(0,1fr) ${editMode === "animate" && openTl ? animPanelW : 360}px` }}>
       {/* Barre du haut en trois zones (23 septembre 2026) : le site et la page, les modes, la publication. La vue de l'aperçu se règle dans la barre du canevas. */}
       <header className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-3 border-b border-line bg-panel min-w-0 overflow-hidden" style={{ gridColumn: "1 / -1" }}>
         <div className="flex items-center gap-2 min-w-0">
@@ -637,8 +643,11 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
         </div>
       </header>
 
+      {/* Rail d'icônes (chantier 2) : un panneau par icône, l'icône active replie le panneau ; en bas, les outils du site. */}
+      {focusMode ? null : <LeftRail items={LEFT_PANELS.filter((p) => editMode === "write" ? !p.designOnly : true)} active={leftCollapsed ? null : leftTab} onSelect={(id) => { setLeftTab(id); showLeft(); }} onCollapse={toggleLeft}
+        tools={[{ id: "media", label: "Images du site", icon: ImagesIcon, onClick: () => openMediaLibrary() }, { id: "palette", label: `Palette de commandes (${mod()}K)`, icon: CommandIcon, onClick: () => setPaletteOpen(true) }, ...(writer ? [] : [{ id: "settings", label: "Réglages du site (adresse, référencement, redirections, export, partage)", icon: Settings2, onClick: () => { setPublishTab("settings"); setPublishOpen(true); } }])]} />}
       {focusMode || leftCollapsed ? null : <Panel side="left">
-        <Tabs label="Panneau" tabs={editMode === "write" ? [{ id: "pages", label: "Pages", icon: FileText }, { id: "add", label: "Ajouter", icon: Plus }, { id: "data", label: "Données", icon: DatabaseIcon }] : [{ id: "pages", label: "Pages", icon: FileText }, { id: "layers", label: "Calques", icon: Layers }, { id: "add", label: "Ajouter", icon: Plus }, { id: "data", label: "Données", icon: DatabaseIcon }, { id: "theme", label: "Thème", icon: Palette }]} value={leftTab} onChange={setLeftTab} className="px-1 shrink-0" />
+        <PanelHeading className="pr-1" actions={<IconButton size="sm" label="Replier le panneau" icon={PanelLeftClose} onClick={toggleLeft} />}>{LEFT_PANELS.find((p) => p.id === leftTab)?.label ?? "Panneau"}</PanelHeading>
         <div className="flex-1 overflow-auto py-1" onDragOver={(e) => { if (dragId.current || dragBlock.current) e.preventDefault(); }} onDrop={(e) => { e.preventDefault(); setDrop(null); }}>
           {leftTab === "pages" ? (
             <PagesPanel site={site} pageId={pageId} commit={doc.commit} readOnly={writer} onOpen={(id) => { setPageId(id); select(null); setFrameReady(false); }} />
