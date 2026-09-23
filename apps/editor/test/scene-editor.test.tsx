@@ -75,7 +75,7 @@ describe("tiroir Animation : la scène", () => {
     const m = mount(animated(), "hh2");
     expect(m.host.querySelectorAll('[data-scene-row="hh2"] [data-scene-kf]').length).toBe(2);
     expect(m.host.querySelectorAll('[data-scene-row="photo"] [data-scene-kf]').length).toBe(0);
-    act(() => { m.host.querySelector<HTMLElement>('[data-scene-row="photo"] [data-scene-name]')!.click(); });
+    act(() => { m.host.querySelector<HTMLElement>('[data-scene-name-of="photo"]')!.click(); });
     expect(m.selected).toEqual(["photo"]);
   });
 
@@ -93,14 +93,32 @@ describe("tiroir Animation : la scène", () => {
     const m = mount(animated(), "hh2");
     const rail = m.host.querySelector<HTMLElement>("[data-scene-rail]")!;
     rail.getBoundingClientRect = () => ({ left: 0, width: 1000, top: 0, height: 20, right: 1000, bottom: 20, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
-    // À 50 % d'une scène de 1 300 ms (arrondie à 10 ms).
+    // La règle laisse de la marge après la fin : une scène de 1 300 ms se règle sur 2 000 ms ; à 50 %, 1 000 ms.
+    expect(rail.getAttribute("aria-valuemax")).toBe("2000");
     act(() => { rail.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 500, button: 0 })); });
-    expect(m.scrubs[m.scrubs.length - 1]).toBe(650);
+    expect(m.scrubs[m.scrubs.length - 1]).toBe(1000);
     const add = m.buttons().find((b) => (b.getAttribute("aria-label") ?? "").includes("Ajouter une image-clé"))!;
     expect(add.textContent).toContain("image-clé");
     act(() => { add.click(); });
     const ap = appearanceOf(m.current(), "hh2")!;
-    expect(ap.track.keyframes.map((k) => k.at)).toContain(650);
+    expect(ap.track.keyframes.map((k) => k.at)).toContain(1000);
+  });
+
+  it("la règle se zoome (boutons, ⌘ + molette) : la scène s'élargit et défile, la marge après la fin permet de tirer au-delà", () => {
+    const m = mount(animated(), "hh2");
+    const editor = m.host.querySelector("[data-scene-editor]")!;
+    expect(editor.getAttribute("data-scene-zoom")).toBe("1");
+    act(() => { m.buttons().find((b) => (b.getAttribute("aria-label") ?? "").startsWith("Zoomer"))!.click(); });
+    expect(editor.getAttribute("data-scene-zoom")).toBe("1.5");
+    expect(m.host.querySelector<HTMLElement>("[data-scene-lanes]")!.style.width).toBe("150%");
+    const lanes = m.host.querySelector<HTMLElement>("[data-scene-scroll]")!;
+    const wheel = (deltaY: number) => { const ev = new WheelEvent("wheel", { bubbles: true, cancelable: true }); Object.defineProperty(ev, "deltaY", { value: deltaY }); Object.defineProperty(ev, "ctrlKey", { value: true }); lanes.dispatchEvent(ev); };
+    act(() => { wheel(100); });
+    expect(editor.getAttribute("data-scene-zoom")).toBe("1");
+    act(() => { wheel(100); });
+    expect(editor.getAttribute("data-scene-zoom")).toBe("1");
+    act(() => { wheel(-100); });
+    expect(editor.getAttribute("data-scene-zoom")).toBe("1.5");
   });
 
   it("une image-clé se retire par son bouton « Supprimer » ou par Suppr sur son losange", () => {
@@ -109,7 +127,7 @@ describe("tiroir Animation : la scène", () => {
     rail.getBoundingClientRect = () => ({ left: 0, width: 1000, top: 0, height: 20, right: 1000, bottom: 20, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
     act(() => { rail.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 500, button: 0 })); });
     act(() => { m.buttons().find((b) => (b.getAttribute("aria-label") ?? "").includes("Ajouter une image-clé"))!.click(); });
-    expect(appearanceOf(m.current(), "hh2")!.track.keyframes.map((k) => k.at)).toEqual([600, 650, 1300]);
+    expect(appearanceOf(m.current(), "hh2")!.track.keyframes.map((k) => k.at)).toEqual([600, 1000, 1300]);
     m.rerender(m.current(), "hh2");
     const del = m.buttons().find((b) => (b.getAttribute("aria-label") ?? "").includes("Supprimer l'image-clé"))!;
     expect(del).toBeTruthy();
@@ -147,7 +165,7 @@ describe("tiroir Animation : la scène", () => {
 
 });
 
-/** Lot 2 : les barres et les losanges se tirent. Le rail mesure 1 000 px pour une scène de 1 300 ms ; un déplacement se lit en ms, arrondi à 10. */
+/** Lot 2 : les barres et les losanges se tirent. Le rail mesure 1 000 px pour une règle de 2 000 ms (scène de 1 300 ms plus la marge) : 100 px = 200 ms. */
 describe("tiroir Animation : tirer", () => {
   beforeEach(() => { document.body.innerHTML = ""; });
   const railOf = (host: HTMLElement) => { const rail = host.querySelector<HTMLElement>("[data-scene-rail]")!; rail.getBoundingClientRect = () => ({ left: 0, width: 1000, top: 0, height: 20, right: 1000, bottom: 20, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect; return rail; };
@@ -160,7 +178,7 @@ describe("tiroir Animation : tirer", () => {
   it("tirer une barre change le départ de l'élément (son délai après ce qui le lance)", () => {
     const m = mount(animated(), "hh2"); railOf(m.host);
     drag(m.host.querySelector('[data-scene-row="photo"] [data-scene-bar]')!, 100, 200);
-    expect(appearanceOf(m.current(), "photo")!.delay).toBe(130);
+    expect(appearanceOf(m.current(), "photo")!.delay).toBe(200);
     expect(m.ops.length).toBe(1);
   });
 
@@ -168,14 +186,14 @@ describe("tiroir Animation : tirer", () => {
     const m = mount(animated(), "hh2"); railOf(m.host);
     drag(m.host.querySelector('[data-scene-row="hh2"] [data-scene-bar-end]')!, 500, 600);
     const ap = appearanceOf(m.current(), "hh2")!;
-    expect(ap.end - ap.start).toBe(830);
+    expect(ap.end - ap.start).toBe(900);
   });
 
   it("tirer un losange déplace l'image-clé ; un simple clic place la tête de lecture sans rien changer", () => {
     const m = mount(animated(), "hh2"); railOf(m.host);
     const last = [...m.host.querySelectorAll('[data-scene-row="hh2"] [data-scene-kf]')].pop()!;
     drag(last, 900, 800);
-    expect(appearanceOf(m.current(), "hh2")!.track.keyframes.map((k) => k.at)).toEqual([600, 1170]);
+    expect(appearanceOf(m.current(), "hh2")!.track.keyframes.map((k) => k.at)).toEqual([600, 1100]);
     const first = m.host.querySelector('[data-scene-row="hh2"] [data-scene-kf]')!;
     const before = m.ops.length;
     drag(first, 400, 402);

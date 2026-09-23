@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Diamond, ExternalLink, Play, Plus, SkipBack, Trash2, X } from "lucide-react";
+import { Diamond, ExternalLink, Play, Plus, SkipBack, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { CommitOptions, Node, Op, Site } from "@atelier/model";
 import { ANIMATION_PRESETS, TRIGGER_LABELS, animationUsages, appearanceOf, applyOps, indexSite, keyframeAt, newId, planAddTrigger, planAppearanceStart, planQuickAnimation, planAppearanceDelay, planAppearanceDuration, planRemoveKeyframes, planRemoveTriggerWithAnimation, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUpdateTrigger, trackPresetMatch } from "@atelier/model";
 import { Badge, Button, Eyebrow, Hint, IconButton, PanelHeading, Select } from "@/ui";
-import { formatMs, quoteLabel, rulerTicks, snapTime, summarizeAnimation, tickLabel } from "@/lib/timeline";
+import { formatMs, nextZoom, quoteLabel, rulerTicks, snapTime, summarizeAnimation, tickLabel } from "@/lib/timeline";
 import { sceneView, type SceneRow } from "@/lib/scene-view";
 import { nodeLabel } from "../node-icons";
 import { QuickAnimations } from "./QuickAnimations";
@@ -37,7 +37,10 @@ export type SceneEditorProps = {
  */
 export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSelect, scrub, onPlay, onTestOnSite, onHover, onClose }: SceneEditorProps) {
   const view = useMemo(() => sceneView(site, selectedId ?? undefined), [site, selectedId]);
-  const length = Math.max(100, view?.total ?? 0);
+  // La règle laisse de la marge après la fin (au moins 1 s, et 30 % de plus que la scène, au demi-seconde) : on peut tirer au-delà.
+  // Elle se zoome (boutons, ⌘ ou ⌃ + molette) : la scène s'élargit et défile de côté, les noms restent en place.
+  const length = Math.max(1000, Math.ceil(((view?.total ?? 0) * 1.3 + 200) / 500) * 500);
+  const [zoom, setZoom] = useState(1);
   const [playhead, setPlayhead] = useState<number | null>(null);
   // La liste des éléments à ajouter est une liste maison : une liste native ne dit pas quel choix est survolé, et le survol montre l'élément dans l'aperçu.
   // La liste est rendue hors de la zone qui défile (sinon elle y est rognée), ancrée au bouton : au-dessus s'il y a la place, sinon en dessous.
@@ -68,6 +71,7 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
   // La tête de lecture se pose en cliquant ou glissant la règle ; l'aperçu montre cet instant pour l'élément sélectionné.
   const place = (t: number | null) => { setPlayhead(t); scrub(t, t === null || !view ? undefined : view.scrub(t)); };
   const timeAt = (clientX: number) => { const r = rail.current?.getBoundingClientRect(); if (!r || r.width <= 0) return 0; return snapTime(Math.max(0, Math.min(1, (clientX - r.left) / r.width)) * length); };
+  const onWheel = (e: React.WheelEvent) => { if (!(e.ctrlKey || e.metaKey)) return; e.preventDefault(); setZoom((z) => nextZoom(z, e.deltaY < 0 ? 1 : -1)); };
   useEffect(() => () => scrub(null), [scrub]);
   // À la sélection d'un élément qui bouge, la tête de lecture se pose à la fin de son mouvement : l'image-clé d'arrivée est sous la main.
   const lastSel = useRef<string | null>(null);
@@ -142,11 +146,11 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
   const others = (selected.triggers ?? []).filter((t) => t.id !== ap?.trigger.id && t.on !== "load" && t.on !== "inView");
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_360px] h-full min-h-0 min-w-0" data-scene-editor="">
+    <div className="grid grid-cols-[minmax(0,1fr)_360px] h-full min-h-0 min-w-0" data-scene-editor="" data-scene-zoom={String(zoom)}>
       <div className="flex flex-col min-h-0 min-w-0 border-r border-line">
         <div className="flex items-center gap-2 px-3 h-9 shrink-0 border-b border-line">
           <Eyebrow as="span">Scène</Eyebrow>
-          <span className="text-sm font-medium truncate">{view.sectionLabel}</span>
+          <span className="text-sm font-medium truncate max-w-[180px] shrink-0">{view.sectionLabel}</span>
           <Badge title="Fin du dernier mouvement">{formatMs(view.total)}</Badge>
           {view.launches.length > 1 ? <Badge tone="warning" title="Chaque lancement compte son temps depuis sa propre entrée à l'écran ; « Démarre après » un autre élément les réunit">{view.launches.length} lancements</Badge> : null}
           <span className="mx-1 h-4 w-px bg-line" aria-hidden />
@@ -154,26 +158,38 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
           <Button size="sm" variant="primary" icon={Play} title="Joue la scène dans l'aperçu" onClick={() => { place(null); playAll(); }}>Lire</Button>
           {onTestOnSite ? <Button size="sm" variant="ghost" icon={ExternalLink} onClick={() => onTestOnSite(ap && !ap.page ? ap.hostId : selected.id)} title="Ouvre l'onglet Aperçu : la section arrive à l'écran comme pour un visiteur">Tester sur le site</Button> : null}
           <span className="ml-auto text-xs tabular-nums text-muted">{playhead !== null ? `${tickLabel(playhead)} ms` : ""}</span>
+          <IconButton size="sm" label="Dézoomer la ligne de temps (⌘ + molette)" icon={ZoomOut} disabled={zoom <= 1} onClick={() => setZoom((z) => nextZoom(z, -1))} />
+          <button type="button" className="h-7 min-w-9 px-1 rounded-sm text-2xs tabular-nums text-muted hover:text-ink hover:bg-hover disabled:opacity-40" disabled={zoom === 1} title="Ajuster : toute la règle dans la largeur" onClick={() => setZoom(1)}>{zoom === 1 ? "×1" : `×${String(zoom).replace(".", ",")}`}</button>
+          <IconButton size="sm" label="Zoomer la ligne de temps (⌘ + molette)" icon={ZoomIn} disabled={zoom >= 8} onClick={() => setZoom((z) => nextZoom(z, 1))} />
           <IconButton size="sm" label="Fermer l'outil Animation" icon={X} onClick={onClose} />
         </div>
-        <div className="flex-1 min-h-0 overflow-auto">
-          <div className="grid grid-cols-[220px_minmax(0,1fr)] items-end px-3 pt-2">
-            <span />
-            <div ref={rail} data-scene-rail="" role="slider" aria-label="Tête de lecture" aria-valuemin={0} aria-valuemax={length} aria-valuenow={Math.round(playhead ?? 0)} tabIndex={0}
-              className="relative h-5 border-b border-line cursor-ew-resize select-none text-2xs text-dim"
-              onPointerDown={(e) => { if (e.button !== 0) return; place(timeAt(e.clientX)); (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); }}
-              onPointerMove={(e) => { if (e.buttons & 1) place(timeAt(e.clientX)); }}
-              onKeyDown={(e) => { const cur = playhead ?? 0; if (e.key === "ArrowRight") { e.preventDefault(); place(Math.min(length, cur + (e.shiftKey ? 100 : 10))); } if (e.key === "ArrowLeft") { e.preventDefault(); place(Math.max(0, cur - (e.shiftKey ? 100 : 10))); } }}>
-              {rulerTicks(length).map((t) => <span key={t} className="absolute top-0 -translate-x-1/2 tabular-nums" style={{ left: pct(t) }}>{tickLabel(t)}</span>)}
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="grid grid-cols-[220px_minmax(0,1fr)] px-3 pt-2">
+            {/* Les noms, alignés sur les lignes de droite par une hauteur fixe. */}
+            <div className="flex flex-col">
+              <span className="h-5 shrink-0" aria-hidden />
+              {visible.map((row) => (
+                <div key={row.id} className={`h-8 flex items-center border-b border-line/60 ${row.selected ? "bg-accent-soft/40" : ""}`}>
+                  <button type="button" data-scene-name="" data-scene-name-of={row.id} className={`flex items-center gap-1.5 min-w-0 pr-2 text-left text-xs truncate ${row.selected ? "text-accent font-medium" : row.still ? "text-dim hover:text-ink" : "text-ink hover:text-accent"}`} style={{ paddingLeft: row.depth * 12 }} title={`Sélectionner ${quoteLabel(row.label)}`} onClick={() => onSelect(row.id)} onMouseEnter={() => onHover?.(row.id)} onMouseLeave={() => onHover?.(null)}>
+                    <span className="truncate">{row.label}</span>{row.count ? <span className="text-muted shrink-0">×{row.count}</span> : null}
+                  </button>
+                </div>
+              ))}
             </div>
-          </div>
-          <ul className="px-3 pb-2" aria-label={`Scène de ${quoteLabel(view.sectionLabel)}`}>
-            {visible.map((row) => { const i = view.rows.indexOf(row); return (
-              <li key={row.id} data-scene-row={row.id} data-still={row.still || undefined} className={`grid grid-cols-[220px_minmax(0,1fr)] items-center h-8 border-b border-line/60 ${row.selected ? "bg-accent-soft/40" : ""}`}>
-                <button type="button" data-scene-name="" className={`flex items-center gap-1.5 min-w-0 pr-2 text-left text-xs truncate ${row.selected ? "text-accent font-medium" : row.still ? "text-dim hover:text-ink" : "text-ink hover:text-accent"}`} style={{ paddingLeft: row.depth * 12 }} title={`Sélectionner ${quoteLabel(row.label)}`} onClick={() => onSelect(row.id)} onMouseEnter={() => onHover?.(row.id)} onMouseLeave={() => onHover?.(null)}>
-                  <span className="truncate">{row.label}</span>{row.count ? <span className="text-muted shrink-0">×{row.count}</span> : null}
-                </button>
-                <div className="relative h-8 min-w-0">
+            {/* La règle et les pistes : zoomées, elles s'élargissent et défilent de côté (⌘ + molette, ou les boutons de l'en-tête). */}
+            <div className="min-w-0 overflow-x-auto overflow-y-hidden" data-scene-scroll="" onWheel={onWheel}>
+              <div data-scene-lanes="" style={{ width: `${zoom * 100}%` }}>
+                <div ref={rail} data-scene-rail="" role="slider" aria-label="Tête de lecture" aria-valuemin={0} aria-valuemax={length} aria-valuenow={Math.round(playhead ?? 0)} tabIndex={0}
+                  className="relative h-5 border-b border-line cursor-ew-resize select-none text-2xs text-dim"
+                  onPointerDown={(e) => { if (e.button !== 0) return; place(timeAt(e.clientX)); (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); }}
+                  onPointerMove={(e) => { if (e.buttons & 1) place(timeAt(e.clientX)); }}
+                  onKeyDown={(e) => { const cur = playhead ?? 0; if (e.key === "ArrowRight") { e.preventDefault(); place(Math.min(length, cur + (e.shiftKey ? 100 : 10))); } if (e.key === "ArrowLeft") { e.preventDefault(); place(Math.max(0, cur - (e.shiftKey ? 100 : 10))); } }}>
+                  {rulerTicks(length, zoom).map((t) => <span key={t} className="absolute top-0 -translate-x-1/2 tabular-nums" style={{ left: pct(t) }}>{tickLabel(t)}</span>)}
+                  {playhead !== null ? <span className="absolute top-0 bottom-0 w-px bg-accent" style={{ left: pct(playhead) }} aria-hidden /> : null}
+                </div>
+                <ul aria-label={`Scène de ${quoteLabel(view.sectionLabel)}`}>
+                  {visible.map((row) => { const i = view.rows.indexOf(row); return (
+                    <li key={row.id} data-scene-row={row.id} data-still={row.still || undefined} className={`relative h-8 border-b border-line/60 ${row.selected ? "bg-accent-soft/40" : ""}`}>
                   {row.bar ? (
                     <div data-scene-bar="" className={`absolute top-1.5 h-5 rounded-sm border text-2xs leading-none flex items-center px-1.5 whitespace-nowrap cursor-grab active:cursor-grabbing ${row.selected ? "bg-accent text-accent-ink border-accent" : "bg-accent/25 border-accent/50 text-ink"}`}
                       style={{ left: `calc(${pct(row.bar.start)} + ${shift("move", row.id)}px)`, width: `max(6px, calc(${pct(row.bar.end)} - ${pct(row.bar.start)} + ${shift("end", row.id)}px))` }} title={`${tickLabel(row.bar.start)} → ${tickLabel(row.bar.end)} ms · glisser : départ ; bord droit : durée`}
@@ -195,10 +211,13 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
                   {row.selected && ap && playhead !== null && !kfHere ? (
                     <button type="button" aria-label="Ajouter une image-clé ici" title="Pose une image-clé à la tête de lecture ; régler une propriété à droite en pose une aussi" className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 h-5 px-1.5 rounded-full border border-dashed border-accent bg-panel text-2xs text-accent whitespace-nowrap hover:bg-accent-soft" style={{ left: pct(playhead) }} onClick={addKeyframe}>+ image-clé</button>
                   ) : null}
-                </div>
-              </li>
-            ); })}
-          </ul>
+                      {playhead !== null ? <span className="absolute top-0 bottom-0 w-px bg-accent/60 pointer-events-none" style={{ left: pct(playhead) }} aria-hidden /> : null}
+                    </li>
+                  ); })}
+                </ul>
+              </div>
+            </div>
+          </div>
           {addable.length ? (
             <div ref={addRef} className="relative px-3 pb-3" data-scene-add="">
               <button type="button" aria-haspopup="listbox" aria-expanded={addOpen} className="h-7 px-2 rounded-sm border border-dashed border-accent/60 text-xs text-accent hover:bg-accent-soft" onClick={(e) => setAddOpen((o) => !o, e.currentTarget)}>+ Ajouter un élément à la scène…</button>
