@@ -158,9 +158,6 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
           <Button size="sm" variant="primary" icon={Play} title="Joue la scène dans l'aperçu" onClick={() => { place(null); playAll(); }}>Lire</Button>
           {onTestOnSite ? <Button size="sm" variant="ghost" icon={ExternalLink} onClick={() => onTestOnSite(ap && !ap.page ? ap.hostId : selected.id)} title="Ouvre l'onglet Aperçu : la section arrive à l'écran comme pour un visiteur">Tester sur le site</Button> : null}
           <span className="ml-auto text-xs tabular-nums text-muted">{playhead !== null ? `${tickLabel(playhead)} ms` : ""}</span>
-          <IconButton size="sm" label="Dézoomer la ligne de temps (⌘ + molette)" icon={ZoomOut} disabled={zoom <= 1} onClick={() => setZoom((z) => nextZoom(z, -1))} />
-          <button type="button" className="h-7 min-w-9 px-1 rounded-sm text-2xs tabular-nums text-muted hover:text-ink hover:bg-hover disabled:opacity-40" disabled={zoom === 1} title="Ajuster : toute la règle dans la largeur" onClick={() => setZoom(1)}>{zoom === 1 ? "×1" : `×${String(zoom).replace(".", ",")}`}</button>
-          <IconButton size="sm" label="Zoomer la ligne de temps (⌘ + molette)" icon={ZoomIn} disabled={zoom >= 8} onClick={() => setZoom((z) => nextZoom(z, 1))} />
           <IconButton size="sm" label="Fermer l'outil Animation" icon={X} onClick={onClose} />
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto">
@@ -184,7 +181,7 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
                   onPointerDown={(e) => { if (e.button !== 0) return; place(timeAt(e.clientX)); (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); }}
                   onPointerMove={(e) => { if (e.buttons & 1) place(timeAt(e.clientX)); }}
                   onKeyDown={(e) => { const cur = playhead ?? 0; if (e.key === "ArrowRight") { e.preventDefault(); place(Math.min(length, cur + (e.shiftKey ? 100 : 10))); } if (e.key === "ArrowLeft") { e.preventDefault(); place(Math.max(0, cur - (e.shiftKey ? 100 : 10))); } }}>
-                  {rulerTicks(length, zoom).map((t) => <span key={t} className="absolute top-0 -translate-x-1/2 tabular-nums" style={{ left: pct(t) }}>{tickLabel(t)}</span>)}
+                  {rulerTicks(length, zoom).filter((t) => t < length).map((t) => <span key={t} className="absolute top-0 -translate-x-1/2 tabular-nums" style={{ left: pct(t) }}>{tickLabel(t)}</span>)}
                   {playhead !== null ? <span className="absolute top-0 bottom-0 w-px bg-accent" style={{ left: pct(playhead) }} aria-hidden /> : null}
                 </div>
                 <ul aria-label={`Scène de ${quoteLabel(view.sectionLabel)}`}>
@@ -218,8 +215,9 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
               </div>
             </div>
           </div>
+          <div className="flex items-center gap-1 px-3 pb-2">
           {addable.length ? (
-            <div ref={addRef} className="relative px-3 pb-3" data-scene-add="">
+            <div ref={addRef} className="relative" data-scene-add="">
               <button type="button" aria-haspopup="listbox" aria-expanded={addOpen} className="h-7 px-2 rounded-sm border border-dashed border-accent/60 text-xs text-accent hover:bg-accent-soft" onClick={(e) => setAddOpen((o) => !o, e.currentTarget)}>+ Ajouter un élément à la scène…</button>
               {addOpen && addPos ? createPortal(
                 <ul role="listbox" aria-label="Éléments de la section qui ne bougent pas" data-scene-add-list="" className="fixed z-[90] w-72 overflow-auto rounded-md border border-line bg-raised shadow-xl py-1" style={{ left: addPos.left, top: addPos.top, bottom: addPos.bottom, maxHeight: addPos.maxHeight }}
@@ -236,6 +234,12 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
                 </ul>, document.body) : null}
             </div>
           ) : null}
+            <span className="ml-auto flex items-center gap-0.5">
+              <IconButton size="sm" label="Dézoomer la ligne de temps (⌘ + molette)" icon={ZoomOut} disabled={zoom <= 1} onClick={() => setZoom((z) => nextZoom(z, -1))} />
+              <button type="button" className="h-7 min-w-9 px-1 rounded-sm text-2xs tabular-nums text-muted hover:text-ink hover:bg-hover disabled:opacity-40" disabled={zoom === 1} title="Ajuster : toute la règle dans la largeur" onClick={() => setZoom(1)}>{zoom === 1 ? "×1" : `×${String(zoom).replace(".", ",")}`}</button>
+              <IconButton size="sm" label="Zoomer la ligne de temps (⌘ + molette)" icon={ZoomIn} disabled={zoom >= 8} onClick={() => setZoom((z) => nextZoom(z, 1))} />
+            </span>
+          </div>
           {playhead !== null ? <span className="pointer-events-none absolute" aria-hidden /> : null}
         </div>
       </div>
