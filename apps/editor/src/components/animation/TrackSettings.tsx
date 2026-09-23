@@ -11,7 +11,7 @@ import { nodeLabel } from "../node-icons";
 const FILL_PRESETS = ANIMATION_PRESETS.filter((p) => p.id !== "custom").map((p) => ({ value: p.id, label: `${p.group} · ${p.label}` }));
 
 /** Réglages de la piste : ce qu'elle vise (l'élément, ses enfants, ses mots, ses lettres), le décalage par rang, la retirer. */
-export function TrackSettings({ site, getSite, animation, track, node, hostId, run, onRemoved }: { site: Site; getSite: () => Site; animation: Animation; track: Track; node: Node | undefined; hostId: string; run: (ops: Op[], label: string, coalesceKey?: string) => void; onRemoved: () => void }) {
+export function TrackSettings({ site, getSite, animation, track, node, hostId, run, onRemoved, onFilled }: { site: Site; getSite: () => Site; animation: Animation; track: Track; node: Node | undefined; hostId: string; onFilled?: (end: number) => void; run: (ops: Op[], label: string, coalesceKey?: string) => void; onRemoved: () => void }) {
   const kind = targetKindOf(track.target);
   const multi = kind === "children" || kind === "words" || kind === "letters";
   const setKind = (k: TargetKind) => run(planUpdateTrack(getSite(), animation.id, track.id, { target: withTargetKind(track.target, k), ...(k === "element" ? { stagger: undefined } : {}) }), "Cible de la piste");
@@ -41,7 +41,7 @@ export function TrackSettings({ site, getSite, animation, track, node, hostId, r
       )}
       <div className="grid grid-cols-[80px_1fr] items-center gap-1.5">
         <span className="text-xs text-muted" title="Remplace les images-clés de la piste par celles d'un préréglage, à partir de son départ">Remplir avec</span>
-        <Select value="" placeholder="un préréglage…" options={FILL_PRESETS} onValueChange={(v) => { const preset = ANIMATION_PRESETS.find((p) => p.id === v); if (preset) run(planFillTrackFromPreset(getSite(), animation.id, track.id, preset), `Remplir la piste · ${preset.label}`); }} />
+        <Select value="" placeholder="un préréglage…" options={FILL_PRESETS} onValueChange={(v) => { const preset = ANIMATION_PRESETS.find((p) => p.id === v); if (preset) { run(planFillTrackFromPreset(getSite(), animation.id, track.id, preset), `Remplir la piste · ${preset.label}`); onFilled?.(trackSpan(track).start + preset.duration); } }} />
       </div>
       {node && node.id !== hostId && node.triggers?.length ? <span className="text-2xs text-warning" title="Ses propres déclencheurs se jouent en plus de cette ligne de temps">« {nodeLabel(node)} » a aussi ses propres animations ({node.triggers.map((t) => site.animations.find((a) => a.id === t.animation)?.name ?? "?").join(", ")}) : elles se joueront en plus.</span> : null}
       {track.keyframes.length < 2 ? <Hint>Une piste se joue à partir de deux images-clés : « Remplir avec » un préréglage, ou placez la tête plus loin et réglez une propriété.</Hint> : null}

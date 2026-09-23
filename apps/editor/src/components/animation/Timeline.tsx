@@ -75,6 +75,7 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
   const [pickMsg, setPickMsg] = useState<string | null>(null);
   // Liste des éléments de la scène (lot 8) : ouverte tant que l'animation a moins de deux pistes.
   const [listOpen, setListOpen] = useState(animation.tracks.length < 2);
+  const [summaryOpen, setSummaryOpen] = useState(false);
   // Toujours les dernières fonctions de l'éditeur, sans relancer les effets qui les lisent (les refs se mettent à jour après le rendu, pas pendant).
   useEffect(() => { scrubRef.current = scrub; pickRef.current = onPick; targetsRef.current = showTargets; });
   // À l'ouverture : la ligne de temps vient à l'écran ; juste créée, son nom est prêt à être tapé.
@@ -146,6 +147,8 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
   // --- images-clés : sélection, glisser (⌥ duplique), suppression
   const keys = [...selection].map(parseKey).filter((k) => animation.tracks.some((t) => t.id === k.track && keyframeAt(t, k.at)));
   const dragDelta = drag ? shiftDelta(keys, drag.delta) : 0;
+  // Une barre de piste qu'on tire (vague 5 : les barres ressemblent à des blocs déplaçables, elles ne déplaçaient que la tête de lecture) suit le glissement de ses images-clés.
+  const barShift = (t: Track) => (drag && !drag.duplicate && t.keyframes.length > 0 && t.keyframes.every((k) => selection.has(keyOf({ track: t.id, at: k.at }))) ? dragDelta : 0);
   const onKeyDown = (t: Track, k: number) => (e: React.PointerEvent) => {
     e.stopPropagation();
     if (e.button !== 0) return;
@@ -212,7 +215,7 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
   useEffect(() => { if (trackId) revealBelowStage(settingsRef.current, root.current?.querySelector<HTMLElement>("[data-timeline-stage]") ?? null); }, [trackId]);
 
   return (
-    <section ref={root} className="flex flex-col gap-2 scroll-mt-2" aria-label="Ligne de temps">
+    <section ref={root} className="flex flex-col gap-2 scroll-mt-2" aria-label="Ligne de temps" onKeyDown={(e) => { const t = e.target as HTMLElement; if (e.key === " " && !["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName) && !t.isContentEditable) { e.preventDefault(); if (playing) pause(); else { if (playhead >= length) setPlayhead(0); setPlaying(true); } } }}>
       {/* Scène collante (audit n°4 · E4) : nom, lecteur, règle et pistes restent en haut du panneau pendant qu'on descend dans les réglages. */}
       <div className="sticky top-0 z-20 -mx-3 -mt-3 px-3 pt-3 pb-2 flex flex-col gap-2 bg-panel border-b border-line shadow-[0_6px_10px_-8px_rgba(0,0,0,.6)]" data-timeline-stage="">
       <div className="flex items-center gap-1">
@@ -222,8 +225,9 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
         <IconButton size="sm" label="Fermer la ligne de temps" icon={X} onClick={onClose} />
       </div>
       {/* Ce qui va se passer sur le site, en une phrase (audit n°5 · R2) : se relit à chaque réglage. */}
+      {/* Deux lignes au plus dans le bloc collant (vague 5, P4 : une ligne de plus par piste décalait tout sous la souris) ; un clic déplie. */}
       {trigger ? (
-        <p className="-mt-1 text-xs text-muted leading-snug"><span data-anim-summary="">{summarizeAnimation(site, trigger, hostId, pageLevel)}</span></p>
+        <p className={`-mt-1 text-xs text-muted leading-snug cursor-pointer ${summaryOpen ? "" : "line-clamp-2"}`} title={summaryOpen ? "Replier" : "Tout lire"} onClick={() => setSummaryOpen((o) => !o)}><span data-anim-summary="">{summarizeAnimation(site, trigger, hostId, pageLevel)}</span></p>
       ) : null}
       {/* Le déclencheur se règle ici aussi (vague 3, § 5.4) : quand, délai, rejouer, retour, bascule, comme dans la rubrique de l'élément. */}
       {trigger && onUpdateTrigger ? <TriggerSettings trigger={trigger} pageLevel={pageLevel} onUpdate={onUpdateTrigger} /> : null}
@@ -235,7 +239,7 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
       </div>
       <div className="flex items-center gap-1">
         <IconButton size="sm" label="Revenir au début" icon={SkipBack} onClick={() => { setPlaying(false); setPlayhead(0); }} />
-        <IconButton size="sm" label={playing ? "Pause" : "Lecture"} icon={playing ? Pause : Play} active={playing} onClick={() => { if (playing) pause(); else { if (playhead >= length) setPlayhead(0); setPlaying(true); } }} />
+        <Button size="sm" variant={playing ? "default" : "primary"} icon={playing ? Pause : Play} title={playing ? "Pause (Espace)" : "Joue la scène dans l'aperçu (Espace)"} onClick={() => { if (playing) pause(); else { if (playhead >= length) setPlayhead(0); setPlaying(true); } }}>{playing ? "Pause" : "Lire"}</Button>
         <IconButton size="sm" label="Lire en boucle" icon={Repeat} active={loop} onClick={() => setLoop((l) => !l)} />
         <IconButton size="sm" label="Ralenti (vitesse ½)" icon={Snail} active={slow} onClick={() => setSlow((s) => !s)} />
         <span className="mx-1 h-4 w-px bg-line" aria-hidden />
@@ -269,9 +273,10 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
               return (
                 <div key={t.id} className={`relative h-7 border-b border-line/60 ${active ? "bg-accent-soft/20" : ""}`} onPointerDown={(e) => { pick(t); onRailDown(e); }} onPointerMove={onRailMove}>
                   {t.keyframes.length > 1 ? (
-                    <button type="button" tabIndex={-1} title="Sélectionner toutes les images-clés de la piste" aria-label={`Toutes les images-clés de ${trackLabel(t, hostId, site)}`} className="absolute top-1/2 -translate-y-1/2 h-3 group"
-                      style={{ left: pct(span.start), width: `calc(${pct(span.end)} - ${pct(span.start)})` }}
-                      onPointerDown={(e) => { e.stopPropagation(); pause(); pick(t); setSelection(new Set(t.keyframes.map((k) => keyOf({ track: t.id, at: k.at })))); }}>
+                    <button type="button" tabIndex={-1} title="Glisser pour décaler la piste dans le temps (clic : sélectionner ses images-clés)" aria-label={`Toutes les images-clés de ${trackLabel(t, hostId, site)}`} className="absolute top-1/2 -translate-y-1/2 h-3 group cursor-grab active:cursor-grabbing"
+                      style={{ left: pct(barShift(t) + span.start), width: `calc(${pct(span.end)} - ${pct(span.start)})` }}
+                      onPointerDown={(e) => { e.stopPropagation(); if (e.button !== 0) return; pause(); pick(t); setSelection(new Set(t.keyframes.map((k) => keyOf({ track: t.id, at: k.at })))); const r = rail.current?.getBoundingClientRect(); if (r && r.width > 0) { capture(e); setDrag({ startX: e.clientX, width: r.width, delta: 0, duplicate: false }); } }}
+                      onPointerMove={onKeyMove} onPointerUp={onKeyUp} onPointerCancel={() => setDrag(null)}>
                       <span className="block h-0.5 w-full bg-line-strong group-hover:bg-accent/60" aria-hidden />
                     </button>
                   ) : null}
@@ -300,9 +305,11 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
       <div className="flex flex-wrap items-center gap-1 pt-1">
         {onTestOnSite ? <Button size="sm" variant="ghost" icon={ExternalLink} onClick={onTestOnSite} title="Ouvre l'onglet Aperçu : l'élément arrive à l'écran et l'animation se joue comme pour un visiteur">Tester sur le site</Button> : null}
         {onPick ? <Button size="sm" icon={Crosshair} active={picking} onClick={() => (picking ? onPick(null) : startPick())} title="Cliquez ensuite l'élément à animer dans l'aperçu, les calques ou le fil d'Ariane, sans changer la sélection">{picking ? "Cliquez un élément… (Échap)" : "Choisir un élément"}</Button> : null}
-        {canAdd.ok && selected && !outside ? <Button size="sm" variant="ghost" icon={Plus} onClick={addTrack} title="Animer l'élément sélectionné dans cette ligne de temps">{`Ajouter « ${nodeLabel(selected)} »`}</Button> : null}
+        {canAdd.ok && selected && !outside ? <Button size="sm" variant="ghost" icon={Plus} onClick={addTrack} title="Animer l'élément sélectionné dans cette ligne de temps">{`Une piste pour « ${nodeLabel(selected)} »`}</Button> : null}
         {pickMsg ? <span className="text-2xs text-warning truncate" title={pickMsg}>{pickMsg}</span> : null}
       </div>
+      {/* Les réglages de la piste active avant la liste des éléments (vague 5 : le champ « Départ » était rogné sous elle). */}
+      {track ? <div ref={settingsRef}><TrackSettings key={track.id} site={site} getSite={getSite} animation={animation} track={track} node={trackNode} hostId={hostId} run={run} onFilled={(end) => { pause(); setPlayhead(Math.min(end, Math.max(length, end))); }} onRemoved={() => { setPicked(null); setSelection(new Set()); }} /></div> : null}
       {/* Les éléments de la scène (lot 8, vague 4 PR2) : ajouter une piste par son nom, sans viser dans la page ; un groupe s'ajoute d'un coup, enfants un à un. */}
       {(() => {
         const list = sceneElements(site, hostId);
@@ -352,7 +359,6 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
         </Hint>
       ) : null}
 
-      {track ? <div ref={settingsRef}><TrackSettings key={track.id} site={site} getSite={getSite} animation={animation} track={track} node={trackNode} hostId={hostId} run={run} onRemoved={() => { setPicked(null); setSelection(new Set()); }} /></div> : null}
 
       {track && !playing ? (
         <section className="flex flex-col gap-2" aria-label="Image-clé">

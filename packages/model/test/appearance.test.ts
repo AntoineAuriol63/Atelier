@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   animationById, animationUsages, appearanceAnchors, planAddTrigger, planAppearanceCascade, appearanceOf, appearanceStartOptions, applyOps, inheritedAppearance, planRemoveNode, planAppearanceDelay, planAppearanceDetail, planAppearancePreset, planAppearanceReplay,
-  planAppearanceDuration, planAppearanceSpeed, planAppearanceStart, planGroupAppearance, planQuickAnimation, planUpdateTrigger, presetById, restaurantSite, sampleSite, schema, siblingGroup, trackPresetMatch, trackSpan,
+  planAppearanceDuration, planAppearanceSpeed, planAppearanceStart, planChainInOrder, planGroupAppearance, planQuickAnimation, planUpdateTrigger, presetById, restaurantSite, sampleSite, schema, siblingGroup, trackPresetMatch, trackSpan,
   type Node, type Site,
 } from "../src";
 
@@ -431,5 +431,49 @@ describe("durée saisissable d'une apparition (lot 8, vague 4 N-11)", () => {
     // Même durée qu'avant : rien à écrire.
     expect(planAppearanceDuration(s, "title", 1200)).toEqual([]);
     expect(planAppearanceDuration(s, "hero", 500)).toEqual([]);
+  });
+});
+
+describe("enchaîner une section dans l'ordre (lot 9, vague 5 : l'ordre ne se règle pas là où on le voit)", () => {
+  const about2 = box("about2", "La maison", [box("photo2", "Photo"), text("hh2b", "Une cuisine", "h2"), text("pp2b", "Aurèle et Nils"), box("stats2", "Chiffres", [box("kk1", "Années"), box("kk2", "Couverts"), box("kk3", "Producteurs")])]);
+  const site2: Site = { ...base, pages: [{ ...base.pages[0]!, root: { id: "root", type: "box", props: {}, children: [hero, about2] } }] };
+  it("des lancements séparés deviennent une seule chaîne, chaque élément après le précédent dans l'ordre de la page, rejouée à chaque passage si l'un l'était", () => {
+    let s = quick(site2, "photo2", "slide-right");
+    s = quick(s, "hh2b", "fade-up"); s = run(s, planAppearanceDelay(s, "hh2b", 600));
+    s = quick(s, "pp2b", "fade");
+    s = run(s, planGroupAppearance(s, "kk1", "rise-bounce")); s = run(s, planAppearanceReplay(s, "stats2", true));
+    s = run(s, planChainInOrder(s, "about2"));
+    valid(s);
+    const ids = ["photo2", "hh2b", "pp2b", "stats2"];
+    const aps = ids.map((id) => appearanceOf(s, id)!);
+    // Un seul lancement, celui du premier élément.
+    expect(new Set(aps.map((a) => a.trigger.id)).size).toBe(1);
+    expect(aps[0]!.own).toBe(true);
+    expect(aps[1]!.begin).toEqual({ kind: "after", node: "photo2" });
+    expect(aps[2]!.begin).toEqual({ kind: "after", node: "hh2b" });
+    expect(aps[3]!.begin).toEqual({ kind: "after", node: "pp2b" });
+    // Le délai à la main du titre a disparu : « après » prend le relais, et l'ordre des départs suit la page.
+    expect(aps.map((a) => a.start)).toEqual([...aps.map((a) => a.start)].sort((x, y) => x - y));
+    expect(aps[1]!.start).toBeGreaterThanOrEqual(aps[0]!.end);
+    expect(aps[0]!.trigger.once).toBe(false);
+    expect(appearanceOf(s, "stats2")?.detail).toBe("children");
+  });
+  it("des voisins déjà rattachés entre eux (« Pareil pour », 120 ms d'écart) gardent leur écart : seul le premier est enchaîné après ce qui précède", () => {
+    let s = quick(site2, "photo2", "slide-right");
+    s = quick(s, "kk1", "rise-bounce"); s = run(s, planAppearanceCascade(s, "kk1", 120));
+    s = run(s, planChainInOrder(s, "about2"));
+    valid(s);
+    expect(appearanceOf(s, "kk1")?.begin).toEqual({ kind: "after", node: "photo2" });
+    expect(appearanceOf(s, "kk2")?.begin).toEqual({ kind: "with", node: "kk1" });
+    expect(appearanceOf(s, "kk3")?.begin).toEqual({ kind: "with", node: "kk2" });
+    expect(appearanceOf(s, "kk2")!.start - appearanceOf(s, "kk1")!.start).toBe(120);
+    expect(new Set(["photo2", "kk1", "kk2", "kk3"].map((id) => appearanceOf(s, id)!.trigger.id)).size).toBe(1);
+    expect(planChainInOrder(s, "about2")).toEqual([]);
+  });
+  it("une section déjà enchaînée dans l'ordre : rien à écrire ; sans deux éléments animés : rien non plus", () => {
+    let s = quick(site2, "photo2", "fade");
+    expect(planChainInOrder(s, "about2")).toEqual([]);
+    s = quick(s, "hh2b", "fade"); s = run(s, planAppearanceStart(s, "hh2b", { kind: "after", node: "photo2" }));
+    expect(planChainInOrder(s, "about2")).toEqual([]);
   });
 });

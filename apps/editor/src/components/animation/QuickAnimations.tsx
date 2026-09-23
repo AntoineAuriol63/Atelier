@@ -5,7 +5,7 @@ import { ExternalLink, Film, Play } from "lucide-react";
 import type { AppearanceBegin, CommitOptions, Node, Op, QuickGroup, Site } from "@atelier/model";
 import {
   ANIMATION_PRESETS, TRIGGER_LABELS, animationLength, appearanceAnchors, appearanceOf, appearanceStartOptions, componentUsages, indexSite, inheritedAppearance, planAppearanceDelay, planAppearanceDetail, planAppearancePreset,
-  planAppearanceCascade, planAppearanceDuration, planAppearanceReplay, planAppearanceSpeed, planAppearanceStart, planGroupAppearance, planQuickAnimation, planQuickSpeed, quickAnimation, quickSpeed, siblingGroup, trackSpan, type QuickSpeed,
+  planAppearanceCascade, planAppearanceDuration, planAppearanceReplay, planChainInOrder, planAppearanceSpeed, planAppearanceStart, planGroupAppearance, planQuickAnimation, planQuickSpeed, quickAnimation, quickSpeed, siblingGroup, trackSpan, type QuickSpeed,
 } from "@atelier/model";
 import { Button, Field, FieldGroup, Hint, NumberInput, Select, Toggle } from "@/ui";
 import { Segmented } from "@/ui/controls";
@@ -73,7 +73,7 @@ export function QuickAnimations({ site, node, commit, onOpenAnimation, onPlay, o
     <FieldGroup>
       {scene ? (
         <Field label="Scène" inline={false} hint="Tout ce qui bouge dans ce bloc, sur une même règle : le départ et la fin de chaque élément, la durée totale. Chaque élément se règle en le sélectionnant.">
-          <SceneOverview scene={scene} onSelectNode={onSelectNode} />
+          <SceneOverview scene={scene} onSelectNode={onSelectNode} onChain={planChainInOrder(site, node.id).length ? () => run(planChainInOrder(site, node.id), `Enchaîner ${quoteLabel(nodeLabel(node))} dans l'ordre`, "Apparition") : undefined} />
         </Field>
       ) : null}
       {sceneContainer && onSelectNode ? <Button size="sm" variant="ghost" className="self-start" onClick={() => onSelectNode(sceneContainer)} title="Sélectionne la section : sa rubrique Animation montre tous les éléments qui bougent, leur ordre et la durée totale">{`Voir la scène de ${sceneContainerLabel}`}</Button> : null}

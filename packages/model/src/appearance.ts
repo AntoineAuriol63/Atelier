@@ -518,6 +518,41 @@ export function planGroupAppearance(site: Site, childId: Id, presetId: string): 
   return plan.ops;
 }
 
+/**
+ * Enchaîner une section dans l'ordre de la page (lot 9, vague 5 : la scène se voyait sans se régler) : chaque élément animé démarre
+ * « après » celui qui le précède, tous dans un seul lancement, celui du premier ; « à chaque passage » est gardé si l'un l'avait.
+ * Rien à écrire si la section est déjà enchaînée ainsi, ou si moins de deux éléments bougent.
+ */
+export function planChainInOrder(site: Site, sectionId: Id): Op[] {
+  const { index } = cacheOf(site);
+  const section = index.get(sectionId)?.node;
+  if (!section?.children?.length) return [];
+  const ids: Id[] = [];
+  walk(section, (n) => {
+    if (n.id === sectionId) return;
+    const ap = appearanceOf(site, n.id);
+    if (ap) { ids.push(n.id); return ap.detail === "children" ? false : undefined; }
+    if (inheritedAppearance(site, n.id)) return false;
+  });
+  if (ids.length < 2) return [];
+  const aps = ids.map((id) => appearanceOf(site, id)!);
+  // Un élément déjà rattaché (« après » ou « avec ») à un élément qui le précède garde son rattachement : les voisins échelonnés restent échelonnés.
+  const attached = (ap: Appearance, i: number) => (ap.begin.kind === "after" || ap.begin.kind === "with") && ids.slice(0, i).includes(ap.begin.node);
+  const chained = aps.every((ap, i) => (i === 0 ? ap.own : attached(ap, i) && ap.trigger.id === aps[0]!.trigger.id));
+  if (chained) return [];
+  const every = aps.some((ap) => ap.trigger.on === "inView" && ap.trigger.once === false);
+  const plan = new Plan(site);
+  // Ce qui suit un élément rattaché reste derrière lui : le prochain à enchaîner part après le dernier élément de ce bloc.
+  let prev = ids[0]!;
+  for (let i = 1; i < ids.length; i++) {
+    const ap = appearanceOf(plan.site, ids[i]!)!;
+    if (!attached(ap, i)) plan.push(planAppearanceStart(plan.site, ids[i]!, { kind: "after", node: prev }));
+    prev = ids[i]!;
+  }
+  if (every) plan.push(planAppearanceReplay(plan.site, ids[0]!, true));
+  return plan.ops;
+}
+
 // ---------------------------------------------------------------- suppression d'éléments
 
 /**

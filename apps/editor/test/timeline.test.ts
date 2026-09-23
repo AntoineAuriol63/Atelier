@@ -157,7 +157,7 @@ describe("phrase de résumé : ce qui manque encore, la sortie du survol, les se
     { id: "a_long", name: "Longue", duration: 1500, tracks: [{ id: "t4", target: { trigger: true }, keyframes: [{ at: 0, style: { opacity: "0" } }, { at: 1500, style: { opacity: "1" } }] }] },
   ], pages: [{ ...sampleSite.pages[0]!, root: { id: "rt", type: "box", props: {}, children: [{ id: "ttl", type: "box", name: "Titre", props: {} }, text("par", "Texte")] } }] };
   it("une piste sans images-clés est dite, pour qu'on la remplisse", () => {
-    expect(summarizeAnimation(s, { id: "g", on: "load", animation: "a_half" }, "ttl")).toBe("Au chargement de la page : « Titre » en 700 ms. Paragraphe « Texte » n'a pas encore d'images-clés.");
+    expect(summarizeAnimation(s, { id: "g", on: "load", animation: "a_half" }, "ttl")).toBe("Au chargement de la page : « Titre » en 700 ms. Paragraphe « Texte » n'a pas encore d'effet.");
   });
   it("un survol composé à la main dit ce qui se passe quand la souris part", () => {
     expect(summarizeAnimation(s, { id: "g", on: "hover", animation: "a_grow" }, "ttl")).toBe("Quand la souris passe sur « Titre » : grossir en 250 ms, et reste ainsi quand la souris part.");

@@ -152,7 +152,7 @@ export function summarizeAnimation(site: Site, trigger: Trigger, hostId: string,
   if (!a || !tracks.length) return `${when}${delay} : rien ne bouge encore.`;
   // Une piste sans images-clés ne bouge pas : on le dit, pour qu'on la remplisse (vague 3, § 6.10).
   const empties = a.tracks.filter((t) => t.keyframes.length < 2).map((t) => { const r = resolveTrackTarget(t.target, hostId); if ("selector" in r) return quoted(r.selector); const n = index.get(r.node)?.node; return quoted(n ? nodeLabel(n) : r.node); });
-  const missing = empties.length ? ` ${empties.join(", ")} ${empties.length > 1 ? "n'ont" : "n'a"} pas encore d'images-clés.` : "";
+  const missing = empties.length ? ` ${empties.join(", ")} ${empties.length > 1 ? "n'ont" : "n'a"} pas encore d'effet.` : "";
   const length = Math.max(1, animationLength(a));
   const moment = (t: Track) => {
     const { start, end } = trackSpan(t);

@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import type { Node, Site } from "@atelier/model";
-import { applyOps, findNode, planAppearanceDelay, planGroupAppearance, planQuickAnimation, sampleSite } from "@atelier/model";
+import { appearanceOf, applyOps, findNode, planAppearanceDelay, planGroupAppearance, planQuickAnimation, sampleSite, type Op } from "@atelier/model";
 import { QuickAnimations } from "../src/components/animation/QuickAnimations";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -23,10 +23,11 @@ function separate(): Site {
 
 function mount(site: Site, id: string) {
   const selected: string[] = [];
+  const ops: Op[] = [];
   const host = document.createElement("div");
   document.body.appendChild(host);
-  act(() => { createRoot(host).render(createElement(QuickAnimations, { site, node: node(site, id), commit: () => {}, onSelectNode: (n) => { selected.push(n); } })); });
-  return { host, selected, text: () => host.textContent ?? "" };
+  act(() => { createRoot(host).render(createElement(QuickAnimations, { site, node: node(site, id), commit: (op) => { ops.push(op); }, onSelectNode: (n) => { selected.push(n); } })); });
+  return { host, selected, ops, applied: () => ops.reduce((s, op) => applyOps(s, [op]).site, site), text: () => host.textContent ?? "" };
 }
 
 describe("rubrique Animation d'une section : la scène entière", () => {
@@ -56,5 +57,24 @@ describe("rubrique Animation d'une section : la scène entière", () => {
     const s = run(base, planQuickAnimation(base, node(base, "photo"), "Apparition", "fade"));
     expect(mount(s, "about").host.querySelector("[data-scene]")).toBeNull();
     expect(mount(s, "photo").text()).not.toContain("Voir la scène");
+  });
+});
+
+describe("régler l'ordre là où on le voit (lot 9)", () => {
+  beforeEach(() => { document.body.innerHTML = ""; });
+  it("« Enchaîner dans cet ordre » sur la scène : un seul lancement, chaque élément après le précédent, plus d'avertissement", () => {
+    const m = mount(separate(), "about");
+    const b = [...m.host.querySelectorAll<HTMLButtonElement>("button")].find((x) => (x.textContent ?? "").includes("Enchaîner dans cet ordre"));
+    expect(b).toBeTruthy();
+    act(() => { b!.click(); });
+    const s = m.applied();
+    expect(appearanceOf(s, "hh2")?.begin).toEqual({ kind: "after", node: "photo" });
+    expect(appearanceOf(s, "stats")?.begin).toEqual({ kind: "after", node: "hh2" });
+    expect(new Set(["photo", "hh2", "stats"].map((id) => appearanceOf(s, id)!.trigger.id)).size).toBe(1);
+    // Rendu à nouveau sur le document enchaîné : le bouton disparaît et la scène ne signale plus rien.
+    const m2 = mount(s, "about");
+    expect([...m2.host.querySelectorAll("button")].some((x) => (x.textContent ?? "").includes("Enchaîner dans cet ordre"))).toBe(false);
+    expect(m2.text()).not.toContain("part avant");
+    expect(m2.text()).not.toContain("lancements séparés");
   });
 });
