@@ -19,7 +19,7 @@ export function LeftRail({ items, active, onSelect, onCollapse, tools, style }: 
       {items.map((it) => {
         const pressed = it.id === active;
         return (
-          <Tooltip key={it.id} text={it.hint ?? it.label}>
+          <Tooltip key={it.id} side="right" text={it.hint ?? it.label}>
             <button type="button" aria-label={it.label} aria-pressed={pressed} disabled={it.disabled} className={btn(pressed)} onClick={() => (pressed ? onCollapse() : onSelect(it.id))}>
               <it.icon size={17} strokeWidth={1.75} aria-hidden />
             </button>
@@ -29,7 +29,7 @@ export function LeftRail({ items, active, onSelect, onCollapse, tools, style }: 
       {tools?.length ? (
         <div className="mt-auto flex flex-col items-center gap-1 pt-2 border-t border-line" data-rail-tools="">
           {tools.map((t) => (
-            <Tooltip key={t.id} text={t.label}>
+            <Tooltip key={t.id} side="right" text={t.label}>
               <button type="button" aria-label={t.label} className={btn(false)} onClick={t.onClick}>
                 <t.icon size={17} strokeWidth={1.75} aria-hidden />
               </button>

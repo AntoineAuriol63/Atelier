@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { FileText, Images, Layers, Plus } from "lucide-react";
@@ -47,5 +47,17 @@ describe("rail de gauche", () => {
     act(() => { m.button("Images du site").click(); });
     expect(m.calls).toEqual(["media"]);
     expect(m.host.querySelector("[data-rail-tools]")).toBeTruthy();
+  });
+
+  it("l'infobulle d'une icône s'ouvre à sa droite, jamais hors de la fenêtre (le rail est collé au bord gauche)", () => {
+    vi.useFakeTimers();
+    const m = mount("pages");
+    // Le clavier montre l'infobulle comme la souris : prendre le focus suffit.
+    act(() => { m.button("Ajouter").focus(); });
+    act(() => { vi.advanceTimersByTime(200); });
+    const tip = document.querySelector<HTMLElement>("[role=tooltip]");
+    expect(tip).toBeTruthy();
+    expect(tip!.getAttribute("data-side")).toBe("right");
+    vi.useRealTimers();
   });
 });
