@@ -6,10 +6,10 @@ export type EditMode = "write" | "design" | "animate";
 export type ToPreview =
   /** « Jouer » : rejoue une fois l'animation du déclencheur `trigger` porté par l'élément `id`. */
   | { type: "atelier:play"; id: string; trigger: string }
-  /** Mode Animation : montre l'état à `time` ms de la ligne de temps du déclencheur `trigger` porté par l'élément `id` (pistes jouées en pause). */
+  /** Outil Animation : montre l'état à `time` ms de la ligne de temps du déclencheur `trigger` porté par l'élément `id` (pistes jouées en pause). */
   | { type: "atelier:scrub"; id: string; trigger: string; time: number }
   | { type: "atelier:scrub-stop" }
-  /** Mode Animation : éléments de la piste active, à repérer d'un contour pointillé et de son nom (`ids` vide : aucun). */
+  /** Outil Animation : éléments de la piste active, à repérer d'un contour pointillé et de son nom (`ids` vide : aucun). */
   | { type: "atelier:anim-targets"; ids: string[]; label?: string }
   | { type: "atelier:site"; site: Site; containers: string[]; links: string[]; textNodes: string[]; compounds?: string[]; editMode: EditMode; blocks: BlockPresetInfo[]; pages: { path: string; name: string }[] }
   | { type: "atelier:entries"; entries: Entry[] }

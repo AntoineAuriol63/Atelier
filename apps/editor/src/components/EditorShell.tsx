@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { AlertTriangle, CheckCircle2, Command as CommandIcon, Database as DatabaseIcon, ExternalLink, Info, FileText, Grid3x3, Layers, Moon, Palette, Plus, Puzzle, Redo2, Sparkles, Sun, Undo2, UploadCloud, X, Settings2, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, Zap, type LucideIcon } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Command as CommandIcon, Database as DatabaseIcon, ExternalLink, Info, FileText, Grid3x3, Layers, Moon, Palette, Plus, Puzzle, Redo2, Sparkles, Sun, Undo2, UploadCloud, X, Settings2, Maximize2, Minimize2, PanelLeftClose, PanelLeftOpen, Zap, Film, type LucideIcon } from "lucide-react";
 import type { DropPosition, Entry, Node, Page, Site, StyleValue, Role } from "@atelier/model";
 import { animationById, appearanceOf, planAppearancePreset, planRemoveNode, BASE, breakpointForWidth, canInsertUnder, cloneWithNewIds, dataSourceFor, entryPath, fitHeadings as fitHeadingsInPage, indexSite, layoutGridAt, newId, planDetach, planDrop, planInsert, planMakeComponent, planMergePrev, planMove, planSlashInsert, planSplit, stylePath, templateOf, type ComponentPlan, type TextPlan, ANIMATION_PRESETS } from "@atelier/model";
 import type { Op } from "@atelier/model";
@@ -12,7 +12,7 @@ import Link from "next/link";
 import { PRODUCT_NAME } from "@/lib/product";
 import { isEditableTarget, mod } from "@/lib/keys";
 import type { BlockPreset } from "@/lib/blocks";
-import { Badge, Breadcrumb, Button, Hint, IconButton, Panel, PanelHeading, Separator, Tabs, TreeRow, type DropIndicator, ConfirmProvider, askConfirm } from "@/ui";
+import { Badge, Breadcrumb, Button, Eyebrow, Hint, IconButton, Panel, PanelHeading, Separator, Tabs, TreeRow, type DropIndicator, ConfirmProvider, askConfirm } from "@/ui";
 import { NodeInspector } from "./NodeInspector";
 import { AddPanel } from "./AddPanel";
 import { ThemePanel } from "./ThemePanel";
@@ -41,12 +41,14 @@ const PRESETS: { id: string; label: string; width: number | null }[] = [
   { id: "tablet", label: "Tablette", width: 900 },
   { id: "mobile", label: "Mobile", width: 390 },
 ];
-const MODES = [{ id: "write", label: "Écriture", hint: "Écrire et organiser le contenu, comme dans un document" }, { id: "design", label: "Design", hint: "Régler la disposition et le style de chaque élément" }, { id: "animate", label: "Animation", hint: "Déclencheurs et lignes de temps : voir l'état exact à chaque instant" }, { id: "code", label: "Code", hint: "Bientôt" }];
+const MODES = [{ id: "write", label: "Écriture", hint: "Écrire et organiser le contenu, comme dans un document" }, { id: "design", label: "Design", hint: "Régler la disposition et le style de chaque élément" }, { id: "code", label: "Code", hint: "Bientôt" }];
 /** Les panneaux du rail de gauche ; Calques et Thème n'ont pas de sens en Écriture. */
 const LEFT_PANELS: { id: string; label: string; icon: LucideIcon; designOnly?: boolean }[] = [
   { id: "pages", label: "Pages", icon: FileText }, { id: "layers", label: "Calques", icon: Layers, designOnly: true }, { id: "add", label: "Ajouter", icon: Plus },
   { id: "data", label: "Données", icon: DatabaseIcon }, { id: "theme", label: "Thème", icon: Palette, designOnly: true },
 ];
+/** Les modes de la barre : Écriture, Design, Code (D17). L'animation est un outil (tiroir sous le canevas), pas un mode. */
+type ShellMode = "write" | "design" | "code";
 const MIN_WIDTH = 320;
 const MAX_WIDTH = 4000;
 
@@ -64,7 +66,7 @@ function Layer(p: {
   openMap: Record<string, boolean>; setOpen: (id: string, open: boolean) => void;
   editing: string | null; onEditStart: (id: string) => void; onRename: (id: string, name: string | null | undefined) => void;
   drop: DropState; onDragStart: (id: string) => void; onDragOver: (id: string, pos: DropPosition) => void; onDragEnd: () => void; onDropOn: (id: string, pos: DropPosition) => void;
-  /** Mode Animation : éléments animés par l'animation ouverte (point) et éléments qui portent un déclencheur (éclair). */
+  /** Outil Animation : éléments animés par l'animation ouverte (point) et éléments qui portent un déclencheur (éclair). */
   marks?: { animated: Set<string>; triggers: Set<string> };
 }) {
   const { node, depth } = p;
@@ -164,22 +166,23 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
   const [openMap, setOpenMap] = useState<Record<string, boolean>>({});
   const [drop, setDrop] = useState<DropState>(null);
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const [editMode, setEditMode] = useState<EditMode>(() => { if (role === "writer") return "write"; try { return (localStorage.getItem("atelier:editmode") as EditMode) || "write"; } catch { return "design"; } });
+  const [editMode, setEditMode] = useState<ShellMode>(() => { if (role === "writer") return "write"; try { const m = localStorage.getItem("atelier:editmode"); return m === "design" || m === "write" ? m : m === "animate" ? "design" : "write"; } catch { return "design"; } });
   // Un rédacteur reste en Écriture (l'onglet Design est désactivé avec son explication).
-  const switchMode = useCallback((m: EditMode) => { if (writer && m !== "write") return; setEditMode(m); setLeftTab((t) => (m === "write" && (t === "layers" || t === "theme") ? "pages" : t)); try { localStorage.setItem("atelier:editmode", m); } catch {} }, [writer]);
+  const switchMode = useCallback((m: ShellMode) => { if (writer && m !== "write") return; setEditMode(m); setLeftTab((t) => (m === "write" && (t === "layers" || t === "theme") ? "pages" : t)); try { localStorage.setItem("atelier:editmode", m); } catch {} }, [writer]);
   const [showGrid, setShowGrid] = useState<boolean>(() => { try { return localStorage.getItem("atelier:grid") === "1"; } catch { return false; } });
   const toggleGrid = useCallback(() => setShowGrid((g) => { try { localStorage.setItem("atelier:grid", g ? "0" : "1"); } catch {} return !g; }), []);
   const [previewState, setPreviewState] = useState<string | null>(null);
   const [focusMode, setFocusMode] = useState(false);
-  // Panneau de gauche repliable par mode, replié par défaut en mode Animation : l'aperçu a besoin de place pour voir bouger, et les
+  // Panneau de gauche repliable par mode, replié par défaut en outil Animation : l'aperçu a besoin de place pour voir bouger, et les
   // calques restent joignables par le fil d'Ariane et la pioche (audit n°4 · E1). Choix mémorisé.
   const [leftHidden, setLeftHidden] = useState<Record<string, boolean>>(() => { try { return JSON.parse(localStorage.getItem("atelier:left-hidden") || "{}") as Record<string, boolean>; } catch { return {}; } });
-  const leftCollapsed = leftHidden[editMode] ?? editMode === "animate";
-  const toggleLeft = useCallback(() => setLeftHidden((m) => { const next = { ...m, [editMode]: !(m[editMode] ?? editMode === "animate") }; try { localStorage.setItem("atelier:left-hidden", JSON.stringify(next)); } catch {} return next; }), [editMode]);
-  // Largeur du panneau Animation quand une ligne de temps est ouverte : poignée sur son bord, de 360 à 720 px, mémorisée.
-  const [animPanelW, setAnimPanelW] = useState<number>(() => { try { const n = Number(localStorage.getItem("atelier:anim-panel-w")); return n >= 360 && n <= 720 ? n : 440; } catch { return 440; } });
+  const leftCollapsed = leftHidden[editMode] ?? false;
+  const toggleLeft = useCallback(() => setLeftHidden((m) => { const next = { ...m, [editMode]: !(m[editMode] ?? false) }; try { localStorage.setItem("atelier:left-hidden", JSON.stringify(next)); } catch {} return next; }), [editMode]);
+  // L'outil Animation : un tiroir sous le canevas (chantier 3), ouvert à la demande, de 200 à 640 px de haut, hauteur mémorisée.
+  const [animOpen, setAnimOpen] = useState(false);
+  const [animH, setAnimH] = useState<number>(() => { try { const n = Number(localStorage.getItem("atelier:anim-h")); return n >= 200 && n <= 640 ? n : 320; } catch { return 320; } });
   const showLeft = useCallback(() => setLeftHidden((m) => { const next = { ...m, [editMode]: false }; try { localStorage.setItem("atelier:left-hidden", JSON.stringify(next)); } catch {} return next; }), [editMode]);
-  const saveAnimPanelW = (w: number) => { const c = Math.round(Math.min(720, Math.max(360, w))); setAnimPanelW(c); try { localStorage.setItem("atelier:anim-panel-w", String(c)); } catch {} };
+  const saveAnimH = (h: number) => { const c = Math.round(Math.min(640, Math.max(200, h))); setAnimH(c); try { localStorage.setItem("atelier:anim-h", String(c)); } catch {} };
   const [compareMode, setCompareMode] = useState(false);
   const dragId = useRef<string | null>(null);
   const dragBlock = useRef<string | null>(null);
@@ -211,10 +214,12 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
   void previewKey;
   const post = useCallback((msg: ToPreview) => frame.current?.contentWindow?.postMessage(msg, window.location.origin), []);
 
-  // --- mode Animation : l'animation ouverte dans la ligne de temps, rattachée à la page où elle a été ouverte.
+  // --- outil Animation : l'animation ouverte dans la ligne de temps, rattachée à la page où elle a été ouverte.
   // Elle se referme d'elle-même si l'on change de page ou si son déclencheur disparaît (annuler, retirer, supprimer l'élément).
   const [timeline, setTimeline] = useState<{ page: string; open: OpenTimeline }>({ page: "", open: null });
   const openTl = useMemo(() => (timeline.page === page.id ? validOpenTimeline(site, timeline.open) : null), [timeline, page.id, site]);
+  // L'aperçu connaît trois façons d'être piloté : écrire, disposer, et « animate » quand une ligne de temps est ouverte (sélection seule, l'instant montré).
+  const previewEditMode: EditMode = animOpen && openTl ? "animate" : editMode === "write" ? "write" : "design";
   /** Ouvre une animation (ou referme la ligne de temps) et sélectionne son hôte ; s'il est sur une autre page, on y va. */
   const openAnimation = useCallback((o: OpenTimeline) => {
     const owner = o ? index.get(o.hostId)?.owner : undefined;
@@ -228,17 +233,17 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
     setTimeline({ page: target, open: o });
     if (o) select(o.hostId);
   }, [index, page.id, setPageId, select, site, notify]);
-  /** « Animer cet élément » : passe en mode Animation sur l'élément, en ouvrant l'animation du déclencheur demandé (sinon du premier). */
+  /** « Animer cet élément » : ouvre l'outil Animation sur l'élément, avec l'animation du déclencheur demandé (sinon du premier). */
   const animateNode = useCallback((node: Node, triggerId?: string) => {
     if (writer) return;
     const t = (node.triggers ?? []).find((x) => x.id === triggerId) ?? node.triggers?.[0];
-    switchMode("animate");
+    setAnimOpen(true);
     // Un élément enchaîné n'a pas de déclencheur à lui : on ouvre l'animation qui le fait apparaître.
     const ap = t ? undefined : appearanceOf(site, node.id);
     if (t) openAnimation({ animationId: t.animation, hostId: node.id, triggerId: t.id });
     else if (ap) { openAnimation({ animationId: ap.animation.id, hostId: ap.hostId, triggerId: ap.trigger.id }); select(node.id); }
     else select(node.id);
-  }, [writer, switchMode, openAnimation, select, site]);
+  }, [writer, openAnimation, select, site]);
   // Pioche de la ligne de temps : le prochain élément cliqué (aperçu, calques, fil d'Ariane) devient une piste, sans changer la sélection.
   const pickRef = useRef<((id: string) => void) | null>(null);
   const [picking, setPicking] = useState(false);
@@ -259,6 +264,9 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
   const targetsRef = useRef<{ ids: string[]; label?: string }>({ ids: [] });
   const showTargets = useCallback((ids: string[], label?: string) => { targetsRef.current = { ids, label }; post({ type: "atelier:anim-targets", ids, label }); }, [post]);
   useEffect(() => { if (frameReady && targetsRef.current.ids.length) post({ type: "atelier:anim-targets", ...targetsRef.current }); }, [frameReady, post]);
+  /** Ferme l'outil Animation. La ligne de temps, en se démontant, rend la pioche, retire les repères et arrête l'instant montré. */
+  const closeAnim = useCallback(() => { setAnimOpen(false); setTimeline({ page: "", open: null }); }, []);
+  const toggleAnim = useCallback(() => { if (animOpen) closeAnim(); else setAnimOpen(true); }, [animOpen, closeAnim]);
   // L'aperçu montre l'instant de la tête de lecture ; la valeur est gardée pour la reposer quand l'aperçu se recharge.
   const scrubTime = useRef<number | null>(null);
   const scrub = useCallback((time: number | null) => {
@@ -432,7 +440,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
     return () => window.removeEventListener("message", onMsg);
   }, [moveNode, select, dropBlock, setNodeContent, splitNode, mergePrev, slashInsert, switchMode, doc, index, site, locale, page.id, notify, consumePick]);
 
-  useEffect(() => { if (frameReady) post({ type: "atelier:site", site, containers: [...index.values()].filter((l) => ["box", "list", "listItem", "link", "form", "item", "slot"].includes(l.node.type)).map((l) => l.node.id), links: [...index.values()].filter((l) => l.node.type === "link" || (editMode === "write" && l.node.type === "collection")).map((l) => l.node.id), textNodes: textNodeIds, compounds: compoundIds(site, editMode), editMode, blocks: blockInfos, pages: site.pages.filter((p) => p.kind === "static").map((p) => ({ path: p.path, name: p.name[locale] ?? p.path })) }); }, [site, index, textNodeIds, frameReady, post, editMode, blockInfos, locale]);
+  useEffect(() => { if (frameReady) post({ type: "atelier:site", site, containers: [...index.values()].filter((l) => ["box", "list", "listItem", "link", "form", "item", "slot"].includes(l.node.type)).map((l) => l.node.id), links: [...index.values()].filter((l) => l.node.type === "link" || (editMode === "write" && l.node.type === "collection")).map((l) => l.node.id), textNodes: textNodeIds, compounds: compoundIds(site, previewEditMode), editMode: previewEditMode, blocks: blockInfos, pages: site.pages.filter((p) => p.kind === "static").map((p) => ({ path: p.path, name: p.name[locale] ?? p.path })) }); }, [site, index, textNodeIds, frameReady, post, editMode, previewEditMode, blockInfos, locale]);
   // Les entrées voyagent à part, et seulement celles des bases que la page utilise (vues et modèle) : le message ne pèse plus le site entier.
   const pageDatabases = useMemo(() => {
     const ids = new Set<string>();
@@ -449,7 +457,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
     if (!selected || !active?.closest("[role=tree]")) return;
     document.querySelector<HTMLElement>(`[role=treeitem][data-row-id="${CSS.escape(selected)}"]`)?.focus();
   }, [selected]);
-  useEffect(() => { if (frameReady) post({ type: "atelier:editmode", editMode }); }, [editMode, frameReady, post]);
+  useEffect(() => { if (frameReady) post({ type: "atelier:editmode", editMode: previewEditMode }); }, [previewEditMode, frameReady, post]);
   useEffect(() => { if (frameReady) post({ type: "atelier:mode", mode }); }, [mode, frameReady, post]);
   useEffect(() => { if (frameReady) post({ type: "atelier:highlight", id: selected }); }, [selected, frameReady, post]);
   useEffect(() => { if (frameReady) post({ type: "atelier:state", id: selected, state: previewState }); }, [selected, previewState, frameReady, site, post]);
@@ -467,10 +475,10 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
   const selectionTrail = useMemo(() => (selected ? selectionPath(site, selected) : []), [site, selected]);
   const treeRoot = editingComponent ? site.components.find((c) => c.id === editingComponent)?.root ?? page.root : page.root;
   const layerMarks = useMemo(() => {
-    if (editMode !== "animate") return undefined;
+    if (!animOpen) return undefined;
     const anim = openTl ? animationById(site, openTl.animationId) : undefined;
     return { triggers: triggerHosts(treeRoot, treeRoot === page.root ? page : undefined), animated: anim && openTl ? animatedNodes(anim, openTl.hostId) : new Set<string>() };
-  }, [editMode, treeRoot, openTl, site, page]);
+  }, [animOpen, treeRoot, openTl, site, page]);
   useEffect(() => {
     type KeyLike = { key: string; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey?: boolean; preventDefault: () => void; fromPreview?: boolean; target?: EventTarget | null };
     const onKey = (e: KeyLike) => {
@@ -541,7 +549,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
   // Au-delà de la zone visible, le cadre garde sa vraie largeur et est réduit à l'échelle pour tenir.
   const scale = measured > 0 && effective > measured ? measured / effective : 1;
   // Barre du haut (48 px), barre du canevas (36 px) et marges du canevas (16 px).
-  const frameHeight = `calc((100vh - 100px) / ${scale})`;
+  const frameHeight = `calc((100vh - 100px - ${animOpen ? animH : 0}px) / ${scale})`;
   // L'interface dessinée dans l'aperçu (barres, poignée, menu) compense l'échelle pour garder sa taille réelle.
   useEffect(() => { if (frameReady) post({ type: "atelier:zoom", scale }); }, [scale, frameReady, post]);
   const activeBp = useMemo(() => breakpointForWidth(site.settings.breakpoints, effective), [site.settings.breakpoints, effective]);
@@ -578,7 +586,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
       ...(writer ? [] : [{ id: "settings", group: "Site", label: "Réglages du site… (adresse, référencement, 404, redirections, code, export, partage)", icon: Settings2, keywords: "réglages sous-domaine seo favicon redirection export partage", run: () => { setPublishTab("settings"); setPublishOpen(true); } }]),
       { id: "preview", group: "Affichage", label: "Ouvrir l'aperçu dans un nouvel onglet", icon: ExternalLink, run: () => window.open(previewPath, "_blank") },
       { id: "mode:write", group: "Affichage", label: "Mode Écriture", run: () => switchMode("write") },
-      ...(writer ? [] : [{ id: "mode:design", group: "Affichage", label: "Mode Design", run: () => switchMode("design") }, { id: "mode:animate", group: "Affichage", label: "Mode Animation", icon: Zap, keywords: "animation ligne de temps déclencheur images-clés", run: () => switchMode("animate") }]),
+      ...(writer ? [] : [{ id: "mode:design", group: "Affichage", label: "Mode Design", run: () => switchMode("design") }, { id: "tool:animate", group: "Affichage", label: animOpen ? "Fermer l'outil Animation" : "Outil Animation : déclencheurs et lignes de temps", icon: Zap, keywords: "animation ligne de temps déclencheur images-clés", run: toggleAnim }]),
       { id: "grid", group: "Affichage", label: showGrid ? "Masquer la grille de mise en page" : "Afficher la grille de mise en page", keys: "⌃G", icon: Grid3x3, run: toggleGrid },
       { id: "left", group: "Affichage", label: leftCollapsed ? "Afficher le panneau de gauche" : "Masquer le panneau de gauche", icon: leftCollapsed ? PanelLeftOpen : PanelLeftClose, keywords: "pages calques ajouter données thème", run: toggleLeft },
       { id: "focus", group: "Affichage", label: focusMode ? "Quitter le mode concentration" : "Mode concentration : masquer les panneaux", icon: focusMode ? Minimize2 : Maximize2, run: () => setFocusMode((v) => !v) },
@@ -605,7 +613,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
     const visit = (n: Node) => { const label = nodeLabel(n); if (!seen.has(n.id)) { seen.add(n.id); nodes.push({ id: `sel:${n.id}`, group: "Sélectionner un calque", label, icon: nodeIcon(n), keywords: n.type, run: () => select(n.id) }); } n.children?.forEach(visit); };
     visit(page.root);
     return [...cmds, ...nodes.slice(0, 80)];
-  }, [doc, site, locale, page.root, previewPath, selected, index, select, addBlock, showGrid, toggleGrid, switchMode, setPageId, makeComponent, detachInstance, writer, animateNode, showLeft, leftCollapsed, toggleLeft, focusMode]);
+  }, [doc, site, locale, page.root, previewPath, selected, index, select, addBlock, showGrid, toggleGrid, switchMode, setPageId, makeComponent, detachInstance, writer, animateNode, showLeft, leftCollapsed, toggleLeft, focusMode, animOpen, toggleAnim]);
   const setOpen = useCallback((id: string, open: boolean) => setOpenMap((m) => ({ ...m, [id]: open })), []);
   const rename = useCallback((id: string, name: string | null | undefined) => {
     setEditing(null);
@@ -617,8 +625,8 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
 
   return (
     <ConfirmProvider><MediaLibraryProvider site={site} entries={ents.entries} commit={doc.commit} saveEntry={ents.save} onGoTo={goToUsage} readOnly={writer}>
-    {/* En mode Animation, la colonne de droite s'élargit en poussant le canevas quand une ligne de temps est ouverte (cadrage § 4.1). */}
-    <div className="h-full grid grid-rows-[48px_1fr]" style={{ gridTemplateColumns: focusMode ? "minmax(0,1fr)" : `44px ${leftCollapsed ? "" : "280px "}minmax(0,1fr) ${editMode === "animate" && openTl ? animPanelW : 360}px` }}>
+    {/* Trois rangées quand l'outil Animation est ouvert : son tiroir passe sous le canevas et l'inspecteur, sur toute leur largeur (chantier 3). */}
+    <div className="h-full grid" style={{ gridTemplateColumns: focusMode ? "minmax(0,1fr)" : `44px ${leftCollapsed ? "" : "280px "}minmax(0,1fr) 360px`, gridTemplateRows: animOpen && !writer ? `48px minmax(0,1fr) ${animH}px` : "48px minmax(0,1fr)" }}>
       {/* Barre du haut en trois zones (23 septembre 2026) : le site et la page, les modes, la publication. La vue de l'aperçu se règle dans la barre du canevas. */}
       <header className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 px-3 border-b border-line bg-panel min-w-0 overflow-hidden" style={{ gridColumn: "1 / -1" }}>
         <div className="flex items-center gap-2 min-w-0">
@@ -629,7 +637,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
           <span className="text-sm text-ink truncate max-w-[200px]" title={page.name[locale]}>{page.name[locale]}</span>
           {page.kind === "template" ? <Badge tone="accent" title="Cette page s'affiche une fois par entrée de sa base">page par entrée</Badge> : null}
         </div>
-        <Tabs variant="pill" label="Mode" tabs={MODES.map((m) => ({ ...m, disabled: m.id === "code" || (writer && m.id !== "write"), hint: writer && (m.id === "design" || m.id === "animate") ? "Réservé aux éditeurs du site" : m.hint }))} value={editMode} onChange={(m) => switchMode(m as EditMode)} />
+        <Tabs variant="pill" label="Mode" tabs={MODES.map((m) => ({ ...m, disabled: m.id === "code" || (writer && m.id !== "write"), hint: writer && m.id === "design" ? "Réservé aux éditeurs du site" : m.hint }))} value={editMode} onChange={(m) => switchMode(m as ShellMode)} />
         <div className="flex items-center justify-end gap-2 min-w-0">
           <div className="flex items-center gap-0.5">
             <IconButton label={`Annuler (${mod()}Z)`} icon={Undo2} disabled={!doc.canUndo} onClick={doc.undo} />
@@ -644,9 +652,9 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
       </header>
 
       {/* Rail d'icônes (chantier 2) : un panneau par icône, l'icône active replie le panneau ; en bas, les outils du site. */}
-      {focusMode ? null : <LeftRail items={LEFT_PANELS.filter((p) => editMode === "write" ? !p.designOnly : true)} active={leftCollapsed ? null : leftTab} onSelect={(id) => { setLeftTab(id); showLeft(); }} onCollapse={toggleLeft}
+      {focusMode ? null : <LeftRail style={{ gridRow: "2 / -1" }} items={LEFT_PANELS.filter((p) => editMode === "write" ? !p.designOnly : true)} active={leftCollapsed ? null : leftTab} onSelect={(id) => { setLeftTab(id); showLeft(); }} onCollapse={toggleLeft}
         tools={[{ id: "media", label: "Images du site", icon: ImagesIcon, onClick: () => openMediaLibrary() }, { id: "palette", label: `Palette de commandes (${mod()}K)`, icon: CommandIcon, onClick: () => setPaletteOpen(true) }, ...(writer ? [] : [{ id: "settings", label: "Réglages du site (adresse, référencement, redirections, export, partage)", icon: Settings2, onClick: () => { setPublishTab("settings"); setPublishOpen(true); } }])]} />}
-      {focusMode || leftCollapsed ? null : <Panel side="left">
+      {focusMode || leftCollapsed ? null : <Panel side="left" style={{ gridRow: "2 / -1" }}>
         <PanelHeading className="pr-1" actions={<IconButton size="sm" label="Replier le panneau" icon={PanelLeftClose} onClick={toggleLeft} />}>{LEFT_PANELS.find((p) => p.id === leftTab)?.label ?? "Panneau"}</PanelHeading>
         <div className="flex-1 overflow-auto py-1" onDragOver={(e) => { if (dragId.current || dragBlock.current) e.preventDefault(); }} onDrop={(e) => { e.preventDefault(); setDrop(null); }}>
           {leftTab === "pages" ? (
@@ -689,7 +697,7 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
 
       <main className="relative min-w-0 min-h-0 flex flex-col bg-app">
         <CanvasBar presets={PRESETS} preset={preset} customWidth={customWidth} onPreset={setPreset} onCustomWidth={setCustomWidth} effective={effective} minWidth={MIN_WIDTH} maxWidth={MAX_WIDTH} breakpoint={breakpoint} scale={scale}
-          editMode={editMode === "animate" ? "design" : editMode} showGrid={showGrid} onToggleGrid={toggleGrid} compare={compareMode} onCompare={() => setCompareMode((v) => !v)} modes={site.theme.modes} mode={mode} onMode={setMode} focus={focusMode} onFocus={() => setFocusMode((v) => !v)}
+          editMode={editMode} showGrid={showGrid} onToggleGrid={toggleGrid} compare={compareMode} onCompare={() => setCompareMode((v) => !v)} modes={site.theme.modes} mode={mode} onMode={setMode} focus={focusMode} onFocus={() => setFocusMode((v) => !v)} animation={writer ? undefined : { open: animOpen, onToggle: toggleAnim }}
           entries={template ? templateEntries.map((e) => ({ id: e.id, label: String(e.values[template.database.titleField] ?? "") })) : undefined} entry={previewEntry?.id} onEntry={template ? (id) => { setPreviewEntryByPage((m) => ({ ...m, [page.id]: id })); select(null); } : undefined} />
         <div ref={canvas} className="relative flex-1 min-h-0 min-w-0 overflow-auto flex justify-center items-start p-3">
         {picking ? <div role="status" className="absolute top-3 left-1/2 -translate-x-1/2 z-30 rounded-md border border-accent bg-accent text-accent-ink px-3 py-1.5 text-xs font-semibold shadow-lg">Cliquez l&apos;élément à animer dans le canevas ou les calques · Échap pour annuler</div> : null}
@@ -731,18 +739,9 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
       </main>
 
       {focusMode ? null : <Panel side="right" className="relative">
-        {editMode === "animate" && openTl ? (
-          <div role="separator" aria-orientation="vertical" aria-label="Largeur du panneau Animation (flèches pour ajuster)" aria-valuemin={360} aria-valuemax={720} aria-valuenow={animPanelW} tabIndex={0}
-            className="absolute left-0 top-0 bottom-0 z-40 w-1.5 -translate-x-1/2 cursor-col-resize hover:bg-accent/40 focus-visible:bg-accent/60"
-            title="Glisser pour élargir ou réduire le panneau Animation"
-            onPointerDown={(e) => { e.preventDefault(); const startX = e.clientX, startW = animPanelW; const onMove = (ev: PointerEvent) => setAnimPanelW(Math.round(Math.min(720, Math.max(360, startW - (ev.clientX - startX))))); const onUp = (ev: PointerEvent) => { window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); saveAnimPanelW(startW - (ev.clientX - startX)); }; window.addEventListener("pointermove", onMove); window.addEventListener("pointerup", onUp); }}
-            onKeyDown={(e) => { if (e.key === "ArrowLeft") { e.preventDefault(); saveAnimPanelW(animPanelW + (e.shiftKey ? 80 : 20)); } if (e.key === "ArrowRight") { e.preventDefault(); saveAnimPanelW(animPanelW - (e.shiftKey ? 80 : 20)); } }} />
-        ) : null}
         {selectionTrail.length > 1 ? <Breadcrumb label="Chemin de la sélection" items={selectionTrail} onSelect={selectOrPick} className="shrink-0" /> : null}
-        {editMode === "animate" ? (
-          <div className="flex-1 overflow-auto"><AnimationModePanel site={site} node={selectedLoc?.node ?? null} commit={doc.commit} page={page} getSite={doc.getSite} bp={activeBp} mode={mode} open={openTl} onOpen={openAnimation} scrub={scrub} onSelect={select} onPick={setPick} picking={picking} showTargets={showTargets} onTestOnSite={testOnSite} /></div>
-        ) : selectedLoc ? (
-          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} onPlay={(id, trigger) => post({ type: "atelier:play", id, trigger })} site={site} loc={selectedLoc} dataSource={dataSource} activeBp={activeBp} mode={mode} editMode={editMode} onSwitchMode={switchMode} onOpenAnimation={writer ? undefined : (triggerId) => animateNode(selectedLoc.node, triggerId)} onTestOnSite={(id) => testOnSite(id ?? selectedLoc.node.id)} onSelectNode={(id) => select(id)} onGoToBreakpoint={goToBreakpoint} onPreviewState={setPreviewState} onEditInPreview={() => post({ type: "atelier:edit-text", id: selectedLoc.node.id })} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }} onMakeComponent={makeComponent} onDetach={detachInstance} notify={notify} commit={doc.commit} onDeleted={() => { select(selectedLoc.parent?.id ?? null); notify(`${nodeLabel(selectedLoc.node)} supprimé`, "info", { label: "Annuler", run: () => doc.undo() }); }} /></div>
+        {selectedLoc ? (
+          <div className="flex-1 overflow-auto"><NodeInspector key={selectedLoc.node.id} onPlay={(id, trigger) => post({ type: "atelier:play", id, trigger })} site={site} loc={selectedLoc} dataSource={dataSource} activeBp={activeBp} mode={mode} editMode={editMode === "write" ? "write" : "design"} onSwitchMode={switchMode} onOpenAnimation={writer ? undefined : (triggerId) => animateNode(selectedLoc.node, triggerId)} onTestOnSite={(id) => testOnSite(id ?? selectedLoc.node.id)} onSelectNode={(id) => select(id)} onGoToBreakpoint={goToBreakpoint} onPreviewState={setPreviewState} onEditInPreview={() => post({ type: "atelier:edit-text", id: selectedLoc.node.id })} onEnterComponent={(id) => { setEditingComponent(id); setLeftTab("layers"); select(site.components.find((c) => c.id === id)?.root.id ?? null); }} onMakeComponent={makeComponent} onDetach={detachInstance} notify={notify} commit={doc.commit} onDeleted={() => { select(selectedLoc.parent?.id ?? null); notify(`${nodeLabel(selectedLoc.node)} supprimé`, "info", { label: "Annuler", run: () => doc.undo() }); }} /></div>
         ) : (
           <div className="p-3 flex flex-col gap-2">
             <PanelHeading className="px-0">Sélection</PanelHeading>
@@ -750,6 +749,24 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
           </div>
         )}
       </Panel>}
+        {/* L'outil Animation (chantier 3) : un tiroir sous le canevas, à gauche ce que l'élément et la page lancent, à droite la ligne de temps ouverte. */}
+        {animOpen && !writer ? (
+          <div className="relative flex flex-col min-h-0 min-w-0 border-t border-line bg-panel" style={{ gridRow: 3, gridColumn: focusMode ? "1 / -1" : `${leftCollapsed ? 2 : 3} / -1` }} data-animation-drawer="">
+            <div role="separator" aria-orientation="horizontal" aria-label="Hauteur de l'outil Animation (flèches pour ajuster)" aria-valuemin={200} aria-valuemax={640} aria-valuenow={animH} tabIndex={0}
+              className="absolute left-0 right-0 -top-1 h-2 z-40 cursor-row-resize hover:bg-accent/40 focus-visible:bg-accent/60" title="Glisser pour changer la hauteur"
+              onPointerDown={(e) => { e.preventDefault(); const startY = e.clientY, startH = animH; const onMove = (ev: PointerEvent) => setAnimH(Math.round(Math.min(640, Math.max(200, startH - (ev.clientY - startY))))); const onUp = (ev: PointerEvent) => { window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); saveAnimH(startH - (ev.clientY - startY)); }; window.addEventListener("pointermove", onMove); window.addEventListener("pointerup", onUp); }}
+              onKeyDown={(e) => { if (e.key === "ArrowUp") { e.preventDefault(); saveAnimH(animH + (e.shiftKey ? 80 : 20)); } if (e.key === "ArrowDown") { e.preventDefault(); saveAnimH(animH - (e.shiftKey ? 80 : 20)); } }} />
+            <div className="flex items-center gap-2 h-8 px-3 border-b border-line shrink-0">
+              <Film size={13} className="text-accent" aria-hidden />
+              <Eyebrow as="h2">Animation</Eyebrow>
+              <span className="text-xs text-muted truncate">{openTl ? animationById(site, openTl.animationId)?.name ?? "" : "Déclencheurs et lignes de temps"}</span>
+              <IconButton size="sm" className="ml-auto" label="Fermer l'outil Animation" icon={X} onClick={closeAnim} />
+            </div>
+            <div className="flex-1 min-h-0 overflow-x-auto">
+              <AnimationModePanel site={site} node={selectedLoc?.node ?? null} commit={doc.commit} page={page} getSite={doc.getSite} bp={activeBp} mode={mode} open={openTl} onOpen={openAnimation} scrub={scrub} onSelect={select} onPick={setPick} picking={picking} showTargets={showTargets} onTestOnSite={testOnSite} />
+            </div>
+          </div>
+        ) : null}
       {paletteOpen ? <CommandPalette open onClose={() => setPaletteOpen(false)} commands={commands} /> : null}
       {dbOpen && site.databases.some((d) => d.id === dbOpen) ? <DatabaseTable site={site} db={site.databases.find((d) => d.id === dbOpen)!} entries={ents.entries} save={ents.save} saveMany={ents.saveMany} remove={ents.remove} commit={doc.commit} onClose={() => setDbOpen(null)} canEditSchema={!writer} publishedEntries={publishedEntries} saving={ents.saving} onDeleteDatabase={() => void deleteDatabase(dbOpen)} notify={notify} /> : null}
       {dbOpen && formForOpen ? <DatabaseTable site={site} db={formDatabase(site, formForOpen)} entries={ents.entries} save={ents.save} remove={ents.remove} commit={doc.commit} onClose={() => setDbOpen(null)} saving={ents.saving} readOnly /> : null}

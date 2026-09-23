@@ -17,7 +17,7 @@ Un schéma généré depuis les fichiers du dépôt a montré cinq « services �
 ## 2. Quatre endroits où du code s'exécute
 
 1. **Le serveur** (Next.js) : routes, rendu HTML des sites publiés (`renderToStaticMarkup` par `lib/html-document.ts`), export, envoi de courriels.
-2. **L'éditeur** (navigateur du créateur, `EditorShell.tsx`) : état du document (`lib/use-document.ts`), panneaux, palette, calques, mode Animation.
+2. **L'éditeur** (navigateur du créateur, `EditorShell.tsx`) : état du document (`lib/use-document.ts`), panneaux, palette, calques, outil Animation (tiroir sous le canevas).
 3. **L'aperçu vivant** (iframe même origine, `LivePreview.tsx`, `/preview/<site>?editor=1`) : rend le site avec le moteur, reçoit les mises à jour de l'éditeur et lui renvoie sélection, texte, déplacements. Le contrat des messages est typé dans `lib/preview-protocol.ts` (`ToPreview`, `FromPreview`) : c'est la seule frontière entre ces deux gros fichiers.
 4. **Le site publié** (navigateur du visiteur) : un document HTML complet, sans React, qui embarque quand la page en a besoin le **script du site** (`packages/renderer/src/interactions.ts`, `INTERACTION_SCRIPT` : déclencheurs à l'entrée dans l'écran, au clic, au défilement, à la souris ; retour de survol ; bascule ; ressorts ; lecture d'une animation par `window.__atelierAnim`) et le script des formulaires. Ce runtime est la partie du produit que promet la phrase de résumé de l'éditeur : c'est lui que les visites instrumentées des tests d'usage mesurent. Dans l'éditeur, il ne tourne pas : `applyInstantStates` pose l'état d'arrivée après chaque rendu, et seul l'outil de lecture (`ANIMATION_PLAY_SCRIPT`) est injecté.
 

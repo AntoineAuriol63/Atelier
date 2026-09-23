@@ -27,13 +27,13 @@ function PageCss({ site, pageId }: { site: Site; pageId: string }) {
  * Aperçu vivant : rendu côté serveur au premier chargement, puis mis à jour par l'éditeur
  * (message `atelier:site`) sans rechargement. En mode éditeur, gère la sélection, le glisser,
  * l'édition du texte (simple en Design, riche en Écriture), les barres flottantes et le menu « / ».
- * En mode Animation : sélection seulement, et l'état de l'animation ouverte à la tête de lecture (`lib/scrub.ts`).
+ * En outil Animation : sélection seulement, et l'état de l'animation ouverte à la tête de lecture (`lib/scrub.ts`).
  */
 export function LivePreview({ initialSite, entries, path, mode, editor }: Props) {
   const [site, setSite] = useState(initialSite);
-  // Mode Animation : dernier instant montré, reposé après chaque rendu (les éléments ont pu être recréés, les pistes modifiées).
+  // Outil Animation : dernier instant montré, reposé après chaque rendu (les éléments ont pu être recréés, les pistes modifiées).
   const lastScrub = useRef<ScrubAt | null>(null);
-  // Mode Animation : repère des éléments de la piste active (fonction posée par l'effet de l'éditeur, qui tient la couche d'interface).
+  // Outil Animation : repère des éléments de la piste active (fonction posée par l'effet de l'éditeur, qui tient la couche d'interface).
   const renderAnimTargets = useRef<(() => void) | null>(null);
   // Après chaque rendu, l'état d'arrivée des apparitions est posé sans transition : sinon un élément qui reçoit une apparition disparaîtrait de l'aperçu.
   useEffect(() => { if (editor) { applyInstantStates(document); if (lastScrub.current) applyScrub(document, lastScrub.current); renderAnimTargets.current?.(); } });
@@ -139,7 +139,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
     const sizeGrid = () => { gridLayer.style.height = `${Math.max(document.documentElement.scrollHeight, document.body.scrollHeight)}px`; };
     const gridObserver = new ResizeObserver(sizeGrid);
     gridObserver.observe(document.documentElement);
-    // Repère de la piste active (mode Animation) : un cadre pointillé et le nom de la piste autour de chaque élément visé, hors du flux de la page.
+    // Repère de la piste active (outil Animation) : un cadre pointillé et le nom de la piste autour de chaque élément visé, hors du flux de la page.
     let animTargets: { ids: string[]; label?: string } = { ids: [] };
     const targetBoxes: HTMLElement[] = [];
     const renderTargets = () => {
@@ -503,7 +503,7 @@ export function LivePreview({ initialSite, entries, path, mode, editor }: Props)
       if (!el || e.button !== 0) return;
       // Mode Écriture : cliquer un texte y place directement le curseur (sauf le texte d'un bouton ou d'une étiquette : le premier clic désigne l'élément entier).
       if (editMode === "write" && textNodes.has(idOf(el)) && pickedOf(e.target) === el) { startEdit(el); return; }
-      // Mode Animation : l'aperçu montre un instant, on y sélectionne seulement (aucun déplacement sur le canevas en v1, cadrage § 4.1).
+      // Outil Animation : l'aperçu montre un instant, on y sélectionne seulement (aucun déplacement sur le canevas en v1, cadrage § 4.1).
       if (editMode === "animate") return;
       // Glisser l'élément sélectionné ; un bouton, une carte ou une pastille sélectionnés se glissent aussi en appuyant sur ce qu'ils contiennent.
       const sel = selectedEl();

@@ -11,7 +11,7 @@ type Marquee = NonNullable<ReturnType<typeof marqueeOf>>;
 type View = { layout?: string; autoplay?: number };
 
 /**
- * Effets continus d'un élément (cadrage § 2 et § 4.1) : des propriétés, pas des animations, que le mode Animation montre au même endroit
+ * Effets continus d'un élément (cadrage § 2 et § 4.1) : des propriétés, pas des animations, que le outil Animation montre au même endroit
  * que les déclencheurs ; la section Effets de Design garde la parallaxe et le bandeau, la section Animations le compteur, la vue son carrousel.
  * Bandeau pour une boîte, compteur pour un texte, défilement automatique pour une vue en carrousel.
  */

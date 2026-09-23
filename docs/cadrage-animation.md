@@ -72,7 +72,9 @@ Le moteur actuel est repris : pour chaque couple (déclencheur, animation), chaq
 
 ## 4. L'interface
 
-### 4.1 Le mode Animation
+### 4.1 Le mode Animation → l'outil Animation
+
+*Révision du 23 septembre 2026 (D60) : l'animation n'est plus un quatrième mode. C'est un tiroir sous le canevas, ouvert depuis la rubrique Animation d'un élément (« Ouvrir la ligne de temps »), le bouton de la barre du canevas ou la palette ⌘K. Le tiroir a deux colonnes : à gauche les trois étages 1 et la bibliothèque décrits ci-dessous, à droite la ligne de temps (étages 2 et 3) elle-même en deux colonnes, scène et pistes puis réglages. L'inspecteur reste à droite de l'écran ; l'aperçu passe en sélection seule tant qu'une ligne de temps est ouverte. Le texte d'origine suit.*
 
 Quatrième mode dans la barre du haut : **Écriture · Design · Animation · Code**. En mode Animation :
 

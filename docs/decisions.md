@@ -111,3 +111,7 @@ Source : document de cadrage « Cadrage Atelier » (artifact Claude, version 0.2
 ## Feuille de route
 
 - **D59** — Le découpage en quatre versions ci-dessus est adopté, avec un site réel publié comme critère de fin de chaque version.
+
+## Interface (23 septembre 2026)
+
+- **D60** — L'animation est un **outil**, pas un mode : D17 garde ses trois modes (Écriture, Design, Code). L'outil Animation est un tiroir sous le canevas, ouvert depuis la rubrique Animation d'un élément, la barre du canevas ou la palette ; à gauche ce que l'élément et la page lancent, à droite la ligne de temps de l'animation ouverte (scène et pistes ; réglages de la piste et de l'image-clé). La barre du haut ne porte que le site, les modes et la publication ; la vue de l'aperçu se règle dans une barre du canevas ; les panneaux de gauche s'ouvrent depuis un rail d'icônes.

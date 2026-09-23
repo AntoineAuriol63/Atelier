@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import type { LucideIcon } from "lucide-react";
 import { Tooltip } from "@/ui";
 
@@ -11,10 +12,10 @@ export type RailTool = { id: string; label: string; icon: LucideIcon; onClick: (
  * l'icône active replie le panneau, et en bas les outils du site (images, palette, réglages). Il libère la barre du haut et donne
  * une place stable à ce qui n'en avait pas.
  */
-export function LeftRail({ items, active, onSelect, onCollapse, tools }: { items: RailItem[]; active: string | null; onSelect: (id: string) => void; onCollapse: () => void; tools?: RailTool[] }) {
+export function LeftRail({ items, active, onSelect, onCollapse, tools, style }: { items: RailItem[]; active: string | null; onSelect: (id: string) => void; onCollapse: () => void; tools?: RailTool[]; style?: CSSProperties }) {
   const btn = (pressed: boolean) => `grid place-items-center h-9 w-9 rounded-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${pressed ? "bg-accent-soft text-accent ring-1 ring-inset ring-accent" : "text-muted hover:bg-hover hover:text-ink"}`;
   return (
-    <nav className="flex flex-col items-center gap-1 py-2 border-r border-line bg-panel min-h-0" aria-label="Panneaux" data-rail="">
+    <nav style={style} className="flex flex-col items-center gap-1 py-2 border-r border-line bg-panel min-h-0" aria-label="Panneaux" data-rail="">
       {items.map((it) => {
         const pressed = it.id === active;
         return (

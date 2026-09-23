@@ -1,5 +1,5 @@
 /**
- * Mode Animation, dans l'aperçu : montre l'état d'une animation à un instant. Les pistes du déclencheur (lues dans `data-anim`)
+ * Outil Animation, dans l'aperçu : montre l'état d'une animation à un instant. Les pistes du déclencheur (lues dans `data-anim`)
  * sont jouées en pause sur leurs cibles avec l'outil du site (`window.__atelierAnim`, même moteur que « Jouer » et que le site publié),
  * puis mises au temps de la tête de lecture. Le temps 0 est le départ du déclencheur : son délai et les répétitions ne comptent pas.
  */

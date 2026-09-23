@@ -27,7 +27,7 @@ export function compoundIds(site: Site, editMode: "write" | "design" | "animate"
   const out: string[] = [];
   for (const { node } of indexSite(site).values()) {
     if (node.type === "link" || node.type === "item" || node.type === "instance") out.push(node.id);
-    // En mode Animation, un bloc de textes (un titre de section) ne fait pas écran : son titre se pioche directement pour l'animer.
+    // En outil Animation, un bloc de textes (un titre de section) ne fait pas écran : son titre se pioche directement pour l'animer.
     else if (editMode !== "animate" && node.type === "box" && node.name && node.children?.length && node.children.every((c) => (editMode === "write" ? isInlineText(c) : LEAVES.has(c.type)))) out.push(node.id);
   }
   return out;

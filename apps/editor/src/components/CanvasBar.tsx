@@ -1,6 +1,6 @@
 "use client";
 
-import { Columns2, Grid3x3, Maximize2, Minimize2, Moon, Sun } from "lucide-react";
+import { Columns2, Film, Grid3x3, Maximize2, Minimize2, Moon, Sun } from "lucide-react";
 import { Badge, Eyebrow, IconButton, NumberInput, Select, Separator } from "@/ui";
 
 export type CanvasBarProps = {
@@ -16,13 +16,15 @@ export type CanvasBarProps = {
   focus: boolean; onFocus: () => void;
   /** Page par entrée : les entrées publiées et celle que l'aperçu montre. */
   entries?: { id: string; label: string }[]; entry?: string; onEntry?: (id: string) => void;
+  /** L'outil Animation (tiroir sous le canevas) : absent pour un rédacteur. */
+  animation?: { open: boolean; onToggle: () => void };
 };
 
 /**
  * La barre du canevas (23 septembre 2026) : tout ce qui règle la vue de l'aperçu, au-dessus de lui. Elle rétrécit avec le canevas ;
  * la barre du haut ne garde que le site, les modes et la publication. Ce qui ne tient pas reste dans la palette ⌘K et au clavier.
  */
-export function CanvasBar({ presets, preset, customWidth, onPreset, onCustomWidth, effective, minWidth, maxWidth, breakpoint, scale, editMode, showGrid, onToggleGrid, compare, onCompare, modes, mode, onMode, focus, onFocus, entries, entry, onEntry }: CanvasBarProps) {
+export function CanvasBar({ presets, preset, customWidth, onPreset, onCustomWidth, effective, minWidth, maxWidth, breakpoint, scale, editMode, showGrid, onToggleGrid, compare, onCompare, modes, mode, onMode, focus, onFocus, entries, entry, onEntry, animation }: CanvasBarProps) {
   const design = editMode === "design";
   return (
     <div className="@container shrink-0 flex items-center gap-1.5 h-9 px-2 border-b border-line bg-panel min-w-0 overflow-hidden" data-canvas-bar="" role="toolbar" aria-label="Vue de l'aperçu">
@@ -43,6 +45,8 @@ export function CanvasBar({ presets, preset, customWidth, onPreset, onCustomWidt
         {design ? <IconButton size="sm" label={showGrid ? "Masquer la grille de mise en page (⌃G)" : "Afficher la grille de mise en page (⌃G)"} icon={Grid3x3} active={showGrid} onClick={onToggleGrid} /> : null}
         {design ? <IconButton size="sm" label={compare ? "Quitter la comparaison responsive" : "Comparer avec le mobile"} icon={Columns2} active={compare} onClick={onCompare} /> : null}
         {design ? <Separator vertical /> : null}
+        {animation ? <IconButton size="sm" label={animation.open ? "Fermer l'outil Animation" : "Outil Animation : déclencheurs et lignes de temps"} icon={Film} active={animation.open} onClick={animation.onToggle} /> : null}
+        {animation ? <Separator vertical /> : null}
         {modes.map((m) => <IconButton key={m.id} size="sm" label={`Aperçu en mode ${m.name.toLowerCase()}`} icon={m.id === "dark" ? Moon : Sun} active={mode === m.id} onClick={() => onMode(m.id)} />)}
         <Separator vertical />
         <IconButton size="sm" label={focus ? "Quitter le mode concentration" : "Mode concentration : masquer les panneaux"} icon={focus ? Minimize2 : Maximize2} active={focus} onClick={onFocus} />

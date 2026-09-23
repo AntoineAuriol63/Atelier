@@ -84,7 +84,7 @@ export function QuickAnimations({ site, node, commit, onOpenAnimation, onPlay, o
         const options = [{ value: "", label: none }, ...(q && !q.intact ? [{ value: "custom", label: `Personnalisée (${q.preset.label})` }] : []), ...ANIMATION_PRESETS.filter((p) => p.group === group).map((p) => ({ value: p.id, label: p.label }))];
         return (
           <Fragment key={group}>
-            <Field label={label} hint={q && !q.intact ? `${hint}. Retouchée dans le mode Animation : choisir un préréglage la remplace.` : hint}>
+            <Field label={label} hint={q && !q.intact ? `${hint}. Retouchée dans l'outil Animation : choisir un préréglage la remplace.` : hint}>
               <div className="flex items-center gap-1 min-w-0">
                 <Select className="flex-1 min-w-0" value={q ? (q.intact ? q.preset.id : "custom") : ""} options={options} onValueChange={(v) => { if (v !== "custom") run(planQuickAnimation(site, node, group, v), v ? `${label} · ${ANIMATION_PRESETS.find((p) => p.id === v)?.label ?? v}` : `${label} · ${none.toLowerCase()}`, v ? group : undefined); }} />
                 {q && onPlay ? <Button size="sm" variant="ghost" icon={Play} title={`Joue « ${q.preset.label} » dans l'aperçu`} onClick={() => onPlay(q.trigger.id)}>Voir l&apos;effet</Button> : null}
@@ -104,7 +104,7 @@ export function QuickAnimations({ site, node, commit, onOpenAnimation, onPlay, o
         {/* Le canevas joue l'animation ; le vrai déclenchement (entrée dans l'écran, survol) se vérifie sur le site (audit n°5 · R4). */}
         {/* Avant même la première animation (vague 4, P5 : « il n'apparaît qu'une fois qu'on a déjà posé une animation, c'est-à-dire trop tard »). */}
         {onTestOnSite ? <Button size="sm" variant="ghost" icon={ExternalLink} onClick={() => onTestOnSite(appearance && !appearance.page && appearance.hostId !== node.id ? appearance.hostId : undefined)} title={node.triggers?.length || appearance ? "Ouvre l'onglet Aperçu : ce qui lance l'animation arrive à l'écran et elle se joue comme pour un visiteur" : "Ouvre l'onglet Aperçu sur cet élément : la page telle qu'un visiteur la voit, avec ses mouvements"}>Tester sur le site</Button> : null}
-        {onOpenAnimation ? <Button size="sm" variant="ghost" icon={Film} onClick={onOpenAnimation}>Ouvrir dans le mode Animation</Button> : null}
+        {onOpenAnimation ? <Button size="sm" variant="ghost" icon={Film} onClick={onOpenAnimation}>Ouvrir la ligne de temps</Button> : null}
       </div>
     </FieldGroup>
   );
@@ -143,7 +143,7 @@ function AppearanceFields({ site, node, run, onPlay, onSelectNode }: { site: Sit
   const len = ap ? trackSpan(ap.track).end - ap.start : 0;
   return (
     <>
-      <Field label="Apparition" hint={ap && !ap.preset ? "L'élément arrive. Retouchée dans le mode Animation : choisir un préréglage la remplace, en gardant son départ." : "L'élément arrive quand il entre dans l'écran, ou après un autre élément"}>
+      <Field label="Apparition" hint={ap && !ap.preset ? "L'élément arrive. Retouchée dans l'outil Animation : choisir un préréglage la remplace, en gardant son départ." : "L'élément arrive quand il entre dans l'écran, ou après un autre élément"}>
         <div className="flex items-center gap-1 min-w-0">
           <Select className="flex-1 min-w-0" value={choice.value} options={choice.options} onValueChange={(v) => {
             if (v === "custom" || v === choice.value) return;

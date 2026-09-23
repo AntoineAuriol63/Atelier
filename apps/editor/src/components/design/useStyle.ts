@@ -35,7 +35,7 @@ export type StyleApi = {
   state?: string;
   target: StyleTarget;
   bpName: (id: string) => string;
-  /** Mode image-clé (mode Animation) : les valeurs se lisent à cet instant et s'écrivent dans l'image-clé, pas dans le style. */
+  /** Mode image-clé (outil Animation) : les valeurs se lisent à cet instant et s'écrivent dans l'image-clé, pas dans le style. */
   keyframe?: { at: number };
 };
 

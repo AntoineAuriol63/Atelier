@@ -67,4 +67,12 @@ describe("barre du canevas", () => {
     expect(selects.some((s) => s.value === "e2")).toBe(true);
     expect(m.text()).toContain("Entrée");
   });
+
+  it("l'outil Animation s'ouvre et se ferme depuis la barre du canevas ; un rédacteur ne le voit pas", () => {
+    const m = mount({ animation: { open: false, onToggle: () => m.calls.push("anim") } });
+    act(() => { m.button("Outil Animation")!.click(); });
+    expect(m.calls).toEqual(["anim"]);
+    const w = mount();
+    expect(w.button("Outil Animation")).toBeUndefined();
+  });
 });

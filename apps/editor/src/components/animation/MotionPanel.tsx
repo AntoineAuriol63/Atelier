@@ -9,7 +9,7 @@ import type { StyleApi } from "../design";
 const str = (v: unknown): string | undefined => (typeof v === "string" ? v : undefined);
 
 /**
- * Mouvement (mode Animation, audit n°4 · E4) : en tête des réglages d'une image-clé, les propriétés qu'on anime presque toujours,
+ * Mouvement (outil Animation, audit n°4 · E4) : en tête des réglages d'une image-clé, les propriétés qu'on anime presque toujours,
  * opacité, décalage, échelle, rotation et flou, avant les panneaux Design complets. Même interface de style que ces panneaux
  * (mode image-clé : lecture à l'instant, écriture dans l'image-clé, retour au neutre écrit « none »).
  */

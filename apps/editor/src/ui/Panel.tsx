@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { ChevronRight, Info } from "lucide-react";
 import { Tooltip } from "./Tooltip";
 import { cx } from "./cx";
 
 /** Colonne latérale. */
-export function Panel({ children, side, className }: { children: ReactNode; side: "left" | "right"; className?: string }) {
+export function Panel({ children, side, className, style }: { children: ReactNode; side: "left" | "right"; className?: string; style?: CSSProperties }) {
   return (
-    <aside className={cx("flex flex-col min-h-0 min-w-0 overflow-x-hidden bg-panel", side === "left" ? "border-r border-line" : "border-l border-line", className)}>
+    <aside style={style} className={cx("flex flex-col min-h-0 min-w-0 overflow-x-hidden bg-panel", side === "left" ? "border-r border-line" : "border-l border-line", className)}>
       {children}
     </aside>
   );

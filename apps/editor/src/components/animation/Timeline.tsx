@@ -212,12 +212,12 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
   const targetLabel = track ? trackLabel(track, hostId, site) : undefined;
   useEffect(() => { targetsRef.current?.(targetId ? [targetId] : [], targetLabel); }, [targetId, targetLabel]);
   const trackId = track?.id;
-  useEffect(() => { if (trackId) revealBelowStage(settingsRef.current, root.current?.querySelector<HTMLElement>("[data-timeline-stage]") ?? null); }, [trackId]);
+  useEffect(() => { if (trackId) revealBelowStage(settingsRef.current, null); }, [trackId]);
 
   return (
-    <section ref={root} className="flex flex-col gap-2 scroll-mt-2" aria-label="Ligne de temps" onKeyDown={(e) => { const t = e.target as HTMLElement; if (e.key === " " && !["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName) && !t.isContentEditable) { e.preventDefault(); if (playing) pause(); else { if (playhead >= length) setPlayhead(0); setPlaying(true); } } }}>
-      {/* Scène collante (audit n°4 · E4) : nom, lecteur, règle et pistes restent en haut du panneau pendant qu'on descend dans les réglages. */}
-      <div className="sticky top-0 z-20 -mx-3 -mt-3 px-3 pt-3 pb-2 flex flex-col gap-2 bg-panel border-b border-line shadow-[0_6px_10px_-8px_rgba(0,0,0,.6)]" data-timeline-stage="">
+    <section ref={root} className="grid grid-cols-[minmax(360px,1fr)_minmax(280px,380px)] h-full min-h-0 min-w-[640px]" aria-label="Ligne de temps" onKeyDown={(e) => { const t = e.target as HTMLElement; if (e.key === " " && !["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName) && !t.isContentEditable) { e.preventDefault(); if (playing) pause(); else { if (playhead >= length) setPlayhead(0); setPlaying(true); } } }}>
+      {/* Deux colonnes dans le tiroir (23 septembre 2026, chantier 3) : la scène (nom, lecteur, règle, pistes) à gauche, les réglages de la piste et de l'image-clé à droite. Chacune défile seule : plus de scène collante. */}
+      <div className="flex flex-col gap-2 p-3 min-h-0 min-w-0 overflow-auto border-r border-line" data-timeline-stage="">
       <div className="flex items-center gap-1">
         <Eyebrow as="span">Animation</Eyebrow>
         <TextInput className="flex-1" value={animation.name} aria-label="Nom de l'animation" data-anim-name="" title="Nom de l'animation (Entrée pour valider)" onValueChange={(v) => update({ name: v || animation.name }, "Renommer l'animation", `anim-name:${animation.id}`)} />
@@ -249,7 +249,7 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
         <span className="ml-auto text-xs tabular-nums text-muted" aria-live="off">{tickLabel(playhead)} / {formatMs(length)}</span>
       </div>
 
-      <div className="flex text-xs max-h-[38vh] overflow-y-auto" onKeyDown={onTimelineKey}>
+      <div className="flex text-xs min-h-0 overflow-y-auto" onKeyDown={onTimelineKey}>
         {/* Noms des pistes, alignés sur la règle et les lignes de droite. */}
         <div className="w-[104px] shrink-0 flex flex-col pr-2">
           <span className="h-5 shrink-0" aria-hidden />
@@ -308,6 +308,8 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
         {canAdd.ok && selected && !outside ? <Button size="sm" variant="ghost" icon={Plus} onClick={addTrack} title="Animer l'élément sélectionné dans cette ligne de temps">{`Une piste pour « ${nodeLabel(selected)} »`}</Button> : null}
         {pickMsg ? <span className="text-2xs text-warning truncate" title={pickMsg}>{pickMsg}</span> : null}
       </div>
+      </div>
+      <div className="flex flex-col gap-2 p-3 min-h-0 min-w-0 overflow-auto" data-timeline-settings="">
       {/* Les réglages de la piste active avant la liste des éléments (vague 5 : le champ « Départ » était rogné sous elle). */}
       {track ? <div ref={settingsRef}><TrackSettings key={track.id} site={site} getSite={getSite} animation={animation} track={track} node={trackNode} hostId={hostId} run={run} onFilled={(end) => { pause(); setPlayhead(Math.min(end, Math.max(length, end))); }} onRemoved={() => { setPicked(null); setSelection(new Set()); }} /></div> : null}
       {/* Les éléments de la scène (lot 8, vague 4 PR2) : ajouter une piste par son nom, sans viser dans la page ; un groupe s'ajoute d'un coup, enfants un à un. */}
@@ -319,7 +321,7 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
           <div className="flex flex-col gap-0.5" data-scene-elements="">
             <button type="button" className="self-start text-2xs text-muted hover:text-ink" aria-expanded={listOpen} onClick={() => setListOpen((o) => !o)}>{listOpen ? "▾" : "▸"} Éléments de la scène ({list.length})</button>
             {listOpen ? (
-              <ul className="flex flex-col max-h-[26vh] overflow-y-auto rounded-sm border border-line bg-surface/60" aria-label="Éléments de la scène">
+              <ul className="flex flex-col max-h-[40vh] overflow-y-auto rounded-sm border border-line bg-surface/60" aria-label="Éléments de la scène">
                 {list.map((e) => (
                   <li key={e.id} className="flex items-center gap-1 h-7 pr-1 text-xs border-b border-line/60 last:border-b-0" style={{ paddingLeft: 6 + e.depth * 12 }}>
                     <span className="flex-1 min-w-0 truncate text-ink">{e.label}{e.count ? <span className="text-muted">{` · ${e.count} éléments`}</span> : null}</span>
@@ -347,7 +349,6 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
           </div>
         </div>
       ) : null}
-      </div>
       {intro}
       {trigger?.on === "scroll" ? <Hint>{`Au défilement ${pageLevel ? "de la page" : "de l'élément"}, la position entre ${Math.round((trigger.range?.[0] ?? 0) * 100)} % et ${Math.round((trigger.range?.[1] ?? 1) * 100)} % parcourt cette ligne de temps : la tête de lecture montre l'état à chaque position.`}</Hint>
         : trigger?.on === "pointer" ? <Hint>{`La position ${trigger.axis === "x" ? "horizontale" : "verticale"} de la souris dans la fenêtre parcourt cette ligne de temps : la tête de lecture montre l'état à chaque position.`}</Hint> : null}
@@ -386,6 +387,7 @@ export function Timeline({ site, getSite, animation, hostId, trigger, pageLevel,
           {trackNode ? <KeyframePanels site={site} getSite={getSite} node={trackNode} bp={bp} mode={mode} animationId={animation.id} track={track} at={at} commit={commit} /> : <Hint>Cette piste vise un sélecteur libre : ses images-clés se règlent pour l&apos;instant dans le code du site.</Hint>}
         </section>
       ) : track && playing ? <Hint>Lecture en cours : mettez en pause pour régler l&apos;image-clé à la tête de lecture.</Hint> : null}
+      </div>
     </section>
   );
 }

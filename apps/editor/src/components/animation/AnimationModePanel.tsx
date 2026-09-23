@@ -36,7 +36,7 @@ type Props = {
 };
 
 /**
- * Panneau du mode Animation (cadrage § 4.1), à la place de l'inspecteur : les déclencheurs de l'élément sélectionné et ses effets continus,
+ * L'outil Animation (cadrage § 4.1 ; tiroir sous le canevas depuis le 23 septembre 2026) : à gauche, les déclencheurs de l'élément sélectionné et ses effets continus,
  * les déclencheurs de la page (sans sélection ou sur sa racine), la bibliothèque, puis la ligne de temps de l'animation ouverte
  * (`Timeline` : pistes, images-clés, tête de lecture, édition par les panneaux Design).
  */
@@ -101,12 +101,10 @@ export function AnimationModePanel({ site, node, commit, page, getSite, bp, mode
   );
 
   return (
-    <div className="flex flex-col gap-3 p-3">
-      {/* Le mode dit aussi comment se lit la ligne de temps quand on y arrive directement depuis la rubrique d'un élément (tests simulés, constat 11). */}
+    <div className="grid grid-cols-[260px_minmax(0,1fr)] h-full min-h-0 min-w-0" data-animation-tool="">
+    <div className="flex flex-col gap-3 p-3 min-h-0 overflow-auto border-r border-line">
+      {/* L'outil dit aussi comment se lit la ligne de temps quand on y arrive directement depuis la rubrique d'un élément (tests simulés, constat 11). */}
       {timelineOpen ? null : <HowItWorks />}
-      {/* Une animation ouverte passe devant : c'est la surface de travail ; choisir un autre élément ne la déplace plus. */}
-      {timelineOpen ? <Timeline key={`${open!.triggerId}:${anim!.id}`} site={site} getSite={getSite} animation={anim!} hostId={open!.hostId} trigger={opened!.trigger} pageLevel={!!opened!.page} selected={node} bp={bp} mode={mode} commit={commit} scrub={scrub} onClose={() => { setCreated(null); onOpen(null); }} onSelect={onSelect} focusName={created === open!.triggerId} onPick={onPick} picking={picking} showTargets={showTargets} onTestOnSite={onTestOnSite ? () => onTestOnSite(open!.hostId) : undefined} onOpenElement={openElement} intro={<HowItWorks compact />}
-        onUpdateTrigger={(patch, label, key) => { if (opened!.page) run(planUpdatePageTrigger(getSite(), opened!.page.id, opened!.trigger.id, patch), label, key); else { const host = indexSite(getSite()).get(open!.hostId)?.node; if (host) run(planUpdateTrigger(host, opened!.trigger.id, patch), label, key); } }} /> : null}
 
       {node ? (
         timelineOpen
@@ -145,6 +143,16 @@ export function AnimationModePanel({ site, node, commit, page, getSite, bp, mode
           ))}
         </section>
       ) : null}
+    </div>
+    <div className="min-h-0 min-w-0">
+      {/* L'animation ouverte est la surface de travail : choisir un autre élément ne la déplace plus. */}
+      {timelineOpen ? <Timeline key={`${open!.triggerId}:${anim!.id}`} site={site} getSite={getSite} animation={anim!} hostId={open!.hostId} trigger={opened!.trigger} pageLevel={!!opened!.page} selected={node} bp={bp} mode={mode} commit={commit} scrub={scrub} onClose={() => { setCreated(null); onOpen(null); }} onSelect={onSelect} focusName={created === open!.triggerId} onPick={onPick} picking={picking} showTargets={showTargets} onTestOnSite={onTestOnSite ? () => onTestOnSite(open!.hostId) : undefined} onOpenElement={openElement} intro={<HowItWorks compact />}
+        onUpdateTrigger={(patch, label, key) => { if (opened!.page) run(planUpdatePageTrigger(getSite(), opened!.page.id, opened!.trigger.id, patch), label, key); else { const host = indexSite(getSite()).get(open!.hostId)?.node; if (host) run(planUpdateTrigger(host, opened!.trigger.id, patch), label, key); } }} /> : (
+        <div className="h-full grid place-items-center p-6 text-center" data-animation-empty="">
+          <Hint>Ouvrez une animation à gauche (« Animer « X » », un déclencheur, ou une animation du site) : sa ligne de temps s&apos;affiche ici, avec ses pistes et ses images-clés.</Hint>
+        </div>
+      )}
+    </div>
     </div>
   );
 }
@@ -195,7 +203,7 @@ function TriggerList({ site, triggers, hostId, pageLevel, duplicates, open, onOp
 /** Ajouter un déclencheur : quand, puis quoi (un préréglage, une animation du site, ou une animation vide à composer). */
 function AddTrigger({ site, ons, defaultOn = "inView", hostLabel, title, explain, onAdd }: { site: Site; ons: TriggerOn[]; defaultOn?: TriggerOn; hostLabel?: string; title: string; explain: string; onAdd: (animationOps: Op[], trigger: Trigger, label: string, fresh?: boolean) => void }) {
   const [on, setOn] = useState<TriggerOn>(defaultOn);
-  // En mode Animation, on vient composer : « Nouvelle animation » par défaut (les préréglages en un geste sont en Écriture et en Design).
+  // En outil Animation, on vient composer : « Nouvelle animation » par défaut (les préréglages en un geste sont en Écriture et en Design).
   const [what, setWhat] = useState("new");
   // « Nouvelle animation » en tête : la bibliothèque du site peut compter des dizaines d'entrées.
   const options = [
@@ -230,7 +238,7 @@ function AddTrigger({ site, ons, defaultOn = "inView", hostLabel, title, explain
 }
 
 /**
- * Comment ça marche (audit n°5 · R3) : le modèle du mode Animation dit en trois temps, avant d'agir. Repliable ; le choix est mémorisé.
+ * Comment ça marche (audit n°5 · R3) : le modèle du outil Animation dit en trois temps, avant d'agir. Repliable ; le choix est mémorisé.
  * Avec une ligne de temps ouverte (`compact`), une seule ligne qui dit comment la lire : on y arrive souvent depuis la rubrique d'un élément.
  */
 function HowItWorks({ compact = false }: { compact?: boolean }) {

@@ -60,8 +60,8 @@ type Props = {
   onDetach?: () => void;
   notify?: (text: string, tone?: "danger" | "success" | "info") => void;
   editMode?: "write" | "design";
-  onSwitchMode?: (m: "write" | "design" | "animate") => void;
-  /** Ouvre le mode Animation sur cet élément (sur l'animation d'un déclencheur si `triggerId`). Absent pour un rédacteur : pas de section Animation. */
+  onSwitchMode?: (m: "write" | "design") => void;
+  /** Ouvre l'outil Animation sur cet élément (sur l'animation d'un déclencheur si `triggerId`). Absent pour un rédacteur : pas de section Animation. */
   onOpenAnimation?: (triggerId?: string) => void;
   /** « Tester sur le site » : l'onglet Aperçu, où cet élément arrive à l'écran. */
   onTestOnSite?: (nodeId?: string) => void;

@@ -24,7 +24,7 @@ export function appearanceOptions(site: Site, nodeId: string): { value: string; 
   return { value: ap ? ap.preset?.id ?? "custom" : "", applyTo: nodeId, options: [{ value: "", label: "Aucune" }, ...custom, ...presets] };
 }
 
-/** « Arrive avec « Plats » · Fondu en montant » : l'élément qui lance l'apparition d'un élément quand ce n'est pas lui-même (mode Animation, vague 3 § 5.4). */
+/** « Arrive avec « Plats » · Fondu en montant » : l'élément qui lance l'apparition d'un élément quand ce n'est pas lui-même (outil Animation, vague 3 § 5.4). */
 export function arrivesWith(site: Site, nodeId: string): { hostId: string; triggerId: string; animationId: string; label: string } | undefined {
   const index = indexSite(site);
   const ap = appearanceOf(site, nodeId, index);
