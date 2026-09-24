@@ -297,6 +297,20 @@ describe("tiroir Animation : la scène", () => {
     expect(m.selected).toEqual(["photo", "stats"]);
   });
 
+  it("un clic n'importe où dans la case du nom sélectionne l'élément, une seule fois", () => {
+    const m = mount(animated(), "hh2");
+    const cell = m.host.querySelector<HTMLElement>('[data-scene-name-cell="photo"]')!;
+    expect(cell.className).toMatch(/cursor-pointer/);
+    act(() => { cell.click(); });
+    expect(m.selected).toEqual(["photo"]);
+    act(() => { m.host.querySelector<HTMLElement>('[data-scene-name-cell="stats"] [data-scene-name]')!.click(); });
+    expect(m.selected).toEqual(["photo", "stats"]);
+    // La case de l'élément déjà sélectionné ne fait rien (ses boutons + et corbeille y vivent).
+    expect(m.host.querySelector<HTMLElement>('[data-scene-name-cell="hh2"]')!.className).not.toMatch(/cursor-pointer/);
+    act(() => { m.host.querySelector<HTMLElement>('[data-scene-name-cell="hh2"]')!.click(); });
+    expect(m.selected).toEqual(["photo", "stats"]);
+  });
+
   it("sans élément sélectionné : une invitation, pas de scène", () => {
     const m = mount(animated(), null);
     expect(m.host.querySelector("[data-scene-row]")).toBeNull();
