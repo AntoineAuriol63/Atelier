@@ -217,9 +217,7 @@ describe("tiroir Animation : la scène", () => {
       act(() => { play().click(); });
       expect(play().textContent).toContain("Pause");
       expect(m.plays.length).toBeGreaterThanOrEqual(2);
-      // Pendant la lecture, la pastille « Fixer l'état ici » ne suit pas la tête de lecture : elle est cachée.
       act(() => { vi.advanceTimersByTime(100); });
-      expect(m.host.querySelector('[data-scene-row="hh2"] [aria-label="Fixer l\'état ici (une image-clé)"]')).toBeNull();
       act(() => { vi.advanceTimersByTime(400); });
       const mid = Number(rail().getAttribute("aria-valuenow"));
       expect(mid).toBeGreaterThan(200);
@@ -227,9 +225,7 @@ describe("tiroir Animation : la scène", () => {
       act(() => { vi.advanceTimersByTime(2000); });
       expect(play().textContent).toContain("Lire");
       expect(rail().getAttribute("aria-valuenow")).toBe("1300");
-      // Lecture finie sur le dernier état : la pastille est là, juste après, et propose l'état suivant ; sur un instant libre, c'est « ici ».
-      expect(m.host.querySelector('[data-scene-row="hh2"] [aria-label="Fixer l\'état ici (une image-clé)"]')).toBeNull();
-      expect(m.host.querySelector('[data-scene-row="hh2"] [aria-label="Fixer un nouvel état après celui-ci (image-clé)"]')).toBeTruthy();
+
       // Pause en cours de lecture : la tête s'arrête où elle est et l'aperçu montre cet instant.
       act(() => { play().click(); });
       act(() => { vi.advanceTimersByTime(300); });
@@ -238,8 +234,33 @@ describe("tiroir Animation : la scène", () => {
       const at = Number(rail().getAttribute("aria-valuenow"));
       expect(at).toBeGreaterThan(0); expect(at).toBeLessThan(1300);
       expect(m.scrubs[m.scrubs.length - 1]).toBe(at);
-      expect(m.host.querySelector('[data-scene-row="hh2"] [aria-label="Fixer l\'état ici (une image-clé)"]')).toBeTruthy();
     } finally { vi.useRealTimers(); }
+  });
+
+  it("sur la ligne de l'élément sélectionné, une pastille « Fixer l'état ici » suit la souris et fixe l'état là où l'on clique", () => {
+    const m = mount(animated(), "hh2");
+    const rail = m.host.querySelector<HTMLElement>("[data-scene-rail]")!;
+    rail.getBoundingClientRect = () => ({ left: 0, width: 1000, top: 0, height: 20, right: 1000, bottom: 20, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+    const lane = m.host.querySelector<HTMLElement>('[data-scene-row="hh2"]')!;
+    const pill = () => m.host.querySelector<HTMLButtonElement>('[data-scene-row="hh2"] [data-scene-ghost]');
+    expect(pill()).toBeNull();
+    // Règle de 2 000 ms : à 40 % de la largeur, 800 ms.
+    act(() => { lane.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, clientX: 400 })); });
+    expect(pill()).toBeTruthy();
+    expect(pill()!.style.left).toBe("40%");
+    expect(pill()!.textContent).toContain("Fixer l'état ici");
+    act(() => { pill()!.click(); });
+    expect(appearanceOf(m.current(), "hh2")!.track.keyframes.map((k) => k.at)).toEqual([600, 800, 1300]);
+    expect(m.scrubs[m.scrubs.length - 1]).toBe(800);
+    // Sur un état déjà fixé (1 300 ms = 65 %), pas de pastille ; en sortant de la ligne, plus rien.
+    m.rerender(m.current(), "hh2");
+    act(() => { lane.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, clientX: 650 })); });
+    expect(pill()).toBeNull();
+    act(() => { lane.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, clientX: 200 })); });
+    expect(pill()).toBeTruthy();
+    // React déduit la sortie du survol de « mouseout » vers un autre élément.
+    act(() => { lane.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: document.body })); });
+    expect(pill()).toBeNull();
   });
 
   it("sans élément sélectionné : une invitation, pas de scène", () => {

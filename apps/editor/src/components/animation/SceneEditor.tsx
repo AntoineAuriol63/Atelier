@@ -52,6 +52,8 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
     sc.scrollLeft = (a.t / length) * sc.scrollWidth - a.x;
   }, [zoom, length]);
   const [playhead, setPlayhead] = useState<number | null>(null);
+  // La pastille « Fixer l'état ici » suit la souris sur la ligne de l'élément sélectionné ; l'état se fixe là où l'on clique.
+  const [hoverT, setHoverT] = useState<number | null>(null);
   // Lecture : l'aperçu joue chaque lancement, et la tête de lecture court sur la règle au même rythme ; « Pause » l'arrête où elle est.
   const [playing, setPlaying] = useState(false);
   const raf = useRef(0);
@@ -244,7 +246,8 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
                 </div>
                 <ul aria-label={`Scène de ${quoteLabel(view.sectionLabel)}`}>
                   {visible.map((row) => { const i = view.rows.indexOf(row); return (
-                    <li key={row.id} data-scene-row={row.id} data-still={row.still || undefined} className={`relative h-8 border-b border-line/60 ${row.selected ? "bg-accent-soft/40" : ""}`}>
+                    <li key={row.id} data-scene-row={row.id} data-still={row.still || undefined} className={`relative h-8 border-b border-line/60 ${row.selected ? "bg-accent-soft/40" : ""}`}
+                      onMouseMove={row.selected && row.bar ? (e) => setHoverT(timeAt(e.clientX)) : undefined} onMouseLeave={row.selected ? () => setHoverT(null) : undefined}>
                   {row.bar ? (
                     <div data-scene-bar="" className={`absolute top-1.5 h-5 rounded-sm border text-2xs leading-none flex items-center px-1.5 whitespace-nowrap cursor-grab active:cursor-grabbing ${row.selected ? "bg-accent text-accent-ink border-accent" : "bg-accent/25 border-accent/50 text-ink"}`}
                       style={{ left: `calc(${pct(row.bar.start)} + ${shift("move", row.id)}px)`, width: `max(6px, calc(${pct(row.bar.end)} - ${pct(row.bar.start)} + ${shift("end", row.id)}px))` }} title={`${tickLabel(row.bar.start)} → ${tickLabel(row.bar.end)} ms · glisser : départ ; bord droit : durée`}
@@ -263,11 +266,10 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
                       <Diamond size={11} fill="currentColor" aria-hidden />
                     </button>
                   ))}
-                  {row.selected && ap && playhead !== null && !playing ? (
-                    kfHere
-                      // Sur un état déjà fixé (la fin, après une lecture ou à l'ouverture) : la pastille reste, juste après, et pose l'état suivant.
-                      ? <button type="button" aria-label="Fixer un nouvel état après celui-ci (image-clé)" title="L'état est déjà fixé à cet instant ; ce bouton en fixe un nouveau, à mi-chemin du suivant ou 200 ms plus loin" className="absolute top-1/2 -translate-y-1/2 z-10 h-5 px-1.5 rounded-full border border-dashed border-accent bg-panel text-2xs text-accent whitespace-nowrap shadow-md hover:bg-accent hover:text-accent-ink hover:border-solid" style={{ left: `calc(${pct(playhead)} + 12px)` }} onClick={addKeyframeAnywhere}>+ Nouvel état</button>
-                      : <button type="button" aria-label="Fixer l'état ici (une image-clé)" title="Enregistre à quoi ressemble l'élément à cet instant : une image-clé. Régler une propriété à droite fait pareil." className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 h-5 px-1.5 rounded-full border border-dashed border-accent bg-panel text-2xs text-accent whitespace-nowrap shadow-md hover:bg-accent hover:text-accent-ink hover:border-solid" style={{ left: pct(playhead) }} onClick={addKeyframe}>+ Fixer l&apos;état ici</button>
+                  {row.selected && ap && hoverT !== null && !playing && !drag && !ap.track.keyframes.some((k) => Math.abs(k.at + (ap.trigger.delay ?? 0) - hoverT) < 20) ? (
+                    <button type="button" data-scene-ghost="" aria-label="Fixer l'état ici (une image-clé)" title={`Fixe à quoi ressemble l'élément à ${tickLabel(hoverT)} ms (une image-clé)`}
+                      className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 h-5 px-1.5 rounded-full border border-dashed border-accent bg-panel text-2xs text-accent whitespace-nowrap shadow-md hover:bg-accent hover:text-accent-ink hover:border-solid" style={{ left: pct(hoverT) }}
+                      onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); const at2 = Math.max(0, hoverT - (ap.trigger.delay ?? 0)); run(planSetKeyframe(getSite(), ap.animation.id, ap.track.id, at2, {}), `État fixé à ${at2} ms`); place(hoverT); }}>+ Fixer l&apos;état ici</button>
                   ) : null}
                       {playhead !== null ? <span className="absolute top-0 bottom-0 w-px bg-accent/60 pointer-events-none" style={{ left: pct(playhead) }} aria-hidden /> : null}
                     </li>
