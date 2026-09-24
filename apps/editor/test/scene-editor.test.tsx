@@ -268,7 +268,7 @@ describe("tiroir Animation : la scène", () => {
     s = run(s, planQuickAnimation(s, node(s, "about"), "Apparition", "fade"));
     const m = mount(s, "pp2");
     const lane = () => m.host.querySelector<HTMLElement>('[data-scene-row="pp2"]')!;
-    expect(lane().textContent).toContain("avec « La maison »");
+    expect(lane().textContent).toContain("Arrive avec « La maison »");
     const btn = [...lane().querySelectorAll("button")].find((b) => (b.textContent ?? "").includes("Faire apparaître"))!;
     expect(btn).toBeTruthy();
     act(() => { btn.click(); });
