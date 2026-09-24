@@ -263,6 +263,25 @@ describe("tiroir Animation : la scène", () => {
     expect(m.host.querySelector('[data-scene-row="about"]')!.textContent).toContain("Faire apparaître");
   });
 
+  it("un élément qui arrive avec sa section peut quand même recevoir sa propre animation depuis sa ligne", () => {
+    let s = animated();
+    s = run(s, planQuickAnimation(s, node(s, "about"), "Apparition", "fade"));
+    const m = mount(s, "pp2");
+    const lane = () => m.host.querySelector<HTMLElement>('[data-scene-row="pp2"]')!;
+    expect(lane().textContent).toContain("avec « La maison »");
+    const btn = [...lane().querySelectorAll("button")].find((b) => (b.textContent ?? "").includes("Faire apparaître"))!;
+    expect(btn).toBeTruthy();
+    act(() => { btn.click(); });
+    const ap = appearanceOf(m.current(), "pp2")!;
+    expect(ap).toBeTruthy();
+    expect(ap.preset?.id).toBe("fade-up");
+    // Il part après l'élément animé qui le précède dans la scène (ici « Une cuisine » ; la section elle-même s'il n'y en a pas d'autre).
+    expect(ap.begin).toEqual({ kind: "after", node: "hh2" });
+    m.rerender(m.current(), "pp2");
+    expect(lane().querySelector("[data-scene-bar]")).toBeTruthy();
+    expect(lane().textContent).not.toContain("avec « La maison »");
+  });
+
   it("« Lire » joue chaque lancement de la scène dans l'aperçu", () => {
     const m = mount(animated(), "hh2");
     act(() => { m.buttons().find((b) => (b.textContent ?? "").trim() === "Lire")!.click(); });

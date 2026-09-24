@@ -340,7 +340,11 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
                       <span data-scene-bar-end="" role="presentation" className="absolute top-0 bottom-0 -right-1 w-2.5 cursor-ew-resize" onPointerDown={(e) => startDrag(e, "end", row.id)} />
                     </div>
                   ) : row.withGroup ? (
-                    <span className="absolute top-[11px] left-0 text-2xs text-muted">avec {quoteLabel(nodeLabel(nodeOf(row.withGroup)!))}</span>
+                    // Il arrive avec le bloc qui le porte (sa section en fondu, sa liste…) ; il peut quand même recevoir sa propre animation.
+                    <span className="absolute top-[7px] left-0 flex items-center gap-2 whitespace-nowrap">
+                      <span className="text-2xs text-muted leading-[18px]">avec {quoteLabel(nodeLabel(nodeOf(row.withGroup)!))}</span>
+                      <button type="button" className="h-[18px] px-2 rounded-md border border-dashed border-accent/60 text-2xs text-accent hover:bg-accent-soft" onClick={() => appear(row, i)} title="Sa propre animation, en plus : un fondu en montant après l'élément qui précède ; l'effet se change ensuite à droite">+ Faire apparaître</button>
+                    </span>
                   ) : (
                     <button type="button" className="absolute top-[7px] left-0 h-[18px] px-2 rounded-md border border-dashed border-accent/60 text-2xs text-accent hover:bg-accent-soft" onClick={() => appear(row, i)} title="Un fondu en montant, après l'élément qui précède ; l'effet se change ensuite à droite">+ Faire apparaître</button>
                   )}
