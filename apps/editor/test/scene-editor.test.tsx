@@ -487,6 +487,21 @@ describe("tiroir Animation : tirer", () => {
     act(() => { window.dispatchEvent(new MouseEvent("pointerup", { clientX: to })); });
   };
 
+  it("pendant qu'on tire la barre de l'élément sélectionné, ses losanges suivent : toute l'animation se déplace d'un bloc", () => {
+    const m = mount(animated(), "hh2"); railOf(m.host);
+    const lane = () => m.host.querySelector<HTMLElement>('[data-scene-row="hh2"]')!;
+    const bar = lane().querySelector<HTMLElement>("[data-scene-bar]")!;
+    act(() => { bar.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 100, button: 0 })); });
+    act(() => { window.dispatchEvent(new MouseEvent("pointermove", { clientX: 160 })); });
+    const lefts = [...lane().querySelectorAll<HTMLElement>("[data-scene-kf]")].map((k) => k.style.left);
+    expect(lefts).toHaveLength(2);
+    for (const l of lefts) expect(l).toContain("+ 60px");
+    expect(bar.style.left).toContain("+ 60px");
+    act(() => { window.dispatchEvent(new MouseEvent("pointerup", { clientX: 160 })); });
+    // Au relâcher, les états ont bien avancé de 120 ms avec la barre (100 px = 200 ms).
+    expect(appearanceOf(m.current(), "hh2")!.track.keyframes.map((k) => k.at).sort((a, b) => a - b)).toEqual([720, 1420]);
+  });
+
   it("tirer une barre change le départ de l'élément (son délai après ce qui le lance)", () => {
     const m = mount(animated(), "hh2"); railOf(m.host);
     drag(m.host.querySelector('[data-scene-row="photo"] [data-scene-bar]')!, 100, 200);

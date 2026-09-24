@@ -118,6 +118,7 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
   }, [selectedId, ap, view, scrub]);
   const pct = (ms: number) => `${Math.round((ms / length) * 1000) / 10}%`;
   // Tirer une barre (départ), son bord droit (durée) ou un losange (image-clé) : le geste se voit pendant, s'enregistre au relâcher, en ms arrondis à 10.
+  // Une barre tirée emmène ses losanges : toute l'animation de l'élément se déplace d'un bloc sur la scène (les états gardent leurs écarts).
   const [drag, setDrag] = useState<{ kind: "move" | "end" | "kf"; id: string; at?: number; dx: number } | null>(null);
   // Un glisser se termine par un clic (la souris est encore sur la barre) : ce clic-là n'ajoute pas d'état.
   const dragged = useRef(false);
@@ -350,7 +351,7 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
                   )}
                   {row.keyframes?.map((k) => (
                     <button key={k.at} type="button" data-scene-kf={k.at} aria-label={`État à ${tickLabel(k.sceneAt)} ms`} aria-pressed={at === k.at} title={`${k.sceneAt} ms${k.easing ? ` · ${k.easing}` : ""}`}
-                      className={`absolute top-4 -translate-x-1/2 -translate-y-1/2 p-1 rounded-full cursor-grab active:cursor-grabbing drop-shadow-[0_1px_1px_rgba(0,0,0,.6)] transition-transform hover:scale-125 ${at === k.at ? "text-warning" : "text-panel hover:text-warning"}`} style={{ left: `calc(${pct(k.sceneAt)} + ${shift("kf", row.id, k.at)}px)` }} onPointerDown={(e) => { place(k.sceneAt); startDrag(e, "kf", row.id, k.at); }} onKeyDown={(e) => { if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); e.stopPropagation(); removeKeyframe(k.at); } }}>
+                      className={`absolute top-4 -translate-x-1/2 -translate-y-1/2 p-1 rounded-full cursor-grab active:cursor-grabbing drop-shadow-[0_1px_1px_rgba(0,0,0,.6)] transition-transform hover:scale-125 ${at === k.at ? "text-warning" : "text-panel hover:text-warning"}`} style={{ left: `calc(${pct(k.sceneAt)} + ${shift("kf", row.id, k.at) + shift("move", row.id)}px)` }} onPointerDown={(e) => { place(k.sceneAt); startDrag(e, "kf", row.id, k.at); }} onKeyDown={(e) => { if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); e.stopPropagation(); removeKeyframe(k.at); } }}>
                       <Diamond size={11} fill="currentColor" strokeWidth={at === k.at ? 2 : 1.5} className={at === k.at ? "stroke-accent-ink/60" : "stroke-accent-ink/70"} aria-hidden />
                     </button>
                   ))}
