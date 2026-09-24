@@ -227,8 +227,9 @@ describe("tiroir Animation : la scène", () => {
       act(() => { vi.advanceTimersByTime(2000); });
       expect(play().textContent).toContain("Lire");
       expect(rail().getAttribute("aria-valuenow")).toBe("1300");
-      // Lecture finie sur le dernier état : pas de pastille non plus (l'état y est déjà fixé) ; sur un instant libre, elle revient.
+      // Lecture finie sur le dernier état : la pastille est là, juste après, et propose l'état suivant ; sur un instant libre, c'est « ici ».
       expect(m.host.querySelector('[data-scene-row="hh2"] [aria-label="Fixer l\'état ici (une image-clé)"]')).toBeNull();
+      expect(m.host.querySelector('[data-scene-row="hh2"] [aria-label="Fixer un nouvel état après celui-ci (image-clé)"]')).toBeTruthy();
       // Pause en cours de lecture : la tête s'arrête où elle est et l'aperçu montre cet instant.
       act(() => { play().click(); });
       act(() => { vi.advanceTimersByTime(300); });

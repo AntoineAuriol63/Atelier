@@ -263,8 +263,11 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
                       <Diamond size={11} fill="currentColor" aria-hidden />
                     </button>
                   ))}
-                  {row.selected && ap && playhead !== null && !kfHere && !playing ? (
-                    <button type="button" aria-label="Fixer l'état ici (une image-clé)" title="Enregistre à quoi ressemble l'élément à cet instant : une image-clé. Régler une propriété à droite fait pareil." className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 h-5 px-1.5 rounded-full border border-dashed border-accent bg-panel text-2xs text-accent whitespace-nowrap shadow-md hover:bg-accent hover:text-accent-ink hover:border-solid" style={{ left: pct(playhead) }} onClick={addKeyframe}>+ Fixer l&apos;état ici</button>
+                  {row.selected && ap && playhead !== null && !playing ? (
+                    kfHere
+                      // Sur un état déjà fixé (la fin, après une lecture ou à l'ouverture) : la pastille reste, juste après, et pose l'état suivant.
+                      ? <button type="button" aria-label="Fixer un nouvel état après celui-ci (image-clé)" title="L'état est déjà fixé à cet instant ; ce bouton en fixe un nouveau, à mi-chemin du suivant ou 200 ms plus loin" className="absolute top-1/2 -translate-y-1/2 z-10 h-5 px-1.5 rounded-full border border-dashed border-accent bg-panel text-2xs text-accent whitespace-nowrap shadow-md hover:bg-accent hover:text-accent-ink hover:border-solid" style={{ left: `calc(${pct(playhead)} + 12px)` }} onClick={addKeyframeAnywhere}>+ Nouvel état</button>
+                      : <button type="button" aria-label="Fixer l'état ici (une image-clé)" title="Enregistre à quoi ressemble l'élément à cet instant : une image-clé. Régler une propriété à droite fait pareil." className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 h-5 px-1.5 rounded-full border border-dashed border-accent bg-panel text-2xs text-accent whitespace-nowrap shadow-md hover:bg-accent hover:text-accent-ink hover:border-solid" style={{ left: pct(playhead) }} onClick={addKeyframe}>+ Fixer l&apos;état ici</button>
                   ) : null}
                       {playhead !== null ? <span className="absolute top-0 bottom-0 w-px bg-accent/60 pointer-events-none" style={{ left: pct(playhead) }} aria-hidden /> : null}
                     </li>
