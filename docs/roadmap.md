@@ -191,6 +191,7 @@ Cinq examens (architecture, charge, UI/UX, cohérence produit, sécurité) conso
 
 ## Journal
 
+- 24 sept. 2026 (suite 21) — Colonne des noms « un peu grosse » (Antoine) : la sélection se dit par un filet accent à gauche et non par un bloc plein, la ligne sélectionnée passe de 48 à 44 px, le « + » d'ajout est plus discret ; la pastille sous la barre suit.
 - 24 sept. 2026 (suite 20) — « Assez moche, et les losanges ne sont pas au milieu » : losanges centrés sur la barre (et non sur la ligne, plus haute pour l'élément sélectionné), blancs cerclés sur la barre bleue, l'actif en jaune, qui grossissent au survol ; barre en dégradé avec liseré ; règle avec traits de graduation et chapeau de tête de lecture ; quadrillage léger aux graduations derrière les lignes.
 - 24 sept. 2026 (suite 19) — Tiroir étroit (1 024 px) : colonne des réglages bornée à 260–340 px, noms sur 150 px sous 720 px de largeur de scène, « Tester sur le site » en icône seule et instant masqué sous 640 / 560 px (requêtes de conteneur). Les pistes passent de 63 à 153 px à 1 024 px.
 - 24 sept. 2026 (suite 18) — La pastille cachait les losanges quand il y en a beaucoup (crainte d'Antoine) : la ligne de l'élément sélectionné est plus haute (48 px, dans les deux colonnes), la barre reste en haut, et sous elle une petite pastille « + État · 580 ms » suit la souris ; sur la barre, un losange creux et un fil vertical marquent où l'état se posera.
