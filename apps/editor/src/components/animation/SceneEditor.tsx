@@ -1,14 +1,14 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createElement, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Clock, Diamond, ExternalLink, Link2, Pause, Play, Plus, SkipBack, SlidersHorizontal, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Diamond, ExternalLink, Link2, Pause, Play, Plus, SkipBack, SlidersHorizontal, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { CommitOptions, Node, Op, Site } from "@atelier/model";
 import { ANIMATION_PRESETS, TRIGGER_LABELS, animationUsages, appearanceOf, applyOps, indexSite, keyframeAt, newId, planAddTrigger, planAppearanceStart, planChainInOrder, planQuickAnimation, planAppearanceDelay, planAppearanceDuration, planAppearancePreset, planRemoveKeyframes, planRemoveTriggerWithAnimation, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUpdateTrigger, trackPresetMatch } from "@atelier/model";
 import { Badge, Button, Eyebrow, Hint, IconButton, Select } from "@/ui";
 import { formatMs, quoteLabel, rulerTicks, snapTime, summarizeAnimation, tickLabel } from "@/lib/timeline";
 import { sceneView, type SceneLaunch, type SceneRow } from "@/lib/scene-view";
-import { nodeLabel } from "../node-icons";
+import { nodeIcon, nodeLabel } from "../node-icons";
 import { QuickAnimations } from "./QuickAnimations";
 import { KeyframePanels } from "./KeyframePanels";
 import { EasingField } from "./EasingField";
@@ -230,7 +230,7 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
   const STILL_LABEL = "Ne bouge pas encore";
   const chainAll = () => run(planChainInOrder(getSite(), view.sectionId), `Enchaîner la scène de ${quoteLabel(view.sectionLabel)}`);
   // Retirer la ligne de temps de l'élément : son apparition s'en va, ce qui la suivait se raccroche, la ligne disparaît de la scène.
-  const removeLine = () => { if (!ap) return; run(planAppearancePreset(getSite(), selected.id, ""), `Retirer la ligne de temps de ${quoteLabel(nodeLabel(selected))}`); };
+  const removeLine = () => { if (!ap) return; run(planAppearancePreset(getSite(), selected.id, ""), `Ne plus animer ${quoteLabel(nodeLabel(selected))}`); };
   const addKeyframe = () => { if (ap && at !== null) run(planSetKeyframe(getSite(), ap.animation.id, ap.track.id, at, {}), `État ajouté à ${at} ms`); };
   // Un clic n'importe où sur la ligne de l'élément sélectionné (barre comprise) pose un état à cet instant ; sur un état déjà là, la tête de lecture s'y pose.
   const addKeyframeAtScene = (sceneT: number) => {
@@ -303,7 +303,7 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
                   <button type="button" data-scene-name="" data-scene-name-of={it.row.id} className={`flex items-center gap-1.5 min-w-0 pr-2 text-left text-xs truncate ${it.row.selected ? "text-ink font-medium" : it.row.still ? "text-dim group-hover:text-ink" : "text-ink group-hover:text-accent"}`} style={{ paddingLeft: it.row.depth * 12 }}>
                     <span className="truncate">{it.row.label}</span>{it.row.count ? <span className="text-muted shrink-0">×{it.row.count}</span> : null}
                   </button>
-                  {it.row.selected && it.row.bar ? <span className="ml-auto mr-1 flex items-center shrink-0"><IconButton size="sm" className="h-6 w-6 text-muted" data-scene-new-state="" label="Ajouter un état (image-clé)" icon={Plus} title="Ajoute un état de l'élément : à la tête de lecture, ou juste après le dernier état si elle est déjà sur l'un d'eux" onClick={addKeyframeAnywhere} /><IconButton size="sm" className="h-6 w-6 text-muted" data-scene-remove-line="" label="Retirer la ligne de temps" icon={Trash2} tone="danger" title="L'élément ne bouge plus ; ce qui démarrait après lui se raccroche" onClick={removeLine} /></span> : null}
+                  {it.row.selected && it.row.bar ? <span className="ml-auto mr-1 flex items-center shrink-0"><IconButton size="sm" className="h-6 w-6 text-muted" data-scene-new-state="" label="Ajouter un état (image-clé)" icon={Plus} title="Ajoute un état de l'élément : à la tête de lecture, ou juste après le dernier état si elle est déjà sur l'un d'eux" onClick={addKeyframeAnywhere} /><IconButton size="sm" className="h-6 w-6 text-muted" data-scene-remove-line="" label="Ne plus animer cet élément" icon={Trash2} tone="danger" title="Retire l'animation de cet élément seulement ; ce qui démarrait après lui se raccroche" onClick={removeLine} /></span> : null}
                 </div>
               ))}
             </div>
@@ -395,13 +395,17 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
 
       {/* La colonne de droite du tiroir, de la largeur de l'inspecteur : le temps de l'élément sélectionné. L'effet (fondu, zoom…) et la vitesse
           se choisissent dans l'inspecteur, rubrique Animation ; ici, quand il part, ses états, et la ligne elle-même. */}
-      {/* Colonne de droite, deux zones bien séparées : la ligne de temps de l'élément (quand elle part, son délai, si elle rejoue), puis l'état à la tête
-          de lecture, sous un en-tête collant teinté du même jaune que le losange actif sur la ligne. Aucune marge négative : rien ne déborde de côté. */}
+      {/* Colonne de droite : l'élément sélectionné, et deux blocs à lui, « Son animation » (quand elle part, son délai, si elle rejoue) puis « Son état »
+          à la tête de lecture, sous un en-tête collant teinté du même jaune que le losange actif sur la ligne. La scène, elle, se règle à gauche.
+          Jamais « ligne de temps » ici : le mot désignerait la scène entière. Aucune marge négative : rien ne déborde de côté. */}
       <div className="flex flex-col min-h-0 overflow-y-auto overflow-x-hidden" data-scene-side="">
-        <section className="flex flex-col gap-3 p-3" data-scene-line="" aria-label="Ligne de temps">
+        <div className="flex items-center gap-2 px-3 h-10 shrink-0 border-b border-line bg-panel min-w-0">
+          {createElement(nodeIcon(selected), { size: 14, className: "text-accent shrink-0", "aria-hidden": true })}
+          <h2 className="m-0 text-sm font-medium truncate" data-scene-element="" title={nodeLabel(selected)}>{nodeLabel(selected)}</h2>
+        </div>
+        <section className="flex flex-col gap-3 p-3" data-scene-line="" aria-label="Son animation">
           <div className="flex flex-col gap-1 min-w-0">
-            <div className="flex items-center gap-1.5"><Clock size={12} className="text-dim shrink-0" aria-hidden /><Eyebrow as="h2">{ap ? "Ligne de temps" : "Élément"}</Eyebrow></div>
-            <div className="text-sm font-medium truncate" title={nodeLabel(selected)}>{nodeLabel(selected)}</div>
+            <Eyebrow as="h3">Son animation</Eyebrow>
             {ap ? (
               <div className="flex items-center gap-2 text-xs text-muted min-w-0">
                 <span className="truncate" title={`Effet : ${ap.preset?.label ?? (ap.origin ? `${ap.origin.label} retouché` : "composé à la main")}`}>Effet : {ap.preset?.label ?? (ap.origin ? `${ap.origin.label} retouché` : "composé à la main")}{ap.speed !== "custom" ? ` · ${ap.speed === "fast" ? "rapide" : ap.speed === "slow" ? "lente" : "normale"}` : ""}</span>
@@ -432,13 +436,13 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
               ))}
             </div>
           ) : null}
-          {ap ? <Button size="sm" variant="ghost" icon={Trash2} className="self-start text-danger" data-scene-remove-line="" onClick={removeLine} title="L'élément ne bouge plus ; ce qui démarrait après lui se raccroche">Retirer la ligne de temps</Button> : null}
+          {ap ? <Button size="sm" variant="ghost" icon={Trash2} className="self-start text-danger" data-scene-remove-line="" onClick={removeLine} title="Retire l'animation de cet élément seulement : il ne bouge plus, ce qui démarrait après lui se raccroche ; le reste de la scène ne change pas">Ne plus animer {quoteLabel(nodeLabel(selected))}</Button> : null}
         </section>
-        <section className="flex flex-col border-t-2 border-line-strong" aria-label="État de l'élément" data-scene-keyframe="" data-state={!ap ? "none" : at === null ? "off" : kfHere ? "on" : "between"}>
+        <section className="flex flex-col border-t-2 border-line-strong" aria-label="Son état" data-scene-keyframe="" data-state={!ap ? "none" : at === null ? "off" : kfHere ? "on" : "between"}>
           <div className={`sticky top-0 z-10 flex items-center gap-2 px-3 h-11 border-b border-line ${kfHere ? "bg-[color-mix(in_oklab,var(--color-warning)_14%,var(--color-panel))]" : "bg-surface"}`}>
             <Diamond size={12} fill={kfHere ? "currentColor" : "none"} strokeWidth={2} className={`shrink-0 ${kfHere ? "text-warning" : "text-dim"}`} aria-hidden />
             <div className="flex flex-col flex-1 min-w-0 leading-tight">
-              <h2 className="m-0 text-xs font-medium truncate" data-scene-state-heading="">{!ap || at === null ? "État de l'élément" : kfHere ? `État à ${tickLabel(playhead!)} ms` : `Instant ${tickLabel(playhead!)} ms`}</h2>
+              <h2 className="m-0 text-xs font-medium truncate" data-scene-state-heading="">{!ap || at === null ? "Son état" : kfHere ? `Son état à ${tickLabel(playhead!)} ms` : `Instant ${tickLabel(playhead!)} ms`}</h2>
               <span className="text-2xs text-muted truncate">{!ap ? "Il ne bouge pas encore" : at === null ? "Cliquez la règle ou un losange pour choisir un instant" : kfHere ? "L'élément à cet instant" : "Aucun état ici : réglez une propriété, il s'ajoute"}</span>
             </div>
             {ap ? (

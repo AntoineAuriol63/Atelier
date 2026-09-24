@@ -140,7 +140,7 @@ describe("tiroir Animation : la scène", () => {
     const del = () => m.host.querySelector<HTMLButtonElement>('[data-scene-keyframe] [aria-label="Supprimer l\'état (image-clé)"]')!;
     expect(add().disabled).toBe(true);
     expect(del().disabled).toBe(false);
-    expect(m.text()).toMatch(/État à 1\u202f300 ms/);
+    expect(m.text()).toMatch(/Son état à 1\u202f300 ms/);
     const rail = m.host.querySelector<HTMLElement>("[data-scene-rail]")!;
     rail.getBoundingClientRect = () => ({ left: 0, width: 1000, top: 0, height: 20, right: 1000, bottom: 20, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
     act(() => { rail.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 250, button: 0 })); });
@@ -199,8 +199,10 @@ describe("tiroir Animation : la scène", () => {
     const m = mount(animated(), "hh2");
     const side = m.host.querySelector("[data-scene-side]")!;
     // Un nom qui porte déjà des guillemets n'en reçoit pas d'autres (quoteLabel).
-    // Le titre de la zone tient en deux lignes lisibles : « Ligne de temps », puis le nom en entier (un nom qui porte déjà des guillemets n'en reçoit pas d'autres).
-    expect(side.querySelector("[data-scene-line]")!.textContent).toMatch(/Ligne de temps.*Titre 2 « Une cuisine »/);
+    // La colonne parle de l'élément : son nom en tête (un nom qui porte déjà des guillemets n'en reçoit pas d'autres), puis « Son animation » ; jamais « ligne de temps », qui se lirait comme la scène.
+    expect(side.querySelector("[data-scene-element]")!.textContent).toBe("Titre 2 « Une cuisine »");
+    expect(side.querySelector("[data-scene-line]")!.textContent).toMatch(/^Son animation/);
+    expect(side.textContent).not.toMatch(/ligne de temps/i);
     expect(side.textContent).toContain("Effet : Fondu en montant");
     expect(side.textContent).toContain("Changer l'effet");
     expect(side.textContent).toContain("Démarre");
@@ -208,20 +210,21 @@ describe("tiroir Animation : la scène", () => {
     expect(side.textContent).not.toContain("Vitesse");
     expect([...side.querySelectorAll("select")].some((sel) => [...sel.options].some((o) => o.textContent === "Fondu en descendant"))).toBe(false);
     expect(m.host.querySelector("[data-scene-keyframe]")).toBeTruthy();
-    expect(m.text()).toMatch(/État à/);
+    expect(m.text()).toMatch(/Son état à/);
   });
 
-  it("à droite, deux zones bien séparées : la ligne de temps de l'élément, puis l'état à la tête de lecture avec un en-tête qui dit s'il y a un état ici", () => {
+  it("à droite, l'élément et ses deux blocs : « Son animation », puis « Son état » à la tête de lecture avec un en-tête qui dit s'il y a un état ici", () => {
     const m = mount(animated(), "hh2");
     const line = m.host.querySelector<HTMLElement>("[data-scene-line]")!;
     const state = () => m.host.querySelector<HTMLElement>("[data-scene-keyframe]")!;
-    expect(line.textContent).toContain("Ligne de temps");
+    expect(line.textContent).toContain("Son animation");
     expect(line.textContent).toContain("Démarre");
-    expect(line.querySelector("[data-scene-remove-line]")).toBeTruthy();
+    // Le bouton dit ce qu'il fait : il retire l'animation de cet élément, pas la scène.
+    expect(line.querySelector("[data-scene-remove-line]")!.textContent).toBe("Ne plus animer Titre 2 « Une cuisine »");
     expect(line.contains(state())).toBe(false);
     // À la sélection, la tête de lecture est sur l'état d'arrivée (1 300 ms) : l'en-tête de la zone le dit, avec le losange.
     expect(state().getAttribute("data-state")).toBe("on");
-    expect(state().querySelector("[data-scene-state-heading]")!.textContent).toMatch(/^État à 1.300 ms$/);
+    expect(state().querySelector("[data-scene-state-heading]")!.textContent).toMatch(/^Son état à 1.300 ms$/);
     expect(state().textContent).toContain("L'élément à cet instant");
     // Les panneaux de propriétés ne débordent pas de la colonne : pas de marge négative.
     expect(state().querySelector("[data-keyframe-panels]")!.className).not.toMatch(/-mx-/);
@@ -230,7 +233,7 @@ describe("tiroir Animation : la scène", () => {
     rail.getBoundingClientRect = () => ({ left: 0, width: 1000, top: 0, height: 20, right: 1000, bottom: 20, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
     act(() => { rail.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 400, button: 0 })); });
     expect(state().getAttribute("data-state")).toBe("between");
-    expect(state().querySelector("[data-scene-state-heading]")!.textContent).toContain("Instant 800 ms");
+    expect(state().querySelector("[data-scene-state-heading]")!.textContent).toBe("Instant 800 ms");
     expect(state().textContent).toMatch(/Aucun état ici/);
     // Sans apparition : la zone dit de faire apparaître l'élément d'abord.
     const still = mount(animated(), "pp2");
