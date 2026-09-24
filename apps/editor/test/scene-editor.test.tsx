@@ -273,6 +273,45 @@ describe("tiroir Animation : la scène", () => {
     expect(pill()).toBeNull();
   });
 
+  it("un clic n'importe où sur la ligne de l'élément sélectionné, barre comprise, ajoute l'état à cet instant ; un glisser ou un losange, non", () => {
+    const m = mount(animated(), "hh2");
+    const rail = m.host.querySelector<HTMLElement>("[data-scene-rail]")!;
+    rail.getBoundingClientRect = () => ({ left: 0, width: 1000, top: 0, height: 20, right: 1000, bottom: 20, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+    const lane = () => m.host.querySelector<HTMLElement>('[data-scene-row="hh2"]')!;
+    const kfs = () => appearanceOf(m.current(), "hh2")!.track.keyframes.map((k) => k.at).sort((a, b) => a - b);
+    // Règle de 2 000 ms : à 45 % de la largeur, 900 ms. « Une cuisine » se lance lui-même : son délai est le départ de sa piste, temps de scène et d'animation coïncident.
+    act(() => { lane().dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 450 })); });
+    expect(kfs()).toEqual([600, 900, 1300]);
+    expect(m.scrubs[m.scrubs.length - 1]).toBe(900);
+    m.rerender(m.current(), "hh2");
+    // Sur la barre : un clic sans glisser ajoute aussi (à 1 000 ms).
+    const bar = lane().querySelector<HTMLElement>("[data-scene-bar]")!;
+    act(() => { bar.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 500, button: 0 })); });
+    act(() => { window.dispatchEvent(new MouseEvent("pointerup", { clientX: 501 })); });
+    act(() => { bar.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 501 })); });
+    expect(kfs()).toEqual([600, 900, 1000, 1300]);
+    m.rerender(m.current(), "hh2");
+    // Un glisser de la barre (le clic qui le suit ne compte pas) : le départ avance de 100 ms, aucun état en plus.
+    const delay = appearanceOf(m.current(), "hh2")!.delay;
+    act(() => { bar.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 500, button: 0 })); });
+    act(() => { window.dispatchEvent(new MouseEvent("pointermove", { clientX: 550 })); });
+    act(() => { window.dispatchEvent(new MouseEvent("pointerup", { clientX: 550 })); });
+    act(() => { bar.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 550 })); });
+    expect(appearanceOf(m.current(), "hh2")!.delay).toBe(delay + 100);
+    expect(kfs()).toHaveLength(4);
+    m.rerender(m.current(), "hh2");
+    // Un clic sur un losange place la tête de lecture, sans rien ajouter ; un clic sur la ligne à un état déjà là non plus.
+    // (La scène s'est allongée : la règle aussi, on lit sa longueur pour convertir les millisecondes en pixels.)
+    const before = m.ops.length;
+    const kf = lane().querySelector<HTMLElement>("[data-scene-kf]")!;
+    const sceneMs = Number(kf.getAttribute("aria-label")!.replace(/\D/g, ""));
+    const px = (ms: number) => (ms / Number(rail.getAttribute("aria-valuemax"))) * 1000;
+    act(() => { kf.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: px(sceneMs) })); });
+    act(() => { lane().dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: px(sceneMs) + 1 })); });
+    expect(m.ops.slice(before).map((o) => (o as { label?: string }).label)).toEqual([]);
+    expect(m.scrubs[m.scrubs.length - 1]).toBe(sceneMs);
+  });
+
   it("la ligne de temps d'un élément se retire d'un bouton, à côté du nom ou en bas des réglages", () => {
     const m = mount(animated(), "hh2");
     const btn = m.host.querySelector<HTMLButtonElement>('[data-scene-remove-line]')!;

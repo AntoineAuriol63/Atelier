@@ -119,6 +119,8 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
   const pct = (ms: number) => `${Math.round((ms / length) * 1000) / 10}%`;
   // Tirer une barre (départ), son bord droit (durée) ou un losange (image-clé) : le geste se voit pendant, s'enregistre au relâcher, en ms arrondis à 10.
   const [drag, setDrag] = useState<{ kind: "move" | "end" | "kf"; id: string; at?: number; dx: number } | null>(null);
+  // Un glisser se termine par un clic (la souris est encore sur la barre) : ce clic-là n'ajoute pas d'état.
+  const dragged = useRef(false);
   const pxToMs = (dx: number) => { const r = rail.current?.getBoundingClientRect(); return r && r.width > 0 ? (dx / r.width) * length : 0; };
   const startDrag = (e: React.PointerEvent, kind: "move" | "end" | "kf", id: string, kfAt?: number) => {
     if (e.button !== 0) return;
@@ -129,6 +131,7 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
     const up = (ev: PointerEvent) => {
       window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up);
       setDrag(null);
+      dragged.current = Math.abs(ev.clientX - startX) > 3;
       const delta = Math.round(pxToMs(ev.clientX - startX) / 10) * 10;
       // Un clic sans glisser sur la barre d'un autre élément : on passe à lui (sa ligne, ses réglages à droite).
       if (Math.abs(delta) < 10) { if (kind === "move" && id !== selectedId) onSelect(id); return; }
@@ -229,6 +232,21 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
   // Retirer la ligne de temps de l'élément : son apparition s'en va, ce qui la suivait se raccroche, la ligne disparaît de la scène.
   const removeLine = () => { if (!ap) return; run(planAppearancePreset(getSite(), selected.id, ""), `Retirer la ligne de temps de ${quoteLabel(nodeLabel(selected))}`); };
   const addKeyframe = () => { if (ap && at !== null) run(planSetKeyframe(getSite(), ap.animation.id, ap.track.id, at, {}), `État ajouté à ${at} ms`); };
+  // Un clic n'importe où sur la ligne de l'élément sélectionné (barre comprise) pose un état à cet instant ; sur un état déjà là, la tête de lecture s'y pose.
+  const addKeyframeAtScene = (sceneT: number) => {
+    if (!ap) return;
+    const delay = ap.trigger.delay ?? 0;
+    const near = ap.track.keyframes.find((k) => Math.abs(k.at + delay - sceneT) < 20);
+    if (near) { place(near.at + delay); return; }
+    const at2 = Math.max(0, sceneT - delay);
+    run(planSetKeyframe(getSite(), ap.animation.id, ap.track.id, at2, {}), `État ajouté à ${at2} ms`);
+    place(sceneT);
+  };
+  const laneClick = (e: React.MouseEvent) => {
+    if (dragged.current) { dragged.current = false; return; }
+    if ((e.target as Element).closest("[data-scene-kf],[data-scene-ghost],[data-scene-bar-end]")) return;
+    addKeyframeAtScene(timeAt(e.clientX));
+  };
   // « Ajouter un état », toujours à côté du nom : à la tête de lecture si elle est libre ; sinon à mi-chemin du prochain état, ou 200 ms après le dernier.
   const addKeyframeAnywhere = () => {
     if (!ap) return;
@@ -308,9 +326,9 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
                 <ul aria-label={`Scène de ${quoteLabel(view.sectionLabel)}`} className="relative">
                   {rulerTicks(length, zoom).filter((t) => t > 0 && t < length).map((t) => <span key={t} className="pointer-events-none absolute top-0 bottom-0 w-px bg-line/60" style={{ left: pct(t) }} aria-hidden />)}
                   {items.map((it) => { if (it.kind === "still") return <li key="still" aria-label={STILL_LABEL} className="h-6 border-b border-line/60 bg-surface/40" />; if (it.kind === "launch") return <li key={it.launch.id} data-scene-launch-lane={it.launch.id} className={`h-6 border-b border-line/60 flex items-center overflow-hidden ${rowDrag && rowDrag.over === it.launch.id && rowDrag.from !== it.launch.id ? "bg-accent-soft/40" : "bg-surface/40"}`}><span className="sticky left-0 px-2 text-2xs text-muted whitespace-nowrap">{it.launch.label}</span></li>; const row = it.row; const i = view.rows.indexOf(row); return (
-                    <li key={row.id} data-scene-row={row.id} data-scene-launch-of={launchOf(row.id)?.id} data-still={row.still || undefined} className={`relative h-10 border-b border-line/60 ${row.selected ? "bg-accent-soft/25" : ""}`}
+                    <li key={row.id} data-scene-row={row.id} data-scene-launch-of={launchOf(row.id)?.id} data-still={row.still || undefined} className={`relative h-10 border-b border-line/60 ${row.selected ? "bg-accent-soft/25" : ""} ${row.selected && row.bar ? "cursor-copy" : ""}`} title={row.selected && row.bar ? "Cliquer sur la ligne ajoute un état à cet instant" : undefined}
                       onMouseMove={row.selected && row.bar ? (e) => setHoverT(timeAt(e.clientX)) : undefined} onMouseLeave={row.selected ? () => setHoverT(null) : undefined}
-                      onClick={row.selected ? undefined : () => onSelect(row.id)}>
+                      onClick={row.selected ? (row.bar ? laneClick : undefined) : () => onSelect(row.id)}>
                   {row.bar ? (
                     <div data-scene-bar="" className={`absolute top-[7px] h-[18px] rounded-md border text-2xs leading-none flex items-center px-2 whitespace-nowrap cursor-grab active:cursor-grabbing transition-[box-shadow] ${row.selected ? "bg-gradient-to-b from-accent to-accent/85 text-accent-ink border-accent/90 shadow-[inset_0_1px_0_rgba(255,255,255,.25),0_1px_2px_rgba(0,0,0,.35)]" : "bg-accent/20 border-accent/40 text-ink hover:bg-accent/30"}`}
                       style={{ left: `calc(${pct(row.bar.start)} + ${shift("move", row.id)}px)`, width: `max(6px, calc(${pct(row.bar.end)} - ${pct(row.bar.start)} + ${shift("end", row.id)}px))` }} title={`${tickLabel(row.bar.start)} → ${tickLabel(row.bar.end)} ms · glisser : départ ; bord droit : durée`}
