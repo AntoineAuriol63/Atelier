@@ -2,7 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Diamond, ExternalLink, Play, Plus, SkipBack, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Diamond, ExternalLink, Pause, Play, Plus, SkipBack, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { CommitOptions, Node, Op, Site } from "@atelier/model";
 import { ANIMATION_PRESETS, TRIGGER_LABELS, animationUsages, appearanceOf, applyOps, indexSite, keyframeAt, newId, planAddTrigger, planAppearanceStart, planQuickAnimation, planAppearanceDelay, planAppearanceDuration, planRemoveKeyframes, planRemoveTriggerWithAnimation, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUpdateTrigger, trackPresetMatch } from "@atelier/model";
 import { Badge, Button, Eyebrow, Hint, IconButton, PanelHeading, Select } from "@/ui";
@@ -52,6 +52,12 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
     sc.scrollLeft = (a.t / length) * sc.scrollWidth - a.x;
   }, [zoom, length]);
   const [playhead, setPlayhead] = useState<number | null>(null);
+  // Lecture : l'aperçu joue chaque lancement, et la tête de lecture court sur la règle au même rythme ; « Pause » l'arrête où elle est.
+  const [playing, setPlaying] = useState(false);
+  const raf = useRef(0);
+  const playheadRef = useRef<number | null>(null);
+  useEffect(() => { playheadRef.current = playhead; }, [playhead]);
+  useEffect(() => () => cancelAnimationFrame(raf.current), []);
   // La liste des éléments à ajouter est une liste maison : une liste native ne dit pas quel choix est survolé, et le survol montre l'élément dans l'aperçu.
   // La liste est rendue hors de la zone qui défile (sinon elle y est rognée), ancrée au bouton : au-dessus s'il y a la place, sinon en dessous.
   const [addPos, setAddPos] = useState<{ left: number; top?: number; bottom?: number; maxHeight: number } | null>(null);
@@ -153,6 +159,20 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
     onSelect(row.id);
   };
   const playAll = () => { for (const l of view.launches) { const [hostId, triggerId] = l.split(":") as [string, string]; onPlay(triggerId, hostId); } };
+  const total = view.total;
+  const startPlay = () => {
+    cancelAnimationFrame(raf.current);
+    setPlaying(true); setPlayhead(0); scrub(null); playAll();
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = now - start;
+      if (t >= total) { setPlayhead(total); setPlaying(false); return; }
+      setPlayhead(t);
+      raf.current = requestAnimationFrame(tick);
+    };
+    raf.current = requestAnimationFrame(tick);
+  };
+  const pausePlay = () => { cancelAnimationFrame(raf.current); setPlaying(false); place(snapTime(playheadRef.current ?? 0)); };
   // Réutiliser l'animation d'un autre élément (le clic d'un bouton sur d'autres boutons) : un déclencheur de plus, même animation, même quand.
   // Les apparitions préréglées ne s'y trouvent pas : elles se choisissent dans « Apparition ». Restent le clic, le survol, et tout ce qui est composé à la main.
   const reusable = site.animations.filter((a) => a.id !== ap?.animation.id && a.tracks.length && a.tracks.every((t) => "trigger" in t.target)).map((a) => ({ a, u: animationUsages(site, a.id).find((x) => x.node && x.node.id !== selected.id) })).filter((x) => x.u && !(selected.triggers ?? []).some((t) => t.animation === x.a.id) && !((x.u!.trigger.on === "inView" || x.u!.trigger.on === "load") && trackPresetMatch(x.a.tracks[0]!)));
@@ -190,8 +210,8 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
           <Badge title="Fin du dernier mouvement">{formatMs(view.total)}</Badge>
           {view.launches.length > 1 ? <Badge tone="warning" title="Chaque lancement compte son temps depuis sa propre entrée à l'écran ; « Démarre après » un autre élément les réunit">{view.launches.length} lancements</Badge> : null}
           <span className="mx-1 h-4 w-px bg-line" aria-hidden />
-          <IconButton size="sm" label="Revenir au début" icon={SkipBack} onClick={() => place(0)} />
-          <Button size="sm" variant="primary" icon={Play} title="Joue la scène dans l'aperçu" onClick={() => { scrub(null); playAll(); }}>Lire</Button>
+          <IconButton size="sm" label="Revenir au début" icon={SkipBack} onClick={() => { cancelAnimationFrame(raf.current); setPlaying(false); place(0); }} />
+          <Button size="sm" variant={playing ? "default" : "primary"} icon={playing ? Pause : Play} title={playing ? "Arrête la lecture ici" : "Joue la scène dans l'aperçu, la tête de lecture suit"} onClick={() => (playing ? pausePlay() : startPlay())}>{playing ? "Pause" : "Lire"}</Button>
           {onTestOnSite ? <Button size="sm" variant="ghost" icon={ExternalLink} onClick={() => onTestOnSite(ap && !ap.page ? ap.hostId : selected.id)} title="Ouvre l'onglet Aperçu : la section arrive à l'écran comme pour un visiteur">Tester sur le site</Button> : null}
           <span className="ml-auto text-xs tabular-nums text-muted">{playhead !== null ? `${tickLabel(playhead)} ms` : ""}</span>
           <IconButton size="sm" label="Fermer l'outil Animation" icon={X} onClick={onClose} />

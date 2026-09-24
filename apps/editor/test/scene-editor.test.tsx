@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import type { Node, Op, Site } from "@atelier/model";
@@ -25,12 +25,16 @@ function animated(): Site {
   return s;
 }
 
+// Chaque racine est démontée après le test : le lecteur (requestAnimationFrame) ne survit pas au test qui l'a lancé.
+const roots: { unmount: () => void }[] = [];
+afterEach(() => { act(() => { roots.splice(0).forEach((r) => r.unmount()); }); });
 function mount(site: Site, selectedId: string | null) {
   const ops: Op[] = []; const selected: string[] = []; const scrubs: (number | null)[] = []; const plays: string[] = []; const hovers: (string | null)[] = [];
   let current = site;
   const host = document.createElement("div");
   document.body.appendChild(host);
   const root = createRoot(host);
+  roots.push(root);
   const render = (s: Site, sel: string | null) => createElement(SceneEditor, { site: s, getSite: () => current, selectedId: sel, bp: "base", commit: (op) => { ops.push(op); current = applyOps(current, [op]).site; }, onSelect: (id) => selected.push(id), scrub: (t) => scrubs.push(t), onPlay: (triggerId, hostId) => plays.push(`${hostId}:${triggerId}`), onHover: (id) => hovers.push(id), onClose: () => {} });
   act(() => { root.render(render(site, selectedId)); });
   return { host, ops, selected, scrubs, plays, hovers, text: () => host.textContent ?? "", buttons: () => [...host.querySelectorAll<HTMLButtonElement>("button")], rerender: (s: Site, sel: string | null) => act(() => { current = s; root.render(render(s, sel)); }), current: () => current };
@@ -126,16 +130,14 @@ describe("tiroir Animation : la scène", () => {
     expect(ev.defaultPrevented).toBe(true);
   });
 
-  it("l'état de l'élément a sa place fixe à droite : « Fixer l'état ici » et « Supprimer » toujours présents, l'un ou l'autre actif ; « Lire » ne perd pas la tête de lecture", () => {
+  it("l'état de l'élément a sa place fixe à droite : « Fixer l'état ici » et « Supprimer » toujours présents, l'un ou l'autre actif", () => {
     const m = mount(animated(), "hh2");
     // À l'ouverture, la tête de lecture est à la fin du mouvement (1 300 ms), sur une image-clé : Supprimer actif, Ajouter inactif.
     const add = () => m.host.querySelector<HTMLButtonElement>('[data-scene-keyframe] [aria-label="Fixer l\'état ici (une image-clé)"]')!;
     const del = () => m.host.querySelector<HTMLButtonElement>('[data-scene-keyframe] [aria-label="Supprimer cet état (image-clé)"]')!;
     expect(add().disabled).toBe(true);
     expect(del().disabled).toBe(false);
-    act(() => { m.buttons().find((b) => (b.textContent ?? "").trim() === "Lire")!.click(); });
     expect(m.text()).toMatch(/État fixé à 1\u202f300 ms/);
-    expect(m.scrubs[m.scrubs.length - 1]).toBeNull();
     const rail = m.host.querySelector<HTMLElement>("[data-scene-rail]")!;
     rail.getBoundingClientRect = () => ({ left: 0, width: 1000, top: 0, height: 20, right: 1000, bottom: 20, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
     act(() => { rail.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 250, button: 0 })); });
@@ -203,6 +205,34 @@ describe("tiroir Animation : la scène", () => {
     const m = mount(animated(), "hh2");
     act(() => { m.buttons().find((b) => (b.textContent ?? "").trim() === "Lire")!.click(); });
     expect(m.plays.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("pendant la lecture, la tête de lecture avance sur la règle et « Lire » devient « Pause » ; à la fin, elle reste sur la fin", () => {
+    // Le lecteur bat avec requestAnimationFrame et performance.now : on les simule aussi, sinon la boucle court en temps réel.
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "requestAnimationFrame", "cancelAnimationFrame", "performance", "Date"] });
+    try {
+      const m = mount(animated(), "hh2");
+      const rail = () => m.host.querySelector<HTMLElement>("[data-scene-rail]")!;
+      const play = () => m.buttons().find((b) => ["Lire", "Pause"].includes((b.textContent ?? "").trim()))!;
+      act(() => { play().click(); });
+      expect(play().textContent).toContain("Pause");
+      expect(m.plays.length).toBeGreaterThanOrEqual(2);
+      act(() => { vi.advanceTimersByTime(400); });
+      const mid = Number(rail().getAttribute("aria-valuenow"));
+      expect(mid).toBeGreaterThan(200);
+      expect(mid).toBeLessThan(1300);
+      act(() => { vi.advanceTimersByTime(2000); });
+      expect(play().textContent).toContain("Lire");
+      expect(rail().getAttribute("aria-valuenow")).toBe("1300");
+      // Pause en cours de lecture : la tête s'arrête où elle est et l'aperçu montre cet instant.
+      act(() => { play().click(); });
+      act(() => { vi.advanceTimersByTime(300); });
+      act(() => { play().click(); });
+      expect(play().textContent).toContain("Lire");
+      const at = Number(rail().getAttribute("aria-valuenow"));
+      expect(at).toBeGreaterThan(0); expect(at).toBeLessThan(1300);
+      expect(m.scrubs[m.scrubs.length - 1]).toBe(at);
+    } finally { vi.useRealTimers(); }
   });
 
   it("sans élément sélectionné : une invitation, pas de scène", () => {
