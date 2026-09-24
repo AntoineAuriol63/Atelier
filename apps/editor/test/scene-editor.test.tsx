@@ -255,6 +255,14 @@ describe("tiroir Animation : la scène", () => {
     expect(count("Fond")).toBe(1);
   });
 
+  it("la section sélectionnée, même immobile, vient en tête de la scène et non sous « Ne bouge pas encore »", () => {
+    const m = mount(animated(), "about");
+    const cells = [...m.host.querySelectorAll<HTMLElement>("[data-scene-name-cell]")].map((c) => c.dataset.sceneNameCell);
+    expect(cells[0]).toBe("about");
+    expect(m.host.querySelector("[data-scene-still-sep]")).toBeNull();
+    expect(m.host.querySelector('[data-scene-row="about"]')!.textContent).toContain("Faire apparaître");
+  });
+
   it("« Lire » joue chaque lancement de la scène dans l'aperçu", () => {
     const m = mount(animated(), "hh2");
     act(() => { m.buttons().find((b) => (b.textContent ?? "").trim() === "Lire")!.click(); });

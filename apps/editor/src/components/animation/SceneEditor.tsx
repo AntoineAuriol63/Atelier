@@ -223,9 +223,11 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
   const grouped = view.launches.length > 1;
   const launchOf = (id: string) => view.launches.find((l) => l.rows.includes(id));
   type Item = { kind: "launch"; launch: SceneLaunch } | { kind: "still" } | { kind: "row"; row: SceneRow; launch?: SceneLaunch };
-  const stillRows = visible.filter((r) => !launchOf(r.id));
+  // La section elle-même, immobile mais sélectionnée, reste en tête : c'est le parent de tout ce qui suit, pas un élément « qui ne bouge pas encore ».
+  const rootStill = visible.filter((r) => !launchOf(r.id) && r.id === view.sectionId);
+  const stillRows = visible.filter((r) => !launchOf(r.id) && r.id !== view.sectionId);
   const items: Item[] = grouped
-    ? [...view.launches.flatMap((launch): Item[] => [{ kind: "launch", launch }, ...visible.filter((r) => launch.rows.includes(r.id)).map((row): Item => ({ kind: "row", row, launch }))]), ...(stillRows.length ? [{ kind: "still" } as Item] : []), ...stillRows.map((row): Item => ({ kind: "row", row }))]
+    ? [...rootStill.map((row): Item => ({ kind: "row", row })), ...view.launches.flatMap((launch): Item[] => [{ kind: "launch", launch }, ...visible.filter((r) => launch.rows.includes(r.id)).map((row): Item => ({ kind: "row", row, launch }))]), ...(stillRows.length ? [{ kind: "still" } as Item] : []), ...stillRows.map((row): Item => ({ kind: "row", row }))]
     : visible.map((row): Item => ({ kind: "row", row }));
   const STILL_LABEL = "Ne bouge pas encore";
   const chainAll = () => run(planChainInOrder(getSite(), view.sectionId), `Enchaîner la scène de ${quoteLabel(view.sectionLabel)}`);
