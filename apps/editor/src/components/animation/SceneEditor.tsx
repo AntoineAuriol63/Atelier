@@ -221,12 +221,12 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto">
           <div className="grid grid-cols-[150px_minmax(0,1fr)] @[720px]:grid-cols-[220px_minmax(0,1fr)] px-3 pt-2">
-            {/* Les noms, alignés sur les lignes de droite par une hauteur fixe. */}
-            <div className="flex flex-col">
-              <span className="h-5 shrink-0" aria-hidden />
+            {/* Une seule grille : chaque ligne fait 40 px des deux côtés, un filet la traverse, la sélection la teinte d'un bord à l'autre. */}
+            <div className="flex flex-col bg-surface/50 border-r border-line rounded-l-md overflow-hidden">
+              <div className="h-6 shrink-0 border-b border-line-strong flex items-end px-2 pb-1"><Eyebrow as="span">Éléments</Eyebrow></div>
               {visible.map((row) => (
-                <div key={row.id} className={`${row.selected && row.bar ? "h-11" : "h-8"} flex items-center border-b border-line/60 border-l-2 pl-2 ${row.selected ? "border-l-accent" : "border-l-transparent"}`}>
-                  <button type="button" data-scene-name="" data-scene-name-of={row.id} className={`flex items-center gap-1.5 min-w-0 pr-2 text-left text-xs truncate ${row.selected ? "text-accent font-medium" : row.still ? "text-dim hover:text-ink" : "text-ink hover:text-accent"}`} style={{ paddingLeft: row.depth * 12 }} title={`Sélectionner ${quoteLabel(row.label)}`} onClick={() => onSelect(row.id)} onMouseEnter={() => onHover?.(row.id)} onMouseLeave={() => onHover?.(null)}>
+                <div key={row.id} className={`h-10 flex items-center border-b border-line/60 border-l-2 pl-2 ${row.selected ? "border-l-accent bg-accent-soft/25" : "border-l-transparent"}`}>
+                  <button type="button" data-scene-name="" data-scene-name-of={row.id} className={`flex items-center gap-1.5 min-w-0 pr-2 text-left text-xs truncate ${row.selected ? "text-ink font-medium" : row.still ? "text-dim hover:text-ink" : "text-ink hover:text-accent"}`} style={{ paddingLeft: row.depth * 12 }} title={`Sélectionner ${quoteLabel(row.label)}`} onClick={() => onSelect(row.id)} onMouseEnter={() => onHover?.(row.id)} onMouseLeave={() => onHover?.(null)}>
                     <span className="truncate">{row.label}</span>{row.count ? <span className="text-muted shrink-0">×{row.count}</span> : null}
                   </button>
                   {row.selected && row.bar ? <IconButton size="sm" className="ml-auto mr-1 shrink-0 h-6 w-6 text-muted" data-scene-new-state="" label="Ajouter un état (image-clé)" icon={Plus} title="Ajoute un état de l'élément : à la tête de lecture, ou juste après le dernier état si elle est déjà sur l'un d'eux" onClick={addKeyframeAnywhere} /> : null}
@@ -253,19 +253,19 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
                 <ul aria-label={`Scène de ${quoteLabel(view.sectionLabel)}`} className="relative">
                   {rulerTicks(length, zoom).filter((t) => t > 0 && t < length).map((t) => <span key={t} className="pointer-events-none absolute top-0 bottom-0 w-px bg-line/60" style={{ left: pct(t) }} aria-hidden />)}
                   {visible.map((row) => { const i = view.rows.indexOf(row); return (
-                    <li key={row.id} data-scene-row={row.id} data-still={row.still || undefined} className={`relative ${row.selected && row.bar ? "h-11" : "h-8"} border-b border-line/60 ${row.selected ? "bg-accent-soft/20" : ""}`}
+                    <li key={row.id} data-scene-row={row.id} data-still={row.still || undefined} className={`relative h-10 border-b border-line/60 ${row.selected ? "bg-accent-soft/25" : ""}`}
                       onMouseMove={row.selected && row.bar ? (e) => setHoverT(timeAt(e.clientX)) : undefined} onMouseLeave={row.selected ? () => setHoverT(null) : undefined}>
                   {row.bar ? (
-                    <div data-scene-bar="" className={`absolute top-1.5 h-5 rounded-md border text-2xs leading-none flex items-center px-2 whitespace-nowrap cursor-grab active:cursor-grabbing transition-[box-shadow] ${row.selected ? "bg-gradient-to-b from-accent to-accent/85 text-accent-ink border-accent/90 shadow-[inset_0_1px_0_rgba(255,255,255,.25),0_1px_2px_rgba(0,0,0,.35)]" : "bg-accent/20 border-accent/40 text-ink hover:bg-accent/30"}`}
+                    <div data-scene-bar="" className={`absolute top-[7px] h-[18px] rounded-md border text-2xs leading-none flex items-center px-2 whitespace-nowrap cursor-grab active:cursor-grabbing transition-[box-shadow] ${row.selected ? "bg-gradient-to-b from-accent to-accent/85 text-accent-ink border-accent/90 shadow-[inset_0_1px_0_rgba(255,255,255,.25),0_1px_2px_rgba(0,0,0,.35)]" : "bg-accent/20 border-accent/40 text-ink hover:bg-accent/30"}`}
                       style={{ left: `calc(${pct(row.bar.start)} + ${shift("move", row.id)}px)`, width: `max(6px, calc(${pct(row.bar.end)} - ${pct(row.bar.start)} + ${shift("end", row.id)}px))` }} title={`${tickLabel(row.bar.start)} → ${tickLabel(row.bar.end)} ms · glisser : départ ; bord droit : durée`}
                       onPointerDown={(e) => startDrag(e, "move", row.id)}>
                       <span className="truncate">{row.keyframes ? "" : presetLabel(row.bar.preset) ?? "Mouvement"}</span>
                       <span data-scene-bar-end="" role="presentation" className="absolute top-0 bottom-0 -right-1 w-2.5 cursor-ew-resize" onPointerDown={(e) => startDrag(e, "end", row.id)} />
                     </div>
                   ) : row.withGroup ? (
-                    <span className="absolute top-2 left-0 text-2xs text-muted">avec {quoteLabel(nodeLabel(nodeOf(row.withGroup)!))}</span>
+                    <span className="absolute top-[11px] left-0 text-2xs text-muted">avec {quoteLabel(nodeLabel(nodeOf(row.withGroup)!))}</span>
                   ) : (
-                    <button type="button" className="absolute top-1.5 left-0 h-5 px-2 rounded-sm border border-dashed border-accent/60 text-2xs text-accent hover:bg-accent-soft" onClick={() => appear(row, i)} title="Un fondu en montant, après l'élément qui précède ; l'effet se change ensuite à droite">+ Faire apparaître</button>
+                    <button type="button" className="absolute top-[7px] left-0 h-[18px] px-2 rounded-md border border-dashed border-accent/60 text-2xs text-accent hover:bg-accent-soft" onClick={() => appear(row, i)} title="Un fondu en montant, après l'élément qui précède ; l'effet se change ensuite à droite">+ Faire apparaître</button>
                   )}
                   {row.keyframes?.map((k) => (
                     <button key={k.at} type="button" data-scene-kf={k.at} aria-label={`État à ${tickLabel(k.sceneAt)} ms`} aria-pressed={at === k.at} title={`${k.sceneAt} ms${k.easing ? ` · ${k.easing}` : ""}`}
@@ -278,7 +278,7 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
                     <span className="pointer-events-none absolute top-0 bottom-0 w-px bg-ink/40" style={{ left: pct(hoverT) }} aria-hidden />
                     <span className="pointer-events-none absolute top-4 -translate-x-1/2 -translate-y-1/2 text-ink" style={{ left: pct(hoverT) }} aria-hidden><Diamond size={10} strokeWidth={2} /></span>
                     <button type="button" data-scene-ghost="" aria-label="Ajouter un état (une image-clé)"
-                      className="group absolute top-[27px] -translate-x-1/2 z-10 flex items-center gap-1 h-4 pl-1 pr-1.5 rounded-full border border-line-strong bg-panel text-ink text-[10px] font-medium leading-none whitespace-nowrap shadow-[0_2px_6px_rgba(0,0,0,.4)] transition-[transform,background-color,color,border-color] duration-150 ease-out motion-reduce:transition-none hover:scale-110 hover:bg-ink hover:text-panel hover:border-ink active:scale-95" style={{ left: pct(hoverT) }}
+                      className="group absolute top-[27px] -translate-x-1/2 z-10 flex items-center gap-1 h-3 pl-1 pr-1.5 rounded-full border border-line-strong bg-panel text-ink text-[10px] font-medium leading-none whitespace-nowrap shadow-[0_2px_6px_rgba(0,0,0,.4)] transition-[transform,background-color,color,border-color] duration-150 ease-out motion-reduce:transition-none hover:scale-110 hover:bg-ink hover:text-panel hover:border-ink active:scale-95" style={{ left: pct(hoverT) }}
                       onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); const at2 = Math.max(0, hoverT - (ap.trigger.delay ?? 0)); run(planSetKeyframe(getSite(), ap.animation.id, ap.track.id, at2, {}), `État ajouté à ${at2} ms`); place(hoverT); }}><Plus size={9} strokeWidth={2.5} aria-hidden /><span>État</span><span className="tabular-nums opacity-70">{tickLabel(hoverT)} ms</span></button>
                   </>) : null}
                       {playhead !== null ? <span className="absolute top-0 bottom-0 w-px bg-accent/80 pointer-events-none" style={{ left: pct(playhead) }} aria-hidden /> : null}
