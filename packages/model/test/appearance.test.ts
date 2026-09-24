@@ -147,10 +147,11 @@ describe("apparition : régler un élément enchaîné sans casser l'enchaîneme
     site = run(site, planAppearancePreset(site, "bt1", ""));
     expect(appearanceOf(site, "bt1")).toBeUndefined();
     expect(appearanceOf(site, "bt2")).toMatchObject({ begin: { kind: "after", node: "title" }, start: 700 });
-    // Retirer l'apparition de l'élément qui lance : ce qui suit reste lancé par lui.
+    // Retirer l'apparition de l'élément qui lance (révisé le 24 septembre 2026) : ce qui suit passe à l'élément qui part ensuite, qui lance lui-même.
     site = run(site, planAppearancePreset(site, "title", ""));
     expect(appearanceOf(site, "title")).toBeUndefined();
-    expect(appearanceOf(site, "bt2")).toMatchObject({ hostId: "title", begin: { kind: "host", hostId: "title", on: "load" }, start: 0 });
+    expect(find(site, "title").triggers).toBeUndefined();
+    expect(appearanceOf(site, "bt2")).toMatchObject({ hostId: "bt2", own: true, begin: { kind: "own", on: "load" }, start: 0 });
     // Plus rien ne bouge : le déclencheur et l'animation partent.
     site = run(site, planAppearancePreset(site, "bt2", ""));
     expect(find(site, "title").triggers).toBeUndefined();
@@ -288,7 +289,8 @@ describe("apparition : scénarios de la revue de code (15 septembre)", () => {
     site = run(site, planAppearancePreset(site, "title", ""));
     site = run(site, planAppearancePreset(site, "title", "zoom"));
     expect(appearanceOf(site, "title")).toMatchObject({ own: true, preset: { id: "zoom" }, speed: "normal", start: 0, end: 700 });
-    expect(appearanceOf(site, "bt1")).toMatchObject({ hostId: "title", preset: { id: "fade-up" } });
+    // Depuis le 24 septembre 2026, la suite est passée à « bt1 », qui la lance lui-même ; le nouvel effet du titre est une animation à part.
+    expect(appearanceOf(site, "bt1")).toMatchObject({ hostId: "bt1", own: true, preset: { id: "fade-up" } });
     expect(appearanceOf(site, "bt2")).toMatchObject({ begin: { kind: "after", node: "bt1" } });
     valid(site);
   });
@@ -475,5 +477,46 @@ describe("enchaîner une section dans l'ordre (lot 9, vague 5 : l'ordre ne se r�
     expect(planChainInOrder(s, "about2")).toEqual([]);
     s = quick(s, "hh2b", "fade"); s = run(s, planAppearanceStart(s, "hh2b", { kind: "after", node: "photo2" }));
     expect(planChainInOrder(s, "about2")).toEqual([]);
+  });
+});
+
+/** Retirer la ligne de temps de l'élément qui lance une scène enchaînée (24 septembre 2026, constat d'Antoine : « la suppression ne fonctionne pas bien »). */
+describe("retirer l'apparition de l'hôte d'une scène", () => {
+  const chained = () => {
+    let site = quick(base, "photo", "fade-up"); site = quick(site, "hh2", "fade-up"); site = quick(site, "pp2", "fade-up");
+    return run(site, planChainInOrder(site, "about"));
+  };
+  it("l'animation passe à l'élément qui part ensuite : il la lance lui-même, les autres restent enchaînés, l'ancien hôte n'a plus rien", () => {
+    const c = chained();
+    const site = run(c, planAppearancePreset(c, "photo", ""));
+    valid(site);
+    expect(find(site, "photo").triggers).toBeUndefined();
+    expect(appearanceOf(site, "photo")).toBeUndefined();
+    const h = appearanceOf(site, "hh2")!;
+    expect(h.own).toBe(true);
+    expect(h.begin).toEqual({ kind: "own", on: "inView" });
+    expect(h.hostId).toBe("hh2");
+    expect([h.start, h.end]).toEqual([0, 700]);
+    expect(appearanceOf(site, "pp2")).toMatchObject({ begin: { kind: "after", node: "hh2" }, hostId: "hh2", start: 700, end: 1400 });
+    expect(site.animations).toHaveLength(1);
+    expect(site.animations[0]!.tracks).toHaveLength(2);
+    expect(site.animations[0]!.tracks.some((t) => "trigger" in t.target)).toBe(true);
+  });
+  it("retirer un élément du milieu ou de la fin ne déplace rien : ce qui suivait se raccroche", () => {
+    const c1 = chained();
+    const mid = run(c1, planAppearancePreset(c1, "hh2", ""));
+    expect(appearanceOf(mid, "hh2")).toBeUndefined();
+    expect(appearanceOf(mid, "pp2")).toMatchObject({ begin: { kind: "after", node: "photo" }, start: 700 });
+    const c2 = chained();
+    const last = run(c2, planAppearancePreset(c2, "pp2", ""));
+    expect(appearanceOf(last, "pp2")).toBeUndefined();
+    expect(appearanceOf(last, "hh2")).toMatchObject({ begin: { kind: "after", node: "photo" } });
+  });
+  it("retirer tout le monde, un par un, ne laisse ni animation ni déclencheur", () => {
+    let site = chained();
+    for (const id of ["photo", "hh2", "pp2"]) site = run(site, planAppearancePreset(site, id, ""));
+    valid(site);
+    expect(site.animations).toHaveLength(0);
+    expect(["photo", "hh2", "pp2"].every((id) => !find(site, id).triggers)).toBe(true);
   });
 });

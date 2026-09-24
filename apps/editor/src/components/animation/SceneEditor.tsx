@@ -130,7 +130,8 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
       window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up);
       setDrag(null);
       const delta = Math.round(pxToMs(ev.clientX - startX) / 10) * 10;
-      if (Math.abs(delta) < 10) return;
+      // Un clic sans glisser sur la barre d'un autre élément : on passe à lui (sa ligne, ses réglages à droite).
+      if (Math.abs(delta) < 10) { if (kind === "move" && id !== selectedId) onSelect(id); return; }
       const current = getSite();
       const cur = appearanceOf(current, id);
       if (!cur) return;
@@ -256,7 +257,8 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
                   {rulerTicks(length, zoom).filter((t) => t > 0 && t < length).map((t) => <span key={t} className="pointer-events-none absolute top-0 bottom-0 w-px bg-line/60" style={{ left: pct(t) }} aria-hidden />)}
                   {visible.map((row) => { const i = view.rows.indexOf(row); return (
                     <li key={row.id} data-scene-row={row.id} data-still={row.still || undefined} className={`relative h-10 border-b border-line/60 ${row.selected ? "bg-accent-soft/25" : ""}`}
-                      onMouseMove={row.selected && row.bar ? (e) => setHoverT(timeAt(e.clientX)) : undefined} onMouseLeave={row.selected ? () => setHoverT(null) : undefined}>
+                      onMouseMove={row.selected && row.bar ? (e) => setHoverT(timeAt(e.clientX)) : undefined} onMouseLeave={row.selected ? () => setHoverT(null) : undefined}
+                      onClick={row.selected ? undefined : () => onSelect(row.id)}>
                   {row.bar ? (
                     <div data-scene-bar="" className={`absolute top-[7px] h-[18px] rounded-md border text-2xs leading-none flex items-center px-2 whitespace-nowrap cursor-grab active:cursor-grabbing transition-[box-shadow] ${row.selected ? "bg-gradient-to-b from-accent to-accent/85 text-accent-ink border-accent/90 shadow-[inset_0_1px_0_rgba(255,255,255,.25),0_1px_2px_rgba(0,0,0,.35)]" : "bg-accent/20 border-accent/40 text-ink hover:bg-accent/30"}`}
                       style={{ left: `calc(${pct(row.bar.start)} + ${shift("move", row.id)}px)`, width: `max(6px, calc(${pct(row.bar.end)} - ${pct(row.bar.start)} + ${shift("end", row.id)}px))` }} title={`${tickLabel(row.bar.start)} → ${tickLabel(row.bar.end)} ms · glisser : départ ; bord droit : durée`}

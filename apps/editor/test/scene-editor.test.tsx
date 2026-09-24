@@ -281,6 +281,22 @@ describe("tiroir Animation : la scène", () => {
     expect(m.host.querySelector('[data-scene-remove-line]')).toBeNull();
   });
 
+  it("passer d'une ligne à l'autre : un clic sur la barre ou la ligne d'un autre élément le sélectionne, un glisser ne le fait pas", () => {
+    const m = mount(animated(), "hh2");
+    const rail = m.host.querySelector<HTMLElement>("[data-scene-rail]")!;
+    rail.getBoundingClientRect = () => ({ left: 0, width: 1000, top: 0, height: 20, right: 1000, bottom: 20, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
+    const bar = m.host.querySelector<HTMLElement>('[data-scene-row="photo"] [data-scene-bar]')!;
+    act(() => { bar.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 100, button: 0 })); });
+    act(() => { window.dispatchEvent(new MouseEvent("pointerup", { clientX: 102 })); });
+    expect(m.selected).toEqual(["photo"]);
+    act(() => { bar.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 100, button: 0 })); });
+    act(() => { window.dispatchEvent(new MouseEvent("pointermove", { clientX: 200 })); });
+    act(() => { window.dispatchEvent(new MouseEvent("pointerup", { clientX: 200 })); });
+    expect(m.selected).toEqual(["photo"]);
+    act(() => { m.host.querySelector<HTMLElement>('[data-scene-row="stats"]')!.click(); });
+    expect(m.selected).toEqual(["photo", "stats"]);
+  });
+
   it("sans élément sélectionné : une invitation, pas de scène", () => {
     const m = mount(animated(), null);
     expect(m.host.querySelector("[data-scene-row]")).toBeNull();

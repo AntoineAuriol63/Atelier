@@ -294,7 +294,29 @@ export function planAppearanceStart(site: Site, nodeId: Id, begin: AppearanceBeg
 function planDropOwnTrack(site: Site, cur: Appearance, node: Node): Op[] {
   const a = animationById(site, cur.animation.id);
   if (a && !a.tracks.some((t) => t.id !== cur.track.id && moves(t))) return planRemoveTriggerWithAnimation(site, node, cur.trigger.id);
-  return planRemoveTrack(site, cur.animation.id, cur.track.id);
+  const plan = new Plan(site);
+  plan.push(planRemoveTrack(site, cur.animation.id, cur.track.id));
+  // D'autres éléments bougent encore et l'hôte, lui, ne bouge plus : l'animation passe à celui qui part ensuite, qui la lance lui-même
+  // (24 septembre 2026). Une animation lancée par la page, ou partagée entre plusieurs hôtes, reste où elle est.
+  if (a && !cur.page && animationUsages(site, a.id).length <= 1) plan.push(planRehost(plan.site, a.id, node, cur.trigger));
+  return plan.ops;
+}
+
+/** Donne l'animation à l'élément dont la piste part en premier : sa piste devient relative, le déclencheur de `from` lui est recopié. */
+function planRehost(site: Site, animationId: Id, from: Node, trigger: Trigger): Op[] {
+  const a = animationById(site, animationId);
+  if (!a) return [];
+  const heads = a.tracks.filter((t) => "node" in t.target && moves(t)).sort((x, y) => trackSpan(x).start - trackSpan(y).start || Number(!!x.start) - Number(!!y.start));
+  const head = heads[0];
+  if (!head) return [];
+  const heirNode = indexSite(site).get((head.target as { node: Id }).node)?.node;
+  if (!heirNode || heirNode.id === from.id) return [];
+  const plan = new Plan(site);
+  plan.push(planTracks(site, a.id, (tracks) => tracks.map((t) => (t.id === head.id ? { ...stripStart(t), target: withTargetKind({ trigger: true }, (t.target as { split?: "words" | "letters" }).split ?? ((t.target as { children?: true }).children ? "children" : "element")) } : t)), { fixed: new Set([head.id]) }));
+  plan.push(planRemoveTrigger(indexSite(plan.site).get(from.id)!.node, trigger.id));
+  const { id: _old, ...rest } = trigger; void _old;
+  plan.push(planAddTrigger(indexSite(plan.site).get(heirNode.id)!.node, { ...rest, id: newId() }));
+  return plan.ops;
 }
 
 /** Délai d'une apparition : l'écart après ce qui la fait démarrer ; pour un élément qui part en premier, son départ (le délai du déclencheur est replié dans la ligne de temps : un seul délai). */
