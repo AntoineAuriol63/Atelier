@@ -240,6 +240,21 @@ describe("tiroir Animation : la scène", () => {
     expect(still.host.querySelector("[data-scene-keyframe]")!.getAttribute("data-state")).toBe("none");
   });
 
+  it("dans « Son état », chaque propriété n'est réglable qu'à un seul endroit : ce que « Mouvement » porte ne réapparaît ni dans Effets ni dans Apparence", () => {
+    const m = mount(animated(), "hh2");
+    const state = m.host.querySelector<HTMLElement>("[data-scene-keyframe]")!;
+    for (const title of ["Effets", "Apparence"]) {
+      const btn = state.querySelector<HTMLButtonElement>(`[data-section="${title}"] button[aria-expanded]`)!;
+      if (btn.getAttribute("aria-expanded") !== "true") act(() => { btn.click(); });
+    }
+    const rows = [...state.querySelectorAll<HTMLElement>("[data-prop]")].map((r) => r.textContent ?? "");
+    const count = (l: string) => rows.filter((x) => x.includes(l)).length;
+    for (const l of ["Opacité", "Décalage", "Échelle", "Rotation", "Flou"]) expect({ [l]: count(l) }).toEqual({ [l]: 1 });
+    // Ce qui n'est pas dans « Mouvement » reste dans son panneau.
+    expect(count("Luminosité")).toBe(1);
+    expect(count("Fond")).toBe(1);
+  });
+
   it("« Lire » joue chaque lancement de la scène dans l'aperçu", () => {
     const m = mount(animated(), "hh2");
     act(() => { m.buttons().find((b) => (b.textContent ?? "").trim() === "Lire")!.click(); });

@@ -19,7 +19,8 @@ function parseTransition(v: string | undefined): { prop: string; ms: number; eas
 }
 
 export function EffectsPanel({ site, style, node, commit, defaultOpen = false }: { site: Site; style: StyleApi; node?: Node; commit?: (op: Op, opts?: CommitOptions) => void; defaultOpen?: boolean }) {
-  // En mode image-clé, seules les propriétés qui s'animent restent : transformations et filtres (ni transition, ni curseur, ni parallaxe).
+  // En mode image-clé, seules les propriétés qui s'animent restent, et une seule fois : rotation, échelle, décalage et flou sont déjà dans « Mouvement »,
+  // il ne reste ici que les autres filtres (ni transition, ni curseur, ni parallaxe).
   const animating = !!style.keyframe;
   const s = style;
   const row = (prop: string, label: string, children: React.ReactNode, wide?: boolean) => (
@@ -32,8 +33,8 @@ export function EffectsPanel({ site, style, node, commit, defaultOpen = false }:
   const setTr = (patch: Partial<typeof tr>) => { const n = { ...tr, ...patch }; s.set("transition", `${n.prop} ${n.ms}ms ${n.easing}`, false); };
 
   return (
-    <Section title="Effets" defaultOpen={defaultOpen} hint={animating ? "Transformations (rotation, échelle, décalage) et filtres à cet instant de l'animation." : "Transformations (rotation, échelle, décalage), transitions, filtres et curseur."}>
-      {tf.raw ? (
+    <Section title="Effets" defaultOpen={defaultOpen} hint={animating ? "Luminosité, contraste, saturation et noir et blanc à cet instant de l'animation. Rotation, échelle, décalage et flou se règlent dans Mouvement." : "Transformations (rotation, échelle, décalage), transitions, filtres et curseur."}>
+      {animating ? null : tf.raw ? (
         row("transform", "Transform.", <div className="flex items-center gap-1 flex-1 min-w-0"><TextInput mono className="flex-1 min-w-0" value={str(s.value("transform")) ?? ""} onValueChange={(v) => s.set("transform", v || undefined)} /><TokenSelect site={site} onPick={(t) => s.set("transform", t)} /></div>)
       ) : (
         <>
@@ -42,7 +43,7 @@ export function EffectsPanel({ site, style, node, commit, defaultOpen = false }:
           {row("transform", "Décalage", <div className="flex gap-1 flex-1"><NumberInput className="flex-1" unit="x" value={tf.x} onValueChange={(n) => setTf({ x: n === "" ? 0 : n })} /><NumberInput className="flex-1" unit="y" value={tf.y} onValueChange={(n) => setTf({ y: n === "" ? 0 : n })} /></div>)}
         </>
       )}
-      <div className="h-px bg-line my-1" />
+      {animating ? null : <div className="h-px bg-line my-1" />}
       {animating ? null : row("transition", "Transition", (
         <div className="flex items-center gap-1 flex-1">
           <Select className="w-[84px]" value={hasTransition ? tr.prop : ""} placeholder="Aucune" options={[{ value: "all", label: "Tout" }, { value: "opacity", label: "Opacité" }, { value: "transform", label: "Transform." }, { value: "color", label: "Couleur" }, { value: "background-color", label: "Fond" }]} onValueChange={(v) => (v ? setTr({ prop: v }) : s.set("transition", undefined, false))} />
@@ -56,7 +57,7 @@ export function EffectsPanel({ site, style, node, commit, defaultOpen = false }:
         if (fl.raw) return row("filter", "Filtre", <div className="flex items-center gap-1 flex-1 min-w-0"><TextInput mono className="flex-1 min-w-0" value={str(s.value("filter")) ?? ""} onValueChange={(v) => s.set("filter", v || undefined)} /><TokenSelect site={site} onPick={(t) => s.set("filter", t)} /></div>);
         return (
           <>
-            {row("filter", "Flou", <NumberInput className="w-20" unit="px" min={0} step={1} value={fl.blur} onValueChange={(n) => setFl({ blur: n === "" ? 0 : n })} />)}
+            {animating ? null : row("filter", "Flou", <NumberInput className="w-20" unit="px" min={0} step={1} value={fl.blur} onValueChange={(n) => setFl({ blur: n === "" ? 0 : n })} />)}
             {row("filter", "Luminosité", <NumberInput className="w-20" unit="%" min={0} max={300} step={5} value={fl.brightness} onValueChange={(n) => setFl({ brightness: n === "" ? 100 : n })} />)}
             {row("filter", "Contraste", <NumberInput className="w-20" unit="%" min={0} max={300} step={5} value={fl.contrast} onValueChange={(n) => setFl({ contrast: n === "" ? 100 : n })} />)}
             {row("filter", "Saturation", <NumberInput className="w-20" unit="%" min={0} max={300} step={5} value={fl.saturate} onValueChange={(n) => setFl({ saturate: n === "" ? 100 : n })} />)}

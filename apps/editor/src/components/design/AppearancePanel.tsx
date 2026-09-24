@@ -96,7 +96,7 @@ export function AppearancePanel({ site, style, mode, defaultOpen = false }: { si
   const opacity = (() => { const v = str(s.value("opacity")); if (!v) return ""; const n = Number(v); return Number.isFinite(n) ? Math.round(n * 100) : ""; })();
 
   return (
-    <Section title="Apparence" defaultOpen={defaultOpen} hint="Fond, bordure, arrondi, ombre et opacité de l'élément.">
+    <Section title="Apparence" defaultOpen={defaultOpen} hint={s.keyframe ? "Fond, bordure, arrondi et ombre à cet instant de l'animation. L'opacité se règle dans Mouvement." : "Fond, bordure, arrondi, ombre et opacité de l'élément."}>
       {row("background", "Fond", (
         <Segmented className="flex-1" value={kind === "none" ? undefined : kind} options={[{ value: "color", label: "Couleur" }, { value: "gradient", label: "Dégradé" }, { value: "image", label: "Image" }]} onChange={(k) => {
           if (!k) s.set("background", undefined, false);
@@ -149,7 +149,8 @@ export function AppearancePanel({ site, style, mode, defaultOpen = false }: { si
           <div className="flex items-center gap-1 flex-1 min-w-0"><TextInput mono className="flex-1 min-w-0" value={shadowValue.startsWith("{") ? "" : shadowValue} placeholder="0 4px 12px rgba(0,0,0,.2)" onValueChange={(v) => s.set("boxShadow", v || undefined)} /><TokenSelect site={site} group="shadow" onPick={(t) => s.set("boxShadow", t)} /></div>
         </div>
       ))}
-      {row("opacity", "Opacité", (
+      {/* En mode image-clé, l'opacité est dans « Mouvement » : un réglage, un seul endroit. */}
+      {s.keyframe ? null : row("opacity", "Opacité", (
         <div className="flex items-center gap-2 flex-1">
           <input type="range" min={0} max={100} value={opacity === "" ? 100 : opacity} onChange={(e) => s.set("opacity", String(Number(e.target.value) / 100))} className="flex-1 accent-[var(--color-accent)]" aria-label="Opacité" />
           <NumberInput className="w-[68px]" unit="%" min={0} max={100} value={opacity} placeholder="100" onValueChange={(n) => s.set("opacity", n === "" ? undefined : String(n / 100))} />
