@@ -52,7 +52,7 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
     sc.scrollLeft = (a.t / length) * sc.scrollWidth - a.x;
   }, [zoom, length]);
   const [playhead, setPlayhead] = useState<number | null>(null);
-  // La pastille « Fixer l'état ici » suit la souris sur la ligne de l'élément sélectionné ; l'état se fixe là où l'on clique.
+  // La pastille « Ajouter un état » suit la souris sur la ligne de l'élément sélectionné ; l'état se fixe là où l'on clique.
   const [hoverT, setHoverT] = useState<number | null>(null);
   // Lecture : l'aperçu joue chaque lancement, et la tête de lecture court sur la règle au même rythme ; « Pause » l'arrête où elle est.
   const [playing, setPlaying] = useState(false);
@@ -182,15 +182,15 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
   // La scène ne montre que ce qui bouge, plus l'élément sélectionné (retour d'Antoine : tout afficher était illisible) ; le reste s'ajoute par son nom.
   const visible = view.rows.filter((r) => r.bar || r.selected);
   const addable = view.rows.filter((r) => r.still && !r.selected);
-  const addKeyframe = () => { if (ap && at !== null) run(planSetKeyframe(getSite(), ap.animation.id, ap.track.id, at, {}), `État fixé à ${at} ms`); };
-  // « Fixer un nouvel état », toujours à côté du nom : à la tête de lecture si elle est libre ; sinon à mi-chemin du prochain état, ou 200 ms après le dernier.
+  const addKeyframe = () => { if (ap && at !== null) run(planSetKeyframe(getSite(), ap.animation.id, ap.track.id, at, {}), `État ajouté à ${at} ms`); };
+  // « Ajouter un état », toujours à côté du nom : à la tête de lecture si elle est libre ; sinon à mi-chemin du prochain état, ou 200 ms après le dernier.
   const addKeyframeAnywhere = () => {
     if (!ap) return;
     const kfs = [...ap.track.keyframes].map((k) => k.at).sort((a, b) => a - b);
     const cur = at ?? kfs[kfs.length - 1] ?? 0;
     let where = cur;
     if (at === null || kfs.includes(cur)) { const next = kfs.find((k) => k > cur); where = next !== undefined ? snapTime((cur + next) / 2) : cur + 200; }
-    run(planSetKeyframe(getSite(), ap.animation.id, ap.track.id, where, {}), `État fixé à ${where} ms`);
+    run(planSetKeyframe(getSite(), ap.animation.id, ap.track.id, where, {}), `État ajouté à ${where} ms`);
     place(where + (ap.trigger.delay ?? 0));
   };
   // Retirer une image-clé ; s'il n'en restait qu'une, plus rien ne bouge : l'apparition entière s'en va et l'élément redevient immobile.
@@ -228,7 +228,7 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
                   <button type="button" data-scene-name="" data-scene-name-of={row.id} className={`flex items-center gap-1.5 min-w-0 pr-2 text-left text-xs truncate ${row.selected ? "text-accent font-medium" : row.still ? "text-dim hover:text-ink" : "text-ink hover:text-accent"}`} style={{ paddingLeft: row.depth * 12 }} title={`Sélectionner ${quoteLabel(row.label)}`} onClick={() => onSelect(row.id)} onMouseEnter={() => onHover?.(row.id)} onMouseLeave={() => onHover?.(null)}>
                     <span className="truncate">{row.label}</span>{row.count ? <span className="text-muted shrink-0">×{row.count}</span> : null}
                   </button>
-                  {row.selected && row.bar ? <IconButton size="sm" className="ml-auto mr-1 shrink-0" data-scene-new-state="" label="Fixer un nouvel état (image-clé)" icon={Plus} title="Fixe un nouvel état de l'élément : à la tête de lecture, ou juste après le dernier état si elle est déjà sur l'un d'eux" onClick={addKeyframeAnywhere} /> : null}
+                  {row.selected && row.bar ? <IconButton size="sm" className="ml-auto mr-1 shrink-0" data-scene-new-state="" label="Ajouter un état (image-clé)" icon={Plus} title="Ajoute un état de l'élément : à la tête de lecture, ou juste après le dernier état si elle est déjà sur l'un d'eux" onClick={addKeyframeAnywhere} /> : null}
                 </div>
               ))}
             </div>
@@ -261,15 +261,15 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
                     <button type="button" className="absolute top-1.5 left-0 h-5 px-2 rounded-sm border border-dashed border-accent/60 text-2xs text-accent hover:bg-accent-soft" onClick={() => appear(row, i)} title="Un fondu en montant, après l'élément qui précède ; l'effet se change ensuite à droite">+ Faire apparaître</button>
                   )}
                   {row.keyframes?.map((k) => (
-                    <button key={k.at} type="button" data-scene-kf={k.at} aria-label={`État fixé à ${tickLabel(k.sceneAt)} ms`} aria-pressed={at === k.at} title={`${k.sceneAt} ms${k.easing ? ` · ${k.easing}` : ""}`}
+                    <button key={k.at} type="button" data-scene-kf={k.at} aria-label={`État à ${tickLabel(k.sceneAt)} ms`} aria-pressed={at === k.at} title={`${k.sceneAt} ms${k.easing ? ` · ${k.easing}` : ""}`}
                       className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 p-1 rounded-xs cursor-grab active:cursor-grabbing ${at === k.at ? "text-warning" : "text-accent-ink hover:text-warning"}`} style={{ left: `calc(${pct(k.sceneAt)} + ${shift("kf", row.id, k.at)}px)` }} onPointerDown={(e) => { place(k.sceneAt); startDrag(e, "kf", row.id, k.at); }} onKeyDown={(e) => { if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); e.stopPropagation(); removeKeyframe(k.at); } }}>
                       <Diamond size={11} fill="currentColor" aria-hidden />
                     </button>
                   ))}
                   {row.selected && ap && hoverT !== null && !playing && !drag && !ap.track.keyframes.some((k) => Math.abs(k.at + (ap.trigger.delay ?? 0) - hoverT) < 20) ? (
-                    <button type="button" data-scene-ghost="" aria-label="Fixer l'état ici (une image-clé)"
+                    <button type="button" data-scene-ghost="" aria-label="Ajouter un état (une image-clé)"
                       className="group absolute top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex items-center gap-1.5 h-6 pl-1.5 pr-2 rounded-full border border-line-strong bg-panel text-ink text-xs font-medium whitespace-nowrap shadow-[0_2px_8px_rgba(0,0,0,.45)] transition-[transform,box-shadow,background-color,color,border-color] duration-150 ease-out motion-reduce:transition-none hover:scale-110 hover:bg-ink hover:text-panel hover:border-ink hover:shadow-[0_0_0_4px_var(--color-accent-soft),0_8px_20px_rgba(0,0,0,.45)] active:scale-95" style={{ left: pct(hoverT) }}
-                      onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); const at2 = Math.max(0, hoverT - (ap.trigger.delay ?? 0)); run(planSetKeyframe(getSite(), ap.animation.id, ap.track.id, at2, {}), `État fixé à ${at2} ms`); place(hoverT); }}><Diamond size={10} fill="currentColor" className="shrink-0 transition-transform duration-200 group-hover:rotate-90 group-hover:scale-125" aria-hidden /><span>Fixer l&apos;état ici</span><span className="rounded-full bg-accent/20 px-1.5 text-[10px] tabular-nums group-hover:bg-panel/20">{tickLabel(hoverT)} ms</span></button>
+                      onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); const at2 = Math.max(0, hoverT - (ap.trigger.delay ?? 0)); run(planSetKeyframe(getSite(), ap.animation.id, ap.track.id, at2, {}), `État fixé à ${at2} ms`); place(hoverT); }}><Diamond size={10} fill="currentColor" className="shrink-0 transition-transform duration-200 group-hover:rotate-90 group-hover:scale-125" aria-hidden /><span>Ajouter un état</span><span className="rounded-full bg-accent/20 px-1.5 text-[10px] tabular-nums group-hover:bg-panel/20">{tickLabel(hoverT)} ms</span></button>
                   ) : null}
                       {playhead !== null ? <span className="absolute top-0 bottom-0 w-px bg-accent/60 pointer-events-none" style={{ left: pct(playhead) }} aria-hidden /> : null}
                     </li>
@@ -334,23 +334,23 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
         ) : null}
         <section className="flex flex-col gap-2 border-t border-line pt-3" aria-label="État de l'élément" data-scene-keyframe="">
           {!ap ? (
-            <Hint>Faites d&apos;abord apparaître {quoteLabel(nodeLabel(selected))} : choisissez une Apparition ci-dessus, ou « + Faire apparaître » sur sa ligne. Ses états se fixeront ici.</Hint>
+            <Hint>Faites d&apos;abord apparaître {quoteLabel(nodeLabel(selected))} : choisissez une Apparition ci-dessus, ou « + Faire apparaître » sur sa ligne. Ses états s&apos;ajouteront ici.</Hint>
           ) : (<>
             <PanelHeading className="px-0" actions={
               <div className="flex items-center gap-0.5">
-                <Button size="sm" variant="ghost" icon={Plus} aria-label="Fixer l'état ici (une image-clé)" title={at === null ? "Cliquez d'abord la règle pour choisir l'instant" : kfHere ? "L'état est déjà fixé à cet instant" : `Enregistre l'état de l'élément à ${tickLabel(playhead!)} ms (une image-clé)`} disabled={at === null || !!kfHere} onClick={addKeyframe}>Fixer l&apos;état ici</Button>
-                <IconButton size="sm" label="Supprimer cet état (image-clé)" icon={Trash2} tone="danger" disabled={!kfHere} onClick={() => kfHere && removeKeyframe(at!)} />
+                <Button size="sm" variant="ghost" icon={Plus} aria-label="Ajouter un état ici (une image-clé)" title={at === null ? "Cliquez d'abord la règle pour choisir l'instant" : kfHere ? "L'état est déjà fixé à cet instant" : `Enregistre l'état de l'élément à ${tickLabel(playhead!)} ms (une image-clé)`} disabled={at === null || !!kfHere} onClick={addKeyframe}>Ajouter un état ici</Button>
+                <IconButton size="sm" label="Supprimer l'état (image-clé)" icon={Trash2} tone="danger" disabled={!kfHere} onClick={() => kfHere && removeKeyframe(at!)} />
               </div>}>
-              {at === null ? "État de l'élément" : kfHere ? `◆ État fixé à ${tickLabel(playhead!)} ms` : `Instant ${tickLabel(playhead!)} ms`}
+              {at === null ? "État de l'élément" : kfHere ? `◆ État à ${tickLabel(playhead!)} ms` : `Instant ${tickLabel(playhead!)} ms`}
             </PanelHeading>
-            {at === null ? <Hint>Cliquez la règle ou un losange pour vous placer à un instant : ce qui se règle ici y fixe l&apos;état de l&apos;élément (une image-clé).</Hint> : (<>
+            {at === null ? <Hint>Cliquez la règle ou un losange pour vous placer à un instant : ce qui se règle ici y ajoute un état de l&apos;élément (une image-clé).</Hint> : (<>
               {kfHere && prevKf ? (
                 <div className="grid grid-cols-[80px_1fr] items-start gap-1.5">
                   <span className="text-xs text-muted pt-1.5" title="Courbe pour atteindre cette image-clé depuis la précédente">Courbe</span>
                   <EasingField value={kfHere.easing} segment={at - prevKf.at} onChange={(e) => run(planSetKeyframeEasing(getSite(), ap.animation.id, ap.track.id, at, e), "Courbe du segment", `kf-ease:${ap.animation.id}:${ap.track.id}:${at}`)} />
                 </div>
               ) : null}
-              {!kfHere ? <Hint>Aucun état fixé à cet instant : « Fixer l&apos;état ici », ou réglez une propriété ci-dessous, il se fixe.</Hint> : null}
+              {!kfHere ? <Hint>Aucun état à cet instant : « Ajouter un état ici », ou réglez une propriété ci-dessous, il s&apos;ajoute.</Hint> : null}
               <KeyframePanels site={site} getSite={getSite} node={selected} bp={bp} mode={mode} animationId={ap.animation.id} track={ap.track} at={at} commit={commit} />
             </>)}
           </>)}

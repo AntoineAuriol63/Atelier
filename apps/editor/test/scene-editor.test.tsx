@@ -101,8 +101,8 @@ describe("tiroir Animation : la scène", () => {
     expect(rail.getAttribute("aria-valuemax")).toBe("2000");
     act(() => { rail.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 500, button: 0 })); });
     expect(m.scrubs[m.scrubs.length - 1]).toBe(1000);
-    const add = m.buttons().find((b) => (b.getAttribute("aria-label") ?? "").includes("Fixer l'état ici"))!;
-    expect(add.textContent).toContain("Fixer l'état");
+    const add = m.buttons().find((b) => (b.getAttribute("aria-label") ?? "").includes("Ajouter un état ici"))!;
+    expect(add.textContent).toContain("Ajouter un état");
     act(() => { add.click(); });
     const ap = appearanceOf(m.current(), "hh2")!;
     expect(ap.track.keyframes.map((k) => k.at)).toContain(1000);
@@ -130,14 +130,14 @@ describe("tiroir Animation : la scène", () => {
     expect(ev.defaultPrevented).toBe(true);
   });
 
-  it("l'état de l'élément a sa place fixe à droite : « Fixer l'état ici » et « Supprimer » toujours présents, l'un ou l'autre actif", () => {
+  it("l'état de l'élément a sa place fixe à droite : « Ajouter un état ici » et « Supprimer » toujours présents, l'un ou l'autre actif", () => {
     const m = mount(animated(), "hh2");
     // À l'ouverture, la tête de lecture est à la fin du mouvement (1 300 ms), sur une image-clé : Supprimer actif, Ajouter inactif.
-    const add = () => m.host.querySelector<HTMLButtonElement>('[data-scene-keyframe] [aria-label="Fixer l\'état ici (une image-clé)"]')!;
-    const del = () => m.host.querySelector<HTMLButtonElement>('[data-scene-keyframe] [aria-label="Supprimer cet état (image-clé)"]')!;
+    const add = () => m.host.querySelector<HTMLButtonElement>('[data-scene-keyframe] [aria-label="Ajouter un état ici (une image-clé)"]')!;
+    const del = () => m.host.querySelector<HTMLButtonElement>('[data-scene-keyframe] [aria-label="Supprimer l\'état (image-clé)"]')!;
     expect(add().disabled).toBe(true);
     expect(del().disabled).toBe(false);
-    expect(m.text()).toMatch(/État fixé à 1\u202f300 ms/);
+    expect(m.text()).toMatch(/État à 1\u202f300 ms/);
     const rail = m.host.querySelector<HTMLElement>("[data-scene-rail]")!;
     rail.getBoundingClientRect = () => ({ left: 0, width: 1000, top: 0, height: 20, right: 1000, bottom: 20, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
     act(() => { rail.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 250, button: 0 })); });
@@ -145,9 +145,9 @@ describe("tiroir Animation : la scène", () => {
     expect(del().disabled).toBe(true);
   });
 
-  it("« Fixer un nouvel état » à côté du nom : toujours là ; à la tête de lecture si elle est libre, sinon juste après le dernier état", () => {
+  it("« Ajouter un état » à côté du nom : toujours là ; à la tête de lecture si elle est libre, sinon juste après le dernier état", () => {
     const m = mount(animated(), "hh2");
-    const btn = () => m.host.querySelector<HTMLButtonElement>('[data-scene-name-of="hh2"] ~ [aria-label="Fixer un nouvel état (image-clé)"], [data-scene-new-state]')!;
+    const btn = () => m.host.querySelector<HTMLButtonElement>('[data-scene-new-state]')!;
     expect(btn()).toBeTruthy();
     // La tête de lecture est sur le dernier état (1 300 ms) : le nouvel état va 200 ms plus loin, et la tête de lecture s'y place.
     act(() => { btn().click(); });
@@ -171,15 +171,15 @@ describe("tiroir Animation : la scène", () => {
     expect(m.host.querySelector("[data-scene-keyframe]")!.textContent).toMatch(/Faites d'abord apparaître/);
   });
 
-  it("un état fixé (image-clé) se retire par son bouton « Supprimer » ou par Suppr sur son losange", () => {
+  it("un état (image-clé) se retire par son bouton « Supprimer » ou par Suppr sur son losange", () => {
     const m = mount(animated(), "hh2"); 
     const rail = m.host.querySelector<HTMLElement>("[data-scene-rail]")!;
     rail.getBoundingClientRect = () => ({ left: 0, width: 1000, top: 0, height: 20, right: 1000, bottom: 20, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
     act(() => { rail.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 500, button: 0 })); });
-    act(() => { m.buttons().find((b) => (b.getAttribute("aria-label") ?? "").includes("Fixer l'état ici"))!.click(); });
+    act(() => { m.buttons().find((b) => (b.getAttribute("aria-label") ?? "").includes("Ajouter un état ici"))!.click(); });
     expect(appearanceOf(m.current(), "hh2")!.track.keyframes.map((k) => k.at)).toEqual([600, 1000, 1300]);
     m.rerender(m.current(), "hh2");
-    const del = m.buttons().find((b) => (b.getAttribute("aria-label") ?? "").includes("Supprimer cet état"))!;
+    const del = m.buttons().find((b) => (b.getAttribute("aria-label") ?? "").includes("Supprimer l'état"))!;
     expect(del).toBeTruthy();
     act(() => { del.click(); });
     expect(appearanceOf(m.current(), "hh2")!.track.keyframes.map((k) => k.at)).toEqual([600, 1300]);
@@ -198,7 +198,7 @@ describe("tiroir Animation : la scène", () => {
     expect(m.text()).toContain("Démarre");
     expect(m.text()).toContain("Délai");
     expect(m.host.querySelector("[data-scene-keyframe]")).toBeTruthy();
-    expect(m.text()).toMatch(/État fixé à/);
+    expect(m.text()).toMatch(/État à/);
   });
 
   it("« Lire » joue chaque lancement de la scène dans l'aperçu", () => {
@@ -237,7 +237,7 @@ describe("tiroir Animation : la scène", () => {
     } finally { vi.useRealTimers(); }
   });
 
-  it("sur la ligne de l'élément sélectionné, une pastille « Fixer l'état ici » suit la souris et fixe l'état là où l'on clique", () => {
+  it("sur la ligne de l'élément sélectionné, une pastille « Ajouter un état » suit la souris et ajoute l'état là où l'on clique", () => {
     const m = mount(animated(), "hh2");
     const rail = m.host.querySelector<HTMLElement>("[data-scene-rail]")!;
     rail.getBoundingClientRect = () => ({ left: 0, width: 1000, top: 0, height: 20, right: 1000, bottom: 20, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect;
@@ -248,11 +248,11 @@ describe("tiroir Animation : la scène", () => {
     act(() => { lane.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, clientX: 400 })); });
     expect(pill()).toBeTruthy();
     expect(pill()!.style.left).toBe("40%");
-    expect(pill()!.textContent).toContain("Fixer l'état ici");
+    expect(pill()!.textContent).toContain("Ajouter un état");
     act(() => { pill()!.click(); });
     expect(appearanceOf(m.current(), "hh2")!.track.keyframes.map((k) => k.at)).toEqual([600, 800, 1300]);
     expect(m.scrubs[m.scrubs.length - 1]).toBe(800);
-    // Sur un état déjà fixé (1 300 ms = 65 %), pas de pastille ; en sortant de la ligne, plus rien.
+    // Sur un état déjà là (1 300 ms = 65 %), pas de pastille ; en sortant de la ligne, plus rien.
     m.rerender(m.current(), "hh2");
     act(() => { lane.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, clientX: 650 })); });
     expect(pill()).toBeNull();
