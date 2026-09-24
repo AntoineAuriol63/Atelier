@@ -2,7 +2,7 @@
 
 Ce que l'outil fait aujourd'hui, et comment. Tenu à jour à chaque évolution (règle dans `CLAUDE.md`). Les décisions de fond sont dans `docs/decisions.md`, le contrat de données dans `docs/document-model.md`, le plan dans `docs/roadmap.md`. Ici : l'état réel.
 
-*Dernière mise à jour : 23 septembre 2026 (vitesse : polices non bloquantes, image prioritaire, cache CDN, paquets élagués). Précédente : 20 septembre 2026 (lot 9 : enchaîner dans l'ordre depuis la scène, barres de piste qui se tirent, réglages avant la liste, tête de lecture à la fin d'une piste remplie ; lot 8 : groupe depuis un enfant, scène entière, découvrabilité, mots). Précédente : 19 septembre 2026 (conflit de version reposé, carte d'architecture `docs/architecture.md`). Précédente : 13 septembre 2026 (mode Animation complet : lecture, édition, préréglages, déclencheurs avancés, nettoyage ; durcissement sécurité ; durcissement UI à l'essai). Précédente : 9 septembre 2026 (temps A et B, export du code, composants, minimum professionnel, rôles et partage, interactions et deuxième site de la revue globale).*
+*Dernière mise à jour : 24 septembre 2026 (outil Animation recentré : scène de la section, états fixés, lecture avec tête de lecture ; interface en trois zones, rail, barre du canevas ; bilan avant publication ; versions à jalons ; formulaires hors d'Atelier). Précédente : 23 septembre 2026 (vitesse : polices non bloquantes, image prioritaire, cache CDN, paquets élagués). Précédente : 20 septembre 2026 (lot 9 : enchaîner dans l'ordre depuis la scène, barres de piste qui se tirent, réglages avant la liste, tête de lecture à la fin d'une piste remplie ; lot 8 : groupe depuis un enfant, scène entière, découvrabilité, mots). Précédente : 19 septembre 2026 (conflit de version reposé, carte d'architecture `docs/architecture.md`). Précédente : 13 septembre 2026 (mode Animation complet : lecture, édition, préréglages, déclencheurs avancés, nettoyage ; durcissement sécurité ; durcissement UI à l'essai). Précédente : 9 septembre 2026 (temps A et B, export du code, composants, minimum professionnel, rôles et partage, interactions et deuxième site de la revue globale).*
 
 ## Partie 1 · Fonctionnel
 
@@ -18,7 +18,7 @@ Trois modes, qui sont des préréglages du même éditeur et non des outils sép
 
 - **Écriture** : on décide du contenu et de son ordre. Frontière (décision du 8 sept.) : une action qui peut casser la cohérence visuelle du site (valeur libre avec unité, couleur, bordure, espacement, grille) n'y a pas sa place.
 - **Design** : on décide de l'apparence, avec le CSS réel derrière un vocabulaire simple.
-- **Animation** : on décide de ce qui bouge et quand ; le panneau Animation remplace l'inspecteur (voir 1.4 ter). Réservé aux éditeurs du site, comme Design.
+- L'animation n'est pas un mode mais un **outil** (D60, 23 septembre 2026) : un tiroir sous le canevas, décrit en 1.4 ter. Réservé aux éditeurs du site, comme Design.
 
 ### 1.2 Pages
 
