@@ -217,6 +217,9 @@ describe("tiroir Animation : la scène", () => {
       act(() => { play().click(); });
       expect(play().textContent).toContain("Pause");
       expect(m.plays.length).toBeGreaterThanOrEqual(2);
+      // Pendant la lecture, la pastille « Fixer l'état ici » ne suit pas la tête de lecture : elle est cachée.
+      act(() => { vi.advanceTimersByTime(100); });
+      expect(m.host.querySelector('[data-scene-row="hh2"] [aria-label="Fixer l\'état ici (une image-clé)"]')).toBeNull();
       act(() => { vi.advanceTimersByTime(400); });
       const mid = Number(rail().getAttribute("aria-valuenow"));
       expect(mid).toBeGreaterThan(200);
@@ -224,6 +227,8 @@ describe("tiroir Animation : la scène", () => {
       act(() => { vi.advanceTimersByTime(2000); });
       expect(play().textContent).toContain("Lire");
       expect(rail().getAttribute("aria-valuenow")).toBe("1300");
+      // Lecture finie sur le dernier état : pas de pastille non plus (l'état y est déjà fixé) ; sur un instant libre, elle revient.
+      expect(m.host.querySelector('[data-scene-row="hh2"] [aria-label="Fixer l\'état ici (une image-clé)"]')).toBeNull();
       // Pause en cours de lecture : la tête s'arrête où elle est et l'aperçu montre cet instant.
       act(() => { play().click(); });
       act(() => { vi.advanceTimersByTime(300); });
@@ -232,6 +237,7 @@ describe("tiroir Animation : la scène", () => {
       const at = Number(rail().getAttribute("aria-valuenow"));
       expect(at).toBeGreaterThan(0); expect(at).toBeLessThan(1300);
       expect(m.scrubs[m.scrubs.length - 1]).toBe(at);
+      expect(m.host.querySelector('[data-scene-row="hh2"] [aria-label="Fixer l\'état ici (une image-clé)"]')).toBeTruthy();
     } finally { vi.useRealTimers(); }
   });
 
