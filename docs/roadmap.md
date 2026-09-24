@@ -191,6 +191,7 @@ Cinq examens (architecture, charge, UI/UX, cohérence produit, sécurité) conso
 
 ## Journal
 
+- 24 sept. 2026 (suite 15) — Survol de la pastille « Fixer l'état ici » plus agréable (demande d'Antoine) : losange qui tourne, léger agrandissement, halo accent, fond plein et texte inversé, transition de 150 ms (désactivée si le système réduit les animations), et l'instant en ms affiché dans la pastille.
 - 24 sept. 2026 (suite 14) — **La pastille suit la souris** (décision d'Antoine : pas à droite de la ligne, sur la ligne, et l'état se fixe là où l'on clique). Sur la ligne de l'élément sélectionné, « + Fixer l'état ici » se déplace avec la souris (temps de scène sous le curseur), disparaît sur un état déjà fixé, pendant un glisser et pendant la lecture, et un clic fixe l'état à cet instant puis y place la tête de lecture. Plus de pastille liée à la tête de lecture ; le « + » du nom et l'encart restent.
 - 24 sept. 2026 (suite 13) — Lecture finie sur le dernier état, la pastille ne revenait pas (constat d'Antoine) : sur un état déjà fixé, la pastille reste, juste après la tête de lecture, et dit « + Nouvel état » (mi-chemin du suivant ou 200 ms plus loin, comme le « + » du nom).
 - 24 sept. 2026 (suite 12) — La pastille « + Fixer l'état ici » suivait la tête de lecture pendant la lecture (constat d'Antoine) : cachée tant que ça joue, de retour à la pause sur un instant libre.
