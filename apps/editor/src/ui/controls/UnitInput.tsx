@@ -7,7 +7,8 @@ import { LENGTH_UNITS, parseInput, parseValue, supported, tokenOptions, tokenVal
 import { cx } from "../cx";
 import { startDragValue, stepFor } from "./useDragValue";
 
-const FIELD = "h-7 rounded-sm bg-surface text-ink border border-line-strong hover:border-line-strong focus-within:border-accent";
+// `min-w-0` : posé dans une ligne flex, le champ se resserre au lieu d'élargir le panneau (son texte se tronque).
+const FIELD = "min-w-0 h-7 rounded-sm bg-surface text-ink border border-line-strong hover:border-line-strong focus-within:border-accent";
 const INVALID = "border-danger focus-within:border-danger";
 
 /**
@@ -72,7 +73,7 @@ export function UnitInput({ value, onChange, site, tokenGroup, keywords = [], pl
           if (e.key === "Escape") { setDraft(text); (e.target as HTMLInputElement).blur(); }
           if (e.key === "ArrowUp" || e.key === "ArrowDown") { e.preventDefault(); step(e.key === "ArrowUp" ? 1 : -1, e.shiftKey); }
         }}
-        className={cx("min-w-0 flex-1 h-full bg-transparent pl-2 pr-1 text-xs font-mono tabular-nums placeholder:text-dim", !focused && (parsed.kind === "number" || draft === "") && "cursor-ew-resize", muted && !focused && "text-muted", compact && "pl-1.5")}
+        className={cx("w-0 min-w-0 flex-1 h-full bg-transparent pl-2 pr-1 text-xs font-mono tabular-nums placeholder:text-dim", !focused && (parsed.kind === "number" || draft === "") && "cursor-ew-resize", muted && !focused && "text-muted", compact && "pl-1.5")}
       />
       {parsed.kind === "number" || draft === "" ? (
         <select

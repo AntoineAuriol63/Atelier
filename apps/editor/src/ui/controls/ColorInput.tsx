@@ -6,7 +6,8 @@ import type { Site, StyleValue } from "@atelier/model";
 import { tokenOptions, tokenValue } from "@/lib/css-value";
 import { cx } from "../cx";
 
-const FIELD = "h-7 rounded-sm bg-surface text-ink border border-line-strong hover:border-line-strong focus-within:border-accent";
+// `min-w-0` : posé dans une ligne flex, le champ se resserre au lieu d'élargir le panneau (son texte se tronque).
+const FIELD = "min-w-0 h-7 rounded-sm bg-surface text-ink border border-line-strong hover:border-line-strong focus-within:border-accent";
 
 function toHex(css: string | undefined): string {
   if (!css) return "#000000";
@@ -68,7 +69,7 @@ export function ColorInput({ value, onChange, site, className, placeholder = "au
             onBlur={() => { setFocused(false); commit(); }}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") { commit(); (e.target as HTMLInputElement).blur(); } if (e.key === "Escape") { setDraft(text); (e.target as HTMLInputElement).blur(); } }}
-            className="min-w-0 flex-1 h-full bg-transparent px-1 text-xs font-mono placeholder:text-dim"
+            className="w-0 min-w-0 flex-1 h-full bg-transparent px-1 text-xs font-mono placeholder:text-dim"
           />
         )}
         <button type="button" onClick={() => setOpen((o) => !o)} title="Couleurs du thème" aria-label="Couleurs du thème" aria-expanded={open} className={cx("w-5 h-5 inline-flex items-center justify-center rounded-xs hover:bg-hover", open ? "text-accent" : "text-dim hover:text-accent")}>

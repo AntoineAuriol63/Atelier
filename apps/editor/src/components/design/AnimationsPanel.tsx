@@ -31,7 +31,7 @@ export function AnimationsPanel({ site, node, commit, onPlay, onOpenAnimation, o
             return (
               <li key={t.id} className="flex items-center gap-1 rounded-sm border border-line bg-surface/60 px-2 py-1">
                 {onOpenAnimation && a
-                  ? <button type="button" className="flex-1 min-w-0 min-h-7 text-left text-xs text-ink truncate rounded-xs hover:text-accent" title={`Modifier dans l'outil Animation · ${describeTrigger(t, site)}`} onClick={() => onOpenAnimation(t.id)}>{describeTrigger(t, site)}</button>
+                  ? <button type="button" className="flex-1 min-w-0 min-h-7 py-1 text-left text-xs text-ink leading-snug rounded-xs hover:text-accent" title={`Modifier dans l'outil Animation · ${describeTrigger(t, site)}`} onClick={() => onOpenAnimation(t.id)}>{describeTrigger(t, site)}</button>
                   : <span className="flex-1 min-w-0 text-xs text-ink truncate" title={describeTrigger(t, site)}>{describeTrigger(t, site)}</span>}
                 {custom ? <Badge title="Composée ou retouchée dans l'outil Animation">personnalisée</Badge> : null}
                 {duplicates.has(t.id) ? <Badge tone="warning" title="Une autre animation de la même famille (apparition, survol, continu) est déjà posée sur cet élément : les deux se jouent.">en double</Badge> : null}

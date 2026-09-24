@@ -30,8 +30,9 @@ const QUICK: { group: QuickGroup; label: string; none: string; hint: string }[] 
 /** Une ligne réglage : libellé à gauche, contrôle à droite. Pas de <label> autour d'un groupe de boutons : un clic dans la marge activerait le premier. */
 function Row({ label, title, children }: { label: string; title?: string; children: ReactNode }) {
   return (
-    <div className="grid grid-cols-[88px_1fr] items-center gap-2" title={title}>
-      <span className="text-xs text-muted truncate">{label}</span>
+    <div className="grid grid-cols-[88px_minmax(0,1fr)] items-center gap-2" title={title}>
+      {/* Le libellé se plie sur deux lignes plutôt que de se tronquer : rien à deviner (« Quand la souris passe dessus »). */}
+      <span className="text-xs text-muted leading-tight">{label}</span>
       <div className="flex flex-col gap-0.5 min-w-0">{children}</div>
     </div>
   );

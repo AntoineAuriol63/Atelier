@@ -4,8 +4,9 @@ import { cx } from "./cx";
 /** Ligne libellé + contrôle. Le libellé reste court et en langage courant. */
 export function Field({ label, hint, children, className, inline = true }: { label: string; hint?: string; children: ReactNode; className?: string; inline?: boolean }) {
   return (
-    <label className={cx(inline ? "grid grid-cols-[88px_1fr] items-center gap-2" : "flex flex-col gap-1", className)} title={hint}>
-      <span className="text-xs text-muted truncate">{label}</span>
+    <label className={cx(inline ? "grid grid-cols-[88px_minmax(0,1fr)] items-center gap-2" : "flex flex-col gap-1", className)} title={hint}>
+      {/* Le libellé se plie plutôt que de se tronquer : rien à deviner. */}
+      <span className="text-xs text-muted leading-tight">{label}</span>
       <span className="min-w-0">{children}</span>
     </label>
   );
