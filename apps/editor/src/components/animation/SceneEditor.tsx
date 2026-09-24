@@ -2,12 +2,12 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Diamond, ExternalLink, Pause, Play, Plus, SkipBack, SlidersHorizontal, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Diamond, ExternalLink, Link2, Pause, Play, Plus, SkipBack, SlidersHorizontal, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { CommitOptions, Node, Op, Site } from "@atelier/model";
-import { ANIMATION_PRESETS, TRIGGER_LABELS, animationUsages, appearanceOf, applyOps, indexSite, keyframeAt, newId, planAddTrigger, planAppearanceStart, planQuickAnimation, planAppearanceDelay, planAppearanceDuration, planAppearancePreset, planRemoveKeyframes, planRemoveTriggerWithAnimation, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUpdateTrigger, trackPresetMatch } from "@atelier/model";
+import { ANIMATION_PRESETS, TRIGGER_LABELS, animationUsages, appearanceOf, applyOps, indexSite, keyframeAt, newId, planAddTrigger, planAppearanceStart, planChainInOrder, planQuickAnimation, planAppearanceDelay, planAppearanceDuration, planAppearancePreset, planRemoveKeyframes, planRemoveTriggerWithAnimation, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUpdateTrigger, trackPresetMatch } from "@atelier/model";
 import { Badge, Button, Eyebrow, Hint, IconButton, PanelHeading, Select } from "@/ui";
 import { formatMs, quoteLabel, rulerTicks, snapTime, summarizeAnimation, tickLabel } from "@/lib/timeline";
-import { sceneView, type SceneRow } from "@/lib/scene-view";
+import { sceneView, type SceneLaunch, type SceneRow } from "@/lib/scene-view";
 import { nodeLabel } from "../node-icons";
 import { QuickAnimations } from "./QuickAnimations";
 import { KeyframePanels } from "./KeyframePanels";
@@ -142,6 +142,39 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
     window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
   };
   const shift = (kind: "move" | "end" | "kf", id: string, kfAt?: number) => (drag && drag.kind === kind && drag.id === id && (kind !== "kf" || drag.at === kfAt) ? drag.dx : 0);
+  // Glisser une ligne (sa case du nom) sur un autre lancement : l'élément démarre après le dernier élément de ce lancement. Le lancement visé
+  // se lit sous la souris dans la colonne des noms ; un clic sans glisser reste un clic (sélection : le clic ne suit un dépôt que si la souris
+  // est relâchée sur la case de départ, c'est-à-dire quand rien n'a été déposé).
+  const names = useRef<HTMLDivElement>(null);
+  const [rowDrag, setRowDrag] = useState<{ id: string; from: string; over: string | null } | null>(null);
+  const startRowDrag = (e: React.PointerEvent, id: string, from: string) => {
+    if (e.button !== 0 || (e.target as Element).closest("[data-scene-new-state],[data-scene-remove-line]")) return;
+    const startY = e.clientY;
+    let moved = false, over: string | null = null;
+    const launchAt = (y: number) => {
+      for (const el of names.current?.querySelectorAll<HTMLElement>("[data-scene-name-cell],[data-scene-launch]") ?? []) {
+        const r = el.getBoundingClientRect();
+        if (r.height > 0 && y >= r.top && y < r.bottom) return el.dataset.sceneLaunch ?? el.dataset.sceneLaunchOf ?? null;
+      }
+      return null;
+    };
+    const move = (ev: PointerEvent) => {
+      if (!moved && Math.abs(ev.clientY - startY) < 4) return;
+      moved = true; over = launchAt(ev.clientY);
+      setRowDrag({ id, from, over });
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up);
+      setRowDrag(null);
+      if (!moved || !over || over === from) return;
+      const target = view?.launches.find((l) => l.id === over);
+      const current = getSite();
+      const last = target ? [...target.rows].reverse().find((r) => r !== id && appearanceOf(current, r)) : undefined;
+      if (!last) return;
+      run(planAppearanceStart(current, id, { kind: "after", node: last }), `${quoteLabel(nodeLabel(nodeOf(id)!))} démarre après ${quoteLabel(nodeLabel(nodeOf(last)!))}`);
+    };
+    window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
+  };
   const at = playhead !== null && ap ? view!.scrub(playhead)!.time : null;
   const kfHere = at !== null && ap ? keyframeAt(ap.track, at) : undefined;
   const prevKf = at !== null && ap ? [...ap.track.keyframes].filter((k) => k.at < at).sort((a, b) => b.at - a.at)[0] : undefined;
@@ -161,7 +194,7 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
     run([...ops, ...chain], `Faire apparaître ${quoteLabel(nodeLabel(n))}`);
     onSelect(row.id);
   };
-  const playAll = () => { for (const l of view.launches) { const [hostId, triggerId] = l.split(":") as [string, string]; onPlay(triggerId, hostId); } };
+  const playAll = () => { for (const l of view.launches) onPlay(l.triggerId, l.hostId); };
   const total = view.total;
   const startPlay = () => {
     cancelAnimationFrame(raf.current);
@@ -183,6 +216,16 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
   // La scène ne montre que ce qui bouge, plus l'élément sélectionné (retour d'Antoine : tout afficher était illisible) ; le reste s'ajoute par son nom.
   const visible = view.rows.filter((r) => r.bar || r.selected);
   const addable = view.rows.filter((r) => r.still && !r.selected);
+  // Plusieurs lancements : les lignes sont groupées sous un séparateur qui dit ce qui les lance ; un seul lancement, rien ne le sépare.
+  const grouped = view.launches.length > 1;
+  const launchOf = (id: string) => view.launches.find((l) => l.rows.includes(id));
+  type Item = { kind: "launch"; launch: SceneLaunch } | { kind: "still" } | { kind: "row"; row: SceneRow; launch?: SceneLaunch };
+  const stillRows = visible.filter((r) => !launchOf(r.id));
+  const items: Item[] = grouped
+    ? [...view.launches.flatMap((launch): Item[] => [{ kind: "launch", launch }, ...visible.filter((r) => launch.rows.includes(r.id)).map((row): Item => ({ kind: "row", row, launch }))]), ...(stillRows.length ? [{ kind: "still" } as Item] : []), ...stillRows.map((row): Item => ({ kind: "row", row }))]
+    : visible.map((row): Item => ({ kind: "row", row }));
+  const STILL_LABEL = "Ne bouge pas encore";
+  const chainAll = () => run(planChainInOrder(getSite(), view.sectionId), `Enchaîner la scène de ${quoteLabel(view.sectionLabel)}`);
   // Retirer la ligne de temps de l'élément : son apparition s'en va, ce qui la suivait se raccroche, la ligne disparaît de la scène.
   const removeLine = () => { if (!ap) return; run(planAppearancePreset(getSite(), selected.id, ""), `Retirer la ligne de temps de ${quoteLabel(nodeLabel(selected))}`); };
   const addKeyframe = () => { if (ap && at !== null) run(planSetKeyframe(getSite(), ap.animation.id, ap.track.id, at, {}), `État ajouté à ${at} ms`); };
@@ -214,7 +257,7 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
           <Eyebrow as="span">Scène</Eyebrow>
           <span className="text-sm font-medium truncate max-w-[180px] shrink-0">{view.sectionLabel}</span>
           <Badge title="Fin du dernier mouvement">{formatMs(view.total)}</Badge>
-          {view.launches.length > 1 ? <Badge tone="warning" title="Chaque lancement compte son temps depuis sa propre entrée à l'écran ; « Démarre après » un autre élément les réunit">{view.launches.length} lancements</Badge> : null}
+          {grouped ? <Badge tone="warning" title="Chaque lancement compte son temps depuis sa propre entrée à l'écran ; « Tout enchaîner » les réunit, ou glissez une ligne sous un autre lancement">{view.launches.length} lancements</Badge> : null}
           <span className="mx-1 h-4 w-px bg-line" aria-hidden />
           <IconButton size="sm" label="Revenir au début" icon={SkipBack} onClick={() => { cancelAnimationFrame(raf.current); setPlaying(false); place(0); }} />
           <Button size="sm" variant={playing ? "default" : "primary"} icon={playing ? Pause : Play} title={playing ? "Arrête la lecture ici" : "Joue la scène dans l'aperçu, la tête de lecture suit"} onClick={() => (playing ? pausePlay() : startPlay())}>{playing ? "Pause" : "Lire"}</Button>
@@ -225,16 +268,23 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
         <div className="flex-1 min-h-0 overflow-y-auto">
           <div className="grid grid-cols-[150px_minmax(0,1fr)] @[720px]:grid-cols-[220px_minmax(0,1fr)] px-3 pt-2">
             {/* Une seule grille : chaque ligne fait 40 px des deux côtés, un filet la traverse, la sélection la teinte d'un bord à l'autre. */}
-            <div className="flex flex-col bg-surface/50 border-r border-line rounded-l-md overflow-hidden">
+            <div ref={names} className="flex flex-col bg-surface/50 border-r border-line rounded-l-md overflow-hidden">
               <div className="h-6 shrink-0 border-b border-line-strong flex items-end px-2 pb-1"><Eyebrow as="span">Éléments</Eyebrow></div>
-              {visible.map((row) => (
-                // Toute la case du nom sélectionne l'élément (le texte reste un bouton pour le clavier ; son clic remonte à la case, une seule sélection).
-                <div key={row.id} data-scene-name-cell={row.id} className={`group h-10 flex items-center border-b border-line/60 border-l-2 pl-2 ${row.selected ? "border-l-accent bg-accent-soft/25" : "border-l-transparent cursor-pointer hover:bg-surface"}`}
-                  title={row.selected ? undefined : `Sélectionner ${quoteLabel(row.label)}`} onClick={row.selected ? undefined : () => onSelect(row.id)} onMouseEnter={() => onHover?.(row.id)} onMouseLeave={() => onHover?.(null)}>
-                  <button type="button" data-scene-name="" data-scene-name-of={row.id} className={`flex items-center gap-1.5 min-w-0 pr-2 text-left text-xs truncate ${row.selected ? "text-ink font-medium" : row.still ? "text-dim group-hover:text-ink" : "text-ink group-hover:text-accent"}`} style={{ paddingLeft: row.depth * 12 }}>
-                    <span className="truncate">{row.label}</span>{row.count ? <span className="text-muted shrink-0">×{row.count}</span> : null}
+              {items.map((it) => it.kind === "still" ? (
+                <div key="still" data-scene-still-sep="" className="h-6 shrink-0 flex items-center px-2 border-b border-line/60 text-2xs font-medium text-muted bg-surface">{STILL_LABEL}</div>
+              ) : it.kind === "launch" ? (
+                <div key={it.launch.id} data-scene-launch={it.launch.id} data-drop-target={rowDrag && rowDrag.over === it.launch.id && rowDrag.from !== it.launch.id ? "" : undefined} title={it.launch.label}
+                  className={`h-6 shrink-0 flex items-center px-2 border-b border-line/60 text-2xs font-medium truncate ${rowDrag && rowDrag.over === it.launch.id && rowDrag.from !== it.launch.id ? "bg-accent-soft text-accent" : "bg-surface text-muted"}`}>{it.launch.short}</div>
+              ) : (
+                // Toute la case du nom sélectionne l'élément (le texte reste un bouton pour le clavier ; son clic remonte à la case, une seule sélection) ;
+                // glissée vers le haut ou le bas, elle rejoint un autre lancement.
+                <div key={it.row.id} data-scene-name-cell={it.row.id} data-scene-launch-of={it.launch?.id} className={`group h-10 flex items-center border-b border-line/60 border-l-2 pl-2 ${it.row.selected ? "border-l-accent bg-accent-soft/25" : "border-l-transparent cursor-pointer hover:bg-surface"} ${rowDrag?.id === it.row.id ? "opacity-50" : ""} ${rowDrag && it.launch && rowDrag.over === it.launch.id && rowDrag.from !== it.launch.id ? "bg-accent-soft/40" : ""}`}
+                  title={it.row.selected ? undefined : `Sélectionner ${quoteLabel(it.row.label)}`} onClick={it.row.selected ? undefined : () => onSelect(it.row.id)} onMouseEnter={() => onHover?.(it.row.id)} onMouseLeave={() => onHover?.(null)}
+                  onPointerDown={grouped && it.row.bar && it.launch ? (e) => startRowDrag(e, it.row.id, it.launch!.id) : undefined}>
+                  <button type="button" data-scene-name="" data-scene-name-of={it.row.id} className={`flex items-center gap-1.5 min-w-0 pr-2 text-left text-xs truncate ${it.row.selected ? "text-ink font-medium" : it.row.still ? "text-dim group-hover:text-ink" : "text-ink group-hover:text-accent"}`} style={{ paddingLeft: it.row.depth * 12 }}>
+                    <span className="truncate">{it.row.label}</span>{it.row.count ? <span className="text-muted shrink-0">×{it.row.count}</span> : null}
                   </button>
-                  {row.selected && row.bar ? <span className="ml-auto mr-1 flex items-center shrink-0"><IconButton size="sm" className="h-6 w-6 text-muted" data-scene-new-state="" label="Ajouter un état (image-clé)" icon={Plus} title="Ajoute un état de l'élément : à la tête de lecture, ou juste après le dernier état si elle est déjà sur l'un d'eux" onClick={addKeyframeAnywhere} /><IconButton size="sm" className="h-6 w-6 text-muted" data-scene-remove-line="" label="Retirer la ligne de temps" icon={Trash2} tone="danger" title="L'élément ne bouge plus ; ce qui démarrait après lui se raccroche" onClick={removeLine} /></span> : null}
+                  {it.row.selected && it.row.bar ? <span className="ml-auto mr-1 flex items-center shrink-0"><IconButton size="sm" className="h-6 w-6 text-muted" data-scene-new-state="" label="Ajouter un état (image-clé)" icon={Plus} title="Ajoute un état de l'élément : à la tête de lecture, ou juste après le dernier état si elle est déjà sur l'un d'eux" onClick={addKeyframeAnywhere} /><IconButton size="sm" className="h-6 w-6 text-muted" data-scene-remove-line="" label="Retirer la ligne de temps" icon={Trash2} tone="danger" title="L'élément ne bouge plus ; ce qui démarrait après lui se raccroche" onClick={removeLine} /></span> : null}
                 </div>
               ))}
             </div>
@@ -257,8 +307,8 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
                 </div>
                 <ul aria-label={`Scène de ${quoteLabel(view.sectionLabel)}`} className="relative">
                   {rulerTicks(length, zoom).filter((t) => t > 0 && t < length).map((t) => <span key={t} className="pointer-events-none absolute top-0 bottom-0 w-px bg-line/60" style={{ left: pct(t) }} aria-hidden />)}
-                  {visible.map((row) => { const i = view.rows.indexOf(row); return (
-                    <li key={row.id} data-scene-row={row.id} data-still={row.still || undefined} className={`relative h-10 border-b border-line/60 ${row.selected ? "bg-accent-soft/25" : ""}`}
+                  {items.map((it) => { if (it.kind === "still") return <li key="still" aria-label={STILL_LABEL} className="h-6 border-b border-line/60 bg-surface/40" />; if (it.kind === "launch") return <li key={it.launch.id} data-scene-launch-lane={it.launch.id} className={`h-6 border-b border-line/60 flex items-center overflow-hidden ${rowDrag && rowDrag.over === it.launch.id && rowDrag.from !== it.launch.id ? "bg-accent-soft/40" : "bg-surface/40"}`}><span className="sticky left-0 px-2 text-2xs text-muted whitespace-nowrap">{it.launch.label}</span></li>; const row = it.row; const i = view.rows.indexOf(row); return (
+                    <li key={row.id} data-scene-row={row.id} data-scene-launch-of={launchOf(row.id)?.id} data-still={row.still || undefined} className={`relative h-10 border-b border-line/60 ${row.selected ? "bg-accent-soft/25" : ""}`}
                       onMouseMove={row.selected && row.bar ? (e) => setHoverT(timeAt(e.clientX)) : undefined} onMouseLeave={row.selected ? () => setHoverT(null) : undefined}
                       onClick={row.selected ? undefined : () => onSelect(row.id)}>
                   {row.bar ? (
@@ -295,6 +345,7 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
             </div>
           </div>
           <div className="flex items-center gap-1 px-3 pb-2">
+          {grouped ? <Button size="sm" variant="ghost" icon={Link2} data-scene-chain="" onClick={chainAll} title="Chaque élément démarre après celui qui le précède dans la page, dans un seul lancement : le premier. Ou glissez une ligne sous un autre lancement.">Tout enchaîner</Button> : null}
           {addable.length ? (
             <div ref={addRef} className="relative" data-scene-add="">
               <button type="button" aria-haspopup="listbox" aria-expanded={addOpen} className="h-7 px-2 rounded-sm border border-dashed border-accent/60 text-xs text-accent hover:bg-accent-soft" onClick={(e) => setAddOpen((o) => !o, e.currentTarget)}>+ Ajouter un élément à la scène…</button>

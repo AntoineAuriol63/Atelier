@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { Node, Site } from "@atelier/model";
-import { appearanceOf, applyOps, findNode, planAppearanceDelay, planGroupAppearance, planQuickAnimation, sampleSite } from "@atelier/model";
+import { appearanceOf, applyOps, findNode, planAppearanceDelay, planChainInOrder, planGroupAppearance, planQuickAnimation, sampleSite } from "@atelier/model";
 import { sceneView, sceneRootFor } from "../src/lib/scene-view";
 
 /**
@@ -64,6 +64,25 @@ describe("sceneView", () => {
     expect(v.scrub(900)!.time).toBe(900);
     expect(v.scrub(100)!.time).toBe(100);
     expect(sceneView(animated(), "pp2")!.scrub(300)).toBeUndefined();
+  });
+
+  it("les lancements : un par déclencheur, dans l'ordre de la page, nommé par ce qui le lance, avec les lignes qu'il fait partir", () => {
+    const s = animated();
+    const v = sceneView(s, "hh2")!;
+    expect(v.launches.map((l) => ({ hostId: l.hostId, rows: l.rows }))).toEqual([
+      { hostId: "photo", rows: ["photo"] },
+      { hostId: "hh2", rows: ["hh2"] },
+      // Les enfants qui arrivent avec le groupe sont du lancement du groupe.
+      { hostId: "stats", rows: ["stats", "c1", "c2", "c3"] },
+    ]);
+    expect(v.launches[0]!.label).toBe("Quand « Photo » entre dans l'écran");
+    expect(v.launches[0]!.short).toBe("Entrée de « Photo »");
+    expect(v.launches[1]!.label).toMatch(/^Quand .*Une cuisine.* entre dans l'écran$/);
+    expect(v.launches[0]!.id).toBe(`photo:${appearanceOf(s, "photo")!.trigger.id}`);
+    // Enchaînée dans l'ordre : un seul lancement, celui du premier, qui porte toutes les lignes.
+    const chained = run(s, planChainInOrder(s, "about"));
+    const one = sceneView(chained, "hh2")!;
+    expect(one.launches.map((l) => ({ hostId: l.hostId, rows: l.rows }))).toEqual([{ hostId: "photo", rows: ["photo", "hh2", "stats", "c1", "c2", "c3"] }]);
   });
 
   it("sans élément sélectionné ni section, pas de scène ; un élément immobile seul dans sa section a quand même sa ligne", () => {

@@ -132,12 +132,12 @@ const quoted = quoteLabel;
  * « Quand « Colonne » entre dans l'écran : Titre 1 « Bonjour » en 700 ms, Paragraphe « Texte » de 150 à 850 ms…, une seule fois. »
  * Au défilement et à la souris, les moments sont des parts du parcours (%), pas des durées.
  */
-export function summarizeAnimation(site: Site, trigger: Trigger, hostId: string, pageLevel = false): string {
-  const index = indexSite(site);
-  const hostNode = index.get(hostId)?.node;
+/** Quand ça se lance, en une proposition : « Quand « Photo » entre dans l'écran », « Au clic sur « Bouton » », « Au chargement de la page ». */
+export function whenLabel(site: Site, trigger: Trigger, hostId: string, pageLevel = false): string {
+  const hostNode = indexSite(site).get(hostId)?.node;
   const host = pageLevel ? "la page" : quoted(hostNode ? nodeLabel(hostNode) : hostId);
   const [lo, hi] = (trigger.range ?? [0, 1]).map((v) => Math.round(v * 100));
-  const when = {
+  return {
     load: "Au chargement de la page",
     inView: `Quand ${host} entre dans l'écran`,
     hover: `Quand la souris passe sur ${host}`,
@@ -145,6 +145,18 @@ export function summarizeAnimation(site: Site, trigger: Trigger, hostId: string,
     scroll: pageLevel ? `Pendant le défilement de la page (de ${lo} à ${hi} %)` : `Pendant que ${host} traverse l'écran (de ${lo} à ${hi} %)`,
     pointer: `Quand la souris se déplace ${trigger.axis === "x" ? "de gauche à droite" : "de haut en bas"} dans la fenêtre`,
   }[trigger.on];
+}
+
+/** La même chose en deux mots, pour une colonne étroite : « Entrée de « Photo » », « Clic sur « Bouton » », « Chargement de la page ». */
+export function whenShortLabel(site: Site, trigger: Trigger, hostId: string, pageLevel = false): string {
+  const hostNode = indexSite(site).get(hostId)?.node;
+  const host = pageLevel ? "la page" : quoted(hostNode ? nodeLabel(hostNode) : hostId);
+  return { load: "Chargement de la page", inView: `Entrée de ${host}`, hover: `Survol de ${host}`, click: `Clic sur ${host}`, scroll: `Défilement de ${host}`, pointer: "Souris dans la fenêtre" }[trigger.on];
+}
+
+export function summarizeAnimation(site: Site, trigger: Trigger, hostId: string, pageLevel = false): string {
+  const index = indexSite(site);
+  const when = whenLabel(site, trigger, hostId, pageLevel);
   const positional = trigger.on === "scroll" || trigger.on === "pointer";
   const delay = trigger.delay && !positional ? `, après ${formatMs(trigger.delay)}` : "";
   const a = animationById(site, trigger.animation);

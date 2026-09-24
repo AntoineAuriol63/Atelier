@@ -4,6 +4,7 @@ import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import type { Node, Op, Site } from "@atelier/model";
 import { appearanceOf, applyOps, findNode, planAppearanceDelay, planGroupAppearance, planQuickAnimation, sampleSite } from "@atelier/model";
+import { sceneView } from "../src/lib/scene-view";
 import { SceneEditor } from "../src/components/animation/SceneEditor";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -71,7 +72,9 @@ describe("tiroir Animation : la scène", () => {
   it("l'élément sélectionné a sa ligne même s'il ne bouge pas encore, avec « Faire apparaître »", () => {
     const m = mount(animated(), "pp2");
     const rows = [...m.host.querySelectorAll("[data-scene-row]")].map((r) => r.getAttribute("data-scene-row"));
-    expect(rows).toEqual(["photo", "hh2", "pp2", "stats"]);
+    // La scène a trois lancements : les lignes sont groupées par lancement, et l'élément immobile vient en dernier, sous « Ne bouge pas encore ».
+    expect(rows).toEqual(["photo", "hh2", "stats", "pp2"]);
+    expect(m.host.querySelector("[data-scene-still-sep]")!.textContent).toBe("Ne bouge pas encore");
     expect(m.host.querySelector('[data-scene-row="pp2"]')!.textContent).toContain("Faire apparaître");
   });
 
@@ -309,6 +312,50 @@ describe("tiroir Animation : la scène", () => {
     expect(m.host.querySelector<HTMLElement>('[data-scene-name-cell="hh2"]')!.className).not.toMatch(/cursor-pointer/);
     act(() => { m.host.querySelector<HTMLElement>('[data-scene-name-cell="hh2"]')!.click(); });
     expect(m.selected).toEqual(["photo", "stats"]);
+  });
+
+  it("plusieurs lancements : les lignes sont groupées sous un séparateur nommé, « Tout enchaîner » les réunit en un seul", () => {
+    const m = mount(animated(), "hh2");
+    const seps = [...m.host.querySelectorAll<HTMLElement>("[data-scene-launch]")];
+    // Dans la colonne étroite des noms, la forme courte ; sur les pistes, la phrase entière, à la même hauteur : la grille reste alignée.
+    expect(seps.map((e) => e.textContent)).toEqual(["Entrée de « Photo »", expect.stringMatching(/^Entrée de .*Une cuisine/), "Entrée de « Chiffres »"]);
+    expect([...m.host.querySelectorAll("[data-scene-launch-lane]")].map((e) => e.textContent)).toEqual(["Quand « Photo » entre dans l'écran", expect.stringMatching(/Une cuisine.* entre dans l'écran$/), "Quand « Chiffres » entre dans l'écran"]);
+    expect([...m.host.querySelectorAll("[data-scene-row]")].map((r) => r.getAttribute("data-scene-launch-of"))).toEqual(seps.map((e) => e.getAttribute("data-scene-launch")));
+    const chain = m.host.querySelector<HTMLButtonElement>("[data-scene-chain]")!;
+    expect(chain.textContent).toBe("Tout enchaîner");
+    act(() => { chain.click(); });
+    expect(m.ops).toHaveLength(1);
+    expect(sceneView(m.current(), "hh2")!.launches).toHaveLength(1);
+    expect(appearanceOf(m.current(), "hh2")!.begin).toEqual({ kind: "after", node: "photo" });
+    m.rerender(m.current(), "hh2");
+    expect(m.host.querySelector("[data-scene-launch]")).toBeNull();
+    expect(m.host.querySelector("[data-scene-chain]")).toBeNull();
+  });
+
+  it("glisser la ligne d'un élément sur un autre lancement la fait démarrer après le dernier élément de ce lancement", () => {
+    const m = mount(animated(), "hh2");
+    // Les cases des noms, empilées de 40 px : Photo en 0–40, Une cuisine en 40–80, Chiffres en 80–120 (les séparateurs comptent 0).
+    const cells = [...m.host.querySelectorAll<HTMLElement>("[data-scene-name-cell]")];
+    cells.forEach((c, i) => { c.getBoundingClientRect = () => ({ left: 0, width: 150, top: i * 40, height: 40, right: 150, bottom: i * 40 + 40, x: 0, y: i * 40, toJSON: () => ({}) }) as DOMRect; });
+    m.host.querySelectorAll<HTMLElement>("[data-scene-launch]").forEach((e) => { e.getBoundingClientRect = () => ({ left: 0, width: 150, top: -1, height: 0, right: 150, bottom: -1, x: 0, y: -1, toJSON: () => ({}) }) as DOMRect; });
+    const me = m.host.querySelector<HTMLElement>('[data-scene-name-cell="hh2"]')!;
+    act(() => { me.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 10, clientY: 60, button: 0 })); });
+    act(() => { window.dispatchEvent(new MouseEvent("pointermove", { clientX: 10, clientY: 100 })); });
+    // Pendant le geste, le lancement visé se signale.
+    expect(m.host.querySelector('[data-scene-launch][data-drop-target]')!.textContent).toContain("Chiffres");
+    act(() => { window.dispatchEvent(new MouseEvent("pointerup", { clientX: 10, clientY: 100 })); });
+    expect(m.ops).toHaveLength(1);
+    expect(appearanceOf(m.current(), "hh2")!.begin).toEqual({ kind: "after", node: "stats" });
+    expect(sceneView(m.current(), "hh2")!.launches.map((l) => l.hostId)).toEqual(["photo", "stats"]);
+    expect(m.selected).toEqual([]);
+    // Un glisser qui revient sur son propre lancement ne change rien ; un clic sans glisser sélectionne.
+    const photo = m.host.querySelector<HTMLElement>('[data-scene-name-cell="photo"]')!;
+    act(() => { photo.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true, clientX: 10, clientY: 20, button: 0 })); });
+    act(() => { window.dispatchEvent(new MouseEvent("pointermove", { clientX: 10, clientY: 30 })); });
+    act(() => { window.dispatchEvent(new MouseEvent("pointerup", { clientX: 10, clientY: 30 })); });
+    expect(m.ops).toHaveLength(1);
+    act(() => { photo.click(); });
+    expect(m.selected).toEqual(["photo"]);
   });
 
   it("sans élément sélectionné : une invitation, pas de scène", () => {

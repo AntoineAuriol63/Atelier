@@ -1,6 +1,6 @@
 import type { Appearance, Site } from "@atelier/model";
 import { appearanceOf, indexSite, inheritedAppearance, trackSpan } from "@atelier/model";
-import { sceneElements, type SceneElement } from "./timeline";
+import { sceneElements, whenLabel, whenShortLabel, type SceneElement } from "./timeline";
 
 /**
  * L'outil Animation recentré (24 septembre 2026) : la scène d'une section, une ligne par élément dans l'ordre de la page.
@@ -20,10 +20,12 @@ export type SceneRow = SceneElement & {
   /** Rien ne le fait bouger. */
   still: boolean;
 };
+/** Un lancement : un déclencheur sur un élément (ou la page), et les lignes qu'il fait partir, dans l'ordre de la page. */
+export type SceneLaunch = { id: string; hostId: string; triggerId: string; /** « Quand « Photo » entre dans l'écran » */ label: string; /** « Entrée de « Photo » » */ short: string; rows: string[] };
 export type SceneView = {
   sectionId: string; sectionLabel: string; rows: SceneRow[]; total: number;
-  /** Les lancements distincts (un seul quand la scène est enchaînée). */
-  launches: string[];
+  /** Les lancements distincts, dans l'ordre de leur première ligne (un seul quand la scène est enchaînée). */
+  launches: SceneLaunch[];
   /** Le temps de scène `t` traduit en instant de l'animation de l'élément sélectionné (pour montrer cet instant dans l'aperçu). */
   scrub: (t: number) => { hostId: string; triggerId: string; time: number } | undefined;
   selected?: Appearance;
@@ -47,7 +49,7 @@ export function sceneView(site: Site, selectedId: string | undefined): SceneView
   const index = indexSite(site);
   const section = index.get(sectionId)!.node;
   const elements = sceneElements(site, sectionId);
-  const launches = new Set<string>();
+  const launches = new Map<string, SceneLaunch>();
   let total = 0;
   const rows: SceneRow[] = elements.map((e) => {
     const ap = appearanceOf(site, e.id);
@@ -55,14 +57,20 @@ export function sceneView(site: Site, selectedId: string | undefined): SceneView
     if (ap) {
       const delay = ap.trigger.delay ?? 0;
       const launch = `${ap.hostId}:${ap.trigger.id}`;
-      launches.add(launch);
+      const l = launches.get(launch) ?? { id: launch, hostId: ap.hostId, triggerId: ap.trigger.id, label: whenLabel(site, ap.trigger, ap.hostId, !!ap.page), short: whenShortLabel(site, ap.trigger, ap.hostId, !!ap.page), rows: [] };
+      l.rows.push(e.id); launches.set(launch, l);
       total = Math.max(total, delay + ap.end);
       const bar: SceneBar = { start: delay + ap.start, end: delay + ap.end, hostId: ap.hostId, triggerId: ap.trigger.id, animationId: ap.animation.id, trackId: ap.track.id, launch, ...(ap.preset ? { preset: ap.preset.id } : {}) };
       const keyframes = selected ? [...ap.track.keyframes].sort((a, b) => a.at - b.at).map((k) => ({ at: k.at, sceneAt: delay + k.at, ...(k.easing ? { easing: k.easing } : {}) })) : undefined;
       return { ...e, selected, bar, ...(keyframes ? { keyframes } : {}), still: false };
     }
     const inh = inheritedAppearance(site, e.id);
-    if (inh) return { ...e, selected, withGroup: inh.carrierId, still: false };
+    if (inh) {
+      // Il arrive avec le bloc qui le porte : même lancement que lui.
+      const carrier = appearanceOf(site, inh.carrierId);
+      if (carrier) launches.get(`${carrier.hostId}:${carrier.trigger.id}`)?.rows.push(e.id);
+      return { ...e, selected, withGroup: inh.carrierId, still: false };
+    }
     return { ...e, selected, still: true };
   });
   const sel = appearanceOf(site, selectedId);
@@ -72,5 +80,5 @@ export function sceneView(site: Site, selectedId: string | undefined): SceneView
     return { hostId: sel.hostId, triggerId: sel.trigger.id, time: Math.max(0, t - delay) };
   };
   void trackSpan;
-  return { sectionId, sectionLabel: section.name ?? sectionId, rows, total, launches: [...launches], scrub, ...(sel ? { selected: sel } : {}) };
+  return { sectionId, sectionLabel: section.name ?? sectionId, rows, total, launches: [...launches.values()], scrub, ...(sel ? { selected: sel } : {}) };
 }
