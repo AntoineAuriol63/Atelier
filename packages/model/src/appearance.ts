@@ -338,6 +338,35 @@ export function planAppearanceDelay(site: Site, nodeId: Id, ms: number): Op[] {
   return plan.ops;
 }
 
+/**
+ * Place la barre d'un élément à un instant de la scène (24 septembre 2026 : « l'utilisateur ne doit pas être bloqué »). « Démarre » s'adapte :
+ * après la fin de l'élément qu'il suit, il reste « après » lui (le délai grandit) ; pendant cet élément, il part « en même temps que » lui avec
+ * l'écart voulu ; avant lui, il se détache et part à cet instant dans la même animation. Un élément qui se lance lui-même prend l'instant pour délai.
+ */
+export function planAppearanceMoveTo(site: Site, nodeId: Id, sceneStart: number): Op[] {
+  const cur = appearanceOf(site, nodeId);
+  if (!cur) return [];
+  const want = Math.max(0, Math.round(sceneStart));
+  const tDelay = cur.trigger.delay ?? 0;
+  if (want === tDelay + cur.start) return [];
+  if (cur.begin.kind === "after" || cur.begin.kind === "with") {
+    const anchor = appearanceOf(site, cur.begin.node);
+    if (anchor && anchor.animation.id === cur.animation.id) {
+      const aStart = tDelay + anchor.start, aEnd = tDelay + anchor.end;
+      if (cur.begin.kind === "after" && want >= aEnd) return planAppearanceDelay(site, nodeId, want - aEnd);
+      if (cur.begin.kind === "with" && want >= aStart) return planAppearanceDelay(site, nodeId, want - aStart);
+      if (want >= aStart) {
+        const plan = new Plan(site);
+        plan.push(planAppearanceStart(plan.site, nodeId, { kind: "with", node: cur.begin.node }));
+        plan.push(planAppearanceDelay(plan.site, nodeId, want - aStart));
+        return plan.ops;
+      }
+      return planTrack(site, cur, (t) => shiftTrackTo(stripStart(t), Math.max(0, want - tDelay)));
+    }
+  }
+  return planAppearanceDelay(site, nodeId, want);
+}
+
 /** Vitesse d'une apparition (Rapide · Normale · Lente, par rapport à son préréglage) : sa piste seule change d'échelle, ce qui la suit est replacé. */
 export function planAppearanceSpeed(site: Site, nodeId: Id, speed: QuickSpeed): Op[] {
   const cur = appearanceOf(site, nodeId);

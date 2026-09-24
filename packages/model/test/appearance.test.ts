@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   animationById, animationUsages, appearanceAnchors, planAddTrigger, planAppearanceCascade, appearanceOf, appearanceStartOptions, applyOps, inheritedAppearance, planRemoveNode, planAppearanceDelay, planAppearanceDetail, planAppearancePreset, planAppearanceReplay,
-  planAppearanceDuration, planAppearanceSpeed, planAppearanceStart, planChainInOrder, planGroupAppearance, planQuickAnimation, planUpdateTrigger, presetById, restaurantSite, sampleSite, schema, siblingGroup, trackPresetMatch, trackSpan,
+  planAppearanceDuration, planAppearanceSpeed, planAppearanceStart, planAppearanceMoveTo, planChainInOrder, planGroupAppearance, planQuickAnimation, planUpdateTrigger, presetById, restaurantSite, sampleSite, schema, siblingGroup, trackPresetMatch, trackSpan,
   type Node, type Site,
 } from "../src";
 
@@ -518,5 +518,43 @@ describe("retirer l'apparition de l'hôte d'une scène", () => {
     valid(site);
     expect(site.animations).toHaveLength(0);
     expect(["photo", "hh2", "pp2"].every((id) => !find(site, id).triggers)).toBe(true);
+  });
+});
+
+/** 24 septembre 2026 : la barre d'un élément se place où l'on veut sur la scène, « Démarre » s'adapte au lieu de bloquer le geste. */
+describe("placer la barre d'un élément où l'on veut (planAppearanceMoveTo)", () => {
+  const chained = () => {
+    let site = quick(base, "photo", "fade-up"); site = quick(site, "hh2", "fade-up"); site = quick(site, "pp2", "fade-up");
+    return run(site, planChainInOrder(site, "about"));
+  };
+  it("plus tard que la fin de l'élément qu'il suit : il reste « après » lui, le délai grandit, ce qui le suit recule", () => {
+    const c = chained();
+    const site = run(c, planAppearanceMoveTo(c, "hh2", 900));
+    valid(site);
+    expect(appearanceOf(site, "hh2")).toMatchObject({ begin: { kind: "after", node: "photo" }, delay: 200, start: 900, end: 1600 });
+    expect(appearanceOf(site, "pp2")).toMatchObject({ begin: { kind: "after", node: "hh2" }, start: 1600 });
+  });
+  it("pendant l'élément qu'il suit : il part « en même temps que » lui, avec l'écart voulu", () => {
+    const c = chained();
+    const site = run(c, planAppearanceMoveTo(c, "hh2", 300));
+    valid(site);
+    expect(appearanceOf(site, "hh2")).toMatchObject({ begin: { kind: "with", node: "photo" }, delay: 300, start: 300, end: 1000 });
+    expect(appearanceOf(site, "pp2")).toMatchObject({ begin: { kind: "after", node: "hh2" }, start: 1000 });
+  });
+  it("avant l'élément qu'il suit : il se détache et part à l'instant voulu, dans la même animation", () => {
+    const c = chained();
+    const site = run(c, planAppearanceMoveTo(c, "pp2", 200));
+    valid(site);
+    const pp2 = appearanceOf(site, "pp2")!;
+    expect(pp2).toMatchObject({ begin: { kind: "host", hostId: "photo" }, start: 200, end: 900, delay: 200 });
+    expect(pp2.animation.id).toBe(appearanceOf(site, "photo")!.animation.id);
+    expect(appearanceOf(site, "hh2")).toMatchObject({ begin: { kind: "after", node: "photo" }, start: 700 });
+  });
+  it("un élément qui se lance lui-même : l'instant devient son délai ; jamais avant 0", () => {
+    const one = quick(base, "photo", "fade-up");
+    expect(appearanceOf(run(one, planAppearanceMoveTo(one, "photo", 400)), "photo")).toMatchObject({ delay: 400, start: 400, end: 1100 });
+    const c = chained();
+    expect(appearanceOf(run(c, planAppearanceMoveTo(c, "pp2", -300)), "pp2")).toMatchObject({ start: 0 });
+    expect(planAppearanceMoveTo(c, "hh2", 700)).toEqual([]);
   });
 });

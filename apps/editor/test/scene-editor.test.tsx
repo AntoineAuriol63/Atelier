@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import type { Node, Op, Site } from "@atelier/model";
-import { appearanceOf, applyOps, findNode, planAppearanceDelay, planGroupAppearance, planQuickAnimation, sampleSite } from "@atelier/model";
+import { appearanceOf, applyOps, findNode, planAppearanceDelay, planChainInOrder, planGroupAppearance, planQuickAnimation, sampleSite } from "@atelier/model";
 import { sceneView } from "../src/lib/scene-view";
 import { SceneEditor } from "../src/components/animation/SceneEditor";
 
@@ -500,6 +500,39 @@ describe("tiroir Animation : tirer", () => {
     act(() => { window.dispatchEvent(new MouseEvent("pointerup", { clientX: 160 })); });
     // Au relâcher, les états ont bien avancé de 120 ms avec la barre (100 px = 200 ms).
     expect(appearanceOf(m.current(), "hh2")!.track.keyframes.map((k) => k.at).sort((a, b) => a - b)).toEqual([720, 1420]);
+  });
+
+  // La scène enchaînée : « Photo » [0, 700], « Une cuisine » après elle [700, 1 400], « Chiffres » après.
+  const chainedScene = () => { const s = animated(); return run(s, planChainInOrder(s, "about")); };
+  const pxOf = (host: HTMLElement) => { const max = Number(host.querySelector("[data-scene-rail]")!.getAttribute("aria-valuemax")); return (ms: number) => (ms / max) * 1000; };
+
+  it("la barre d'un élément enchaîné se place où l'on veut : tirée pendant l'élément qu'il suit, « Démarre » devient « en même temps que » lui", () => {
+    const m = mount(chainedScene(), "photo"); railOf(m.host); const px = pxOf(m.host);
+    expect(appearanceOf(m.current(), "hh2")).toMatchObject({ begin: { kind: "after", node: "photo" }, start: 700 });
+    drag(m.host.querySelector('[data-scene-row="hh2"] [data-scene-bar]')!, px(700), px(300));
+    expect(appearanceOf(m.current(), "hh2")).toMatchObject({ begin: { kind: "with", node: "photo" }, delay: 300, start: 300 });
+    // Et avant lui : il se détache et part à l'instant voulu dans la même animation. (La scène a raccourci : la règle aussi, on relit sa longueur.)
+    m.rerender(m.current(), "photo"); const px2 = pxOf(m.host);
+    drag(m.host.querySelector('[data-scene-row="stats"] [data-scene-bar]')!, px2(1000), px2(100));
+    expect(appearanceOf(m.current(), "stats")).toMatchObject({ begin: { kind: "host", hostId: "photo" }, start: 100 });
+  });
+
+  it("le premier losange d'un élément enchaîné se tire avant la fin de l'élément qu'il suit : « Démarre » s'adapte, les autres états ne bougent pas", () => {
+    const m = mount(chainedScene(), "hh2"); railOf(m.host); const px = pxOf(m.host);
+    const kf = m.host.querySelector<HTMLElement>('[data-scene-row="hh2"] [data-scene-kf="700"]')!;
+    expect(kf).toBeTruthy();
+    drag(kf, px(700), px(500));
+    const ap = appearanceOf(m.current(), "hh2")!;
+    expect(ap.begin).toEqual({ kind: "with", node: "photo" });
+    expect(ap.track.keyframes.map((k) => k.at).sort((a, b) => a - b)).toEqual([500, 1400]);
+  });
+
+  it("un délai négatif tapé dans « Délai » place aussi la barre : « Démarre » s'adapte au lieu de refuser", () => {
+    const m = mount(chainedScene(), "hh2");
+    const input = m.host.querySelector<HTMLInputElement>("[data-scene-side] [data-appear-delay] input")!;
+    expect(input).toBeTruthy();
+    act(() => { const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!; setter.call(input, "-200"); input.dispatchEvent(new Event("input", { bubbles: true })); input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })); });
+    expect(appearanceOf(m.current(), "hh2")).toMatchObject({ begin: { kind: "with", node: "photo" }, start: 500, delay: 500 });
   });
 
   it("tirer une barre change le départ de l'élément (son délai après ce qui le lance)", () => {

@@ -4,7 +4,7 @@ import { createElement, useEffect, useLayoutEffect, useMemo, useRef, useState } 
 import { createPortal } from "react-dom";
 import { Diamond, ExternalLink, Link2, Pause, Play, Plus, SkipBack, SlidersHorizontal, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { CommitOptions, Node, Op, Site } from "@atelier/model";
-import { ANIMATION_PRESETS, TRIGGER_LABELS, animationUsages, appearanceOf, applyOps, indexSite, keyframeAt, newId, planAddTrigger, planAppearanceStart, planChainInOrder, planQuickAnimation, planAppearanceDelay, planAppearanceDuration, planAppearancePreset, planRemoveKeyframes, planRemoveTriggerWithAnimation, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUpdateTrigger, trackPresetMatch } from "@atelier/model";
+import { ANIMATION_PRESETS, TRIGGER_LABELS, animationUsages, appearanceOf, applyOps, indexSite, keyframeAt, newId, planAddTrigger, planAppearanceMoveTo, planAppearanceStart, planChainInOrder, planQuickAnimation, planAppearanceDelay, planAppearanceDuration, planAppearancePreset, planRemoveKeyframes, planRemoveTriggerWithAnimation, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUpdateTrigger, trackPresetMatch } from "@atelier/model";
 import { Badge, Button, Eyebrow, Hint, IconButton, Select } from "@/ui";
 import { formatMs, quoteLabel, rulerTicks, snapTime, summarizeAnimation, tickLabel } from "@/lib/timeline";
 import { sceneView, type SceneLaunch, type SceneRow } from "@/lib/scene-view";
@@ -139,9 +139,24 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
       const current = getSite();
       const cur = appearanceOf(current, id);
       if (!cur) return;
-      if (kind === "move") run(planAppearanceDelay(current, id, Math.max(0, cur.delay + delta)), `Départ de ${quoteLabel(nodeLabel(nodeOf(id)!))}`);
+      const tDelay = cur.trigger.delay ?? 0;
+      // La barre se place où l'on veut : « Démarre » s'adapte (après, en même temps que, détaché) au lieu de bloquer le geste.
+      if (kind === "move") run(planAppearanceMoveTo(current, id, Math.max(0, tDelay + cur.start + delta)), `Départ de ${quoteLabel(nodeLabel(nodeOf(id)!))}`);
       else if (kind === "end") run(planAppearanceDuration(current, id, Math.max(50, cur.end - cur.start + delta)), `Durée de ${quoteLabel(nodeLabel(nodeOf(id)!))}`);
-      else if (kfAt !== undefined) { run(planShiftKeyframes(current, cur.animation.id, [{ track: cur.track.id, at: kfAt }], delta), "Déplacer l'état"); if (playhead !== null) place(Math.max(0, playhead + delta)); }
+      else if (kfAt !== undefined) {
+        const first = Math.min(...cur.track.keyframes.map((k) => k.at));
+        const attached = cur.begin.kind === "after" || cur.begin.kind === "with";
+        if (kfAt === first && delta < 0 && attached) {
+          // Le premier état tiré plus tôt que ne le permet « Démarre » : toute la piste se replace (« Démarre » s'adapte), puis les autres états reviennent où ils étaient.
+          const moved = planAppearanceMoveTo(current, id, Math.max(0, tDelay + kfAt + delta));
+          const after = applyOps(current, moved).site;
+          const ap2 = appearanceOf(after, id)!;
+          const others = ap2.track.keyframes.filter((k) => k.at !== Math.min(...ap2.track.keyframes.map((x) => x.at))).map((k) => ({ track: ap2.track.id, at: k.at }));
+          const back = planShiftKeyframes(after, ap2.animation.id, others, (ap2.start - cur.start) * -1);
+          run([...moved, ...back], "Déplacer l'état");
+        } else run(planShiftKeyframes(current, cur.animation.id, [{ track: cur.track.id, at: kfAt }], delta), "Déplacer l'état");
+        if (playhead !== null) place(Math.max(0, playhead + delta));
+      }
     };
     window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
   };

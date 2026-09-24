@@ -4,7 +4,7 @@ import { Fragment, useEffect, useRef, type ReactNode } from "react";
 import { ExternalLink, Film, Play } from "lucide-react";
 import type { AppearanceBegin, CommitOptions, Node, Op, QuickGroup, Site } from "@atelier/model";
 import {
-  ANIMATION_PRESETS, TRIGGER_LABELS, animationLength, appearanceAnchors, appearanceOf, appearanceStartOptions, componentUsages, indexSite, inheritedAppearance, planAppearanceDelay, planAppearanceDetail, planAppearancePreset,
+  ANIMATION_PRESETS, TRIGGER_LABELS, animationLength, appearanceAnchors, appearanceOf, appearanceStartOptions, componentUsages, indexSite, inheritedAppearance, planAppearanceDelay, planAppearanceMoveTo, planAppearanceDetail, planAppearancePreset,
   planAppearanceCascade, planAppearanceDuration, planAppearanceReplay, planChainInOrder, planAppearanceSpeed, planAppearanceStart, planGroupAppearance, planQuickAnimation, planQuickSpeed, quickAnimation, quickSpeed, siblingGroup, trackSpan, type QuickSpeed,
 } from "@atelier/model";
 import { Button, Field, FieldGroup, Hint, NumberInput, Select, Toggle } from "@/ui";
@@ -200,7 +200,8 @@ function AppearanceFields({ site, node, run, onPlay, onSelectNode, timing = fals
             <Select value={beginValue(ap.begin)} options={beginOptions} onValueChange={setBegin} />
           </Field>
           <Field label="Délai" hint="Attente avant de partir, après ce qui la fait démarrer">
-            <div className="flex items-center gap-1"><NumberInput unit="ms" step={50} min={0} value={ap.delay} onValueChange={(v) => run(planAppearanceDelay(site, node.id, v === "" ? 0 : v), "Apparition · délai", undefined, `appear-delay:${node.id}`)} />{ap.delay >= 1000 ? <span className="text-2xs text-muted">{formatDuration(ap.delay).replace(/^[^(]*/, "")}</span> : null}</div>
+            {/* Un délai négatif sur un élément rattaché n'est pas refusé : la barre se place avant, « Démarre » s'adapte (en même temps que, ou détaché). */}
+            <div className="flex items-center gap-1" data-appear-delay=""><NumberInput unit="ms" step={50} min={ap.begin.kind === "after" || ap.begin.kind === "with" ? undefined : 0} value={ap.delay} onValueChange={(v) => { const n = v === "" ? 0 : v; const b = ap.begin; if (n < 0 && (b.kind === "after" || b.kind === "with")) { const anchor = appearanceOf(site, b.node, index); const ref = (ap.trigger.delay ?? 0) + (anchor ? (b.kind === "after" ? anchor.end : anchor.start) : 0); run(planAppearanceMoveTo(site, node.id, ref + n), "Apparition · délai", undefined, `appear-delay:${node.id}`); } else run(planAppearanceDelay(site, node.id, Math.max(0, n)), "Apparition · délai", undefined, `appear-delay:${node.id}`); }} />{ap.delay >= 1000 ? <span className="text-2xs text-muted">{formatDuration(ap.delay).replace(/^[^(]*/, "")}</span> : null}</div>
           </Field>
           {ap.trigger.on === "inView" ? (
             <Row label="Rejouer" title={ap.own ? "Rejouer l'apparition chaque fois que l'élément revient à l'écran" : `Se règle sur ce qui lance l'apparition (${labelOf(ap.hostId)}), pour tout l'enchaînement`}>
