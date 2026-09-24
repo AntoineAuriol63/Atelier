@@ -191,6 +191,7 @@ Cinq examens (architecture, charge, UI/UX, cohérence produit, sécurité) conso
 
 ## Journal
 
+- 24 sept. 2026 (suite 19) — Tiroir étroit (1 024 px) : colonne des réglages bornée à 260–340 px, noms sur 150 px sous 720 px de largeur de scène, « Tester sur le site » en icône seule et instant masqué sous 640 / 560 px (requêtes de conteneur). Les pistes passent de 63 à 153 px à 1 024 px.
 - 24 sept. 2026 (suite 18) — La pastille cachait les losanges quand il y en a beaucoup (crainte d'Antoine) : la ligne de l'élément sélectionné est plus haute (48 px, dans les deux colonnes), la barre reste en haut, et sous elle une petite pastille « + État · 580 ms » suit la souris ; sur la barre, un losange creux et un fil vertical marquent où l'état se posera.
 - 24 sept. 2026 (suite 17) — **« Ajouter un état »** remplace « Fixer l'état ici » (proposition d'Antoine) : pastille, « + » du nom, encart (« Ajouter un état ici », « Supprimer l'état », « ◆ État à 900 ms »). L'instant est écrit dans la pastille, le « ici » ne servait plus.
 - 24 sept. 2026 (suite 16) — « Pourquoi le survol est bleu sur bleu » : la pastille prenait la couleur accent, celle de la barre sélectionnée. Plus d'infobulle native ; au repos, fond de panneau et texte encre sur trait fort ; au survol, couleurs inversées (fond encre, texte panneau, valable dans les deux thèmes), halo accent, agrandissement de 10 % ; l'instant en ms dans une capsule. Losange qui pivote.

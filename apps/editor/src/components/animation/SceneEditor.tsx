@@ -204,8 +204,9 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
   const others = (selected.triggers ?? []).filter((t) => t.id !== ap?.trigger.id && t.on !== "load" && t.on !== "inView");
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_360px] h-full min-h-0 min-w-0" data-scene-editor="" data-scene-zoom={String(zoom)}>
-      <div className="flex flex-col min-h-0 min-w-0 border-r border-line">
+    <div className="grid grid-cols-[minmax(0,1fr)_minmax(260px,340px)] h-full min-h-0 min-w-0" data-scene-editor="" data-scene-zoom={String(zoom)}>
+      {/* Colonne de la scène : à requêtes de conteneur, les noms et le libellé « Tester sur le site » se resserrent quand la place manque. */}
+      <div className="@container flex flex-col min-h-0 min-w-0 border-r border-line">
         <div className="flex items-center gap-2 px-3 h-9 shrink-0 border-b border-line">
           <Eyebrow as="span">Scène</Eyebrow>
           <span className="text-sm font-medium truncate max-w-[180px] shrink-0">{view.sectionLabel}</span>
@@ -214,12 +215,12 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
           <span className="mx-1 h-4 w-px bg-line" aria-hidden />
           <IconButton size="sm" label="Revenir au début" icon={SkipBack} onClick={() => { cancelAnimationFrame(raf.current); setPlaying(false); place(0); }} />
           <Button size="sm" variant={playing ? "default" : "primary"} icon={playing ? Pause : Play} title={playing ? "Arrête la lecture ici" : "Joue la scène dans l'aperçu, la tête de lecture suit"} onClick={() => (playing ? pausePlay() : startPlay())}>{playing ? "Pause" : "Lire"}</Button>
-          {onTestOnSite ? <Button size="sm" variant="ghost" icon={ExternalLink} onClick={() => onTestOnSite(ap && !ap.page ? ap.hostId : selected.id)} title="Ouvre l'onglet Aperçu : la section arrive à l'écran comme pour un visiteur">Tester sur le site</Button> : null}
-          <span className="ml-auto text-xs tabular-nums text-muted">{playhead !== null ? `${tickLabel(playhead)} ms` : ""}</span>
-          <IconButton size="sm" label="Fermer l'outil Animation" icon={X} onClick={onClose} />
+          {onTestOnSite ? <Button size="sm" variant="ghost" icon={ExternalLink} aria-label="Tester sur le site" onClick={() => onTestOnSite(ap && !ap.page ? ap.hostId : selected.id)} title="Ouvre l'onglet Aperçu : la section arrive à l'écran comme pour un visiteur"><span className="hidden @[640px]:inline">Tester sur le site</span></Button> : null}
+          <span className="ml-auto text-xs tabular-nums text-muted whitespace-nowrap hidden @[560px]:inline">{playhead !== null ? `${tickLabel(playhead)} ms` : ""}</span>
+          <IconButton size="sm" className="ml-auto @[560px]:ml-0 shrink-0" label="Fermer l'outil Animation" icon={X} onClick={onClose} />
         </div>
         <div className="flex-1 min-h-0 overflow-y-auto">
-          <div className="grid grid-cols-[220px_minmax(0,1fr)] px-3 pt-2">
+          <div className="grid grid-cols-[150px_minmax(0,1fr)] @[720px]:grid-cols-[220px_minmax(0,1fr)] px-3 pt-2">
             {/* Les noms, alignés sur les lignes de droite par une hauteur fixe. */}
             <div className="flex flex-col">
               <span className="h-5 shrink-0" aria-hidden />
