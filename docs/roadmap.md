@@ -191,6 +191,7 @@ Cinq examens (architecture, charge, UI/UX, cohérence produit, sécurité) conso
 
 ## Journal
 
+- 24 sept. 2026 (suite 18) — La pastille cachait les losanges quand il y en a beaucoup (crainte d'Antoine) : la ligne de l'élément sélectionné est plus haute (48 px, dans les deux colonnes), la barre reste en haut, et sous elle une petite pastille « + État · 580 ms » suit la souris ; sur la barre, un losange creux et un fil vertical marquent où l'état se posera.
 - 24 sept. 2026 (suite 17) — **« Ajouter un état »** remplace « Fixer l'état ici » (proposition d'Antoine) : pastille, « + » du nom, encart (« Ajouter un état ici », « Supprimer l'état », « ◆ État à 900 ms »). L'instant est écrit dans la pastille, le « ici » ne servait plus.
 - 24 sept. 2026 (suite 16) — « Pourquoi le survol est bleu sur bleu » : la pastille prenait la couleur accent, celle de la barre sélectionnée. Plus d'infobulle native ; au repos, fond de panneau et texte encre sur trait fort ; au survol, couleurs inversées (fond encre, texte panneau, valable dans les deux thèmes), halo accent, agrandissement de 10 % ; l'instant en ms dans une capsule. Losange qui pivote.
 - 24 sept. 2026 (suite 15) — Survol de la pastille « Fixer l'état ici » plus agréable (demande d'Antoine) : losange qui tourne, léger agrandissement, halo accent, fond plein et texte inversé, transition de 150 ms (désactivée si le système réduit les animations), et l'instant en ms affiché dans la pastille.

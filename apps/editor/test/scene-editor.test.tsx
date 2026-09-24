@@ -248,7 +248,8 @@ describe("tiroir Animation : la scène", () => {
     act(() => { lane.dispatchEvent(new MouseEvent("mousemove", { bubbles: true, clientX: 400 })); });
     expect(pill()).toBeTruthy();
     expect(pill()!.style.left).toBe("40%");
-    expect(pill()!.textContent).toContain("Ajouter un état");
+    expect(pill()!.textContent).toContain("État");
+    expect(pill()!.textContent).toContain("800");
     act(() => { pill()!.click(); });
     expect(appearanceOf(m.current(), "hh2")!.track.keyframes.map((k) => k.at)).toEqual([600, 800, 1300]);
     expect(m.scrubs[m.scrubs.length - 1]).toBe(800);

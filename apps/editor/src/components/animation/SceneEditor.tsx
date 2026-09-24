@@ -224,7 +224,7 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
             <div className="flex flex-col">
               <span className="h-5 shrink-0" aria-hidden />
               {visible.map((row) => (
-                <div key={row.id} className={`h-8 flex items-center border-b border-line/60 ${row.selected ? "bg-accent-soft/40" : ""}`}>
+                <div key={row.id} className={`${row.selected && row.bar ? "h-12" : "h-8"} flex items-center border-b border-line/60 ${row.selected ? "bg-accent-soft/40" : ""}`}>
                   <button type="button" data-scene-name="" data-scene-name-of={row.id} className={`flex items-center gap-1.5 min-w-0 pr-2 text-left text-xs truncate ${row.selected ? "text-accent font-medium" : row.still ? "text-dim hover:text-ink" : "text-ink hover:text-accent"}`} style={{ paddingLeft: row.depth * 12 }} title={`Sélectionner ${quoteLabel(row.label)}`} onClick={() => onSelect(row.id)} onMouseEnter={() => onHover?.(row.id)} onMouseLeave={() => onHover?.(null)}>
                     <span className="truncate">{row.label}</span>{row.count ? <span className="text-muted shrink-0">×{row.count}</span> : null}
                   </button>
@@ -246,7 +246,7 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
                 </div>
                 <ul aria-label={`Scène de ${quoteLabel(view.sectionLabel)}`}>
                   {visible.map((row) => { const i = view.rows.indexOf(row); return (
-                    <li key={row.id} data-scene-row={row.id} data-still={row.still || undefined} className={`relative h-8 border-b border-line/60 ${row.selected ? "bg-accent-soft/40" : ""}`}
+                    <li key={row.id} data-scene-row={row.id} data-still={row.still || undefined} className={`relative ${row.selected && row.bar ? "h-12" : "h-8"} border-b border-line/60 ${row.selected ? "bg-accent-soft/40" : ""}`}
                       onMouseMove={row.selected && row.bar ? (e) => setHoverT(timeAt(e.clientX)) : undefined} onMouseLeave={row.selected ? () => setHoverT(null) : undefined}>
                   {row.bar ? (
                     <div data-scene-bar="" className={`absolute top-1.5 h-5 rounded-sm border text-2xs leading-none flex items-center px-1.5 whitespace-nowrap cursor-grab active:cursor-grabbing ${row.selected ? "bg-accent text-accent-ink border-accent" : "bg-accent/25 border-accent/50 text-ink"}`}
@@ -266,11 +266,14 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
                       <Diamond size={11} fill="currentColor" aria-hidden />
                     </button>
                   ))}
-                  {row.selected && ap && hoverT !== null && !playing && !drag && !ap.track.keyframes.some((k) => Math.abs(k.at + (ap.trigger.delay ?? 0) - hoverT) < 20) ? (
+                  {row.selected && ap && hoverT !== null && !playing && !drag && !ap.track.keyframes.some((k) => Math.abs(k.at + (ap.trigger.delay ?? 0) - hoverT) < 20) ? (<>
+                    {/* Le repère sur la barre dit où l'état se posera ; la petite pastille dessous ne cache aucun losange. */}
+                    <span className="pointer-events-none absolute top-0 bottom-0 w-px bg-ink/40" style={{ left: pct(hoverT) }} aria-hidden />
+                    <span className="pointer-events-none absolute top-4 -translate-x-1/2 -translate-y-1/2 text-ink" style={{ left: pct(hoverT) }} aria-hidden><Diamond size={10} strokeWidth={2} /></span>
                     <button type="button" data-scene-ghost="" aria-label="Ajouter un état (une image-clé)"
-                      className="group absolute top-1/2 -translate-x-1/2 -translate-y-1/2 z-10 flex items-center gap-1.5 h-6 pl-1.5 pr-2 rounded-full border border-line-strong bg-panel text-ink text-xs font-medium whitespace-nowrap shadow-[0_2px_8px_rgba(0,0,0,.45)] transition-[transform,box-shadow,background-color,color,border-color] duration-150 ease-out motion-reduce:transition-none hover:scale-110 hover:bg-ink hover:text-panel hover:border-ink hover:shadow-[0_0_0_4px_var(--color-accent-soft),0_8px_20px_rgba(0,0,0,.45)] active:scale-95" style={{ left: pct(hoverT) }}
-                      onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); const at2 = Math.max(0, hoverT - (ap.trigger.delay ?? 0)); run(planSetKeyframe(getSite(), ap.animation.id, ap.track.id, at2, {}), `État fixé à ${at2} ms`); place(hoverT); }}><Diamond size={10} fill="currentColor" className="shrink-0 transition-transform duration-200 group-hover:rotate-90 group-hover:scale-125" aria-hidden /><span>Ajouter un état</span><span className="rounded-full bg-accent/20 px-1.5 text-[10px] tabular-nums group-hover:bg-panel/20">{tickLabel(hoverT)} ms</span></button>
-                  ) : null}
+                      className="group absolute top-[29px] -translate-x-1/2 z-10 flex items-center gap-1 h-4 pl-1 pr-1.5 rounded-full border border-line-strong bg-panel text-ink text-[10px] font-medium leading-none whitespace-nowrap shadow-[0_2px_6px_rgba(0,0,0,.4)] transition-[transform,background-color,color,border-color] duration-150 ease-out motion-reduce:transition-none hover:scale-110 hover:bg-ink hover:text-panel hover:border-ink active:scale-95" style={{ left: pct(hoverT) }}
+                      onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); const at2 = Math.max(0, hoverT - (ap.trigger.delay ?? 0)); run(planSetKeyframe(getSite(), ap.animation.id, ap.track.id, at2, {}), `État ajouté à ${at2} ms`); place(hoverT); }}><Plus size={9} strokeWidth={2.5} aria-hidden /><span>État</span><span className="tabular-nums opacity-70">{tickLabel(hoverT)} ms</span></button>
+                  </>) : null}
                       {playhead !== null ? <span className="absolute top-0 bottom-0 w-px bg-accent/60 pointer-events-none" style={{ left: pct(playhead) }} aria-hidden /> : null}
                     </li>
                   ); })}
