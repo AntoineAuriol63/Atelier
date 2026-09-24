@@ -238,19 +238,25 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
               {/* Une petite marge à gauche : le « 0 » et le premier losange se voient en entier, rien n'invite à défiler vers la gauche. */}
               <div data-scene-lanes="" className="box-border pl-4 pr-4" style={{ width: `${zoom * 100}%` }}>
                 <div ref={rail} data-scene-rail="" role="slider" aria-label="Tête de lecture" aria-valuemin={0} aria-valuemax={length} aria-valuenow={Math.round(playhead ?? 0)} tabIndex={0}
-                  className="relative h-5 border-b border-line cursor-ew-resize select-none text-2xs text-dim"
+                  className="relative h-6 border-b border-line-strong cursor-ew-resize select-none text-2xs text-dim"
                   onPointerDown={(e) => { if (e.button !== 0) return; place(timeAt(e.clientX)); (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); }}
                   onPointerMove={(e) => { if (e.buttons & 1) place(timeAt(e.clientX)); }}
                   onKeyDown={(e) => { const cur = playhead ?? 0; if (e.key === "ArrowRight") { e.preventDefault(); place(Math.min(length, cur + (e.shiftKey ? 100 : 10))); } if (e.key === "ArrowLeft") { e.preventDefault(); place(Math.max(0, cur - (e.shiftKey ? 100 : 10))); } }}>
-                  {rulerTicks(length, zoom).filter((t) => t < length).map((t) => <span key={t} className="absolute top-0 -translate-x-1/2 tabular-nums" style={{ left: pct(t) }}>{tickLabel(t)}</span>)}
-                  {playhead !== null ? <span className="absolute top-0 bottom-0 w-px bg-accent" style={{ left: pct(playhead) }} aria-hidden /> : null}
+                  {rulerTicks(length, zoom).filter((t) => t < length).map((t) => (
+                    <span key={t} className="absolute top-0 bottom-0" style={{ left: pct(t) }} aria-hidden>
+                      <span className="absolute top-0.5 -translate-x-1/2 tabular-nums">{tickLabel(t)}</span>
+                      <span className="absolute bottom-0 h-1.5 w-px bg-line-strong" />
+                    </span>
+                  ))}
+                  {playhead !== null ? <span className="absolute -bottom-px -translate-x-1/2 w-0 h-0 border-x-[5px] border-x-transparent border-t-[6px] border-t-accent" style={{ left: pct(playhead) }} aria-hidden /> : null}
                 </div>
-                <ul aria-label={`Scène de ${quoteLabel(view.sectionLabel)}`}>
+                <ul aria-label={`Scène de ${quoteLabel(view.sectionLabel)}`} className="relative">
+                  {rulerTicks(length, zoom).filter((t) => t > 0 && t < length).map((t) => <span key={t} className="pointer-events-none absolute top-0 bottom-0 w-px bg-line/60" style={{ left: pct(t) }} aria-hidden />)}
                   {visible.map((row) => { const i = view.rows.indexOf(row); return (
                     <li key={row.id} data-scene-row={row.id} data-still={row.still || undefined} className={`relative ${row.selected && row.bar ? "h-12" : "h-8"} border-b border-line/60 ${row.selected ? "bg-accent-soft/40" : ""}`}
                       onMouseMove={row.selected && row.bar ? (e) => setHoverT(timeAt(e.clientX)) : undefined} onMouseLeave={row.selected ? () => setHoverT(null) : undefined}>
                   {row.bar ? (
-                    <div data-scene-bar="" className={`absolute top-1.5 h-5 rounded-sm border text-2xs leading-none flex items-center px-1.5 whitespace-nowrap cursor-grab active:cursor-grabbing ${row.selected ? "bg-accent text-accent-ink border-accent" : "bg-accent/25 border-accent/50 text-ink"}`}
+                    <div data-scene-bar="" className={`absolute top-1.5 h-5 rounded-md border text-2xs leading-none flex items-center px-2 whitespace-nowrap cursor-grab active:cursor-grabbing transition-[box-shadow] ${row.selected ? "bg-gradient-to-b from-accent to-accent/85 text-accent-ink border-accent/90 shadow-[inset_0_1px_0_rgba(255,255,255,.25),0_1px_2px_rgba(0,0,0,.35)]" : "bg-accent/20 border-accent/40 text-ink hover:bg-accent/30"}`}
                       style={{ left: `calc(${pct(row.bar.start)} + ${shift("move", row.id)}px)`, width: `max(6px, calc(${pct(row.bar.end)} - ${pct(row.bar.start)} + ${shift("end", row.id)}px))` }} title={`${tickLabel(row.bar.start)} → ${tickLabel(row.bar.end)} ms · glisser : départ ; bord droit : durée`}
                       onPointerDown={(e) => startDrag(e, "move", row.id)}>
                       <span className="truncate">{row.keyframes ? "" : presetLabel(row.bar.preset) ?? "Mouvement"}</span>
@@ -263,8 +269,8 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
                   )}
                   {row.keyframes?.map((k) => (
                     <button key={k.at} type="button" data-scene-kf={k.at} aria-label={`État à ${tickLabel(k.sceneAt)} ms`} aria-pressed={at === k.at} title={`${k.sceneAt} ms${k.easing ? ` · ${k.easing}` : ""}`}
-                      className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 p-1 rounded-xs cursor-grab active:cursor-grabbing ${at === k.at ? "text-warning" : "text-accent-ink hover:text-warning"}`} style={{ left: `calc(${pct(k.sceneAt)} + ${shift("kf", row.id, k.at)}px)` }} onPointerDown={(e) => { place(k.sceneAt); startDrag(e, "kf", row.id, k.at); }} onKeyDown={(e) => { if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); e.stopPropagation(); removeKeyframe(k.at); } }}>
-                      <Diamond size={11} fill="currentColor" aria-hidden />
+                      className={`absolute top-4 -translate-x-1/2 -translate-y-1/2 p-1 rounded-full cursor-grab active:cursor-grabbing drop-shadow-[0_1px_1px_rgba(0,0,0,.6)] transition-transform hover:scale-125 ${at === k.at ? "text-warning" : "text-panel hover:text-warning"}`} style={{ left: `calc(${pct(k.sceneAt)} + ${shift("kf", row.id, k.at)}px)` }} onPointerDown={(e) => { place(k.sceneAt); startDrag(e, "kf", row.id, k.at); }} onKeyDown={(e) => { if (e.key === "Delete" || e.key === "Backspace") { e.preventDefault(); e.stopPropagation(); removeKeyframe(k.at); } }}>
+                      <Diamond size={11} fill="currentColor" strokeWidth={at === k.at ? 2 : 1.5} className={at === k.at ? "stroke-accent-ink/60" : "stroke-accent-ink/70"} aria-hidden />
                     </button>
                   ))}
                   {row.selected && ap && hoverT !== null && !playing && !drag && !ap.track.keyframes.some((k) => Math.abs(k.at + (ap.trigger.delay ?? 0) - hoverT) < 20) ? (<>
@@ -275,7 +281,7 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
                       className="group absolute top-[29px] -translate-x-1/2 z-10 flex items-center gap-1 h-4 pl-1 pr-1.5 rounded-full border border-line-strong bg-panel text-ink text-[10px] font-medium leading-none whitespace-nowrap shadow-[0_2px_6px_rgba(0,0,0,.4)] transition-[transform,background-color,color,border-color] duration-150 ease-out motion-reduce:transition-none hover:scale-110 hover:bg-ink hover:text-panel hover:border-ink active:scale-95" style={{ left: pct(hoverT) }}
                       onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); const at2 = Math.max(0, hoverT - (ap.trigger.delay ?? 0)); run(planSetKeyframe(getSite(), ap.animation.id, ap.track.id, at2, {}), `État ajouté à ${at2} ms`); place(hoverT); }}><Plus size={9} strokeWidth={2.5} aria-hidden /><span>État</span><span className="tabular-nums opacity-70">{tickLabel(hoverT)} ms</span></button>
                   </>) : null}
-                      {playhead !== null ? <span className="absolute top-0 bottom-0 w-px bg-accent/60 pointer-events-none" style={{ left: pct(playhead) }} aria-hidden /> : null}
+                      {playhead !== null ? <span className="absolute top-0 bottom-0 w-px bg-accent/80 pointer-events-none" style={{ left: pct(playhead) }} aria-hidden /> : null}
                     </li>
                   ); })}
                 </ul>
