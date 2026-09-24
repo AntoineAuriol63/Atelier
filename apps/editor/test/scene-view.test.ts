@@ -85,6 +85,25 @@ describe("sceneView", () => {
     expect(one.launches.map((l) => ({ hostId: l.hostId, rows: l.rows }))).toEqual([{ hostId: "photo", rows: ["photo", "hh2", "stats", "c1", "c2", "c3"] }]);
   });
 
+  it("la section elle-même a sa ligne quand elle bouge ou qu'elle est sélectionnée, en tête, ses enfants en retrait", () => {
+    // Une section animée (un bloc de premier niveau qui apparaît en fondu) : sa ligne vient d'abord, avec sa barre, même si l'on a sélectionné un enfant.
+    let s = animated();
+    s = run(s, planQuickAnimation(s, node(s, "about"), "Apparition", "fade"));
+    const v = sceneView(s, "hh2")!;
+    expect(v.rows.map((r) => [r.id, r.depth])).toEqual([["about", 0], ["photo", 1], ["hh2", 1], ["pp2", 1], ["stats", 1], ["c1", 2], ["c2", 2], ["c3", 2]]);
+    expect(v.rows[0]!.bar).toBeTruthy();
+    expect(v.rows[0]!.label).toBe("La maison");
+    // Sélectionnée, elle montre ses images-clés comme n'importe quel élément.
+    const me = sceneView(s, "about")!;
+    expect(me.rows[0]).toMatchObject({ id: "about", selected: true });
+    expect(me.rows[0]!.keyframes!.length).toBeGreaterThanOrEqual(2);
+    expect(me.selected).toBeTruthy();
+    // Sélectionnée sans animation : sa ligne aussi (immobile, prête à « Faire apparaître ») ; ni sélectionnée ni animée : pas de ligne pour elle.
+    const still = sceneView(animated(), "about")!;
+    expect(still.rows[0]).toMatchObject({ id: "about", selected: true, still: true });
+    expect(sceneView(animated(), "hh2")!.rows.map((r) => r.id)).toEqual(["photo", "hh2", "pp2", "stats", "c1", "c2", "c3"]);
+  });
+
   it("sans élément sélectionné ni section, pas de scène ; un élément immobile seul dans sa section a quand même sa ligne", () => {
     expect(sceneView(base, undefined)).toBeUndefined();
     const v = sceneView(base, "cta_t")!;

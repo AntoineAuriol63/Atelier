@@ -1,6 +1,7 @@
 import type { Appearance, Site } from "@atelier/model";
 import { appearanceOf, indexSite, inheritedAppearance, trackSpan } from "@atelier/model";
 import { sceneElements, whenLabel, whenShortLabel, type SceneElement } from "./timeline";
+import { nodeLabel } from "@/components/node-icons";
 
 /**
  * L'outil Animation recentré (24 septembre 2026) : la scène d'une section, une ligne par élément dans l'ordre de la page.
@@ -48,7 +49,10 @@ export function sceneView(site: Site, selectedId: string | undefined): SceneView
   if (!sectionId) return undefined;
   const index = indexSite(site);
   const section = index.get(sectionId)!.node;
-  const elements = sceneElements(site, sectionId);
+  // La section elle-même (ou le bloc de premier niveau) a sa ligne quand elle bouge ou qu'on l'a sélectionnée : en tête, ses enfants en retrait.
+  // Sans cela, une section qui apparaît en fondu n'avait aucune ligne, et rien à régler (retour d'Antoine, 24 septembre 2026).
+  const own = appearanceOf(site, sectionId) || selectedId === sectionId;
+  const elements: SceneElement[] = own ? [{ id: sectionId, depth: 0, label: nodeLabel(section) }, ...sceneElements(site, sectionId).map((e) => ({ ...e, depth: e.depth + 1 }))] : sceneElements(site, sectionId);
   const launches = new Map<string, SceneLaunch>();
   let total = 0;
   const rows: SceneRow[] = elements.map((e) => {
