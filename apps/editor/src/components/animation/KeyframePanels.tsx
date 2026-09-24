@@ -10,7 +10,7 @@ type Commit = (op: Op, opts?: CommitOptions) => void;
 export function KeyframePanels({ site, getSite, node, bp, mode, animationId, track, at, commit }: { site: Site; getSite: () => Site; node: Node; bp: string; mode?: string; animationId: string; track: Track; at: number; commit: Commit }) {
   const style = useKeyframeStyle(site, getSite, node, bp, animationId, track, at, commit);
   return (
-    <div className="flex flex-col -mx-3 border-t border-line">
+    <div className="flex flex-col border-t border-line" data-keyframe-panels="">
       <MotionPanel site={site} style={style} />
       <EffectsPanel site={site} style={style} defaultOpen={false} />
       <AppearancePanel site={site} style={style} mode={mode} defaultOpen={false} />

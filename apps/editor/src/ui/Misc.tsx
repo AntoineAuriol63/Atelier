@@ -5,9 +5,9 @@ export function Kbd({ children }: { children: ReactNode }) {
   return <kbd className="inline-flex items-center h-4 px-1 rounded-xs bg-raised text-2xs text-muted font-sans border border-line-strong">{children}</kbd>;
 }
 
-export function Badge({ tone = "neutral", children, title }: { tone?: "neutral" | "success" | "warning" | "danger" | "accent"; children: ReactNode; title?: string }) {
+export function Badge({ tone = "neutral", children, title, className }: { tone?: "neutral" | "success" | "warning" | "danger" | "accent"; children: ReactNode; title?: string; className?: string }) {
   const cls = { neutral: "bg-surface text-muted", success: "bg-success-soft text-success", warning: "bg-warning-soft text-warning", danger: "bg-danger-soft text-danger", accent: "bg-accent-soft text-accent" }[tone];
-  return <span title={title} className={cx("inline-flex items-center h-5 px-1.5 rounded-xs text-2xs font-medium whitespace-nowrap", cls)}>{children}</span>;
+  return <span title={title} className={cx("inline-flex items-center h-5 px-1.5 rounded-xs text-2xs font-medium whitespace-nowrap", cls, className)}>{children}</span>;
 }
 
 export function Separator({ vertical }: { vertical?: boolean }) {

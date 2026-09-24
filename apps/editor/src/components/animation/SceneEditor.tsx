@@ -2,10 +2,10 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Diamond, ExternalLink, Link2, Pause, Play, Plus, SkipBack, SlidersHorizontal, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Clock, Diamond, ExternalLink, Link2, Pause, Play, Plus, SkipBack, SlidersHorizontal, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { CommitOptions, Node, Op, Site } from "@atelier/model";
 import { ANIMATION_PRESETS, TRIGGER_LABELS, animationUsages, appearanceOf, applyOps, indexSite, keyframeAt, newId, planAddTrigger, planAppearanceStart, planChainInOrder, planQuickAnimation, planAppearanceDelay, planAppearanceDuration, planAppearancePreset, planRemoveKeyframes, planRemoveTriggerWithAnimation, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUpdateTrigger, trackPresetMatch } from "@atelier/model";
-import { Badge, Button, Eyebrow, Hint, IconButton, PanelHeading, Select } from "@/ui";
+import { Badge, Button, Eyebrow, Hint, IconButton, Select } from "@/ui";
 import { formatMs, quoteLabel, rulerTicks, snapTime, summarizeAnimation, tickLabel } from "@/lib/timeline";
 import { sceneView, type SceneLaunch, type SceneRow } from "@/lib/scene-view";
 import { nodeLabel } from "../node-icons";
@@ -271,15 +271,16 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
     <div className="grid grid-cols-[minmax(0,1fr)_360px] h-full min-h-0 min-w-0" data-scene-editor="" data-scene-zoom={String(zoom)}>
       {/* Colonne de la scène : à requêtes de conteneur, les noms et le libellé « Tester sur le site » se resserrent quand la place manque. */}
       <div className="@container flex flex-col min-h-0 min-w-0 border-r border-line">
-        <div className="flex items-center gap-2 px-3 h-9 shrink-0 border-b border-line">
-          <Eyebrow as="span">Scène</Eyebrow>
-          <span className="text-sm font-medium truncate max-w-[180px] shrink-0">{view.sectionLabel}</span>
-          <Badge title="Fin du dernier mouvement">{formatMs(view.total)}</Badge>
-          {grouped ? <Badge tone="warning" title="Chaque lancement compte son temps depuis sa propre entrée à l'écran ; « Tout enchaîner » les réunit, ou glissez une ligne sous un autre lancement">{view.launches.length} lancements</Badge> : null}
-          <span className="mx-1 h-4 w-px bg-line" aria-hidden />
-          <IconButton size="sm" label="Revenir au début" icon={SkipBack} onClick={() => { cancelAnimationFrame(raf.current); setPlaying(false); place(0); }} />
-          <Button size="sm" variant={playing ? "default" : "primary"} icon={playing ? Pause : Play} title={playing ? "Arrête la lecture ici" : "Joue la scène dans l'aperçu, la tête de lecture suit"} onClick={() => (playing ? pausePlay() : startPlay())}>{playing ? "Pause" : "Lire"}</Button>
-          {onTestOnSite ? <Button size="sm" variant="ghost" icon={ExternalLink} aria-label="Tester sur le site" onClick={() => onTestOnSite(ap && !ap.page ? ap.hostId : selected.id)} title="Ouvre l'onglet Aperçu : la section arrive à l'écran comme pour un visiteur"><span className="hidden @[640px]:inline">Tester sur le site</span></Button> : null}
+        {/* L'en-tête se resserre avec la colonne (le nom se tronque, la durée se cache) et ne déborde jamais sur la colonne de droite. */}
+        <div className="flex items-center gap-2 px-3 h-9 shrink-0 border-b border-line min-w-0 overflow-hidden">
+          <Eyebrow as="span" className="shrink-0 hidden @[420px]:inline">Scène</Eyebrow>
+          <span className="text-sm font-medium truncate min-w-[40px] max-w-[180px]" title={view.sectionLabel}>{view.sectionLabel}</span>
+          <span className="hidden @[640px]:contents"><Badge title="Fin du dernier mouvement">{formatMs(view.total)}</Badge></span>
+          {grouped ? <span className="hidden @[520px]:contents"><Badge tone="warning" className="shrink-0" title="Chaque lancement compte son temps depuis sa propre entrée à l'écran ; « Tout enchaîner » les réunit, ou glissez une ligne sous un autre lancement">{view.launches.length} lancements</Badge></span> : null}
+          <span className="mx-1 h-4 w-px bg-line shrink-0" aria-hidden />
+          <span className="hidden @[480px]:contents"><IconButton size="sm" className="shrink-0" label="Revenir au début" icon={SkipBack} onClick={() => { cancelAnimationFrame(raf.current); setPlaying(false); place(0); }} /></span>
+          <Button size="sm" className="shrink-0" variant={playing ? "default" : "primary"} icon={playing ? Pause : Play} title={playing ? "Arrête la lecture ici" : "Joue la scène dans l'aperçu, la tête de lecture suit"} onClick={() => (playing ? pausePlay() : startPlay())}>{playing ? "Pause" : "Lire"}</Button>
+          {onTestOnSite ? <Button size="sm" className="shrink-0" variant="ghost" icon={ExternalLink} aria-label="Tester sur le site" onClick={() => onTestOnSite(ap && !ap.page ? ap.hostId : selected.id)} title="Ouvre l'onglet Aperçu : la section arrive à l'écran comme pour un visiteur"><span className="hidden @[640px]:inline">Tester sur le site</span></Button> : null}
           <span className="ml-auto text-xs tabular-nums text-muted whitespace-nowrap hidden @[560px]:inline">{playhead !== null ? `${tickLabel(playhead)} ms` : ""}</span>
           <IconButton size="sm" className="ml-auto @[560px]:ml-0 shrink-0" label="Fermer l'outil Animation" icon={X} onClick={onClose} />
         </div>
@@ -394,63 +395,73 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
 
       {/* La colonne de droite du tiroir, de la largeur de l'inspecteur : le temps de l'élément sélectionné. L'effet (fondu, zoom…) et la vitesse
           se choisissent dans l'inspecteur, rubrique Animation ; ici, quand il part, ses états, et la ligne elle-même. */}
-      <div className="flex flex-col gap-3 p-3 min-h-0 overflow-auto" data-scene-side="">
-        <div className="flex flex-col gap-1">
-          <PanelHeading className="px-0">{ap ? `Ligne de temps de ${quoteLabel(nodeLabel(selected))}` : nodeLabel(selected)}</PanelHeading>
-          {ap ? (
-            <div className="flex items-center gap-2 text-xs text-muted">
-              <span className="truncate">Effet : {ap.preset?.label ?? (ap.origin ? `${ap.origin.label} retouché` : "composé à la main")}{ap.speed !== "custom" ? ` · ${ap.speed === "fast" ? "rapide" : ap.speed === "slow" ? "lente" : "normale"}` : ""}</span>
-              <button type="button" className="ml-auto shrink-0 inline-flex items-center gap-1 text-accent hover:underline" title="L'effet et la vitesse se choisissent dans l'inspecteur, à droite de l'aperçu, rubrique Animation" onClick={() => { for (const t of ["Animations", "Animation"]) window.dispatchEvent(new CustomEvent("atelier:reveal-section", { detail: t })); window.setTimeout(() => document.querySelector('[data-section="Animations"], [data-section="Animation"]')?.scrollIntoView({ block: "start" }), 60); }}><SlidersHorizontal size={12} aria-hidden />Changer l&apos;effet</button>
+      {/* Colonne de droite, deux zones bien séparées : la ligne de temps de l'élément (quand elle part, son délai, si elle rejoue), puis l'état à la tête
+          de lecture, sous un en-tête collant teinté du même jaune que le losange actif sur la ligne. Aucune marge négative : rien ne déborde de côté. */}
+      <div className="flex flex-col min-h-0 overflow-y-auto overflow-x-hidden" data-scene-side="">
+        <section className="flex flex-col gap-3 p-3" data-scene-line="" aria-label="Ligne de temps">
+          <div className="flex flex-col gap-1 min-w-0">
+            <div className="flex items-center gap-1.5"><Clock size={12} className="text-dim shrink-0" aria-hidden /><Eyebrow as="h2">{ap ? "Ligne de temps" : "Élément"}</Eyebrow></div>
+            <div className="text-sm font-medium truncate" title={nodeLabel(selected)}>{nodeLabel(selected)}</div>
+            {ap ? (
+              <div className="flex items-center gap-2 text-xs text-muted min-w-0">
+                <span className="truncate" title={`Effet : ${ap.preset?.label ?? (ap.origin ? `${ap.origin.label} retouché` : "composé à la main")}`}>Effet : {ap.preset?.label ?? (ap.origin ? `${ap.origin.label} retouché` : "composé à la main")}{ap.speed !== "custom" ? ` · ${ap.speed === "fast" ? "rapide" : ap.speed === "slow" ? "lente" : "normale"}` : ""}</span>
+                <button type="button" className="ml-auto shrink-0 inline-flex items-center gap-1 text-accent hover:underline" title="L'effet et la vitesse se choisissent dans l'inspecteur, à droite de l'aperçu, rubrique Animation" onClick={() => { for (const t of ["Animations", "Animation"]) window.dispatchEvent(new CustomEvent("atelier:reveal-section", { detail: t })); window.setTimeout(() => document.querySelector('[data-section="Animations"], [data-section="Animation"]')?.scrollIntoView({ block: "start" }), 60); }}><SlidersHorizontal size={12} aria-hidden />Changer l&apos;effet</button>
+              </div>
+            ) : null}
+          </div>
+          <QuickAnimations site={site} node={selected} commit={commit} onPlay={(triggerId, hostId) => onPlay(triggerId, hostId ?? selected.id)} onTestOnSite={onTestOnSite} onSelectNode={onSelect} variant={ap ? "timing" : "full"} />
+          {reusable.length ? (
+            <div className="flex flex-col gap-1 min-w-0">
+              <Eyebrow as="span">Comme un autre élément</Eyebrow>
+              <Select value="" placeholder="Réutiliser une animation du site…" options={reusable.map(({ a, u }) => ({ value: a.id, label: `${a.name} · ${nodeLabel(u!.node!)} · ${TRIGGER_LABELS[u!.trigger.on].toLowerCase()}` }))}
+                onValueChange={(v) => { const r = reusable.find((x) => x.a.id === v); if (!r) return; run(planAddTrigger(selected, { id: newId(), on: r.u!.trigger.on, animation: r.a.id, ...(r.u!.trigger.once === false ? { once: false } : {}), ...(r.u!.trigger.reverseOnLeave ? { reverseOnLeave: true } : {}) }), `Réutiliser « ${r.a.name} »`); }} />
+              <Hint>La même animation, partagée : la retoucher sur un élément la change pour tous.</Hint>
             </div>
           ) : null}
-        </div>
-        <QuickAnimations site={site} node={selected} commit={commit} onPlay={(triggerId, hostId) => onPlay(triggerId, hostId ?? selected.id)} onTestOnSite={onTestOnSite} onSelectNode={onSelect} variant={ap ? "timing" : "full"} />
-        {reusable.length ? (
-          <div className="flex flex-col gap-1">
-            <Eyebrow as="span">Comme un autre élément</Eyebrow>
-            <Select value="" placeholder="Réutiliser une animation du site…" options={reusable.map(({ a, u }) => ({ value: a.id, label: `${a.name} · ${nodeLabel(u!.node!)} · ${TRIGGER_LABELS[u!.trigger.on].toLowerCase()}` }))}
-              onValueChange={(v) => { const r = reusable.find((x) => x.a.id === v); if (!r) return; run(planAddTrigger(selected, { id: newId(), on: r.u!.trigger.on, animation: r.a.id, ...(r.u!.trigger.once === false ? { once: false } : {}), ...(r.u!.trigger.reverseOnLeave ? { reverseOnLeave: true } : {}) }), `Réutiliser « ${r.a.name} »`); }} />
-            <Hint>La même animation, partagée : la retoucher sur un élément la change pour tous.</Hint>
-          </div>
-        ) : null}
-        {others.length ? (
-          <section className="flex flex-col gap-2 border-t border-line pt-3" aria-label="Déclencheurs" data-scene-triggers="">
-            <Eyebrow as="span">Déclencheurs</Eyebrow>
-            {others.map((t) => (
-              <div key={t.id} className="flex flex-col gap-1.5 rounded-sm border border-line p-2">
-                <div className="flex items-start gap-1">
-                  <span className="flex-1 text-xs text-ink leading-snug">{summarizeAnimation(site, t, selected.id)}</span>
-                  <IconButton size="sm" label={`Retirer « ${TRIGGER_LABELS[t.on]} »`} icon={Trash2} onClick={() => run(planRemoveTriggerWithAnimation(getSite(), selected, t.id), "Retirer le déclencheur")} />
+          {others.length ? (
+            <div className="flex flex-col gap-2 border-t border-line pt-3" data-scene-triggers="">
+              <Eyebrow as="h3">Déclencheurs</Eyebrow>
+              {others.map((t) => (
+                <div key={t.id} className="flex flex-col gap-1.5 rounded-sm border border-line p-2 min-w-0">
+                  <div className="flex items-start gap-1">
+                    <span className="flex-1 min-w-0 text-xs text-ink leading-snug">{summarizeAnimation(site, t, selected.id)}</span>
+                    <IconButton size="sm" label={`Retirer « ${TRIGGER_LABELS[t.on]} »`} icon={Trash2} onClick={() => run(planRemoveTriggerWithAnimation(getSite(), selected, t.id), "Retirer le déclencheur")} />
+                  </div>
+                  <TriggerSettings trigger={t} onUpdate={(patch, label, key) => run(planUpdateTrigger(selected, t.id, patch), label, key)} />
                 </div>
-                <TriggerSettings trigger={t} onUpdate={(patch, label, key) => run(planUpdateTrigger(selected, t.id, patch), label, key)} />
-              </div>
-            ))}
-          </section>
-        ) : null}
-        <section className="flex flex-col gap-2 border-t border-line pt-3" aria-label="État de l'élément" data-scene-keyframe="">
-          {!ap ? (
-            <Hint>Faites d&apos;abord apparaître {quoteLabel(nodeLabel(selected))} : choisissez une Apparition ci-dessus, ou « + Faire apparaître » sur sa ligne. Ses états s&apos;ajouteront ici.</Hint>
-          ) : (<>
-            <PanelHeading className="px-0" actions={
-              <div className="flex items-center gap-0.5">
-                <Button size="sm" variant="ghost" icon={Plus} aria-label="Ajouter un état ici (une image-clé)" title={at === null ? "Cliquez d'abord la règle pour choisir l'instant" : kfHere ? "L'état est déjà fixé à cet instant" : `Enregistre l'état de l'élément à ${tickLabel(playhead!)} ms (une image-clé)`} disabled={at === null || !!kfHere} onClick={addKeyframe}>Ajouter un état ici</Button>
+              ))}
+            </div>
+          ) : null}
+          {ap ? <Button size="sm" variant="ghost" icon={Trash2} className="self-start text-danger" data-scene-remove-line="" onClick={removeLine} title="L'élément ne bouge plus ; ce qui démarrait après lui se raccroche">Retirer la ligne de temps</Button> : null}
+        </section>
+        <section className="flex flex-col border-t-2 border-line-strong" aria-label="État de l'élément" data-scene-keyframe="" data-state={!ap ? "none" : at === null ? "off" : kfHere ? "on" : "between"}>
+          <div className={`sticky top-0 z-10 flex items-center gap-2 px-3 h-11 border-b border-line ${kfHere ? "bg-[color-mix(in_oklab,var(--color-warning)_14%,var(--color-panel))]" : "bg-surface"}`}>
+            <Diamond size={12} fill={kfHere ? "currentColor" : "none"} strokeWidth={2} className={`shrink-0 ${kfHere ? "text-warning" : "text-dim"}`} aria-hidden />
+            <div className="flex flex-col flex-1 min-w-0 leading-tight">
+              <h2 className="m-0 text-xs font-medium truncate" data-scene-state-heading="">{!ap || at === null ? "État de l'élément" : kfHere ? `État à ${tickLabel(playhead!)} ms` : `Instant ${tickLabel(playhead!)} ms`}</h2>
+              <span className="text-2xs text-muted truncate">{!ap ? "Il ne bouge pas encore" : at === null ? "Cliquez la règle ou un losange pour choisir un instant" : kfHere ? "L'élément à cet instant" : "Aucun état ici : réglez une propriété, il s'ajoute"}</span>
+            </div>
+            {ap ? (
+              <div className="flex items-center gap-0.5 shrink-0">
+                <Button size="sm" variant="ghost" icon={Plus} aria-label="Ajouter un état ici (une image-clé)" title={at === null ? "Cliquez d'abord la règle pour choisir l'instant" : kfHere ? "L'état est déjà fixé à cet instant" : `Enregistre l'état de l'élément à ${tickLabel(playhead!)} ms (une image-clé)`} disabled={at === null || !!kfHere} onClick={addKeyframe}>Ajouter un état</Button>
                 <IconButton size="sm" label="Supprimer l'état (image-clé)" icon={Trash2} tone="danger" disabled={!kfHere} onClick={() => kfHere && removeKeyframe(at!)} />
-              </div>}>
-              {at === null ? "État de l'élément" : kfHere ? `◆ État à ${tickLabel(playhead!)} ms` : `Instant ${tickLabel(playhead!)} ms`}
-            </PanelHeading>
-            {at === null ? <Hint>Cliquez la règle ou un losange pour vous placer à un instant : ce qui se règle ici y ajoute un état de l&apos;élément (une image-clé).</Hint> : (<>
-              {kfHere && prevKf ? (
-                <div className="grid grid-cols-[80px_1fr] items-start gap-1.5">
-                  <span className="text-xs text-muted pt-1.5" title="Courbe pour atteindre cette image-clé depuis la précédente">Courbe</span>
-                  <EasingField value={kfHere.easing} segment={at - prevKf.at} onChange={(e) => run(planSetKeyframeEasing(getSite(), ap.animation.id, ap.track.id, at, e), "Courbe du segment", `kf-ease:${ap.animation.id}:${ap.track.id}:${at}`)} />
-                </div>
-              ) : null}
-              {!kfHere ? <Hint>Aucun état à cet instant : « Ajouter un état ici », ou réglez une propriété ci-dessous, il s&apos;ajoute.</Hint> : null}
-              <KeyframePanels site={site} getSite={getSite} node={selected} bp={bp} mode={mode} animationId={ap.animation.id} track={ap.track} at={at} commit={commit} />
-            </>)}
+              </div>
+            ) : null}
+          </div>
+          {!ap ? (
+            <div className="p-3"><Hint>Faites d&apos;abord apparaître {quoteLabel(nodeLabel(selected))} : choisissez une Apparition ci-dessus, ou « + Faire apparaître » sur sa ligne. Ses états s&apos;ajouteront ici.</Hint></div>
+          ) : at === null ? (
+            <div className="p-3"><Hint>Cliquez la règle ou un losange pour vous placer à un instant : ce qui se règle ici y ajoute un état de l&apos;élément (une image-clé).</Hint></div>
+          ) : (<>
+            {kfHere && prevKf ? (
+              <div className="grid grid-cols-[80px_1fr] items-start gap-1.5 px-3 py-2">
+                <span className="text-xs text-muted pt-1.5" title="Courbe pour atteindre cette image-clé depuis la précédente">Courbe</span>
+                <EasingField value={kfHere.easing} segment={at - prevKf.at} onChange={(e) => run(planSetKeyframeEasing(getSite(), ap.animation.id, ap.track.id, at, e), "Courbe du segment", `kf-ease:${ap.animation.id}:${ap.track.id}:${at}`)} />
+              </div>
+            ) : null}
+            <KeyframePanels site={site} getSite={getSite} node={selected} bp={bp} mode={mode} animationId={ap.animation.id} track={ap.track} at={at} commit={commit} />
           </>)}
         </section>
-        {ap ? <Button size="sm" variant="ghost" icon={Trash2} className="self-start text-danger" data-scene-remove-line="" onClick={removeLine} title="L'élément ne bouge plus ; ce qui démarrait après lui se raccroche">Retirer la ligne de temps</Button> : null}
       </div>
     </div>
   );
