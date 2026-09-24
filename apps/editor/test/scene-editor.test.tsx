@@ -192,11 +192,17 @@ describe("tiroir Animation : la scène", () => {
     expect(m.host.querySelector('[data-scene-row="hh2"]')!.textContent).toContain("Faire apparaître");
   });
 
-  it("à droite : les réglages de l'élément (Apparition, Vitesse, Démarre, Délai) et l'image-clé à la tête de lecture", () => {
+  it("à droite : le temps de l'élément (Démarre, Délai, Rejouer), pas son effet ni sa vitesse qui restent dans l'inspecteur, et l'état à la tête de lecture", () => {
     const m = mount(animated(), "hh2");
-    expect(m.text()).toContain("Apparition");
-    expect(m.text()).toContain("Démarre");
-    expect(m.text()).toContain("Délai");
+    const side = m.host.querySelector("[data-scene-side]")!;
+    // Un nom qui porte déjà des guillemets n'en reçoit pas d'autres (quoteLabel).
+    expect(side.textContent).toContain("Ligne de temps de Titre 2 « Une cuisine »");
+    expect(side.textContent).toContain("Effet : Fondu en montant");
+    expect(side.textContent).toContain("Changer l'effet");
+    expect(side.textContent).toContain("Démarre");
+    expect(side.textContent).toContain("Délai");
+    expect(side.textContent).not.toContain("Vitesse");
+    expect([...side.querySelectorAll("select")].some((sel) => [...sel.options].some((o) => o.textContent === "Fondu en descendant"))).toBe(false);
     expect(m.host.querySelector("[data-scene-keyframe]")).toBeTruthy();
     expect(m.text()).toMatch(/État à/);
   });
@@ -262,6 +268,17 @@ describe("tiroir Animation : la scène", () => {
     // React déduit la sortie du survol de « mouseout » vers un autre élément.
     act(() => { lane.dispatchEvent(new MouseEvent("mouseout", { bubbles: true, relatedTarget: document.body })); });
     expect(pill()).toBeNull();
+  });
+
+  it("la ligne de temps d'un élément se retire d'un bouton, à côté du nom ou en bas des réglages", () => {
+    const m = mount(animated(), "hh2");
+    const btn = m.host.querySelector<HTMLButtonElement>('[data-scene-remove-line]')!;
+    expect(btn).toBeTruthy();
+    act(() => { btn.click(); });
+    expect(appearanceOf(m.current(), "hh2")).toBeUndefined();
+    m.rerender(m.current(), "hh2");
+    expect(m.host.querySelector('[data-scene-row="hh2"]')!.textContent).toContain("Faire apparaître");
+    expect(m.host.querySelector('[data-scene-remove-line]')).toBeNull();
   });
 
   it("sans élément sélectionné : une invitation, pas de scène", () => {

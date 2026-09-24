@@ -2,9 +2,9 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Diamond, ExternalLink, Pause, Play, Plus, SkipBack, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
+import { Diamond, ExternalLink, Pause, Play, Plus, SkipBack, SlidersHorizontal, Trash2, X, ZoomIn, ZoomOut } from "lucide-react";
 import type { CommitOptions, Node, Op, Site } from "@atelier/model";
-import { ANIMATION_PRESETS, TRIGGER_LABELS, animationUsages, appearanceOf, applyOps, indexSite, keyframeAt, newId, planAddTrigger, planAppearanceStart, planQuickAnimation, planAppearanceDelay, planAppearanceDuration, planRemoveKeyframes, planRemoveTriggerWithAnimation, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUpdateTrigger, trackPresetMatch } from "@atelier/model";
+import { ANIMATION_PRESETS, TRIGGER_LABELS, animationUsages, appearanceOf, applyOps, indexSite, keyframeAt, newId, planAddTrigger, planAppearanceStart, planQuickAnimation, planAppearanceDelay, planAppearanceDuration, planAppearancePreset, planRemoveKeyframes, planRemoveTriggerWithAnimation, planSetKeyframe, planSetKeyframeEasing, planShiftKeyframes, planUpdateTrigger, trackPresetMatch } from "@atelier/model";
 import { Badge, Button, Eyebrow, Hint, IconButton, PanelHeading, Select } from "@/ui";
 import { formatMs, quoteLabel, rulerTicks, snapTime, summarizeAnimation, tickLabel } from "@/lib/timeline";
 import { sceneView, type SceneRow } from "@/lib/scene-view";
@@ -182,6 +182,8 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
   // La scène ne montre que ce qui bouge, plus l'élément sélectionné (retour d'Antoine : tout afficher était illisible) ; le reste s'ajoute par son nom.
   const visible = view.rows.filter((r) => r.bar || r.selected);
   const addable = view.rows.filter((r) => r.still && !r.selected);
+  // Retirer la ligne de temps de l'élément : son apparition s'en va, ce qui la suivait se raccroche, la ligne disparaît de la scène.
+  const removeLine = () => { if (!ap) return; run(planAppearancePreset(getSite(), selected.id, ""), `Retirer la ligne de temps de ${quoteLabel(nodeLabel(selected))}`); };
   const addKeyframe = () => { if (ap && at !== null) run(planSetKeyframe(getSite(), ap.animation.id, ap.track.id, at, {}), `État ajouté à ${at} ms`); };
   // « Ajouter un état », toujours à côté du nom : à la tête de lecture si elle est libre ; sinon à mi-chemin du prochain état, ou 200 ms après le dernier.
   const addKeyframeAnywhere = () => {
@@ -204,7 +206,7 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
   const others = (selected.triggers ?? []).filter((t) => t.id !== ap?.trigger.id && t.on !== "load" && t.on !== "inView");
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_minmax(260px,340px)] h-full min-h-0 min-w-0" data-scene-editor="" data-scene-zoom={String(zoom)}>
+    <div className="grid grid-cols-[minmax(0,1fr)_360px] h-full min-h-0 min-w-0" data-scene-editor="" data-scene-zoom={String(zoom)}>
       {/* Colonne de la scène : à requêtes de conteneur, les noms et le libellé « Tester sur le site » se resserrent quand la place manque. */}
       <div className="@container flex flex-col min-h-0 min-w-0 border-r border-line">
         <div className="flex items-center gap-2 px-3 h-9 shrink-0 border-b border-line">
@@ -229,7 +231,7 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
                   <button type="button" data-scene-name="" data-scene-name-of={row.id} className={`flex items-center gap-1.5 min-w-0 pr-2 text-left text-xs truncate ${row.selected ? "text-ink font-medium" : row.still ? "text-dim hover:text-ink" : "text-ink hover:text-accent"}`} style={{ paddingLeft: row.depth * 12 }} title={`Sélectionner ${quoteLabel(row.label)}`} onClick={() => onSelect(row.id)} onMouseEnter={() => onHover?.(row.id)} onMouseLeave={() => onHover?.(null)}>
                     <span className="truncate">{row.label}</span>{row.count ? <span className="text-muted shrink-0">×{row.count}</span> : null}
                   </button>
-                  {row.selected && row.bar ? <IconButton size="sm" className="ml-auto mr-1 shrink-0 h-6 w-6 text-muted" data-scene-new-state="" label="Ajouter un état (image-clé)" icon={Plus} title="Ajoute un état de l'élément : à la tête de lecture, ou juste après le dernier état si elle est déjà sur l'un d'eux" onClick={addKeyframeAnywhere} /> : null}
+                  {row.selected && row.bar ? <span className="ml-auto mr-1 flex items-center shrink-0"><IconButton size="sm" className="h-6 w-6 text-muted" data-scene-new-state="" label="Ajouter un état (image-clé)" icon={Plus} title="Ajoute un état de l'élément : à la tête de lecture, ou juste après le dernier état si elle est déjà sur l'un d'eux" onClick={addKeyframeAnywhere} /><IconButton size="sm" className="h-6 w-6 text-muted" data-scene-remove-line="" label="Retirer la ligne de temps" icon={Trash2} tone="danger" title="L'élément ne bouge plus ; ce qui démarrait après lui se raccroche" onClick={removeLine} /></span> : null}
                 </div>
               ))}
             </div>
@@ -317,9 +319,19 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 p-3 min-h-0 overflow-auto">
-        <PanelHeading className="px-0">{nodeLabel(selected)}</PanelHeading>
-        <QuickAnimations site={site} node={selected} commit={commit} onPlay={(triggerId, hostId) => onPlay(triggerId, hostId ?? selected.id)} onTestOnSite={onTestOnSite} onSelectNode={onSelect} />
+      {/* La colonne de droite du tiroir, de la largeur de l'inspecteur : le temps de l'élément sélectionné. L'effet (fondu, zoom…) et la vitesse
+          se choisissent dans l'inspecteur, rubrique Animation ; ici, quand il part, ses états, et la ligne elle-même. */}
+      <div className="flex flex-col gap-3 p-3 min-h-0 overflow-auto" data-scene-side="">
+        <div className="flex flex-col gap-1">
+          <PanelHeading className="px-0">{ap ? `Ligne de temps de ${quoteLabel(nodeLabel(selected))}` : nodeLabel(selected)}</PanelHeading>
+          {ap ? (
+            <div className="flex items-center gap-2 text-xs text-muted">
+              <span className="truncate">Effet : {ap.preset?.label ?? (ap.origin ? `${ap.origin.label} retouché` : "composé à la main")}{ap.speed !== "custom" ? ` · ${ap.speed === "fast" ? "rapide" : ap.speed === "slow" ? "lente" : "normale"}` : ""}</span>
+              <button type="button" className="ml-auto shrink-0 inline-flex items-center gap-1 text-accent hover:underline" title="L'effet et la vitesse se choisissent dans l'inspecteur, à droite de l'aperçu, rubrique Animation" onClick={() => { for (const t of ["Animations", "Animation"]) window.dispatchEvent(new CustomEvent("atelier:reveal-section", { detail: t })); window.setTimeout(() => document.querySelector('[data-section="Animations"], [data-section="Animation"]')?.scrollIntoView({ block: "start" }), 60); }}><SlidersHorizontal size={12} aria-hidden />Changer l&apos;effet</button>
+            </div>
+          ) : null}
+        </div>
+        <QuickAnimations site={site} node={selected} commit={commit} onPlay={(triggerId, hostId) => onPlay(triggerId, hostId ?? selected.id)} onTestOnSite={onTestOnSite} onSelectNode={onSelect} variant={ap ? "timing" : "full"} />
         {reusable.length ? (
           <div className="flex flex-col gap-1">
             <Eyebrow as="span">Comme un autre élément</Eyebrow>
@@ -365,6 +377,7 @@ export function SceneEditor({ site, getSite, selectedId, bp, mode, commit, onSel
             </>)}
           </>)}
         </section>
+        {ap ? <Button size="sm" variant="ghost" icon={Trash2} className="self-start text-danger" data-scene-remove-line="" onClick={removeLine} title="L'élément ne bouge plus ; ce qui démarrait après lui se raccroche">Retirer la ligne de temps</Button> : null}
       </div>
     </div>
   );

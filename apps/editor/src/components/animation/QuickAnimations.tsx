@@ -42,7 +42,7 @@ function Row({ label, title, children }: { label: string; title?: string; childr
  * L'apparition se règle entièrement ici (tests simulés du 14 septembre, lot 1) : effet, vitesse, ce qui la fait démarrer (l'élément
  * lui-même, ou la fin d'un autre élément : « après « Titre » »), délai, rejouer, détail ; un enchaînement est une seule animation.
  */
-export function QuickAnimations({ site, node, commit, onOpenAnimation, onPlay, onTestOnSite, onSelectNode }: { site: Site; node: Node; commit: Commit; onOpenAnimation?: () => void; onPlay?: PlayFn; onTestOnSite?: (nodeId?: string) => void; onSelectNode?: (id: string) => void }) {
+export function QuickAnimations({ site, node, commit, onOpenAnimation, onPlay, onTestOnSite, onSelectNode, variant = "full" }: { site: Site; node: Node; commit: Commit; onOpenAnimation?: () => void; onPlay?: PlayFn; onTestOnSite?: (nodeId?: string) => void; onSelectNode?: (id: string) => void; /** « timing » : seulement quand l'apparition part et si elle rejoue (le tiroir Animation) ; l'effet et la vitesse restent dans l'inspecteur. */ variant?: "full" | "timing" }) {
   // Aperçu immédiat : après un choix, ce qu'il lance est joué une fois dans le canevas (cadrage : « on doit voir ce qu'on règle »).
   const pending = useRef<QuickGroup | null>(null);
   const playRef = useRef(onPlay);
@@ -69,6 +69,7 @@ export function QuickAnimations({ site, node, commit, onOpenAnimation, onPlay, o
   const scene = node.children?.length ? sceneOf(site, node.id) : undefined;
   const sceneContainer = scene ? undefined : sceneContainerFor(site, node.id);
   const sceneContainerLabel = sceneContainer ? quoteLabel(nodeLabel(indexSite(site).get(sceneContainer)!.node)) : "";
+  if (variant === "timing") return <FieldGroup><AppearanceFields site={site} node={node} run={run} onSelectNode={onSelectNode} timing /></FieldGroup>;
   return (
     <FieldGroup>
       {scene ? (
@@ -112,7 +113,7 @@ export function QuickAnimations({ site, node, commit, onOpenAnimation, onPlay, o
 
 
 /** L'apparition de l'élément : effet, vitesse, démarrage, délai, rejouer, phrase de résumé et détail (lettres, enfants). */
-function AppearanceFields({ site, node, run, onPlay, onSelectNode }: { site: Site; node: Node; run: Run; onPlay?: PlayFn; onSelectNode?: (id: string) => void }) {
+function AppearanceFields({ site, node, run, onPlay, onSelectNode, timing = false }: { site: Site; node: Node; run: Run; onPlay?: PlayFn; onSelectNode?: (id: string) => void; timing?: boolean }) {
   const index = indexSite(site);
   const ap = appearanceOf(site, node.id, index);
   // Sans apparition propre, il arrive peut-être avec un autre élément (la carte d'une liste) : on le dit au lieu d'« Aucune » (tests simulés, PR3).
@@ -143,7 +144,7 @@ function AppearanceFields({ site, node, run, onPlay, onSelectNode }: { site: Sit
   const len = ap ? trackSpan(ap.track).end - ap.start : 0;
   return (
     <>
-      <Field label="Apparition" hint={ap && !ap.preset ? "L'élément arrive. Retouchée dans l'outil Animation : choisir un préréglage la remplace, en gardant son départ." : "L'élément arrive quand il entre dans l'écran, ou après un autre élément"}>
+      {timing ? null : <Field label="Apparition" hint={ap && !ap.preset ? "L'élément arrive. Retouchée dans l'outil Animation : choisir un préréglage la remplace, en gardant son départ." : "L'élément arrive quand il entre dans l'écran, ou après un autre élément"}>
         <div className="flex items-center gap-1 min-w-0">
           <Select className="flex-1 min-w-0" value={choice.value} options={choice.options} onValueChange={(v) => {
             if (v === "custom" || v === choice.value) return;
@@ -151,9 +152,9 @@ function AppearanceFields({ site, node, run, onPlay, onSelectNode }: { site: Sit
           }} />
           {ap && onPlay ? <Button size="sm" variant="ghost" icon={Play} title="Joue l'apparition dans l'aperçu" onClick={() => onPlay(ap.trigger.id, ap.hostId)}>Voir l&apos;effet</Button> : null}
         </div>
-      </Field>
+      </Field>}
       {/* Une scène en un geste (lot 7 ; lot 8 : nommé et placé sous l'effet, personne ne l'avait trouvé) : les voisins qui suivent reçoivent la même apparition, l'un après l'autre. */}
-      {ap ? (() => { const siblings = index.get(node.id)?.parent?.children ?? []; const following = siblings.slice(siblings.indexOf(node) + 1).filter((n) => !appearanceOf(site, n.id, index)); if (!following.length) return null;
+      {ap && !timing ? (() => { const siblings = index.get(node.id)?.parent?.children ?? []; const following = siblings.slice(siblings.indexOf(node) + 1).filter((n) => !appearanceOf(site, n.id, index)); if (!following.length) return null;
         const names = following.map((n) => labelOf(n.id)); const list = names.length > 1 ? `${names.slice(0, -1).join(", ")} et ${names[names.length - 1]}` : names[0];
         return (
           <Field label="" hint="Copie l'effet de cet élément sur ceux qui le suivent">
@@ -161,7 +162,7 @@ function AppearanceFields({ site, node, run, onPlay, onSelectNode }: { site: Sit
           </Field>
         ); })() : null}
       {/* Le groupe de l'élément (lot 8, vague 4 PR2) : depuis un chiffre ou une carte, on règle les trois d'un coup, sans avoir à atteindre le groupe. */}
-      {(() => {
+      {timing ? null : (() => {
         const g = siblingGroup(site, node.id);
         if (!g) return null;
         const groupAp = appearanceOf(site, g.groupId, index);
@@ -188,7 +189,7 @@ function AppearanceFields({ site, node, run, onPlay, onSelectNode }: { site: Sit
       ) : null}
       {ap ? (
         <>
-          {ap.preset || ap.origin ? (
+          {timing ? null : ap.preset || ap.origin ? (
             <Row label="Vitesse" title="Vitesse de l'apparition, par rapport au préréglage ; ce qui démarre après elle suit">
               <Segmented size="sm" required label="Vitesse · Apparition" className="w-full" value={ap.speed === "custom" ? undefined : ap.speed} options={SPEEDS} onChange={(v) => { if (v) run(planAppearanceSpeed(site, node.id, v as QuickSpeed), `Apparition · ${SPEEDS.find((o) => o.value === v)?.label.toLowerCase()}`, "Apparition"); }} />
               {/* La durée se tape aussi (vague 4, N-11 : « quand une maquette dit 400 ms, il me faut un champ où taper 400 »). */}
@@ -207,7 +208,7 @@ function AppearanceFields({ site, node, run, onPlay, onSelectNode }: { site: Sit
             </Row>
           ) : null}
           <Field label=""><p className="text-2xs text-muted leading-snug" data-anim-summary="">{summarizeAnimation(site, ap.trigger, ap.hostId, !!ap.page)}</p></Field>
-          {canLetters || canChildren ? (
+          {(canLetters || canChildren) && !timing ? (
             <Field label="" hint="Faire arriver l'élément d'un bloc, ou ses morceaux un à un">
               {canLetters
                 ? <Toggle checked={ap.detail === "letters"} label="lettre par lettre" onChange={(b) => run(planAppearanceDetail(site, node.id, b ? "letters" : "one"), b ? "Apparition lettre par lettre" : "Apparition d'un bloc", "Apparition")} />
