@@ -51,3 +51,8 @@ Fait le 9 septembre 2026 sur `atelier-editor.vercel.app` : connexion par lien ma
 ## 5. Ce qui manque encore pour un client
 
 - Le domaine personnalisé d'un client (v1), l'export en projet Next.js (l'archive statique existe, D15), les sauvegardes planifiées.
+
+## Polices de l'éditeur
+
+Depuis le 25 septembre 2026, les polices de l'interface (IBM Plex Sans et Mono, sous-ensemble latin) sont dans le dépôt, `apps/editor/src/app/fonts/`, chargées par `next/font/local` : le build ne télécharge rien chez Google et réussit hors ligne. Pour changer de graisse ou de famille, déposer le fichier woff2 à côté et le déclarer dans les deux layouts (`(editor)` et `(auth)`), la licence OFL reste à côté des fichiers.
+
