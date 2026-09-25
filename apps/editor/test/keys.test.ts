@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect } from "vitest";
-import { insideAnimationTool, isEditableTarget, undoTarget } from "../src/lib/keys";
+import { FieldUndo, insideAnimationTool, isEditableTarget, undoTarget } from "../src/lib/keys";
 
 describe("raccourcis de l'éditeur", () => {
   it("une touche partie d'un champ appartient au champ, même s'il s'est quitté entre-temps (Entrée qui valide un nombre)", () => {
@@ -53,5 +53,27 @@ describe("⌘Z parti d'un champ de saisie", () => {
     // ⌘⇧Z (rétablir) suit la même règle, avec ce que le champ peut rétablir.
     expect(undoTarget(key(i, "z", true), (cmd) => cmd === "redo")).toBe("field");
     expect(undoTarget(key(i, "z", true), (cmd) => cmd === "undo")).toBe("document");
+  });
+});
+
+describe("ce qu'un champ peut annuler", () => {
+  it("un champ a quelque chose à annuler s'il a changé depuis qu'on y est entré ; à rétablir si le dernier ⌘Z lui a été laissé", () => {
+    document.body.innerHTML = `<input id="i" value="100"><input id="j" value="2">`;
+    const i = document.getElementById("i") as HTMLInputElement, j = document.getElementById("j") as HTMLInputElement;
+    const f = new FieldUndo();
+    f.enter(i);
+    expect(f.can("undo", i)).toBe(false);
+    i.value = "10";
+    expect(f.can("undo", i)).toBe(true);
+    expect(f.can("redo", i)).toBe(false);
+    // ⌘Z laissé au champ : le navigateur remet « 100 » ; le suivant va au document, mais ⌘⇧Z revient au champ.
+    f.left("undo"); i.value = "100";
+    expect(f.can("undo", i)).toBe(false);
+    expect(f.can("redo", i)).toBe(true);
+    // Un autre champ, ou aucun : rien à annuler dans le champ.
+    expect(f.can("undo", j)).toBe(false);
+    expect(f.can("undo", null)).toBe(false);
+    f.enter(j); j.value = "3";
+    expect(f.can("undo", j)).toBe(true);
   });
 });

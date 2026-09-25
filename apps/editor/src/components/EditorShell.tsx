@@ -10,7 +10,7 @@ import type { Inline } from "@atelier/model";
 import { useDocument } from "@/lib/use-document";
 import Link from "next/link";
 import { PRODUCT_NAME } from "@/lib/product";
-import { fieldCan, insideAnimationTool, isEditableTarget, mod, undoTarget } from "@/lib/keys";
+import { FieldUndo, insideAnimationTool, isEditableTarget, mod, undoTarget } from "@/lib/keys";
 import type { BlockPreset } from "@/lib/blocks";
 import { Badge, Breadcrumb, Button, Hint, IconButton, Panel, PanelHeading, Separator, Tabs, TreeRow, type DropIndicator, ConfirmProvider, askConfirm } from "@/ui";
 import { NodeInspector } from "./NodeInspector";
@@ -439,6 +439,13 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
     const anim = openTl ? animationById(site, openTl.animationId) : undefined;
     return { triggers: triggerHosts(treeRoot, treeRoot === page.root ? page : undefined), animated: anim && openTl ? animatedNodes(anim, openTl.hostId) : new Set<string>() };
   }, [animOpen, treeRoot, openTl, site, page]);
+  // Ce que le champ actif peut annuler : sa valeur à l'entrée, comparée à la touche (voir `FieldUndo`).
+  const fieldUndo = useRef(new FieldUndo());
+  useEffect(() => {
+    const onFocus = (e: FocusEvent) => { const el = e.target as HTMLElement | null; if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) fieldUndo.current.enter(el); };
+    window.addEventListener("focusin", onFocus);
+    return () => window.removeEventListener("focusin", onFocus);
+  }, []);
   useEffect(() => {
     type KeyLike = { key: string; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey?: boolean; preventDefault: () => void; fromPreview?: boolean; target?: EventTarget | null };
     const onKey = (e: KeyLike) => {
@@ -446,7 +453,10 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
       // Dans un champ de saisie, le clavier appartient au champ : ⌘Z annule la frappe, puis, quand il n'y a plus rien à annuler dans le champ,
       // l'opération d'Atelier ; il n'atteint jamais le navigateur (Safari rouvrirait l'onglet fermé). ⌘K n'ouvre pas la palette.
       if (!e.fromPreview && (isTyping() || isEditableTarget(e.target ?? null))) {
-        if (undoTarget({ ...e, target: e.target ?? document.activeElement }, fieldCan) === "document") { e.preventDefault(); if (e.shiftKey) doc.redo(); else doc.undo(); }
+        // (Pas de `{ ...e }` : sur un KeyboardEvent, `key` et `metaKey` sont des accesseurs du prototype, la copie les perd.)
+        const owner = undoTarget({ key: e.key, metaKey: e.metaKey, ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, target: e.target ?? document.activeElement }, (cmd) => fieldUndo.current.can(cmd, document.activeElement));
+        if (owner === "document") { e.preventDefault(); if (e.shiftKey) doc.redo(); else doc.undo(); }
+        else if (owner === "field") fieldUndo.current.left(e.shiftKey ? "redo" : "undo");
         return;
       }
       if (meta && e.key.toLowerCase() === "k") { e.preventDefault(); setPaletteOpen((o) => !o); return; }

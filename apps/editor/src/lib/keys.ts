@@ -30,7 +30,7 @@ export function insideAnimationTool(target: EventTarget | null): boolean {
  * ⌘Z (ou ⌘⇧Z) : à qui va la touche ? Partie d'un champ de saisie, au champ tant qu'il a une frappe à annuler (ou à rétablir), sinon au
  * document d'Atelier ; hors d'un champ, toujours au document. Jamais au navigateur : Safari, quand la page ne consomme pas ⌘Z, rouvre
  * le dernier onglet fermé (constat d'Antoine, 25 septembre 2026 : « ça revient à mon onglet précédent »). `null` : pas une touche d'annulation.
- * `canField(cmd)` dit si le champ peut annuler ou rétablir (`document.queryCommandEnabled`, qui peut manquer).
+ * `canField(cmd)` dit si le champ a quelque chose à annuler ou à rétablir (voir `FieldUndo`).
  */
 export function undoTarget(e: { key: string; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; target?: EventTarget | null }, canField: (cmd: "undo" | "redo") => boolean): "field" | "document" | null {
   if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return null;
@@ -38,7 +38,28 @@ export function undoTarget(e: { key: string; metaKey: boolean; ctrlKey: boolean;
   try { return canField(e.shiftKey ? "redo" : "undo") ? "field" : "document"; } catch { return "document"; }
 }
 
-/** Ce que le champ actif peut annuler ou rétablir, d'après le navigateur ; faux quand il ne sait pas dire. */
-export function fieldCan(cmd: "undo" | "redo"): boolean {
-  try { return document.queryCommandEnabled(cmd); } catch { return false; }
+/** La valeur d'un champ, pour savoir s'il a changé depuis qu'on y est entré. */
+export function fieldValue(el: Element | null): string {
+  if (!el) return "";
+  const h = el as HTMLInputElement;
+  return typeof h.value === "string" ? h.value : (el.textContent ?? "");
+}
+
+/**
+ * Ce qu'un champ peut annuler ou rétablir, sans demander au navigateur (`queryCommandEnabled` dit « oui » à tort dans Chrome) : le champ a
+ * quelque chose à annuler s'il a changé depuis qu'on y est entré ; quelque chose à rétablir si le dernier ⌘Z y a été laissé au navigateur.
+ */
+export class FieldUndo {
+  private el: Element | null = null;
+  private value = "";
+  private nativeUndo = false;
+  /** À l'entrée dans un champ. */
+  enter(el: Element | null) { this.el = el; this.value = fieldValue(el); this.nativeUndo = false; }
+  /** Le champ actif peut-il annuler (il a changé) ou rétablir (le dernier ⌘Z lui a été laissé) ? */
+  can(cmd: "undo" | "redo", active: Element | null): boolean {
+    if (!active || active !== this.el) return false;
+    return cmd === "undo" ? fieldValue(active) !== this.value : this.nativeUndo;
+  }
+  /** La touche a été laissée au champ. */
+  left(cmd: "undo" | "redo") { this.nativeUndo = cmd === "undo"; }
 }
