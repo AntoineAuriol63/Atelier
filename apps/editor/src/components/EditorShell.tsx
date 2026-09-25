@@ -10,7 +10,7 @@ import type { Inline } from "@atelier/model";
 import { useDocument } from "@/lib/use-document";
 import Link from "next/link";
 import { PRODUCT_NAME } from "@/lib/product";
-import { insideAnimationTool, isEditableTarget, mod } from "@/lib/keys";
+import { fieldCan, insideAnimationTool, isEditableTarget, mod, undoTarget } from "@/lib/keys";
 import type { BlockPreset } from "@/lib/blocks";
 import { Badge, Breadcrumb, Button, Hint, IconButton, Panel, PanelHeading, Separator, Tabs, TreeRow, type DropIndicator, ConfirmProvider, askConfirm } from "@/ui";
 import { NodeInspector } from "./NodeInspector";
@@ -443,8 +443,12 @@ export function EditorShell({ initialSite, initialVersion, initialEntries, role 
     type KeyLike = { key: string; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey?: boolean; preventDefault: () => void; fromPreview?: boolean; target?: EventTarget | null };
     const onKey = (e: KeyLike) => {
       const meta = e.metaKey || e.ctrlKey;
-      // Dans un champ de saisie, le clavier appartient au champ : ⌘Z annule la frappe, pas le document ; ⌘K n'ouvre pas la palette.
-      if (!e.fromPreview && (isTyping() || isEditableTarget(e.target ?? null))) return;
+      // Dans un champ de saisie, le clavier appartient au champ : ⌘Z annule la frappe, puis, quand il n'y a plus rien à annuler dans le champ,
+      // l'opération d'Atelier ; il n'atteint jamais le navigateur (Safari rouvrirait l'onglet fermé). ⌘K n'ouvre pas la palette.
+      if (!e.fromPreview && (isTyping() || isEditableTarget(e.target ?? null))) {
+        if (undoTarget({ ...e, target: e.target ?? document.activeElement }, fieldCan) === "document") { e.preventDefault(); if (e.shiftKey) doc.redo(); else doc.undo(); }
+        return;
+      }
       if (meta && e.key.toLowerCase() === "k") { e.preventDefault(); setPaletteOpen((o) => !o); return; }
       if (e.ctrlKey && !e.metaKey && e.key.toLowerCase() === "g") { e.preventDefault(); toggleGrid(); return; }
       if (paletteOpen) return;

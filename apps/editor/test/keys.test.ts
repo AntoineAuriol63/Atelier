@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect } from "vitest";
-import { insideAnimationTool, isEditableTarget } from "../src/lib/keys";
+import { insideAnimationTool, isEditableTarget, undoTarget } from "../src/lib/keys";
 
 describe("raccourcis de l'éditeur", () => {
   it("une touche partie d'un champ appartient au champ, même s'il s'est quitté entre-temps (Entrée qui valide un nombre)", () => {
@@ -35,5 +35,23 @@ describe("raccourcis de l'éditeur", () => {
     expect(insideAnimationTool(document.getElementById("in"))).toBe(true);
     expect(insideAnimationTool(document.getElementById("b"))).toBe(false);
     expect(insideAnimationTool(null)).toBe(false);
+  });
+});
+
+describe("⌘Z parti d'un champ de saisie", () => {
+  it("va au champ tant qu'il a une frappe à annuler, sinon au document ; jamais au navigateur (Safari rouvrirait l'onglet fermé)", () => {
+    document.body.innerHTML = `<input id="i"><button id="b">ok</button>`;
+    const key = (target: Element, key = "z", shiftKey = false) => ({ key, metaKey: true, ctrlKey: false, shiftKey, target });
+    const i = document.getElementById("i")!, b = document.getElementById("b")!;
+    expect(undoTarget(key(i), () => true)).toBe("field");
+    expect(undoTarget(key(i), () => false)).toBe("document");
+    expect(undoTarget(key(i), () => { throw new Error("pas de queryCommandEnabled"); })).toBe("document");
+    // Hors d'un champ, le document ; une autre touche, rien.
+    expect(undoTarget(key(b), () => true)).toBe("document");
+    expect(undoTarget(key(i, "x"), () => true)).toBeNull();
+    expect(undoTarget({ key: "z", metaKey: false, ctrlKey: false, shiftKey: false, target: i }, () => true)).toBeNull();
+    // ⌘⇧Z (rétablir) suit la même règle, avec ce que le champ peut rétablir.
+    expect(undoTarget(key(i, "z", true), (cmd) => cmd === "redo")).toBe("field");
+    expect(undoTarget(key(i, "z", true), (cmd) => cmd === "undo")).toBe("document");
   });
 });
