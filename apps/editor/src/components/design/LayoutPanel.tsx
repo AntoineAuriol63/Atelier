@@ -113,7 +113,8 @@ export function LayoutPanel({ site, style, parentDisplay, parentDirection, leaf 
         <Section title="Place dans son parent" defaultOpen={false} hint="Le parent de cet élément range ses enfants en ligne, en colonne ou en grille. Ici, vous réglez comment cet élément-ci s'y comporte.">
           {parentDisplay === "flex" ? (
             <>
-              {seg("flexGrow", "Espace libre", [{ value: "1", label: "Étendre" }, { value: "0", label: "Fixe" }])}
+              {/* « Étendre » = se partager la ligne à égalité : la base de largeur passe à zéro, sinon le surplus s'ajoute au contenu de chacun (25 septembre 2026). */}
+              {row("flexGrow", "Espace libre", <Segmented className="flex-1" value={str(s.value("flexGrow"))} options={[{ value: "1", label: "Étendre" }, { value: "0", label: "Fixe" }]} onChange={(v) => { s.set("flexGrow", v, false); s.set("flexBasis", v === "1" ? "0%" : undefined, false); }} />, true)}
               {seg("flexShrink", "Si ça manque", [{ value: "1", label: "Rétrécir" }, { value: "0", label: "Rigide" }])}
               {seg("alignSelf", "Aligner", [{ value: "auto", label: "Idem" }, ...(parentDirection === "column" ? ALIGN_H : ALIGN_V.slice(0, 4))])}
             </>

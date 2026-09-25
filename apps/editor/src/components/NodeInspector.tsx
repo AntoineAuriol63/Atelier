@@ -7,6 +7,7 @@ import type { CommitOptions, Inline, Node, NodeLocation, Op, Site, StyleValue, D
 import { BASE, appearanceOf, classMap, inheritedAppearance, planRemoveNode, cloneWithNewIds, newId, resolveNodeStyle, resolveSharedStyleSet, stylePath, variantKey } from "@atelier/model";
 import { Badge, Field, FieldGroup, Hint, IconButton, Section, TextArea, TextInput, Eyebrow } from "@/ui";
 import { nodeIcon, nodeLabel, TYPE_LABEL } from "./node-icons";
+import { placementOf } from "@/lib/placement";
 import { propLabel } from "@/lib/prop-labels";
 import { uniqueFieldName } from "@/lib/forms";
 import { AnimationsPanel, AppearancePanel, BindingPanel, CollectionPanel, ComponentPanel, EffectsPanel, FieldPanel, FormPanel, ImagePanel, InstancePanel, InteractionsPanel, LayoutPanel, LinkPanel, MakeComponentRow, PropBindingPanel, ResponsivePanel, SharedStylesPanel, SizePanel, SpacingPanel, STATE_LABEL, TagPanel, TypographyPanel, useStyle, type StyleTarget } from "./design";
@@ -299,7 +300,7 @@ export function NodeInspector({ site, loc, dataSource, activeBp, mode, onGoToBre
         <>
       <LayoutPanel site={site} node={node} style={style} parentDisplay={parentDisplay} parentDirection={parentDirection} leaf={!sharedDef && ["text", "image", "video", "divider", "icon", "embed", "field", "code"].includes(node.type)} />
       <SpacingPanel site={site} style={style} defaultOpen={node.type !== "text"} />
-      <SizePanel site={site} style={style} defaultOpen={node.type === "image" || node.type === "video"} />
+      <SizePanel site={site} style={style} defaultOpen={node.type === "image" || node.type === "video"} placement={placementOf(site, loc, activeBp)} onSelectNode={onSelectNode} />
       <TypographyPanel site={site} style={style} mode={mode} defaultOpen={node.type === "text" || node.type === "link"} />
       <AppearancePanel site={site} style={style} mode={mode} />
       <EffectsPanel site={site} style={style} node={sharedDef ? undefined : node} commit={commit} />
